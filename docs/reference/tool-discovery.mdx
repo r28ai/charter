@@ -1,0 +1,282 @@
+---
+title: "Tool discovery"
+description: "Sending a tool's schema when the model asks for it, not before."
+---
+
+A parameter schema is an order of magnitude larger than the thing it describes.
+The twelve shipped packs come to about 209,000 tokens of schema, while a trimmed
+tool result runs to roughly 1,300. Over 220 measured agent runs the model called
+3.6 of the 16.2 tools it was given, so most of that described calls that were
+never made.
+
+`ToolSession` sends a schema when the model asks for it. The contract does not
+change: a loaded tool is the same fully typed tool it would have been, validated
+against the same Pydantic schema. Nothing routes through a generic
+`execute(slug, arguments)`, and no tool is ever offered with a schema it does not
+have. Only the timing changes.
+
+## `ToolSession`
+
+The tools of one conversation, and which of their schemas have been sent.
+
+```python
+class ToolSession:
+    def __init__(
+        self,
+        tools: Iterable[Tool],
+        *,
+        progressive: bool = True,
+        threshold: int = 0,
+    ) -> None: ...
+```
+
+```python
+from charter import ToolSession
+from charter.adapters.openai import run
+from charter.packs import gmail, stripe
+
+session = ToolSession([*gmail.TOOLS, *stripe.TOOLS])
+```
+
+<Note>
+  Building a session sizes every tool's schema to decide what to defer, and
+  sizing one derives it. Constructing a session is therefore also
+  [`prepare`](/reference/tool#tool-prepare) for the tools it holds. On Linear's
+  128 that is about 2.5 seconds, synchronously, on whichever thread constructs
+  it. Build the session at startup, not per request. `progressive=False` skips
+  the sizing and leaves the tools to derive on first use.
+</Note>
+
+```python
+result = await run(
+    client,                                        # openai.AsyncOpenAI
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "..."}],
+    session=session,
+)
+print(result.content)
+```
+
+The loop has one requirement that is invisible when you get it wrong: the tool
+list has to be rebuilt on every turn. Build it once above the loop and a tool
+loaded by `ToolSearch` never reaches the model, which from outside looks like a
+model that cannot stop searching. So Charter ships the loop rather than writing
+that down: [`run`](#run) for the OpenAI APIs,
+[`CharterMiddleware`](#chartermiddleware) for LangChain, and the
+[MCP server](/using/mcp) for MCP, where the protocol carries it.
+
+```python
+from charter import ToolSession
+from charter.adapters.openai import to_openai_tools
+from charter.packs import gmail, stripe
+
+session = ToolSession([*gmail.TOOLS, *stripe.TOOLS])
+len(session.tools), len(to_openai_tools(session))
+# (36, 1)        thirty-six tools, one definition: ToolSearch
+
+session.search("+stripe refund")
+# {"loaded": ["stripe__refunds_create"], "note": "These tools are now available ..."}
+
+len(to_openai_tools(session))
+# 2
+```
+
+Thirty-six tools cost 563 tokens on the first turn instead of 15,661.
+
+### What the model sees
+
+**`ToolSearch`**, and nothing else, until it loads something. Its description is
+the flat list of every tool by name. Names only: descriptions cost about five
+times as much, and the pack is a substring of every qualified name, so `+stripe`
+filters by pack without a grouping API. It takes three query forms.
+
+| Query | Meaning |
+|---|---|
+| `select:gmail__drafts_send,gmail__drafts_get` | These exact tools. Not truncated. |
+| `calendar event` | Keyword search, best `max_results` matches. |
+| `+stripe refund` | Require `stripe` in the name, rank by the rest. |
+
+Then **the loaded tools**, in the order they were loaded, each with its full
+schema and callable like any other.
+
+A tool that has not been loaded is absent from the tool list, not present with an
+empty schema. Two earlier designs left them callable and the model called them,
+guessing arguments and failing validation three to four times a run.
+
+The order is not cosmetic. `ToolSearch` is fixed and comes first, so each turn's
+tool list extends the previous one rather than reordering it, and the cached
+prompt prefix survives.
+
+### Every tool, however small the pack
+
+Three tools or twenty-three, all of them are deferred. Claude Code keeps a hot
+set resident, but that set is its own built-in core; every tool from a configured
+MCP server is deferred, all of them, however few. A Charter tool is a configured
+tool, so this is the same line in the same place.
+
+Keeping the small schemas resident was tried and measured. A resident tool only
+pays for itself if it saves a `ToolSearch` round trip, and schema size is
+anti-correlated with being the tool an agent reaches for *first*: an entry point
+takes query parameters, a delete takes an id. A 200-token threshold, measured across the
+eleven packs shipped at the time, kept 25 tools resident that no agent starts with, and deferred 25 of
+the 28 list and search tools. On Gmail it kept `threads_delete` and
+`labels_delete` while deferring `messages_list`, so the round trip was paid
+anyway and the resident set cost 1,355 tokens to avoid nothing.
+
+`threshold` is still there for a hand-written pack whose tools have a different
+shape. `progressive=False` sends every schema up front.
+
+<Note>
+  Deferral changes how many schemas are in the prompt. It does not change what
+  one costs: once the model searches for a 47,000-token tool it has bought all of
+  it, on every turn until the end of the run. The other half of the lever is
+  [narrowing the schema itself](/optimization/context-window#deferring-is-not-the-same-as-shrinking).
+</Note>
+
+### Methods
+
+`visible()` returns the tools callable this turn, by name. `dispatch(name,
+arguments)` routes one call from the model: `ToolSearch` loads and returns JSON,
+anything else goes to [`Tool.ainvoke`](/reference/tool#tool-ainvoke). Calling a
+deferred tool raises
+[`ToolValidationError`](/reference/errors#toolvalidationerror) with the
+`select:` query that would load it. `reset()` clears the loaded set to reuse a
+session for another conversation.
+
+`dispatch` also takes a keyword-only `client`, an `httpx.AsyncClient` handed
+through to `ainvoke` unchanged, so a loop you drive yourself can hold one
+connection pool open across a run instead of paying a TLS handshake per tool
+call. `ToolSearch` makes no request, so a client passed alongside one is inert.
+See [latency](/optimization/latency#reuse-the-connection) for what it is worth
+and where it cannot be reached.
+
+### Across the adapters
+
+| Surface | What you hold | What you change |
+|---|---|---|
+| OpenAI | [`run(client, ..., session=session)`](#run) | nothing |
+| LangChain | [`CharterMiddleware(session)`](#chartermiddleware) | nothing |
+| MCP | [`serve(session)`](/reference/cli) | nothing |
+
+MCP is the surface where this costs nothing at all: the server holds the session,
+and a load emits `notifications/tools/list_changed`, so the client re-lists and
+sees plain tools appear. It needs no knowledge that anything was deferred.
+
+The projections underneath are public — `to_openai_tools(session)`,
+`to_langchain_tools(session)`, `build_server(session)` all take a session and
+return what the model can see this turn. Drive them yourself if you own your
+loop. Nothing has to.
+
+A plain list is never progressive, on any surface. A list has nowhere to record
+what a search loaded, and a `ToolSearch` whose results evaporate is worse than
+none.
+
+## `run`
+
+The OpenAI tool-calling loop, with the tool list rebuilt every turn.
+
+```python
+async def run(
+    client: Any,
+    *,
+    model: str,
+    messages: Sequence[Any],
+    session: ToolSession,
+    max_turns: int = 20,
+    **kwargs: Any,
+) -> RunResult: ...
+```
+
+`client` is duck-typed: anything exposing an awaitable
+`chat.completions.create(model=..., messages=..., tools=...)`, which is what
+`openai.AsyncOpenAI` is. Charter takes no dependency on the `openai` package.
+Extra keyword arguments (`temperature`, `tool_choice`) pass through unchanged,
+and the `messages` you pass in are not modified.
+
+A [`CharterError`](/reference/errors#chartererror) from a tool becomes that
+tool's result, because its message is written for a model to read and correct
+itself from: a rejected argument, or a tool it has not loaded yet. Anything else
+propagates, so a bug in your own code is not quietly fed to a model as text.
+
+`RunResult` carries `messages` (the whole transcript, ready to append the next
+user turn to), `content` (the final assistant text), `turns`, and `stop` —
+`"end"` when the model answered, `"max_turns"` when it ran out.
+
+## `CharterMiddleware`
+
+A session as LangChain agent middleware, for `create_agent`.
+
+```python
+def CharterMiddleware(session: ToolSession) -> AgentMiddleware: ...
+```
+
+```python
+from langchain.agents import create_agent
+from charter import ToolSession
+from charter.adapters.langchain import CharterMiddleware
+from charter.packs import gmail, stripe
+
+session = ToolSession([*gmail.TOOLS, *stripe.TOOLS])
+middleware = CharterMiddleware(session)
+```
+
+```python
+agent = create_agent(model, tools=[], middleware=[middleware])
+```
+
+`create_agent` binds its tool list when the graph is built, and a session's list
+grows. LangChain provides for exactly this — its docs call it runtime tool
+registration and name MCP servers as the case — through two hooks, and both are
+needed. `wrap_model_call` puts this turn's tools on the request; `wrap_tool_call`
+supplies the tool to execute, because the agent has no way to run something that
+was not in its original list. The middleware implements the sync and async form
+of each.
+
+Build the agent with `tools=[]` and let the middleware provide them. Anything you
+do pass to `tools=` stays: the middleware only adds, and only claims calls whose
+names it recognises.
+
+Run the agent with `await agent.ainvoke(...)`. A Charter tool executes through
+[`Tool.ainvoke`](/reference/tool#tool-ainvoke), async down to `httpx.AsyncClient`,
+so there is no blocking form to give LangChain. `agent.invoke(...)` is refused at
+the first model call with a [`CharterError`](/reference/errors#chartererror)
+saying so, rather than binding the tools, spending the model call, and failing
+afterwards inside LangChain.
+
+This one needs the `langchain` package, not just `langchain-core`:
+
+```bash
+pip install langchain
+```
+
+## `schema_tokens`
+
+The size of a tool's parameter schema, measured as serialised-JSON characters
+over four, on the JSON that goes on the wire.
+
+```python
+def schema_tokens(tool: Tool) -> int: ...
+```
+
+```python
+from charter import schema_tokens
+from charter.packs import gcalendar
+
+schema_tokens(gcalendar.events_insert)
+# 3379
+```
+
+This is the number `threshold` and `budget` are compared against. It is an
+estimate, close enough to rank two tools, which is all it is used for.
+
+## `json_tokens`
+
+The rule underneath it: serialised-JSON characters over four, for any value.
+
+```python
+def json_tokens(value: Any) -> int: ...
+```
+
+`schema_tokens` and
+[`Tool.paths(by_cost=True)`](/reference/tool#tool-paths) both measure through
+this, so a saving reported by one is checkable against the other.

@@ -1,0 +1,489 @@
+---
+title: "OAuth"
+description: "OAuth2Server, OAuth2Client, OAuth2Flow, AuthorizationRequest, TokenGrant, states_match and scopes_for."
+---
+
+Everything on this page is imported from `charter.auth`, not `charter`.
+
+OAuth 2.0 declared rather than wrapped: a server is a frozen declaration in RFC
+8414's vocabulary, a client refreshes a grant you already hold, and a flow
+covers the two steps of obtaining one that are protocol rather than product.
+
+The host keeps the callback route, the session, and storage. Charter signs
+nothing, so JWT-bearer and service-account grants are out of scope.
+
+## `OAuth2Server`
+
+```python
+@dataclass(frozen=True)
+class OAuth2Server:
+    token_endpoint: str
+    token_endpoint_auth_method: TokenEndpointAuthMethod = "client_secret_post"
+    issuer: Optional[str] = None
+    authorization_endpoint: Optional[str] = None
+    authorization_params: Mapping[str, str] = field(default_factory=dict)
+```
+
+<ParamField path="token_endpoint" type="str" required>
+  Where the form POST goes. Empty raises [`DeclarationError`](/reference/errors#declarationerror).
+</ParamField>
+
+<ParamField path="token_endpoint_auth_method" type='"client_secret_post" | "client_secret_basic"' default='"client_secret_post"'>
+  How the client authenticates (RFC 6749 §2.3.1). `client_secret_post` puts the
+  credentials in the form body, which is what Google, GitHub and most APIs
+  expect; `client_secret_basic` puts them in an HTTP Basic header. Any other
+  value raises [`DeclarationError`](/reference/errors#declarationerror).
+</ParamField>
+
+<ParamField path="issuer" type="Optional[str]" default="None">
+  The issuer identifier, when the server publishes one.
+</ParamField>
+
+<ParamField path="authorization_endpoint" type="Optional[str]" default="None">
+  Where a user is sent for consent. Optional: a declaration without one is still
+  a working token-refresh-only server, and
+  `OAuth2Flow.authorize` raises with instructions if
+  you start a consent flow against one.
+</ParamField>
+
+<ParamField path="authorization_params" type="Mapping[str, str]" default="{}">
+  Extra authorization-URL parameters this registration needs. The one field
+  discovery can never fill in — Google without
+  `{"access_type": "offline", "prompt": "consent"}` returns no refresh token and
+  reports no error. Normalised to a read-only, key-sorted mapping, so the
+  declaration stays frozen all the way down.
+</ParamField>
+
+### `OAuth2Server.discover`
+
+```python
+@classmethod
+async def discover(
+    cls,
+    issuer: str,
+    *,
+    client: Optional[httpx.AsyncClient] = None,
+    timeout: int = 20,
+) -> OAuth2Server: ...
+```
+
+Read the server's own metadata and build a declaration from it. Tries
+`.well-known/openid-configuration`, then `.well-known/oauth-authorization-server`.
+This is the path for anything an enterprise runs — Okta, Entra ID, Auth0,
+Keycloak and Ping all publish one.
+
+`token_endpoint_auth_method` is chosen from
+`token_endpoint_auth_methods_supported`, preferring `client_secret_post`. A
+document with no `token_endpoint`, or advertising neither usable method, raises
+[`CredentialError`](/reference/errors#credentialerror); so does exhausting both well-known paths, with every attempt
+named in the message.
+
+The one network call in this library that is not a tool call.
+
+## `OAuth2Client`
+
+```python
+class OAuth2Client:
+    def __init__(
+        self,
+        server: OAuth2Server,
+        *,
+        client_id: str,
+        client_secret: str,
+        refresh_token: Optional[str] = None,
+        grant: Grant = "refresh_token",
+        scope: Optional[str] = None,
+        on_refresh: Optional[OnRefresh] = None,
+        leeway_seconds: int = 90,
+        timeout: int = 20,
+        client: Optional[httpx.AsyncClient] = None,
+    ) -> None: ...
+```
+
+A [`CredentialProvider`](/reference/credentials#credentialprovider) backed by a
+token endpoint. Holds one grant — one end user, or one machine identity. Serve
+many users by wrapping it in
+[`SubjectProvider`](/reference/credentials#subjectprovider).
+
+<ParamField path="server" type="OAuth2Server" required>
+  The declaration to refresh against. Anything else raises `TypeError`.
+</ParamField>
+
+<ParamField path="client_id" type="str" required>
+  Your registration's client id. Empty raises `CredentialError`.
+</ParamField>
+
+<ParamField path="client_secret" type="str" required>
+  Your registration's client secret. Empty raises `CredentialError`.
+</ParamField>
+
+<ParamField path="refresh_token" type="Optional[str]" default="None">
+  The grant to renew. Required for the `refresh_token` grant — omitting it
+  raises `CredentialError` saying that obtaining a grant is your application's
+  flow.
+</ParamField>
+
+<ParamField path="grant" type='"refresh_token" | "client_credentials"' default='"refresh_token"'>
+  `refresh_token` is the agent acting for an end user; `client_credentials` is
+  the agent acting as itself. These are the two grants that are a plain form
+  POST; any other value raises `ValueError`.
+</ParamField>
+
+<ParamField path="scope" type="Optional[str]" default="None">
+  Space-separated scopes to send with the token request, when the server wants
+  them narrowed.
+</ParamField>
+
+<ParamField path="on_refresh" type="Optional[Callable[[Credentials, Optional[str]], None | Awaitable[None]]]" default="None">
+  Called after every successful refresh with the new credentials and the refresh
+  token to store next time — which may be a new one, since some servers rotate
+  on every use. This is where persistence lives. A callback that raises is
+  logged at WARNING and does not fail the call the token was fetched for.
+</ParamField>
+
+<ParamField path="leeway_seconds" type="int" default="90">
+  How early to renew. Capped at half the lifetime the server granted, so a
+  60-second token does not refresh on every call.
+</ParamField>
+
+<ParamField path="timeout" type="int" default="20">
+  Timeout for the token request.
+</ParamField>
+
+<ParamField path="client" type="Optional[httpx.AsyncClient]" default="None">
+  Reuse an HTTP client for token requests. When omitted, one is created and
+  closed per request.
+</ParamField>
+
+The access token is cached in memory until the leeway window and written
+nowhere. Concurrent callers wait on a single refresh: some servers invalidate
+the previous refresh token on use, so twelve parallel tool calls each firing
+their own refresh would poison eleven of them.
+
+An `invalid_grant` answer marks the grant dead for 60 seconds and re-raises the
+same error without asking the server again — one revoked user must not become a
+stream of requests against an endpoint that rate-limits per client.
+
+### Attributes and methods
+
+<ResponseField name="server" type="OAuth2Server">
+  The declaration passed in.
+</ResponseField>
+
+<ResponseField name="grant" type='"refresh_token" | "client_credentials"'>
+  Which grant this client uses.
+</ResponseField>
+
+<ResponseField name="scope" type="Optional[str]">
+  The scope string sent with token requests.
+</ResponseField>
+
+<ResponseField name="leeway_seconds" type="int">
+  The configured leeway, before the lifetime cap is applied.
+</ResponseField>
+
+<ResponseField name="refresh_token" type="Optional[str]">
+  The *current* refresh token, which is not necessarily the one passed in: a
+  server that rotates hands back a new one on every refresh and Charter adopts
+  it.
+</ResponseField>
+
+<ResponseField name="get_credentials(provider)" type="Credentials">
+  The provider protocol. Returns the cached token, or refreshes.
+</ResponseField>
+
+<ResponseField name="reset()" type="None">
+  Forget the cached token and any dead-grant cool-down. Call it after
+  re-authorizing, if you are reusing the client rather than building a new one.
+</ResponseField>
+
+### `OAuth2Client.from_grant`
+
+```python
+@classmethod
+def from_grant(
+    cls,
+    server: OAuth2Server,
+    grant: TokenGrant,
+    *,
+    client_id: str,
+    client_secret: str,
+    on_refresh: Optional[OnRefresh] = None,
+    **kwargs: Any,
+) -> OAuth2Client: ...
+```
+
+A client seeded from a fresh `exchange`: the grant's
+access token pre-fills the cache, so the first tool call after connecting spends
+no refresh. A grant carrying no refresh token is refused with `CredentialError`
+— for a one-shot access token, use
+[`StaticTokenProvider`](/reference/credentials#statictokenprovider).
+
+## `OAuth2Flow`
+
+```python
+class OAuth2Flow:
+    def __init__(
+        self,
+        server: OAuth2Server,
+        *,
+        client_id: str,
+        client_secret: str,
+        redirect_uri: str,
+        timeout: int = 20,
+        client: Optional[httpx.AsyncClient] = None,
+    ) -> None: ...
+```
+
+The stateless half of obtaining a grant. Registration facts live here —
+`client_id`, `client_secret`, `redirect_uri` — beside the server declaration,
+which holds what the server *is*.
+
+<ParamField path="redirect_uri" type="str" required>
+  The exact callback URL registered with the authorization server, never one
+  built from user input. Empty raises `CredentialError`.
+</ParamField>
+
+Nothing is remembered between `authorize()` and `exchange()`: the state and the
+PKCE verifier are handed to you and taken back, because only your framework
+knows which browser is which.
+
+### `OAuth2Flow.authorize`
+
+```python
+def authorize(
+    self,
+    scopes: Iterable[str],
+    *,
+    state: Optional[str] = None,
+    login_hint: Optional[str] = None,
+    pkce: bool = True,
+    extra_params: Optional[Mapping[str, str]] = None,
+) -> AuthorizationRequest: ...
+```
+
+Build the authorization URL (RFC 6749 §4.1.1). Pure — no I/O, no state.
+
+<ParamField path="scopes" type="Iterable[str]" required>
+  What to ask for. Empty raises `CredentialError`: an authorization request for
+  nothing is a bug upstream. [`scopes_for`](#scopes_for) derives this from a
+  tool set.
+</ParamField>
+
+<ParamField path="state" type="Optional[str]" default="None">
+  Your own CSRF token. Generated with `secrets.token_urlsafe(32)` when omitted.
+</ParamField>
+
+<ParamField path="login_hint" type="Optional[str]" default="None">
+  Which account to pre-select on the consent screen.
+</ParamField>
+
+<ParamField path="pkce" type="bool" default="True">
+  S256 PKCE (RFC 7636). `False` exists for the rare server that rejects unknown
+  parameters, and is never the recommended path.
+</ParamField>
+
+<ParamField path="extra_params" type="Optional[Mapping[str, str]]" default="None">
+  Per-request additions, merged last.
+</ParamField>
+
+Parameters merge later-wins: the standard set, then the server's
+`authorization_params`, then `extra_params`. Neither map may set `client_id`,
+`redirect_uri`, `state` or anything starting with `code_challenge` — identity
+and the CSRF/PKCE material belong to the flow, and an attempt raises
+`ValueError` naming the source. A server with no `authorization_endpoint` raises
+`CredentialError`.
+
+`scope` is encoded with `%20` rather than `+`, which some servers reject.
+
+### `OAuth2Flow.exchange`
+
+```python
+async def exchange(
+    self,
+    code: str,
+    *,
+    code_verifier: Optional[str] = None,
+    expect_refresh_token: bool = True,
+) -> TokenGrant: ...
+```
+
+Trade the callback's code for tokens (RFC 6749 §4.1.3). One form POST to the
+same token endpoint the refresh uses.
+
+<ParamField path="code" type="str" required>
+  The authorization code from the callback. Empty raises `CredentialError`.
+</ParamField>
+
+<ParamField path="code_verifier" type="Optional[str]" default="None">
+  The verifier `authorize()` returned, when PKCE was used.
+</ParamField>
+
+<ParamField path="expect_refresh_token" type="bool" default="True">
+  Raise `CredentialError` when the server returns no refresh token. This is the
+  silent failure of the whole flow — the exchange succeeds, the access token
+  works, and the integration dies within the hour. Pass `False` only for a
+  server that genuinely never issues one.
+</ParamField>
+
+Codes are single-use, so a failed exchange is never retried and no cooldown
+applies; restarting the flow is the host's move.
+
+## `AuthorizationRequest`
+
+```python
+@dataclass(frozen=True)
+class AuthorizationRequest:
+    url: str
+    state: str
+    code_verifier: Optional[str]
+```
+
+What `authorize()` hands back.
+
+<ResponseField name="url" type="str">
+  Redirect the user here.
+</ResponseField>
+
+<ResponseField name="state" type="str">
+  Put it in the session, server-side and keyed to this browser, and compare it
+  at the callback with [`states_match`](#states_match).
+</ResponseField>
+
+<ResponseField name="code_verifier" type="Optional[str]">
+  Keep it beside the state and pass it to `exchange()`. `None` when
+  `pkce=False`.
+</ResponseField>
+
+## `TokenGrant`
+
+```python
+class TokenGrant(BaseModel):
+    access_token: str
+    refresh_token: Optional[str] = None
+    expires_at: Optional[datetime] = None
+    scopes: list[str] = Field(default_factory=list)
+    raw: Dict[str, Any] = Field(default_factory=dict)
+```
+
+What a code exchange returned — the one moment a refresh token is visible.
+
+<ResponseField name="access_token" type="str">
+  Valid now, typically for an hour.
+</ResponseField>
+
+<ResponseField name="refresh_token" type="Optional[str]">
+  What you persist. `None` when the server issued none and
+  `expect_refresh_token=False`.
+</ResponseField>
+
+<ResponseField name="expires_at" type="Optional[datetime]">
+  Derived from `expires_in`, or `None` when the server sent none.
+</ResponseField>
+
+<ResponseField name="scopes" type="list[str]">
+  What the server says was actually granted, which is not always what was asked
+  for: some consent screens let a user deselect.
+</ResponseField>
+
+<ResponseField name="raw" type="Dict[str, Any]">
+  The untouched response body, for vendor extras.
+</ResponseField>
+
+Both `repr` and `str` mask the tokens, so printing a grant does not put a secret
+in a log line.
+
+This is deliberately not
+[`Credentials`](/reference/credentials#credentials): that is the injection
+currency, handed out on every tool call. A grant is what you persist once.
+
+## `states_match`
+
+```python
+def states_match(expected: str, received: str) -> bool: ...
+```
+
+Whether the callback's `state` is the one `authorize()` issued. Compares in
+constant time, so the CSRF check is one obvious call rather than a plain `==`
+that leaks how many leading characters matched.
+
+Verifying `state` at the callback is the host's job: it is what keeps an
+attacker from splicing their code into your user's session.
+
+## `scopes_for`
+
+```python
+def scopes_for(tools: Iterable[Tool]) -> list[str]: ...
+```
+
+The scopes an authorization request must cover to run these tools, read from the
+`scopes` metadata each was declared with and deduped in first-seen order.
+
+```python
+from charter.auth import scopes_for
+from charter.packs import gcalendar, gmail
+
+consent = scopes_for([*gmail.TOOLS, *gcalendar.TOOLS])
+assert "https://www.googleapis.com/auth/gmail.modify" in consent
+```
+
+The consent screen is then exactly what the agent can do, kept in lockstep with
+the tool set instead of maintained beside it.
+
+## Types in these signatures
+
+The three aliases the signatures above are declared in. They are exported from
+`charter` so a host writing its own wrapper can name them without importing from
+a submodule.
+
+## `Grant`
+
+```python
+Grant = Literal["refresh_token", "client_credentials"]
+```
+
+Which OAuth 2.0 grant an `OAuth2Client` uses. `"refresh_token"` acts for a user
+who consented; `"client_credentials"` acts as the application itself, with no
+user and so no refresh token to store.
+
+## `TokenEndpointAuthMethod`
+
+```python
+TokenEndpointAuthMethod = Literal["client_secret_post", "client_secret_basic"]
+```
+
+How the client authenticates to the token endpoint — credentials in the form
+body, or in an HTTP Basic header. [RFC 8414](https://www.rfc-editor.org/rfc/rfc8414)
+names this field, and a server's own metadata usually announces which it wants;
+`OAuth2Server.discover` reads it for you.
+
+Getting it wrong is a silent-shaped failure: the server answers
+`invalid_client`, which reads like a wrong secret rather than a wrong envelope.
+
+## `OnRefresh`
+
+```python
+OnRefresh = Callable[[TokenGrant], Union[None, Awaitable[None]]]
+```
+
+Called after every successful refresh, with the grant that came back. Sync or
+async; both are awaited correctly.
+
+This is where a rotated refresh token gets persisted. A server that rotates
+hands you a new one in the refresh response and invalidates the old immediately,
+so a host that does not write it down is one restart away from a dead grant.
+
+```python
+async def store(grant: TokenGrant) -> None:
+    if grant.refresh_token:
+        await db.grants.put("user_1042", "google", grant.refresh_token)
+
+client = OAuth2Client(GOOGLE, client_id=..., client_secret=..., refresh_token=...,
+                      on_refresh=store)
+```
+
+## Related
+
+- [Authorization servers](/auth/authorization-servers) — declarations for the servers you are likeliest to meet
+- [The OAuth flow](/auth/oauth-flow) — the route, the session and the storage around these two calls
+- [Credentials](/reference/credentials)

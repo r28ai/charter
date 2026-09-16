@@ -1,0 +1,465 @@
+---
+title: "Notion"
+description: "Read and write pages, blocks, databases and comments in a Notion workspace."
+sidebarTitle: "Overview"
+---
+
+{/* generated:summary start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="pack-summary">
+  <span><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg>35 tools</span>
+  <span><svg viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /></svg>OAuth bearer</span>
+</div>
+{/* generated:summary end */}
+
+```python notion_example.py {7}
+from charter.auth import EnvTokenProvider
+from charter.packs import notion
+
+credentials = EnvTokenProvider("NOTION_API_KEY")
+notion.configure(credentials)
+
+page = await notion.pages_create.ainvoke(
+    body={
+        "parent": {"data_source_id": DATA_SOURCE_ID},
+        "properties": {"Name": {"title": [{"text": {"content": "Ship it"}}]}},
+    },
+)
+```
+
+Notion is two APIs wearing one coat. There is a document API, where a page is a
+tree of blocks, and a database API, where a page is a row and its properties are
+columns. The same `pages_create` call does both, and which one you get depends
+on the parent you give it.
+
+## A database is not the table
+
+Since Notion's `2025-09-03` version a database is a container and a **data
+source** is the table inside it. The columns belong to the data source, rows are
+queried from it, and a page created inside a database takes a `data_source_id`
+as its parent.
+
+That matters for the first call you make. `databases_retrieve` returns the data
+sources a database holds; `data_sources_retrieve` returns the column schema you
+have to write against. Querying rows or changing columns through a database ID
+is the older shape, which still answers for a database with one table and fails
+for one with several.
+
+## Authenticating
+
+{/* generated:auth start — do not edit by hand; run scripts/generate_pack_docs.py */}
+This pack takes an OAuth bearer token, and [`configure()`](/reference/configuration#configure) is optional when `$NOTION_API_KEY` is set. Which credential provider you hand it depends on whose account the calls run as.
+
+### A token you hold
+
+For a script, or a notebook. [`EnvTokenProvider`](/reference/credentials#envtokenprovider) re-reads the variable on every call, so a token rotated beside the process is picked up without a restart; [`StaticTokenProvider`](/reference/credentials#statictokenprovider) takes one you already hold as a string. Neither renews anything, so the calls stop when the token expires.
+
+```python notion_script.py {4}
+from charter.auth import EnvTokenProvider
+from charter.packs import notion
+
+credentials = EnvTokenProvider("NOTION_API_KEY")
+notion.configure(credentials)
+```
+
+### One account, refreshed
+
+For an agent or a server acting as you. [`OAuth2Client`](/reference/oauth#oauth2client) turns a client registration and a stored refresh token into an access token, and [renews it](/auth/authorization-servers#what-the-cache-does-precisely) before it lapses.
+
+```python notion_agent.py {8}
+from charter.auth import OAuth2Client
+from charter.packs import notion
+
+credentials = OAuth2Client(
+    NOTION,
+    client_id=os.environ["NOTION_CLIENT_ID"],
+    client_secret=os.environ["NOTION_CLIENT_SECRET"],
+    refresh_token=os.environ["NOTION_REFRESH_TOKEN"],
+)
+notion.configure(credentials)
+```
+
+<Note>
+No refresh token yet? [Your own account](/auth/your-own-account) is the one-time consent flow that hands you one.
+</Note>
+
+### Many end users
+
+For a product whose users each connect their own account. [`SubjectProvider`](/reference/credentials#subjectprovider) builds one credential per user through a factory you write, and [`use_subject`](/reference/credentials#use_subject) names the user a call acts for. [Your users' accounts](/auth/oauth-flow) is the consent route inside your app; [serving many users](/auth/authorization-servers#serving-many-users) is the per-subject cache and its eviction.
+
+```python notion_server.py {17,21}
+from functools import partial
+
+from charter.auth import OAuth2Client, SubjectProvider, use_subject
+from charter.packs import notion
+
+# Yours to write: a user id in, that user's credential out.
+async def for_user(user_id: str) -> OAuth2Client:
+    grant = await db.grants.get(user_id, "notion")
+    return OAuth2Client(
+        NOTION,
+        client_id=os.environ["NOTION_CLIENT_ID"],
+        client_secret=os.environ["NOTION_CLIENT_SECRET"],
+        refresh_token=grant.refresh_token,
+        on_refresh=partial(save_to_db, user_id),
+    )
+
+credentials = SubjectProvider(for_user)
+notion.configure(credentials)
+
+# Per request: whose grant the tools use.
+with use_subject(request.user_id):
+    ...  # your agent runs here
+```
+{/* generated:auth end */}
+
+Connecting a workspace you do not own is an OAuth flow rather than a pasted
+secret. [Using your own account](/auth/your-own-account) covers the single-token
+case, which is what an internal integration is.
+
+An internal integration secret is prefixed `ntn_` and goes out as a bearer
+token. An OAuth access token works the same way, and so does a personal access
+token, with one difference worth knowing: `users_list` refuses a personal access
+token.
+
+Notion's permissions are not scopes you request per call. An integration is
+given capabilities in Notion's own settings, and each tool page names the one it
+needs by the label you tick there. An integration also only sees pages somebody
+has shared with it. A page that has not been shared is a 404, not a 403, so an empty
+`search` usually means nothing has been shared rather than that nothing exists.
+
+## The client
+
+{/* generated:wire start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<Note>
+[`oauth_tool_factory`](/reference/factories#oauth_tool_factory) is the whole client: a thin wrapper over `httpx` that attaches your token and these endpoint constants to each request. No vendor SDK enters your dependency tree.
+</Note>
+
+<div className="named-tabs" data-files="notion_api_client.py|notion_pack_client.py">
+<CodeGroup>
+
+```python Without the pack
+from charter import oauth_tool_factory
+
+notion_api_client = oauth_tool_factory(
+    base_url="https://api.notion.com/",
+    provider="notion",
+    credential_provider=credentials,
+    body_format="json",
+    query_format="repeat",
+    body_case="snake",
+    query_case="snake",
+    path_case="snake",
+    static_headers={"Notion-Version": "2026-03-11"},
+    # this API reports failure with an HTTP status code
+    envelope=None,
+)
+```
+
+```python With the pack
+from charter.packs import notion
+
+notion.configure(credentials)
+
+# The base URL, the casing, the envelope and the pagination are
+# already declared. 35 tools, ready to hand to a model:
+tools = notion.TOOLS
+```
+
+</CodeGroup>
+</div>
+
+`credentials` is whichever of the three you built in [Authenticating](#authenticating). A pack takes it through [`configure()`](/reference/configuration#configure); a client you build takes the same object as `credential_provider`, and has no `configure()` of its own.
+
+### Paging through a list
+
+A cursor belongs to the tool that returns it, so it is declared on that tool's builder call:
+
+```python notion_pagination.py
+# On users_list, pages_retrieve_property_item,
+# blocks_children_list, data_sources_templates_list,
+# comments_list, file_uploads_list and custom_emojis_list.
+users_list = notion_api_client(
+    name="users_list",
+    args_schema=UsersListRequest,
+    method="GET",
+    url_template="v1/users",
+    pagination=Pagination(
+        cursor_field="next_cursor",
+        cursor_param="start_cursor",
+        more_field="has_more",
+    ),
+)
+
+# On search and data_sources_query.
+search = notion_api_client(
+    name="search",
+    args_schema=SearchRequest,
+    method="POST",
+    url_template="v1/search",
+    pagination=Pagination(
+        cursor_field="next_cursor",
+        cursor_param="body.start_cursor",
+        more_field="has_more",
+    ),
+)
+```
+
+<Note>
+Pagination is declared on `users_list`, `pages_retrieve_property_item`, `blocks_children_list`, `data_sources_templates_list`, `comments_list`, `file_uploads_list`, `custom_emojis_list`, `search` and `data_sources_query`. The other 26 take no cursor.
+</Note>
+{/* generated:wire end */}
+
+`Notion-Version` is required on every request. Omit it and the answer is `400
+missing_version`, so there is no unpinned mode to fall back to. The pack sends
+`2026-03-11`, which is the version that renamed `archived` to `in_trash` and
+replaced block append's `after` parameter with `position`.
+
+## Tools
+
+Each is a [`Tool`](/reference/tool), called with
+[`ainvoke`](/reference/tool#tool-ainvoke) as in the snippet above. The name
+links to its parameters, its response and what it costs.
+
+{/* generated:tools start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="tool-list">
+  <span className="tool-list-group">Users</span>
+  <a className="tool-row" href="/packs/notion/users/users_list">
+    <span className="tool-row-head"><span className="tool-row-name">users_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the people and bots in the workspace.</span>
+  </a>
+  <a className="tool-row" href="/packs/notion/users/users_retrieve">
+    <span className="tool-row-head"><span className="tool-row-name">users_retrieve</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get one user by ID.</span>
+  </a>
+  <a className="tool-row" href="/packs/notion/users/users_retrieve_me">
+    <span className="tool-row-head"><span className="tool-row-name">users_retrieve_me</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get the bot this token authenticates as, including which workspace it is in.</span>
+  </a>
+  <span className="tool-list-group">Search</span>
+  <a className="tool-row" href="/packs/notion/search/search">
+    <span className="tool-row-head"><span className="tool-row-name">search</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Search the titles of pages and data sources shared with this integration.</span>
+  </a>
+  <span className="tool-list-group">Pages</span>
+  <a className="tool-row" href="/packs/notion/pages/pages_create">
+    <span className="tool-row-head"><span className="tool-row-name">pages_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a page — as a subpage of another page, or as a row of a database by giving its <code>data_source_id</code> as the parent.</span>
+  </a>
+  <a className="tool-row" href="/packs/notion/pages/pages_retrieve">
+    <span className="tool-row-head"><span className="tool-row-name">pages_retrieve</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get a page's properties.</span>
+  </a>
+  <a className="tool-row" href="/packs/notion/pages/pages_update">
+    <span className="tool-row-head"><span className="tool-row-name">pages_update</span><span className="tool-row-method" data-method="PATCH">PATCH</span></span>
+    <span className="tool-row-desc">Update a page's property values, icon, cover, or trash state.</span>
+  </a>
+  <a className="tool-row" href="/packs/notion/pages/pages_move">
+    <span className="tool-row-head"><span className="tool-row-name">pages_move</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Move a page under a different parent page or data source.</span>
+  </a>
+  <a className="tool-row" href="/packs/notion/pages/pages_retrieve_property_item">
+    <span className="tool-row-head"><span className="tool-row-name">pages_retrieve_property_item</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Read one property of a page in full.</span>
+  </a>
+  <a className="tool-row" href="/packs/notion/pages/pages_retrieve_markdown">
+    <span className="tool-row-head"><span className="tool-row-name">pages_retrieve_markdown</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get a page's whole content as Markdown, rendered by Notion.</span>
+  </a>
+  <a className="tool-row" href="/packs/notion/pages/pages_update_markdown">
+    <span className="tool-row-head"><span className="tool-row-name">pages_update_markdown</span><span className="tool-row-method" data-method="PATCH">PATCH</span></span>
+    <span className="tool-row-desc">Replace a page's content with Markdown, which Notion parses into blocks.</span>
+  </a>
+  <span className="tool-list-group">Blocks</span>
+  <a className="tool-row" href="/packs/notion/blocks/blocks_retrieve">
+    <span className="tool-row-head"><span className="tool-row-name">blocks_retrieve</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get one block.</span>
+  </a>
+  <a className="tool-row" href="/packs/notion/blocks/blocks_update">
+    <span className="tool-row-head"><span className="tool-row-name">blocks_update</span><span className="tool-row-method" data-method="PATCH">PATCH</span></span>
+    <span className="tool-row-desc">Update a block's content, or trash and restore it with <code>in_trash</code>.</span>
+  </a>
+  <a className="tool-row" href="/packs/notion/blocks/blocks_delete">
+    <span className="tool-row-head"><span className="tool-row-name">blocks_delete</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Move a block to the trash.</span>
+  </a>
+  <a className="tool-row" href="/packs/notion/blocks/blocks_children_list">
+    <span className="tool-row-head"><span className="tool-row-name">blocks_children_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the direct children of a block, or of a page when given a page ID.</span>
+  </a>
+  <a className="tool-row" href="/packs/notion/blocks/blocks_children_append">
+    <span className="tool-row-head"><span className="tool-row-name">blocks_children_append</span><span className="tool-row-method" data-method="PATCH">PATCH</span></span>
+    <span className="tool-row-desc">Append blocks to a page or a block.</span>
+  </a>
+  <span className="tool-list-group">Databases</span>
+  <a className="tool-row" href="/packs/notion/databases/databases_create">
+    <span className="tool-row-head"><span className="tool-row-name">databases_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a database on a page or at the top of the workspace.</span>
+  </a>
+  <a className="tool-row" href="/packs/notion/databases/databases_retrieve">
+    <span className="tool-row-head"><span className="tool-row-name">databases_retrieve</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get a database and the data sources it contains.</span>
+  </a>
+  <a className="tool-row" href="/packs/notion/databases/databases_update">
+    <span className="tool-row-head"><span className="tool-row-name">databases_update</span><span className="tool-row-method" data-method="PATCH">PATCH</span></span>
+    <span className="tool-row-desc">Update a database's title, description, icon, cover, inline display or trash state, or move it to a new parent.</span>
+  </a>
+  <span className="tool-list-group">Data sources</span>
+  <a className="tool-row" href="/packs/notion/data_sources/data_sources_create">
+    <span className="tool-row-head"><span className="tool-row-name">data_sources_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Add another table to an existing database.</span>
+  </a>
+  <a className="tool-row" href="/packs/notion/data_sources/data_sources_retrieve">
+    <span className="tool-row-head"><span className="tool-row-name">data_sources_retrieve</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get a data source's column schema — the names, types and select options a write has to match.</span>
+  </a>
+  <a className="tool-row" href="/packs/notion/data_sources/data_sources_update">
+    <span className="tool-row-head"><span className="tool-row-name">data_sources_update</span><span className="tool-row-method" data-method="PATCH">PATCH</span></span>
+    <span className="tool-row-desc">Change a data source's columns, title or icon.</span>
+  </a>
+  <a className="tool-row" href="/packs/notion/data_sources/data_sources_query">
+    <span className="tool-row-head"><span className="tool-row-name">data_sources_query</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Get the rows of a data source, optionally filtered and sorted.</span>
+  </a>
+  <a className="tool-row" href="/packs/notion/data_sources/data_sources_templates_list">
+    <span className="tool-row-head"><span className="tool-row-name">data_sources_templates_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the page templates defined on a data source.</span>
+  </a>
+  <span className="tool-list-group">Comments</span>
+  <a className="tool-row" href="/packs/notion/comments/comments_create">
+    <span className="tool-row-head"><span className="tool-row-name">comments_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Comment on a page or block, or reply to an existing discussion with its <code>discussion_id</code>.</span>
+  </a>
+  <a className="tool-row" href="/packs/notion/comments/comments_list">
+    <span className="tool-row-head"><span className="tool-row-name">comments_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the unresolved comments on a page or block.</span>
+  </a>
+  <a className="tool-row" href="/packs/notion/comments/comments_retrieve">
+    <span className="tool-row-head"><span className="tool-row-name">comments_retrieve</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get one comment by ID.</span>
+  </a>
+  <a className="tool-row" href="/packs/notion/comments/comments_update">
+    <span className="tool-row-head"><span className="tool-row-name">comments_update</span><span className="tool-row-method" data-method="PATCH">PATCH</span></span>
+    <span className="tool-row-desc">Edit a comment's content, replacing it entirely.</span>
+  </a>
+  <a className="tool-row" href="/packs/notion/comments/comments_delete">
+    <span className="tool-row-head"><span className="tool-row-name">comments_delete</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Delete a comment.</span>
+  </a>
+  <span className="tool-list-group">File uploads</span>
+  <a className="tool-row" href="/packs/notion/file_uploads/file_uploads_create">
+    <span className="tool-row-head"><span className="tool-row-name">file_uploads_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Start a file upload.</span>
+  </a>
+  <a className="tool-row" href="/packs/notion/file_uploads/file_uploads_complete">
+    <span className="tool-row-head"><span className="tool-row-name">file_uploads_complete</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Finish a multi-part upload once every part has been sent.</span>
+  </a>
+  <a className="tool-row" href="/packs/notion/file_uploads/file_uploads_retrieve">
+    <span className="tool-row-head"><span className="tool-row-name">file_uploads_retrieve</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get a file upload and its status.</span>
+  </a>
+  <a className="tool-row" href="/packs/notion/file_uploads/file_uploads_list">
+    <span className="tool-row-head"><span className="tool-row-name">file_uploads_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List this integration's file uploads, optionally by status.</span>
+  </a>
+  <span className="tool-list-group">Custom emojis</span>
+  <a className="tool-row" href="/packs/notion/custom_emojis/custom_emojis_list">
+    <span className="tool-row-head"><span className="tool-row-name">custom_emojis_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the workspace's own uploaded emoji.</span>
+  </a>
+  <span className="tool-list-group">Async tasks</span>
+  <a className="tool-row" href="/packs/notion/async_tasks/async_tasks_retrieve">
+    <span className="tool-row-head"><span className="tool-row-name">async_tasks_retrieve</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Check work Notion took in the background.</span>
+  </a>
+</div>
+{/* generated:tools end */}
+
+## Reading a page
+
+There are three ways, and they cost very different amounts.
+
+`pages_retrieve` returns the properties and none of the content. For a row of a
+database that is the whole story, and it is the cheap call.
+
+`pages_retrieve_markdown` returns the content as Markdown, rendered by Notion.
+One call, no recursion, and the result reads like a document. Reach for it
+whenever the goal is to understand a page rather than edit a specific block.
+
+`blocks_children_list` returns the blocks, one level at a time. A child that
+reports `has_children` needs another call with its own ID. Use it when you
+intend to edit, since only blocks have the IDs `blocks_update` needs.
+
+## Writing content
+
+Notion accepts at most 100 blocks and two levels of nesting in one request, and
+the schema says so rather than leaving it to a 400. The block model is three
+tiers: a top-level block holds nested blocks, a nested block holds leaf blocks,
+and a leaf block holds nothing. A `column` and a `column_list` only exist at the
+top; a `table` cannot be a leaf, because a table is its rows.
+
+Deeper trees are built by appending to the blocks that come back.
+
+The same limit is why `pages_create` takes a `markdown` string as an
+alternative. Notion parses it server-side into blocks, at any depth, which is
+the shortest path from a document you already have to a page that holds it.
+
+## Querying a database
+
+`data_sources_query` takes a filter built from one condition per column type,
+composed with `and` and `or`. Both are Python keywords, so the fields are spelled
+`and_` and `or_` in Python and go out under Notion's own names:
+
+```python
+rows = await notion.data_sources_query.ainvoke(
+    data_source_id=DATA_SOURCE_ID,
+    body={
+        "filter": {
+            "and": [
+                {"property": "Status", "status": {"equals": "Done"}},
+                {"property": "Cost", "number": {"greater_than": 100}},
+            ]
+        },
+        "sorts": [{"property": "Cost", "direction": "descending"}],
+    },
+)
+```
+
+A filter naming a column that does not exist is a 400, so read the schema with
+`data_sources_retrieve` first when you do not already know the column names.
+
+## What the response handlers drop
+
+Notion has no plain strings. Every piece of text is an array of runs, and each
+run carries its annotations, a `plain_text` copy, an `href` and a type tag, so a
+one-line title is about 200 bytes of JSON for about 20 characters of title. A row
+repeats that per column and adds two user objects, two timestamps, a parent and
+two URLs.
+
+Every read tool projects: a run array becomes the string it spells, a property
+becomes its value, a select becomes its name. Nothing is filtered, because a
+shorter page would corrupt the length a paginated walk depends on, and every
+`id` is kept, because that is what the next call needs.
+
+`data_sources_retrieve` is the exception that proves it. There the schema is the
+payload, so the columns are kept in full and only the per-option IDs and colours
+go.
+
+## Known limits
+
+**Sending file bytes is not a tool.** A file becomes Notion-hosted content in
+three steps, and the middle one takes `multipart/form-data` with raw bytes,
+which Charter does not encode and which a model has no way to supply. The other
+four upload endpoints are here, and `mode="external_url"` completes without that
+step: Notion fetches the file from a public URL itself.
+
+**Coverage is the content API.** Users, pages, blocks, databases, data sources,
+search, comments, file uploads, custom emojis and async tasks. Notion's agent
+and session platform, the Views API and meeting notes are not modelled, and
+neither are the OAuth token endpoints, which belong to an authorization server
+rather than to a tool.
+
+**`pages_create` carries a large schema.** Every block type is reachable from
+it, which is 87KB of JSON schema. That is the cost of being able to write any
+block rather than the popular six. Narrow it at the point of use with
+[`Tool.derived`](/reference/tool#tool-derived) when an agent only needs a few.

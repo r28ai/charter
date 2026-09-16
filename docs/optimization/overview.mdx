@@ -1,0 +1,71 @@
+---
+title: "What there is to optimize"
+sidebarTitle: "Overview"
+description: "Three things a tool layer can cost you, the lever that moves each, and the field that proves it moved."
+---
+
+A tool that works is not finished. The same call can be correct and still cost
+more context than it needs, take longer than it needs, or take three attempts to
+get right. Those are three different problems with three different levers, and
+the useful thing about a boundary is that each one is measured at it.
+
+Every number on this page comes from [`ToolCall`](/reference/observability),
+which the runtime mints for every call it makes, including the ones that fail.
+Optimizing without it is guessing.
+
+## The three axes
+
+| What you are spending | Where it goes | Read it in | Start here |
+|---|---|---|---|
+| **Context** | schemas sent every turn, responses sent back | `schema_tokens()`, `context_bytes` | [Context window](/optimization/context-window) |
+| **Latency** | handshakes, credential lookups, the API itself | `overhead_ms` split five ways | [Latency](/optimization/latency) |
+| **Attempts** | calls the model got wrong and had to repeat | `outcome`, `tool_errors` | [Getting it right first try](/optimization/accuracy) |
+
+They are not independent, and the direction of the coupling is the useful part.
+A call the model gets wrong on the first attempt is paid three times — once in
+latency, once in the context the failed call and its error occupy, and once more
+in the retry. Accuracy is the cheapest of the three to fix and the one most
+likely to be mistaken for the other two.
+
+## Measure, then narrow
+
+The order matters more than any individual lever.
+
+Tool schemas are lopsided in a way that does not survive intuition: in the Linear
+pack `comment_create` costs 911 tokens and `search_issues` costs 47,026, and
+nothing about either name says so. Seventeen tools in that pack sit within 3% of
+each other at the top, and the other 111 are under 1,800. Optimizing the wrong
+one of those is a day spent moving 911 tokens.
+
+So the first move on any axis is the same: get the distribution, find the
+outlier, and confirm the fix against the same measurement that found it.
+
+```python survey.py
+from charter import schema_tokens
+from charter.packs import linear
+
+fat = sorted(linear.TOOLS, key=schema_tokens, reverse=True)
+for tool in fat[:5]:
+    print(f"{schema_tokens(tool):>7,}  {tool.name}")
+```
+
+## What does not need optimizing
+
+Most tools. The distribution above cuts both ways: if a pack's largest tool is
+1,800 tokens and its responses are a few kilobytes, there is nothing on this page
+worth your afternoon. The pages that follow are written for the tools that are
+outliers, and the surveys are there so you can find out whether you have any
+before you read further.
+
+Two defaults already do most of the work without being configured.
+[`ToolSession`](/reference/tool-discovery#toolsession) defers every schema until
+the model asks for the tool by name, and the packs trim their own responses
+before the model reads them — which is why the measured gap between what comes
+off the wire and what reaches the context window is [about
+4×](/guarantees/measured-results) without anyone tuning anything.
+
+## Related
+
+- [Measured results](/guarantees/measured-results) — what these levers were worth across 536 runs
+- [Observability](/running/observability) — the record every number here is read from
+- [Projections](/tools/projections) — `keep`, `drop` and `pin`, the narrowing mechanism itself

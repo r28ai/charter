@@ -1,0 +1,72 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "charter-harness"
+version = "0.1.0"
+description = "The scenario harness: a real model driving multi-step, cross-pack tasks through the Charter boundary on real accounts, scored by reading the world back."
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "R28 AI, Inc.", email = "oss@r28.ai" }]
+dependencies = [
+    # The system under test. Resolved from the parent directory (see tool.uv.sources)
+    # so the harness always runs against the checkout, never a stale wheel.
+    "charter",
+    # The eval framework: react agent, epochs, approval policies, log viewer.
+    "inspect-ai>=0.3.260",
+    # Inspect's fireworks/ provider is a thin layer over the openai client.
+    "openai>=1.60",
+    "httpx>=0.27,<1",
+    "pydantic>=2.9,<3",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "respx>=0.21",
+    "ruff>=0.6",
+    "pyright>=1.1.380",
+]
+
+[project.scripts]
+charter-harness = "charter_harness.campaign:main"
+
+[tool.uv.sources]
+charter = { path = "..", editable = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/charter_harness"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+filterwarnings = ["error::DeprecationWarning"]
+# tests/live calls the real provider APIs. It is opt-in rather than opt-out
+# because the default has to be the run that is safe on a laptop with a
+# half-filled .env; `-m live` on the command line replaces this.
+addopts = "-m 'not live'"
+markers = [
+    "live: hits a real provider API with hardcoded arguments (tests/live). Needs credentials, mutates the configured accounts, costs no inference.",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501", "B008"]
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+include = ["src"]
+typeCheckingMode = "basic"
+pythonVersion = "3.10"
+reportMissingImports = true
+reportMissingTypeStubs = false

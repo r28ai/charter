@@ -1,0 +1,41 @@
+{/* The pack list, handed to each of the three runners.
+
+    Two pages show this: the overview, where it is the neutrality claim (the
+    layer sits below whichever framework you run), and the quickstart, where it
+    is the last step of the walkthrough. Same four lines, two arguments, so the
+    prose around it differs on each page and the code lives here once. A change
+    to an adapter import or to the MCP invocation is one edit, not three.
+
+    The reference page, /using/adapters, keeps its own copies on purpose: there
+    the blocks are split apart with prose between them, which is a different
+    shape rather than a third duplicate.
+
+    header-tabs is the in-header tab bar, the shape for a group whose tabs are
+    destinations rather than versions to weigh. custom.css says why. */}
+
+<div className="header-tabs">
+
+<CodeGroup>
+
+```python OpenAI
+from charter.adapters.openai import to_openai_tools
+from charter.packs import gmail
+
+tools = to_openai_tools(gmail.TOOLS)
+```
+
+```python LangChain
+from charter.adapters.langchain import to_langchain_tools
+from charter.packs import gmail
+
+tools = to_langchain_tools(gmail.TOOLS)
+```
+
+```bash MCP
+pip install 'charter[mcp]'
+python -m charter.mcp --pack gmail
+```
+
+</CodeGroup>
+
+</div>

@@ -1,0 +1,47 @@
+---
+title: "Installation"
+description: "Two dependencies, one command."
+---
+
+Charter requires Python 3.10 or later.
+
+```bash
+pip install charter
+```
+
+That is the whole install. The core depends on `pydantic` and `httpx` and nothing else. If a coding agent is doing the setup, the [prompt](/start/coding-agents) runs this step for you.
+
+## Verify
+
+```python verify_install.py
+import charter
+
+print(charter.__version__)
+```
+
+Declaring tools, calling them, [OAuth refresh](/auth/authorization-servers), [egress maps](/boundary/egress-control), every [pack](/packs/overview), and the OpenAI tool format all work from this install with nothing added.
+
+## Extras
+
+Two integrations need a library of their own. Neither is a dependency of the core.
+
+```bash
+pip install 'charter[langchain]'   # the LangChain adapter
+pip install 'charter[mcp]'         # the MCP server
+```
+
+See [framework adapters](/using/adapters) and [MCP](/using/mcp).
+
+## Development
+
+To work on Charter itself:
+
+```bash
+uv venv
+uv pip install -e ".[dev,langchain,mcp]"
+uv run pytest
+uv run ruff check src tests examples
+uv run pyright --pythonpath .venv/bin/python src
+```
+
+The test suite is offline by rule. Every HTTP interaction is mocked with `respx`, and a test that reaches the network is a bug in the test.

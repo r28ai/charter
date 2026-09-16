@@ -1,0 +1,30 @@
+---
+title: "Conformance"
+description: "Nineteen properties that must hold for every pack, checked without knowing anything about any particular API."
+---
+
+A declaration can be wrong in a way no per-tool test notices: the call returns 200, the suite stays green, and the filter you declared was silently discarded on the way out.
+
+So the properties that must hold for every pack are checked separately, without knowing anything about any particular API: nineteen in all. Among them:
+
+- a `Pagination` names fields the schema actually accepts, only endpoints that page declare one, and a walk over it terminates;
+- no `model_validator` is lost on the way to the LLM view, so a `oneof` is enforced against the model's input and not only against the wire;
+- failure detection is an [`Envelope`](/tools/envelopes) on the factory and never logic inside a response handler, where the first tool added without one reports a failed write as a success;
+- Google packs send camelCase query parameters, which Google requires and otherwise ignores without complaint;
+- a `static_body`, `static_query` or `static_headers` constant is never also reachable as a tool argument;
+- a [`Gloss`](/reference/markers#gloss) reaches the model's schema and never the documented description, so the vendor's own text stays comparable to their reference page;
+- a `PATCH` body mandates nothing, so a partial update cannot demand a field it is not changing.
+
+Most of these were written after a bug rather than before one. Four packs added in a single week produced six, five of them silent — including a factory-level pagination that labelled twenty-two retrieve and write endpoints with a cursor parameter they do not accept.
+
+## Checking the checks
+
+A check that reads a declaration and compares it to itself passes forever and protects nothing. So each one is also run against a pack broken on purpose, in the specific way the bug it guards against broke it — eighteen mutations in `tests/test_conformance_is_not_vacuous.py`, each restored afterwards.
+
+One check was vacuous until that file caught it.
+
+## What conformance cannot tell you
+
+Whether a schema still matches the vendor's live API. That is drift, and it needs the published spec rather than introspection.
+
+It is on the roadmap. Until then `scripts/live_google_check.py` is the shape such a check takes — deliberately not a test, because the suite is offline by rule.

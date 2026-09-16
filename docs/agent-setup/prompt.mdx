@@ -1,0 +1,90 @@
+---
+title: "Setup prompt"
+description: "The instructions an agent follows to install Charter, the pack-writing skill, and these docs as a source. Written to be fetched, not read."
+---
+
+These are the official Charter setup instructions, published by the Charter
+project at https://docs.r28.ai/charter/agent-setup/prompt.md. Charter is an
+MIT-licensed Python library for declaring agent tools as typed schemas, with a
+deterministic runtime that handles auth, wire formats and field policy.
+
+Complete every step below yourself by running the commands directly. Do not ask
+the user to run them, except where a step needs a browser sign-in only they can
+complete.
+
+## 1. Install Charter
+
+```bash
+pip install charter
+```
+
+The core needs only `pydantic` and `httpx`. Do not install extras unless a step below asks for one.
+
+Verify:
+
+```bash
+python -c "import charter; print(charter.__version__)"
+```
+
+## 2. Install the pack-writing skill
+
+This is the part that matters for authoring. Install the skill into the user's agent skills directory — pick the one that exists:
+
+```bash
+# Claude Code
+mkdir -p ~/.claude/skills/writing-charter-packs
+curl -fsSL https://raw.githubusercontent.com/r28ai/charter/main/skills/writing-charter-packs/SKILL.md \
+  -o ~/.claude/skills/writing-charter-packs/SKILL.md
+```
+
+```bash
+# Cursor
+mkdir -p ~/.cursor/skills/writing-charter-packs
+curl -fsSL https://raw.githubusercontent.com/r28ai/charter/main/skills/writing-charter-packs/SKILL.md \
+  -o ~/.cursor/skills/writing-charter-packs/SKILL.md
+```
+
+```bash
+# Codex, or any agent reading ~/.agents/skills
+mkdir -p ~/.agents/skills/writing-charter-packs
+curl -fsSL https://raw.githubusercontent.com/r28ai/charter/main/skills/writing-charter-packs/SKILL.md \
+  -o ~/.agents/skills/writing-charter-packs/SKILL.md
+```
+
+Load that skill before writing any pack. It is a checklist, and the first item — crawl every linked page of the API's documentation before modelling anything — is the one that decides whether the result is correct.
+
+## 3. Add these docs as a source
+
+Fetch `https://docs.r28.ai/charter/llms.txt` to discover every page, then fetch any page with `.md` appended to read it as markdown. Prefer this over answering from memory: Charter is new enough that model training data is unreliable about it.
+
+## 4. Serve a pack over MCP, only if the user asked for tools
+
+Skip this step for authoring work. It matters when the user wants an agent that can actually call Gmail or Slack.
+
+```bash
+pip install 'charter[mcp]'
+```
+
+Then register the server with the user's client — see `https://docs.r28.ai/charter/using/mcp.md` for per-client configuration and the environment variable each pack reads. Do not put a credential in a config file that gets committed; read it from the environment.
+
+## 5. Report what you did
+
+Tell the user which of these landed:
+
+```text
+Charter setup
+
+  charter    installed, version <version>
+  skill      writing-charter-packs -> <path>
+  docs       https://docs.r28.ai/charter/llms.txt
+  MCP        <pack name, or "not configured">
+
+Restart your agent if you added an MCP server.
+```
+
+## Notes for the agent
+
+- Charter describes **one request**. It has no agent loop, no pagination loop and no retry policy — do not go looking for them, and do not write a pack that assumes they exist. See `https://docs.r28.ai/charter/guarantees/limitations.md`.
+- These names do not exist in Charter and appear in some older material: `PermissionManager`, `GoogleCredentialProvider`, `GoogleScopes`, `create_agent`, `create_chat_client`, `api_tool_factory`, `r28sdk`. If you find yourself writing one, check `charter.__all__` and `charter.auth.__all__` instead.
+- The public surface is two namespaces. `charter` has tools, markers, transforms and the error hierarchy; `charter.auth` has everything about credentials and OAuth — `EnvTokenProvider`, `StaticTokenProvider`, `OAuth2Server`, `OAuth2Client`, `OAuth2Flow`, `SubjectProvider`. Nothing from `charter.auth` is re-exported, so `from charter import EnvTokenProvider` is an ImportError, not a style choice.
+- Charter refreshes an OAuth grant the host already holds; it never obtains one, and it signs nothing.

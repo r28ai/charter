@@ -1,0 +1,347 @@
+---
+title: "Shopify"
+description: "Read products, orders, customers and the shop itself."
+sidebarTitle: "Overview"
+---
+
+{/* generated:summary start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="pack-summary">
+  <span><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg>22 tools</span>
+  <span><svg viewBox="0 0 24 24"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4" /><path d="m21 2-9.6 9.6" /><circle cx="7.5" cy="15.5" r="5.5" /></svg>API key</span>
+</div>
+{/* generated:summary end */}
+
+```python shopify_example.py {10}
+import os
+
+from charter.packs import shopify
+
+shopify.configure(
+    shop=os.environ["SHOPIFY_SHOP"],
+    access_token=os.environ["SHOPIFY_ACCESS_TOKEN"],
+)
+
+products = await shopify.products_list.ainvoke(variables={"first": 20})
+```
+
+Products, orders, customers and the shop itself — the read-and-triage core of the
+Admin API. Fulfillment, inventory adjustment, discounts and the Storefront API are
+not modelled, and neither are bulk operations: Shopify's answer to a large export
+is an asynchronous job you poll and then download, and that is orchestration.
+
+Shopify is the second GraphQL pack. Read [Linear](/packs/linear) first for what
+the two have in common; this page is about what Shopify breaks that Linear does
+not.
+
+## Authenticating
+
+{/* generated:auth start — do not edit by hand; run scripts/generate_pack_docs.py */}
+This pack takes an API key in `X-Shopify-Access-Token`.
+
+There is no authorization server, no consent screen and no refresh — [API keys](/auth/api-key-tool-factory) is the whole story.
+{/* generated:auth end */}
+
+Two values, because a Shopify installation is a store as well as a token:
+`configure()` is optional when **both** `$SHOPIFY_SHOP` and
+`$SHOPIFY_ACCESS_TOKEN` are set. `shop` is the subdomain — `"my-store"` for
+`my-store.myshopify.com` — and the full domain or a complete URL is accepted
+too, since all three appear in Shopify's own documentation and admin UI.
+
+## The client
+
+{/* generated:wire start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<Note>
+[`api_key_tool_factory`](/reference/factories#api_key_tool_factory) is the whole client: a thin wrapper over `httpx` that attaches your key and these endpoint constants to each request. `ShopifyAPI` does not enter your dependency tree.
+</Note>
+
+<div className="named-tabs" data-files="shopify_api_client.py|shopify_pack_client.py">
+<CodeGroup>
+
+```python Without the pack
+import os
+
+from charter import Envelope, api_key_tool_factory
+
+shop = os.environ["SHOPIFY_SHOP"]
+access_token = os.environ["SHOPIFY_ACCESS_TOKEN"]
+
+shopify_api_client = api_key_tool_factory(
+    # the host is a property of the installation, not of the API
+    base_url=lambda: f"https://{shop}.myshopify.com/",
+    api_key_headers={"X-Shopify-Access-Token": access_token},
+    body_format="json",
+    query_format="repeat",
+    body_case="camel",
+    query_case="snake",
+    path_case="snake",
+    envelope=Envelope(
+        errors_field=(
+            "errors",
+            "data.*.userErrors",
+            "data.*.orderCancelUserErrors",
+        ),
+    ),
+)
+
+# static_body is per tool, not per API: query differs across 22
+# of 22 tools.
+```
+
+```python With the pack
+import os
+
+from charter.packs import shopify
+
+shopify.configure(
+    shop=os.environ["SHOPIFY_SHOP"],
+    access_token=os.environ["SHOPIFY_ACCESS_TOKEN"],
+)
+
+# The base URL, the casing, the envelope and the pagination are
+# already declared. 22 tools, ready to hand to a model:
+tools = shopify.TOOLS
+```
+
+</CodeGroup>
+</div>
+
+### Paging through a list
+
+A cursor belongs to the tool that returns it, so it is declared on that tool's builder call:
+
+```python shopify_pagination.py
+products_list = shopify_api_client(
+    name="products_list",
+    args_schema=ProductsListRequest,
+    method="POST",
+    url_template="admin/api/2026-07/graphql.json",
+    pagination=Pagination(
+        cursor_field="pageInfo.endCursor",
+        cursor_param="variables.after",
+        more_field="pageInfo.hasNextPage",
+    ),
+)
+```
+
+<Note>
+Pagination is declared on `products_list`, `orders_list`, `customers_list` and `locations_list`. The other 18 take no cursor.
+</Note>
+{/* generated:wire end */}
+
+## Tools
+
+Each is a [`Tool`](/reference/tool), called with
+[`ainvoke`](/reference/tool#tool-ainvoke) as in the snippet above. The name
+links to its parameters, its response and what it costs.
+
+{/* generated:tools start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="tool-list">
+  <a className="tool-row" href="/packs/shopify/shop_get">
+    <span className="tool-row-head"><span className="tool-row-name">shop_get</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Get the store's own details — its name, domain, currency and timezone.</span>
+  </a>
+  <a className="tool-row" href="/packs/shopify/products_list">
+    <span className="tool-row-head"><span className="tool-row-name">products_list</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">List products.</span>
+  </a>
+  <a className="tool-row" href="/packs/shopify/product_get">
+    <span className="tool-row-head"><span className="tool-row-name">product_get</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Get one product with its description and its first 50 variants, including each variant's SKU, price and inventory.</span>
+  </a>
+  <a className="tool-row" href="/packs/shopify/product_create">
+    <span className="tool-row-head"><span className="tool-row-name">product_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a product.</span>
+  </a>
+  <a className="tool-row" href="/packs/shopify/product_update">
+    <span className="tool-row-head"><span className="tool-row-name">product_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Update a product.</span>
+  </a>
+  <a className="tool-row" href="/packs/shopify/orders_list">
+    <span className="tool-row-head"><span className="tool-row-name">orders_list</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">List orders.</span>
+  </a>
+  <a className="tool-row" href="/packs/shopify/order_get">
+    <span className="tool-row-head"><span className="tool-row-name">order_get</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Get one order with its line items, shipping address and totals.</span>
+  </a>
+  <a className="tool-row" href="/packs/shopify/customers_list">
+    <span className="tool-row-head"><span className="tool-row-name">customers_list</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">List customers.</span>
+  </a>
+  <a className="tool-row" href="/packs/shopify/customer_get">
+    <span className="tool-row-head"><span className="tool-row-name">customer_get</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Get one customer, with lifetime spend and default address.</span>
+  </a>
+  <a className="tool-row" href="/packs/shopify/customer_create">
+    <span className="tool-row-head"><span className="tool-row-name">customer_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a customer.</span>
+  </a>
+  <a className="tool-row" href="/packs/shopify/customer_update">
+    <span className="tool-row-head"><span className="tool-row-name">customer_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Update a customer.</span>
+  </a>
+  <a className="tool-row" href="/packs/shopify/order_fulfillment_orders">
+    <span className="tool-row-head"><span className="tool-row-name">order_fulfillment_orders</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">List an order's fulfillment orders, which is the first half of fulfilling it.</span>
+  </a>
+  <a className="tool-row" href="/packs/shopify/fulfillment_create">
+    <span className="tool-row-head"><span className="tool-row-name">fulfillment_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Fulfil one or more fulfillment orders, marking the goods as shipped.</span>
+  </a>
+  <a className="tool-row" href="/packs/shopify/inventory_adjust_quantities">
+    <span className="tool-row-head"><span className="tool-row-name">inventory_adjust_quantities</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Move stock by a relative amount: <code>delta</code> of 5 adds five, -5 removes five.</span>
+  </a>
+  <a className="tool-row" href="/packs/shopify/variant_inventory_level">
+    <span className="tool-row-head"><span className="tool-row-name">variant_inventory_level</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Read a variant's stock at one location.</span>
+  </a>
+  <a className="tool-row" href="/packs/shopify/locations_list">
+    <span className="tool-row-head"><span className="tool-row-name">locations_list</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">List the store's locations.</span>
+  </a>
+  <a className="tool-row" href="/packs/shopify/order_close">
+    <span className="tool-row-head"><span className="tool-row-name">order_close</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Close an order, marking it finished.</span>
+  </a>
+  <a className="tool-row" href="/packs/shopify/order_open">
+    <span className="tool-row-head"><span className="tool-row-name">order_open</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Reopen a closed order.</span>
+  </a>
+  <a className="tool-row" href="/packs/shopify/order_cancel">
+    <span className="tool-row-head"><span className="tool-row-name">order_cancel</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Cancel an order.</span>
+  </a>
+  <a className="tool-row" href="/packs/shopify/draft_order_create">
+    <span className="tool-row-head"><span className="tool-row-name">draft_order_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a draft order, the way to build an order by hand before it is placed.</span>
+  </a>
+  <a className="tool-row" href="/packs/shopify/draft_order_complete">
+    <span className="tool-row-head"><span className="tool-row-name">draft_order_complete</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Turn a draft order into a real one.</span>
+  </a>
+  <a className="tool-row" href="/packs/shopify/product_variants_bulk_create">
+    <span className="tool-row-head"><span className="tool-row-name">product_variants_bulk_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Add variants to a product.</span>
+  </a>
+</div>
+{/* generated:tools end */}
+
+The API version sits in the path, and pinning it is not optional: Shopify ships a
+new version quarterly and supports each for twelve months, so an unpinned
+integration is one that changes under you. `shopify.API_VERSION` is the version
+these documents were written against.
+
+## A host that is not a constant
+
+Every other pack here has a fixed base URL. A Shopify store lives at
+`https://{shop}.myshopify.com/`, so the host is only known once someone installs
+the app. `base_url` therefore takes a callable, resolved on every request:
+
+```python shopify_resolve_base_url.py
+shopify.base_url()      # 'https://my-store.myshopify.com/' — raises if unconfigured
+```
+
+The host must never be a schema field. A `Path()` parameter for the subdomain
+would let the model choose which server the request goes to, which is the one
+thing a boundary cannot permit. An unresolved base URL raises `CredentialError`
+before anything leaves the process, the same way an unconfigured credential does.
+
+Zendesk, Atlassian and self-hosted GitLab have the same shape. See
+[the wire contract](/tools/wire-contract).
+
+## Failure hides in userErrors
+
+As with Linear, GraphQL's `errors` array only carries problems with the
+*document*. A mutation Shopify ran and then refused — a duplicate handle, a
+customer with no contact details — returns HTTP 200, no `errors`, and a populated
+`userErrors`:
+
+```json shopify_user_errors.json
+{"data": {"productCreate": {"product": null,
+ "userErrors": [{"field": ["handle"], "message": "Handle has already been taken"}]}}}
+```
+
+`errors_field` takes several paths, so one declaration covers both places:
+
+```python shopify_envelope.py
+from charter import Envelope
+
+Envelope(errors_field=("errors", "data.*.userErrors"))
+```
+
+A query has no `userErrors`, and a successful mutation has an empty one, so
+neither matches. The error message names the resolved path, so it says *which
+write* was declined without the envelope knowing anything about Shopify.
+
+## Money comes back as a MoneyBag
+
+Shopify returns every price as
+`{"shopMoney": {"amount": "10.00", "currencyCode": "USD"}}`, because a store can
+present one currency and settle in another. Two levels of nesting per price, on
+every line item of every order, is a lot of envelope for a number.
+
+Every tool here runs an unwrap handler that strips GraphQL's `data` and operation
+name and flattens the shop-currency side to `"10.00 USD"`. The walk covers the
+whole payload, since prices appear on the order, on each line item, and on a
+customer's lifetime spend.
+
+## Gotchas
+
+<AccordionGroup>
+  <Accordion title="Ids are global, and they are not numbers">
+    `product_get`, `order_get` and `customer_get` take a global id —
+    `gid://shopify/Product/123456` — not the bare number from the admin URL. The
+    list tools return ids in that form, which is the intended way to get one.
+  </Accordion>
+
+  <Accordion title="Filtering is an untyped search string">
+    Shopify's `query` argument takes its own syntax rather than a filter object,
+    so it cannot be typed the way Linear's `IssueFilter` can. The supported
+    qualifiers are documented on each field instead:
+    `financial_status:paid fulfillment_status:unshipped` for orders waiting to
+    ship, `status:active vendor:Acme` for products, `orders_count:>5` for
+    customers.
+  </Accordion>
+
+  <Accordion title="Orders stop 60 days back unless you were granted a scope">
+    Shopify serves an app holding `read_orders` only the last 60 days of a
+    store's orders. Everything older needs `read_all_orders`, which Shopify
+    grants by review rather than on request.
+
+    The truncation is silent — no error, no marker on the page, just a shorter
+    history than the store has — so `orders_list` says so in the description the
+    model reads, and a `created_at:` window reaching further back is called out
+    on the `query` field. An empty result is not evidence of an empty history.
+  </Accordion>
+
+  <Accordion title="Rate limiting is a cost budget, not a request count">
+    Shopify prices each query by the fields it selects, so no constant
+    `quota_cost` would be truthful — the cost of a call depends on the page size
+    it is invoked with. The selection sets in `charter.packs.shopify.queries` are
+    deliberately narrow for the same reason, and keeping `first` small is worth
+    doing.
+  </Accordion>
+
+  <Accordion title="A new product is not on the storefront">
+    Shopify creates products unpublished. `product_create` returns successfully
+    and the product is invisible to shoppers until it is published to a sales
+    channel, which is a separate operation and is not modelled here.
+  </Accordion>
+
+  <Accordion title="A customer needs an email or a phone number">
+    `customer_create` with neither is refused — and refused through
+    `userErrors`, at HTTP 200, which is exactly the case the envelope exists for.
+  </Accordion>
+
+  <Accordion title="tags replaces the product's tags">
+    `product_update` overwrites rather than merges, the same as Linear's
+    `label_ids` and GitHub's `labels`. Read, union, send.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [Linear](/packs/linear) — the other GraphQL pack
+- [Envelopes](/tools/envelopes) — several error paths in one declaration
+- [The wire contract](/tools/wire-contract) — a base URL that is not a constant

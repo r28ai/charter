@@ -1,0 +1,113 @@
+---
+title: "Response handling"
+description: "ResponseHandler, decode_base64url and html_to_text: reshaping a payload before the model reads it."
+---
+
+A response handler runs after a successful call and returns whatever the model
+should actually see. It is the context-economy hook: an API that returns 40KB of
+envelope for one useful string costs the model its window on every call.
+
+Across [536 measured runs](/guarantees/measured-results) the packs' own handlers
+were the difference between 33-35KB of payload per run and 7.7-8.4KB reaching the
+model. See [context window](/optimization/context-window#the-other-direction-responses-coming-back)
+for how to find the tool that needs one.
+
+## `ResponseHandler`
+
+```python
+ResponseHandler = Callable[[Any], Awaitable[Any]]
+```
+
+An async callable taking the decoded payload and returning the result of the
+tool call. Passed to [`Tool(response_handler=...)`](/reference/tool#tool) or to a factory's builder.
+
+Four properties of when it runs:
+
+- **Only on success.** HTTP failures and declared
+  [envelope](/reference/envelopes-and-pagination) failures have already raised,
+  so a handler never sees an error payload.
+- **It must be `async def`.** A non-async callable raises [`DeclarationError`](/reference/errors#declarationerror) at build
+  time, naming the function.
+- **It is timed separately.** Its cost lands in `ToolCall.handler_ms`, and what
+  it returns is what `context_bytes` measures — so the saving is visible.
+- **It is per tool.** The shape of one endpoint's response is not the shape of
+  another's.
+
+```python
+from typing import Any
+
+from charter import api_key_tool_factory
+
+
+async def keep_the_useful_fields(response: Any) -> Any:
+    return {
+        "id": response.get("id"),
+        "status": response.get("status"),
+    }
+
+
+api = api_key_tool_factory(
+    base_url="https://api.example.com/",
+    api_key_headers={"x-api-key": "key-123"},
+)
+```
+
+Two cautions when trimming a list endpoint: keep whatever a
+[`Pagination`](/reference/envelopes-and-pagination) declaration reads — the
+object `id` behind a derived cursor, and `has_more` even when it is `False` —
+and keep whatever the model needs to make the *next* call, which is usually an
+id it would otherwise have to guess.
+
+## `decode_base64url`
+
+```python
+def decode_base64url(data: str, *, errors: str = "replace") -> str: ...
+```
+
+Decode a base64url string to UTF-8 text, padding it first.
+
+<ParamField path="data" type="str" required>
+  The encoded string. APIs that hand back base64url almost never pad it — Gmail,
+  JWT segments, Microsoft Graph attachments — and `base64.urlsafe_b64decode`
+  requires padding, so this adds it back.
+</ParamField>
+
+<ParamField path="errors" type="str" default='"replace"'>
+  Passed to `bytes.decode`. The default degrades rather than raising, because a
+  handler should not fail a whole call over one malformed part.
+</ParamField>
+
+```python
+from charter import decode_base64url
+
+assert decode_base64url("SGVsbG8sIHdvcmxkIQ") == "Hello, world!"
+```
+
+## `html_to_text`
+
+```python
+def html_to_text(html: str) -> str: ...
+```
+
+Flatten HTML to readable plain text. Drops `script`, `style`, `head` and `title`
+content, turns block-level tags into line breaks, decodes character entities,
+and collapses runs of blank lines.
+
+Malformed input degrades to the stripped raw markup rather than raising.
+Stdlib-only, on purpose: an HTML-to-text pass this shallow does not justify a
+parser dependency.
+
+```python
+from charter import html_to_text
+
+assert html_to_text("<p>Hi <b>there</b></p><style>p{color:red}</style>") == "Hi there"
+```
+
+Both functions exist because they are the two decodings response handlers keep
+needing — anything carrying user-authored content: Gmail messages, Notion
+blocks, Zendesk tickets, Intercom conversations.
+
+## Related
+
+- [What a call cost](/running/observability) — measuring what a handler saved
+- [Packs](/packs/overview) — handlers written against eleven real APIs

@@ -1,0 +1,91 @@
+---
+title: "MCP server"
+description: "Compile a pack into a lean MCP server. Write once with Charter markers; serve over the protocol."
+---
+
+MCP is a compile target, not an adapter. You declare tools once as schemas, and Charter emits a server that speaks the protocol — with serialization, casing, [egress policy](/boundary/egress-control) and [envelope checking](/tools/envelopes) still owned by the runtime rather than by the transport.
+
+```bash
+pip install 'charter[mcp]'
+python -m charter.mcp --pack gmail
+```
+
+`--pack` takes any pack name; `--name` overrides the server name, which defaults to the pack's. Every flag is listed under [`python -m charter.mcp`](/reference/cli#python-m-charter-mcp).
+
+Schemas are sent on demand. MCP is the surface where that costs nothing: the server holds a [`ToolSession`](/reference/tool-discovery#toolsession), `tools/list` reports what is currently loaded, and a load emits `notifications/tools/list_changed` so your client re-lists on its own. Gmail's 23 tools arrive as a single `ToolSearch` whose description lists them by name; each one appears as it is used. Pass [`--no-progressive`](/reference/cli#python-m-charter-mcp) for a client that ignores the notification.
+
+## Add it to your client
+
+The server speaks stdio, so a client runs it as a command rather than connecting to a URL. Put the credential in the environment, not in a config file you commit.
+
+<CodeGroup>
+
+```bash Claude Code
+claude mcp add charter-gmail -- python -m charter.mcp --pack gmail
+```
+
+```json Cursor (.cursor/mcp.json)
+{
+  "mcpServers": {
+    "charter-gmail": {
+      "command": "python",
+      "args": ["-m", "charter.mcp", "--pack", "gmail"],
+      "env": { "GOOGLE_ACCESS_TOKEN": "${GOOGLE_ACCESS_TOKEN}" }
+    }
+  }
+}
+```
+
+```json VS Code (.vscode/mcp.json)
+{
+  "servers": {
+    "charter-gmail": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["-m", "charter.mcp", "--pack", "gmail"]
+    }
+  }
+}
+```
+
+```toml Codex (~/.codex/config.toml)
+[mcp_servers.charter-gmail]
+command = "python"
+args = ["-m", "charter.mcp", "--pack", "gmail"]
+```
+
+</CodeGroup>
+
+One entry per pack — the server serves a single pack, so an agent that needs Gmail and Slack gets two. Restart the client after adding one.
+
+## Credentials
+
+The entry point reads them from the environment — the same [environment fallbacks](/reference/configuration#environment-fallbacks) every pack honours.
+
+| Pack | Environment variable |
+|---|---|
+| `gmail`, `gcalendar`, `gsheets`, `gdocs`, `gdrive`, `gforms` | `GOOGLE_ACCESS_TOKEN` |
+| `slack` | `SLACK_BOT_TOKEN` |
+| `github` | `GITHUB_TOKEN` |
+| `stripe` | `STRIPE_API_KEY` |
+| `linear` | `LINEAR_API_KEY` |
+| `shopify` | `SHOPIFY_SHOP` and `SHOPIFY_ACCESS_TOKEN` |
+| `firecrawl` | `FIRECRAWL_API_KEY` |
+| `notion` | `NOTION_API_KEY` |
+| `granola` | `GRANOLA_API_KEY` |
+
+Shopify needs both variables, since the host is a property of the store.
+
+<Note>
+A raw access token expires in about an hour. For a server that stays up, configure the pack with an [OAuth client](/auth/authorization-servers) in your own process rather than using the environment entry point.
+</Note>
+
+## What the client sees
+
+The tools a pack exports, with the schema the model is allowed to see — not the full API surface. A field marked [`Mode("response_only")`](/reference/markers#mode) is absent from the tool definition the MCP client receives, because the LLM view is computed before anything is serialised. The boundary is the same one every other caller crosses.
+
+## Related
+
+- [`python -m charter.mcp`](/reference/cli) — the flags, the client configuration, and using it as a function
+- [Environment fallbacks](/reference/configuration#environment-fallbacks) — the variable each pack reads
+- [`Mode`](/reference/markers#mode) — what the client is not shown, and why

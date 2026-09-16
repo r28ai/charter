@@ -1,0 +1,196 @@
+---
+title: "Google OAuth"
+sidebarTitle: "Google"
+description: "One grant for the gmail, gcalendar, gsheets, gdocs, gdrive and gforms packs: the constant, the scopes, and the two parameters that fail silently."
+---
+
+One authorization server serves all six Google packs: [`gmail`](/packs/overview),
+`gcalendar`, `gsheets`, `gdocs`, `gdrive` and `gforms`. One client registration, one consent
+screen, one refresh token, one [`OAuth2Client`](/reference/oauth#oauth2client) handed to all six.
+
+## The server
+
+```python google_server.py
+from charter.auth import OAuth2Server
+
+GOOGLE = OAuth2Server(
+    issuer="https://accounts.google.com",
+    authorization_endpoint="https://accounts.google.com/o/oauth2/v2/auth",
+    token_endpoint="https://oauth2.googleapis.com/token",
+    token_endpoint_auth_method="client_secret_post",
+    authorization_params={"access_type": "offline", "prompt": "consent"},
+)
+```
+
+This is the canonical copy. `scripts/live_google_check.py` holds the same
+constant in Python and fails if Google's own discovery document stops agreeing
+with it.
+
+Google does publish metadata, so
+`await OAuth2Server.discover("https://accounts.google.com")` builds the same
+three endpoint fields at the cost of a network round trip at import time. What
+it can never fill in is `authorization_params` — see below, because that is the
+field the whole integration turns on.
+
+## Scopes
+
+Every pack declares what its tools need, and [`scopes_for`](/reference/oauth#scopes_for) reads it back:
+
+| pack | scope |
+|---|---|
+| `gmail` | `https://www.googleapis.com/auth/gmail.modify` |
+| `gmail`, `threads_delete` only | `https://mail.google.com/` |
+| `gcalendar` | `https://www.googleapis.com/auth/calendar.events` |
+| `gsheets` | `https://www.googleapis.com/auth/spreadsheets` |
+| `gdocs` | `https://www.googleapis.com/auth/documents` |
+| `gdrive` | `https://www.googleapis.com/auth/drive` |
+| `gforms` | `https://www.googleapis.com/auth/forms.body` |
+| `gforms`, the two response readers | `https://www.googleapis.com/auth/forms.responses.readonly` |
+
+Read the second row as the reason `scopes_for` takes tools rather than packs.
+Google covers every Gmail endpoint here with `gmail.modify` except
+`threads_delete`, which it puts behind full mailbox access because the delete
+cannot be undone. That scope is declared on the tool, so it enters a consent
+request only when you hand the tool out:
+
+```python gmail_narrow_scopes.py
+from charter.auth import scopes_for
+from charter.packs import gmail
+
+read_and_label = [t for t in gmail.TOOLS if t is not gmail.threads_delete]
+
+scopes_for(read_and_label)  # ['https://www.googleapis.com/auth/gmail.modify']
+scopes_for(gmail.TOOLS)     # ...and 'https://mail.google.com/' as well
+```
+
+```python google_scopes.py
+from charter.auth import scopes_for
+from charter.packs import gcalendar, gdocs, gdrive, gforms, gmail, gsheets
+
+CONNECT_SCOPES = scopes_for([*gmail.TOOLS, *gcalendar.TOOLS, *gsheets.TOOLS, *gdocs.TOOLS, *gdrive.TOOLS, *gforms.TOOLS])
+```
+
+Ask for the union in one authorization request and one refresh token covers all
+six packs. Adding a pack later means sending the user back through consent: a
+grant covers the scopes it was issued for and nothing else, and the failure when
+it does not is a `403` from the API, not from the token endpoint.
+
+Each pack also names an environment variable. All six read
+`$GOOGLE_ACCESS_TOKEN`, which is the static-token path for a script. It never
+refreshes.
+
+## Wiring the packs
+
+```python google_client.py
+from charter.auth import OAuth2Client
+from charter.packs import gcalendar, gdocs, gdrive, gforms, gmail, gsheets
+
+google = OAuth2Client(
+    GOOGLE,
+    client_id=os.environ["GOOGLE_CLIENT_ID"],
+    client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
+    refresh_token=stored_refresh_token,
+    on_refresh=save_to_db,
+)
+
+for pack in (gmail, gcalendar, gsheets, gdocs, gdrive, gforms):
+    pack.configure(credential_provider=google)
+```
+
+One client across six packs on purpose: the access token is fetched once and
+cached once, so a run that sends a mail, files a calendar event and appends a
+row spends one refresh rather than six. Serving many end users instead of one
+account is [`SubjectProvider`](/auth/authorization-servers#serving-many-users),
+which keeps one of these per subject.
+
+## Getting the first grant
+
+The snippets here are a web app's: a route, a session, a row per user. For one
+account of your own, [your own account](/auth/your-own-account) does the same
+two protocol steps from a terminal, with no route and no database.
+
+Charter refreshes a grant you already hold and never obtains one — the consent
+redirect, `state`, PKCE and the callback route are [your framework's](/auth/oauth-flow).
+Two steps of it are protocol, and they are the ones below:
+
+```python google_connect.py
+from charter.auth import OAuth2Flow
+
+flow = OAuth2Flow(
+    GOOGLE,
+    client_id=os.environ["GOOGLE_CLIENT_ID"],
+    client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
+    redirect_uri="https://app.example.com/oauth/google/callback",
+)
+
+request = flow.authorize(scopes=CONNECT_SCOPES, login_hint=user.email)
+```
+
+At the callback, check what Google actually granted before you store it:
+
+```python google_callback.py
+grant = await flow.exchange(code, code_verifier=verifier)
+
+missing = set(scopes_for(gmail.TOOLS)) - set(grant.scopes)
+if missing:
+    abort(400)  # the user unticked a permission on the consent screen
+
+await db.grants.put(user.id, "google", grant.refresh_token)
+```
+
+Google's consent screen lets a user approve some scopes and refuse others, and
+the exchange still succeeds. `grant.scopes` is what was really issued; comparing
+it against `scopes_for` is the only place that gap is visible before a tool call
+returns `403`.
+
+[`OAuth2Client.from_grant(GOOGLE, grant, client_id=..., client_secret=...)`](/reference/oauth#oauth2client-from_grant) turns
+that grant into the provider above without spending a refresh.
+
+## Refresh behaviour
+
+**Google does not rotate refresh tokens.** A refresh response carries an
+`access_token`, an `expires_in` of about an hour, and no `refresh_token` — so
+`on_refresh` hands you back the same string you passed in. The row worth writing
+is the one `exchange()` returned; `on_refresh` still earns its place as the hook
+that tells your store the grant is alive.
+
+**Concurrent refreshes are harmless here**, because nothing is invalidated by a
+second one. `OAuth2Client` serialises them anyway — twelve parallel tool calls
+wait on one refresh — which is what makes the same code safe against the
+rotating servers on the other two provider pages.
+
+**A revoked grant answers `invalid_grant`.** Revocation happens at
+`myaccount.google.com/permissions`, or when a Workspace admin removes the app.
+Charter raises [`CredentialError`](/reference/errors#credentialerror) and then
+stops asking for 60 seconds, because the token endpoint rate-limits per client
+and one dead user must not degrade the rest. Call `reset()` after re-authorizing.
+
+## What fails silently
+
+**`access_type=offline` and `prompt=consent`.** Without the first, Google returns
+no refresh token at all. Without the second, a returning user who already
+approved your app gets a token response with no refresh token in it — Google
+only re-issues one on a *consenting* authorization. Nothing errors either way:
+the access token works, and the integration dies within the hour. That is why
+the lore lives on the [`OAuth2Server`](/reference/oauth#oauth2server) declaration, and why `exchange()` defaults
+to `expect_refresh_token=True` and names both parameters when none comes back.
+
+**A hundred refresh tokens per account, per client.** Google caps them and
+silently invalidates the oldest when you cross the line. An app that runs the
+consent flow on every login instead of reusing the stored grant will work for
+its first hundred users and then start logging out the earliest ones.
+
+**Refresh tokens expire in seven days while the app is in testing.** A Cloud
+Console project whose publishing status is *Testing* issues refresh tokens that
+die after a week. The symptom — works all week, `invalid_grant` on Monday — is
+worth recognising before you go looking for a bug in your storage.
+
+**`login_hint` is a hint.** It pre-fills the account chooser; the user can pick a
+different account. If your product ties the grant to an email address, read the
+address back from the API rather than trusting the one you asked for.
+
+## Where the rest is
+
+- [Getting the grant](/auth/oauth-flow) — the route, the session, `state`, PKCE
+- [Authorization servers](/auth/authorization-servers) — discovery, and what varies between servers
+- [Packs](/packs/overview) — what the six Google packs cover

@@ -1,0 +1,173 @@
+---
+title: "GitHub OAuth"
+sidebarTitle: "GitHub"
+description: "The constant, the three kinds of GitHub token, and the one app setting that decides whether refresh exists at all."
+---
+
+Most GitHub integrations never refresh anything: a classic OAuth App token and a
+personal access token both live until somebody revokes them. Refresh exists for
+exactly one shape — a GitHub App user-to-server token on an app that expires its
+tokens — and that is the shape [`OAuth2Client`](/reference/oauth#oauth2client) is for.
+
+## The server
+
+```python github_server.py
+from charter.auth import OAuth2Server
+
+GITHUB = OAuth2Server(
+    issuer="https://github.com",
+    authorization_endpoint="https://github.com/login/oauth/authorize",
+    token_endpoint="https://github.com/login/oauth/access_token",
+    token_endpoint_auth_method="client_secret_post",
+)
+```
+
+GitHub publishes no authorization-server metadata for these endpoints, so
+`discover()` has nothing to read and the constant is the declaration. Both URLs
+are on `github.com`, not `api.github.com` — the API host the pack calls is a
+different host from the one that issues the token.
+
+No `authorization_params`: GitHub takes its refresh behaviour from the app's own
+settings rather than from the authorization request.
+
+## Which token you have
+
+| token | expires | refresh | provider |
+|---|---|---|---|
+| GitHub App user-to-server, expiry **on** | 8 hours | yes, rotating | `OAuth2Client` |
+| GitHub App user-to-server, expiry **off** | never | none issued | [`StaticTokenProvider`](/reference/credentials#statictokenprovider) |
+| Classic OAuth App | never | none issued | `StaticTokenProvider` |
+| Personal access token (classic or fine-grained) | when you said | none | `StaticTokenProvider` |
+
+"Expire user authorization tokens" is a checkbox on the GitHub App's settings
+page. With it off, the exchange returns an access token and nothing else; with it
+on, an 8-hour access token and a 6-month refresh token. It is the whole
+difference between the first two rows, and it is not visible from the token
+response until you look for what is missing.
+
+For a token that never expires there is nothing for `OAuth2Client` to do:
+
+```python github_static_token.py
+from charter.auth import StaticTokenProvider
+from charter.packs import github
+
+github.configure(credential_provider=StaticTokenProvider(os.environ["GITHUB_TOKEN"]))
+```
+
+`$GITHUB_TOKEN` is also the pack's fallback, so a script with that variable set
+needs no [`configure()`](/reference/configuration#configure) call at all.
+
+## Wiring the pack
+
+```python github_client.py
+from charter.auth import OAuth2Client
+from charter.packs import github
+
+github.configure(credential_provider=OAuth2Client(
+    GITHUB,
+    client_id=os.environ["GITHUB_CLIENT_ID"],
+    client_secret=os.environ["GITHUB_CLIENT_SECRET"],
+    refresh_token=stored_refresh_token,
+    on_refresh=save_to_db,
+))
+```
+
+The bearer token is only half of what GitHub wants on a request. `Accept`,
+`X-GitHub-Api-Version` and a `User-Agent` — GitHub answers `403` without the last
+one — are declared once on the pack as `static_headers` and sent verbatim beside
+the token, so nothing about them reaches the model. Serving many end users is
+[`SubjectProvider`](/auth/authorization-servers#serving-many-users).
+
+## Scopes
+
+```python github_scopes.py
+from charter.auth import scopes_for
+from charter.packs import github
+
+REPO_SCOPES = scopes_for(github.TOOLS)   # ['repo', 'read:user']
+```
+
+Those are the scopes a **classic OAuth App or a classic PAT** needs for the
+pack's twenty-nine tools. The other two token types do not use them:
+
+- A **fine-grained PAT** wants read/write on Issues, Pull requests and Contents,
+  plus Metadata.
+- A **GitHub App** derives its permissions from the app's installation, and
+  ignores the `scope` parameter on the authorization URL entirely. Pass
+  [`scopes_for(github.TOOLS)`](/reference/oauth#scopes_for) anyway — `authorize()` refuses an empty scope list,
+  since an authorization request for nothing is a bug upstream — and set the real
+  permissions on the app.
+
+## Getting the first grant
+
+The route, the session and `state` stay [yours](/auth/oauth-flow):
+
+```python github_connect.py
+from charter.auth import OAuth2Flow
+
+flow = OAuth2Flow(
+    GITHUB,
+    client_id=os.environ["GITHUB_CLIENT_ID"],
+    client_secret=os.environ["GITHUB_CLIENT_SECRET"],
+    redirect_uri="https://app.example.com/oauth/github/callback",
+)
+
+request = flow.authorize(REPO_SCOPES)
+```
+
+At the callback:
+
+```python github_callback.py
+grant = await flow.exchange(code, code_verifier=verifier)
+
+granted = set(",".join(grant.scopes).split(","))   # GitHub delimits with commas
+await db.grants.put(user.id, "github", grant.refresh_token)
+```
+
+That `split` is not decoration. RFC 6749 says the `scope` field is
+space-delimited and `TokenGrant.scopes` splits on whitespace accordingly; GitHub
+sends `repo,read:user`, so `grant.scopes` arrives as a single comma-joined
+element. Split it yourself before comparing against anything. A GitHub App user
+token reports no scopes at all, which is correct rather than empty — its
+permissions live on the installation.
+
+If the app does not expire its tokens, `exchange()` raises: no refresh token came
+back, and the default `expect_refresh_token=True` treats that as the silent-death
+case. On GitHub it often is not, so say so with
+`flow.exchange(code, expect_refresh_token=False)` and hold the result in a
+`StaticTokenProvider`.
+
+## Refresh behaviour
+
+**Every refresh rotates.** GitHub returns a new refresh token with each refresh
+and retires the old one, alongside `refresh_token_expires_in` — roughly six
+months. Persist the new value through `on_refresh` or the next refresh fails with
+`invalid_grant`, and note that the six-month clock is on the *refresh* token: an
+integration nobody uses for six months needs the user back on the consent screen.
+
+**Concurrency across processes is yours to solve.** One `OAuth2Client`
+serialises refreshes, so parallel tool calls in one process wait on a single
+one. Two processes each holding the same refresh token will invalidate each
+other's. Your store is the shared cache — one writer through `on_refresh`.
+
+**GitHub answers errors with a 200.** `login/oauth/access_token` returns
+`HTTP 200` with `{"error": "bad_verification_code", "error_description": "..."}`.
+Charter reads the `error` field regardless of status, so it becomes a
+[`CredentialError`](/reference/errors#credentialerror) with GitHub's own description attached.
+
+**The response is JSON because Charter asks for it.** That endpoint defaults to a
+form-encoded body; every token request Charter sends carries
+`Accept: application/json`, so the parsing is not a coincidence you need to
+reproduce — but it is why a hand-rolled `curl` of the same endpoint looks
+nothing like what you expected.
+
+**PKCE buys you nothing here.** GitHub does not implement it: `code_challenge` is
+ignored and no `code_verifier` is ever checked. Charter still sends both by
+default, harmlessly. Verifying `state` at the callback is the CSRF defense that
+actually holds on this server.
+
+## Where the rest is
+
+- [Getting the grant](/auth/oauth-flow) — the route, the session, `state`, PKCE
+- [Authorization servers](/auth/authorization-servers) — discovery, and what varies between servers
+- [Packs](/packs/overview) — the twenty-nine GitHub tools, their headers and paging

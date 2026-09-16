@@ -1,0 +1,389 @@
+---
+title: "Slack"
+description: "Post, edit and delete messages, read channels and threads, react and search."
+sidebarTitle: "Overview"
+---
+
+{/* generated:summary start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="pack-summary">
+  <span><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg>18 tools</span>
+  <span><svg viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /></svg>OAuth bearer</span>
+</div>
+{/* generated:summary end */}
+
+```python slack_example.py {7}
+from charter.auth import EnvTokenProvider
+from charter.packs import slack
+
+credentials = EnvTokenProvider("SLACK_BOT_TOKEN")
+slack.configure(credentials)
+
+await slack.chat_post_message.ainvoke(channel="C0123456789", text="Deploy finished.")
+```
+
+Post, edit and delete messages; list channels and members; read a channel or a
+thread; react; search. Every Slack tool takes ids rather than names — `C123ABC456`,
+not `#deploys` — so `conversations_list` and `users_list` are how an agent resolves
+what a person said into what the API accepts.
+
+Slack is the pack that made [envelopes](/tools/envelopes) exist.
+
+## Authenticating
+
+{/* generated:auth start — do not edit by hand; run scripts/generate_pack_docs.py */}
+This pack takes a Slack OAuth bearer token, and [`configure()`](/reference/configuration#configure) is optional when `$SLACK_BOT_TOKEN` is set. Which credential provider you hand it depends on whose account the calls run as.
+
+<Note>
+Refer to [Slack's provider page](/auth/providers/slack) for the "SLACK" constant the snippets below name, the scopes these 18 tools ask for, and this server's refresh behaviour.
+</Note>
+
+### A token you hold
+
+For a script, or a notebook. [`EnvTokenProvider`](/reference/credentials#envtokenprovider) re-reads the variable on every call, so a token rotated beside the process is picked up without a restart; [`StaticTokenProvider`](/reference/credentials#statictokenprovider) takes one you already hold as a string. Neither renews anything, so the calls stop when the token expires.
+
+```python slack_script.py {4}
+from charter.auth import EnvTokenProvider
+from charter.packs import slack
+
+credentials = EnvTokenProvider("SLACK_BOT_TOKEN")
+slack.configure(credentials)
+```
+
+### One account, refreshed
+
+For an agent or a server acting as you. [`OAuth2Client`](/reference/oauth#oauth2client) turns a client registration and a stored refresh token into an access token, and [renews it](/auth/authorization-servers#what-the-cache-does-precisely) before it lapses.
+
+```python slack_agent.py {8}
+from charter.auth import OAuth2Client
+from charter.packs import slack
+
+credentials = OAuth2Client(
+    SLACK,
+    client_id=os.environ["SLACK_CLIENT_ID"],
+    client_secret=os.environ["SLACK_CLIENT_SECRET"],
+    refresh_token=os.environ["SLACK_REFRESH_TOKEN"],
+)
+slack.configure(credentials)
+```
+
+<Note>
+No refresh token yet? [Getting the first grant](/auth/providers/slack#getting-the-first-grant) is the one-time consent flow that hands you one.
+</Note>
+
+### Many end users
+
+For a product whose users each connect their own account. [`SubjectProvider`](/reference/credentials#subjectprovider) builds one credential per user through a factory you write, and [`use_subject`](/reference/credentials#use_subject) names the user a call acts for. [Your users' accounts](/auth/oauth-flow) is the consent route inside your app; [serving many users](/auth/authorization-servers#serving-many-users) is the per-subject cache and its eviction.
+
+```python slack_server.py {17,21}
+from functools import partial
+
+from charter.auth import OAuth2Client, SubjectProvider, use_subject
+from charter.packs import slack
+
+# Yours to write: a user id in, that user's credential out.
+async def for_user(user_id: str) -> OAuth2Client:
+    grant = await db.grants.get(user_id, "slack")
+    return OAuth2Client(
+        SLACK,
+        client_id=os.environ["SLACK_CLIENT_ID"],
+        client_secret=os.environ["SLACK_CLIENT_SECRET"],
+        refresh_token=grant.refresh_token,
+        on_refresh=partial(save_to_db, user_id),
+    )
+
+credentials = SubjectProvider(for_user)
+slack.configure(credentials)
+
+# Per request: whose grant the tools use.
+with use_subject(request.user_id):
+    ...  # your agent runs here
+```
+{/* generated:auth end */}
+
+A bot token (`xoxb-…`) covers every tool except `search_messages`, which Slack
+only answers for a user token — see the gotcha below.
+
+## The client
+
+{/* generated:wire start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<Note>
+[`oauth_tool_factory`](/reference/factories#oauth_tool_factory) is the whole client: a thin wrapper over `httpx` that attaches your token and these endpoint constants to each request. `slack-sdk` does not enter your dependency tree.
+</Note>
+
+<div className="named-tabs" data-files="slack_api_client.py|slack_pack_client.py">
+<CodeGroup>
+
+```python Without the pack
+from charter import Envelope, oauth_tool_factory
+
+slack_api_client = oauth_tool_factory(
+    base_url="https://slack.com/api/",
+    provider="slack",
+    credential_provider=credentials,
+    scopes=[
+        "chat:write",
+        "channels:read",
+        "groups:read",
+        "im:read",
+        "mpim:read",
+        "channels:history",
+        "groups:history",
+        "im:history",
+        "mpim:history",
+        "users:read",
+        "reactions:write",
+    ],
+    body_format="json",
+    query_format="repeat",
+    body_case="snake",
+    query_case="snake",
+    path_case="snake",
+    envelope=Envelope(
+        ok_field="ok",
+        error_field="error",
+        credential_errors={
+            "account_inactive",
+            "ekm_access_denied",
+            "invalid_auth",
+            "missing_scope",
+            "no_permission",
+            "not_allowed_token_type",
+            "not_authed",
+            "org_login_required",
+            "token_expired",
+            "token_revoked",
+        },
+        detail_fields=("needed", "warning"),
+    ),
+)
+```
+
+```python With the pack
+from charter.packs import slack
+
+slack.configure(credentials)
+
+# The base URL, the casing, the envelope and the pagination are
+# already declared. 18 tools, ready to hand to a model:
+tools = slack.TOOLS
+```
+
+</CodeGroup>
+</div>
+
+`credentials` is whichever of the three you built in [Authenticating](#authenticating). A pack takes it through [`configure()`](/reference/configuration#configure); a client you build takes the same object as `credential_provider`, and has no `configure()` of its own.
+
+### Paging through a list
+
+A cursor belongs to the tool that returns it, so it is declared on that tool's builder call:
+
+```python slack_pagination.py
+conversations_list = slack_api_client(
+    name="conversations_list",
+    args_schema=ConversationsListRequest,
+    method="GET",
+    url_template="conversations.list",
+    pagination=Pagination(
+        cursor_field="response_metadata.next_cursor",
+        cursor_param="cursor",
+        more_field="has_more",
+    ),
+)
+```
+
+<Note>
+Pagination is declared on `conversations_list`, `conversations_history`, `conversations_replies`, `users_list` and `search_messages`. The other 13 take no cursor.
+</Note>
+{/* generated:wire end */}
+
+## Tools
+
+Each is a [`Tool`](/reference/tool), called with
+[`ainvoke`](/reference/tool#tool-ainvoke) as in the snippet above. The name
+links to its parameters, its response and what it costs.
+
+{/* generated:tools start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="tool-list">
+  <span className="tool-list-group">Chat</span>
+  <a className="tool-row" href="/packs/slack/chat/chat_post_message">
+    <span className="tool-row-head"><span className="tool-row-name">chat_post_message</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Send a message to a Slack channel, private group, or DM.</span>
+  </a>
+  <a className="tool-row" href="/packs/slack/chat/chat_update">
+    <span className="tool-row-head"><span className="tool-row-name">chat_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Update an existing Slack message.</span>
+  </a>
+  <a className="tool-row" href="/packs/slack/chat/chat_delete">
+    <span className="tool-row-head"><span className="tool-row-name">chat_delete</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Delete a Slack message.</span>
+  </a>
+  <a className="tool-row" href="/packs/slack/chat/chat_post_ephemeral">
+    <span className="tool-row-head"><span className="tool-row-name">chat_post_ephemeral</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Post a message only one person in a channel can see, and which vanishes when they reload.</span>
+  </a>
+  <a className="tool-row" href="/packs/slack/chat/chat_schedule_message">
+    <span className="tool-row-head"><span className="tool-row-name">chat_schedule_message</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Schedule a message for later, up to 120 days ahead.</span>
+  </a>
+  <span className="tool-list-group">Conversations</span>
+  <a className="tool-row" href="/packs/slack/conversations/conversations_list">
+    <span className="tool-row-head"><span className="tool-row-name">conversations_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List channels in the workspace.</span>
+  </a>
+  <a className="tool-row" href="/packs/slack/conversations/conversations_history">
+    <span className="tool-row-head"><span className="tool-row-name">conversations_history</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Fetch recent messages from a Slack channel.</span>
+  </a>
+  <a className="tool-row" href="/packs/slack/conversations/conversations_replies">
+    <span className="tool-row-head"><span className="tool-row-name">conversations_replies</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Fetch a thread of messages.</span>
+  </a>
+  <a className="tool-row" href="/packs/slack/conversations/conversations_open">
+    <span className="tool-row-head"><span className="tool-row-name">conversations_open</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Open a direct message with one person, or a group message with up to eight.</span>
+  </a>
+  <a className="tool-row" href="/packs/slack/conversations/conversations_create">
+    <span className="tool-row-head"><span className="tool-row-name">conversations_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a channel.</span>
+  </a>
+  <a className="tool-row" href="/packs/slack/conversations/conversations_invite">
+    <span className="tool-row-head"><span className="tool-row-name">conversations_invite</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Add people to a channel.</span>
+  </a>
+  <a className="tool-row" href="/packs/slack/conversations/conversations_join">
+    <span className="tool-row-head"><span className="tool-row-name">conversations_join</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Join a public channel.</span>
+  </a>
+  <span className="tool-list-group">Users</span>
+  <a className="tool-row" href="/packs/slack/users/users_list">
+    <span className="tool-row-head"><span className="tool-row-name">users_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List members of the workspace.</span>
+  </a>
+  <a className="tool-row" href="/packs/slack/users/users_info">
+    <span className="tool-row-head"><span className="tool-row-name">users_info</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get profile information about a single Slack user.</span>
+  </a>
+  <span className="tool-list-group">Reactions</span>
+  <a className="tool-row" href="/packs/slack/reactions/reactions_add">
+    <span className="tool-row-head"><span className="tool-row-name">reactions_add</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Add an emoji reaction to a Slack message.</span>
+  </a>
+  <a className="tool-row" href="/packs/slack/reactions/reactions_remove">
+    <span className="tool-row-head"><span className="tool-row-name">reactions_remove</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Take an emoji reaction off a Slack message.</span>
+  </a>
+  <a className="tool-row" href="/packs/slack/reactions/reactions_get">
+    <span className="tool-row-head"><span className="tool-row-name">reactions_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Read the reactions on a message.</span>
+  </a>
+  <span className="tool-list-group">Search</span>
+  <a className="tool-row" href="/packs/slack/search/search_messages">
+    <span className="tool-row-head"><span className="tool-row-name">search_messages</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Search messages across the workspace.</span>
+  </a>
+</div>
+{/* generated:tools end */}
+
+No tool declares `quota_cost`. Slack does not charge quota units per call the way
+Google does — each method sits in a tier with a requests-per-minute allowance — so
+a number here would be fabricated. Each tool records its tier in a comment beside
+its declaration in the pack source.
+
+## Failure arrives as HTTP 200
+
+Slack answers a rejected call with `200 OK` and a body:
+
+```json slack_failure_200.json
+{"ok": false, "error": "channel_not_found"}
+```
+
+A runtime that trusts the status line hands that to the model as though the
+message had sent. The model reports success, and the mistake is silent and
+downstream.
+
+That is not patched per tool. It is declared once as `SLACK_ENVELOPE` on the
+factory, and the runtime enforces it on every call — including calls by tools
+somebody adds next year:
+
+```python slack_envelope.py
+from charter.packs.slack import SLACK_ENVELOPE
+```
+
+Ten error codes are listed as credential errors, so `invalid_auth`,
+`token_revoked` and `missing_scope` raise `CredentialError` while
+`channel_not_found` raises `APIError`. A host application can therefore tell
+"refresh the token and retry" from "the request was wrong" without parsing
+strings. `detail_fields` carries `needed` and `warning` through onto the error,
+and `needed` is the one that says *which* scope was missing.
+
+`APIError.status_code` is 200 on these. That really was the status, and it is the
+fact that surprises whoever reads the log later.
+
+## Response trimming
+
+Slack objects are large: block trees, attachment arrays, edit history, profile
+image URLs in eight sizes. `conversations_list`, `conversations_history`,
+`conversations_replies` and `users_list` run handlers that keep what an agent can
+act on and drop the rest. They are exported:
+
+```python slack_response_handlers.py
+from charter.packs.slack import extract_messages, extract_channels, extract_users
+```
+
+The handlers preserve `response_metadata.next_cursor`, because the pagination
+declaration reads it back out of the trimmed payload. `search_messages` has no
+handler, so it returns Slack's search response as it arrived.
+
+Trimming is context economy only. The `ok:false` check is not in these handlers,
+and a handler here never sees a failed payload — the envelope raised first.
+
+## Gotchas
+
+<AccordionGroup>
+  <Accordion title="search_messages needs a user token, not a bot token">
+    `search.messages` is user-token only, and wants `search:read`. Called with a
+    bot token, Slack returns `not_allowed_token_type` — which is in
+    `credential_errors`, so it surfaces as a `CredentialError` naming the
+    provider rather than as a generic failure. The scopes this pack declares are
+    the bot-token set; `search:read` is not among them.
+  </Accordion>
+
+  <Accordion title="An empty cursor is the last page">
+    Slack returns `""` in `response_metadata.next_cursor` on the final page, not
+    a missing key. An empty cursor counts as absent, and `has_more` is declared
+    besides — so the walk terminates.
+
+    ```python
+    args = {"channel": "C123ABC456"}
+    while args is not None:
+        page = await slack.conversations_history.ainvoke(args)
+        handle(page)
+        args = slack.conversations_history.pagination.next_page_args(page, args)
+    ```
+  </Accordion>
+
+  <Accordion title="A bot can only edit and delete its own messages">
+    `chat_update` and `chat_delete` work on messages posted by the authenticated
+    token. A bot token cannot edit a human's message, and the refusal comes back
+    as an `ok:false` body rather than a 403.
+  </Accordion>
+
+  <Accordion title="The bot must be in the channel">
+    `conversations_history` on a public channel the bot has not joined returns
+    `not_in_channel`. Reading requires membership as well as scope — the
+    `channels:history` scope alone is not enough.
+  </Accordion>
+
+  <Accordion title="Slack is snake_case in both directions">
+    `thread_ts`, `include_all_metadata`, `reply_broadcast`. Both `body_case` and
+    `query_case` are `snake` on this factory, which for once means the
+    [cascade](/tools/key-case-cascade) does nothing — worth saying out loud,
+    since the Google packs next door are the opposite.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [Slack](/auth/providers/slack) — install flow, scopes, token types
+- [Envelopes](/tools/envelopes) — the declaration in full
+- [Tool validation and error handling](/running/tool-validation-error-handling)

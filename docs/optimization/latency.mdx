@@ -1,0 +1,152 @@
+---
+title: "Latency"
+description: "Whose time a call spent, the one knob that removes a handshake, and why the headline number here is not the one to chase."
+---
+
+A tool call is slow for one of four reasons, and they belong to different people.
+The first move is not to make anything faster. It is to find out whose time it
+was.
+
+## Whose time it was
+
+[`ToolCall`](/reference/observability) splits every call five ways rather than
+reporting one duration:
+
+| field | whose time it is |
+|---|---|
+| `schema_ms` | Charter: deriving this tool's view, on the one call that had to |
+| `validate_ms` | Charter — checking the model's arguments against the schema |
+| `transform_ms` | Charter — `Format` transforms and building the request |
+| `credential_ms` | **yours** — your [`CredentialProvider`](/reference/credentials#credentialprovider), which may hit a vault |
+| `upstream_ms` | **the provider's** — around the HTTP request, and nothing else |
+| `handler_ms` | **yours** — your `response_handler` |
+
+`overhead_ms` is `total_ms - upstream_ms`: everything that was not the API. It is
+the number that answers *is this layer in my way*, and a boundary layer should be
+able to answer that from your own logs rather than from a benchmark someone else
+ran.
+
+In the ordinary case it is small and there is nothing on this page for you. When
+it is not, it is almost always `credential_ms` — a provider that re-fetches a
+token it could have cached — and that is your code, in your process, which is the
+point of splitting it out.
+
+## Reuse the connection
+
+`ainvoke` builds an `httpx.AsyncClient` per call when it has no other one to
+use, which means a fresh TCP connection and a fresh TLS handshake against an API
+you are about to call again. Measured against the APIs these packs cover, that
+handshake is worth about 114ms:
+
+```
+median request on a new connection    141.9 ms
+median request on a reused one         28.3 ms
+```
+
+In a loop you drive yourself, pass one and it is reused:
+
+```python client.py
+import httpx
+
+from charter.packs import gmail
+
+async with httpx.AsyncClient(timeout=30) as http:
+    for message_id in message_ids:
+        await gmail.messages_get.ainvoke({"id": message_id}, client=http)
+```
+
+One handshake for the loop instead of one per iteration. Routing through a
+session, [`dispatch`](/reference/tool-discovery#toolsession) takes the same
+argument and hands it through:
+
+```python dispatch.py
+async with httpx.AsyncClient(timeout=30) as http:
+    result = await session.dispatch(name, arguments, client=http)
+```
+
+The client is yours: its timeout, its limits, its proxy settings, and its
+lifetime. Charter does not close a client it did not open.
+
+(Sharp edge: `client` is keyword-only and shadows a schema field literally named
+`client`. Pass such a field in the positional dict.)
+
+### Through an adapter, it is not reached
+
+An adapter hands your framework a coroutine and the framework decides when to
+call it. There is no call site in between, so a tool called by a LangChain agent
+or an MCP server opens its own client and pays the handshake every time. Passing
+one is reachable only from a loop you hold yourself.
+
+This is a known limitation rather than an oversight, and the reason is the
+arithmetic above. An agent run here makes 6.3 tool calls spread across two or
+three providers, so reuse has three or four handshakes to save — about 0.45
+seconds of a 62.8-second run, or **0.7%**. That is smaller than one retry, and
+smaller than the run-to-run variance on the same scenario.
+
+The case where connection reuse genuinely pays is a tight loop against one host —
+paginating two hundred messages, not calling four APIs once each. That case has
+an explicit call site, which is the snippet above. Somewhere between the two
+there is a deployment this matters for; `upstream_ms` against `overhead_ms` in
+your own logs is what says whether yours is it.
+
+## The first call against a tool
+
+`schema_ms` is the one field here that is zero on almost every call and large on
+a handful. A tool's view is derived on first use rather than when its pack is
+imported, because a session exposes a few of a pack's tools and deriving all
+128 of Linear's would be most of the import. So whichever call reaches a tool
+first pays to build it. On a schema whose types refer to each other that is
+seconds, not milliseconds:
+
+```
+linear.issues_list, first call    schema_ms 1867ms   validate_ms 0.13ms
+linear.issues_list, second call   schema_ms    0ms   validate_ms 0.03ms
+```
+
+Two things follow. The build is on a worker thread, so it does not hold the event
+loop while it runs; and it is not charged to `validate_ms`, which means what it
+says again. What neither fixes is that a request paid for it. Build the tools a
+process will expose while it is still starting up:
+
+```python
+from charter.packs.linear import TOOLS
+
+for tool in TOOLS:
+    tool.prepare()
+```
+
+[`prepare`](/reference/tool#tool-prepare) is idempotent and thread-safe, and it
+builds the JSON schema too. That part matters for a synchronous adapter:
+[`to_openai_tools`](/using/adapters) runs inside the turn loop and blocks the
+thread it is on. After a startup pass, a non-zero `schema_ms` in production means
+a tool nobody prepared.
+
+## The number not to chase
+
+Wall time per run is the most quotable latency number and the least stable one.
+Across the two campaigns on the [measured results](/guarantees/measured-results)
+page, the same two arms went in opposite directions:
+
+```
+            Charter    raw
+breadth       71.2s   64.6s     Charter 10% slower
+depth         62.8s  102.6s     Charter 39% faster
+```
+
+Nothing about the HTTP path changed between those two campaigns. What changed is
+how often a run went wrong: in the depth campaign the raw arm made more tool
+calls per run (6.79 against 6.32), hit three times the tool errors, and hit its
+turn limit six times against once. The time went into retries.
+
+Which is the honest shape of latency in an agent loop. A failed call costs a
+round trip, the tokens to read the error, and another round trip — so the lever
+that moves wall time most is usually not a faster call but
+[a call that works first time](/optimization/accuracy). Treat a single wall-clock
+ratio as a symptom to explain, not a result to publish.
+
+## Related
+
+- [Observability](/running/observability) — the record, and what it deliberately does not measure
+- [Getting it right first try](/optimization/accuracy) — the retry loop, which is where the time usually is
+- [`Tool.ainvoke`](/reference/tool#tool-ainvoke) — `client`, `headers`, and what each is for
+- [`Tool.prepare`](/reference/tool#tool-prepare) - deriving a tool's view at startup rather than in a request

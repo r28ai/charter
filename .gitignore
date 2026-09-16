@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.DS_Store
+.env
+harness/results/
+
+# A library declares dependency ranges; it does not pin them. CI installs from
+# pyproject.toml, so a committed lock would never be exercised and would rot
+# quietly — and pinning here would say nothing about what a consumer resolves.
+uv.lock

@@ -1,0 +1,93 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+# No long-lived PyPI token exists anywhere. The job mints a short-lived OIDC
+# credential and PyPI verifies it came from this workflow, in this repository —
+# so stealing a repo secret is not a way to publish Charter, because there is no
+# secret to steal. Configure the trusted publisher once, at
+# https://pypi.org/manage/project/charter/settings/publishing/
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install
+        run: |
+          uv venv --python ${{ matrix.python-version }}
+          uv pip install -e ".[dev,langchain,mcp]"
+
+      - name: Ruff
+        run: uv run ruff check src tests examples scripts
+
+      # --project . pins the config to this repository's pyproject.toml.
+      # Pyright searches parent directories for a config file, so without it a
+      # pyrightconfig.json above the checkout would silently replace these
+      # settings — which is exactly how reportArgumentType came to be off for
+      # every Charter run made inside the r28 monorepo.
+      - name: Pyright
+        run: uv run pyright --project . --pythonpath .venv/bin/python src
+
+      - name: Pytest
+        run: uv run pytest -q
+
+  build:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Build
+        run: uv build
+
+      - name: Check metadata
+        run: uvx twine check dist/*
+
+      - name: The tag must match the version being published
+        run: |
+          version=$(uvx --from tomli python -c \
+            "import tomli;print(tomli.load(open('pyproject.toml','rb'))['project']['version'])")
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$version" != "$tag" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match version $version"
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write # the whole point: OIDC instead of a stored token
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

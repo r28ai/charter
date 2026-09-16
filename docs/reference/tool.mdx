@@ -1,0 +1,540 @@
+---
+title: "Tool"
+description: "Every constructor parameter, attribute and method of the object one endpoint compiles to."
+---
+
+`Tool` binds a Pydantic schema to one HTTP endpoint and executes it in your
+process. Build one directly for a single endpoint; build them through
+[the factories](/reference/factories) when several endpoints share a base URL,
+an auth method and a casing convention.
+
+## `Tool`
+
+```python
+def Tool(
+    *,
+    name: str,
+    method: HTTPMethod,
+    url_template: str,
+    args_schema: Type[BaseModel],
+    base_url: BaseUrl,
+    description: str = "",
+    action_label: Optional[str] = None,
+    body_case: KeyCase = "camel",
+    query_case: KeyCase = "snake",
+    path_case: KeyCase = "snake",
+    timeout: int = 20,
+    mode: Optional[str] = None,
+    provider: Optional[str] = None,
+    scopes: Optional[Sequence[str]] = None,
+    quota_cost: Optional[int] = None,
+    quota_doc_url: Optional[str] = None,
+    api_key_headers: Optional[ApiKeyHeaders] = None,
+    credential_provider: Optional[CredentialProvider] = None,
+    build_request: Optional[Callable[[BaseModel], TransportOverride]] = None,
+    response_handler: Optional[ResponseHandler] = None,
+    envelope: Optional[Envelope] = None,
+    pagination: Optional[Pagination] = None,
+    body_format: BodyFormat = "json",
+    query_format: QueryFormat = "repeat",
+    static_query: Optional[Dict[str, Any]] = None,
+    static_headers: Optional[Dict[str, str]] = None,
+    static_body: Optional[Dict[str, Any]] = None,
+    on_call: Optional[CallSink] = None,
+    expiry_leeway_seconds: int = 10,
+    credential_statuses: Optional[Iterable[int]] = None,
+) -> Tool: ...
+```
+
+Every parameter is keyword-only.
+
+### Identity and routing
+
+<ParamField path="name" type="str" required>
+  The tool's name, as the model sees it and as observability records report it.
+</ParamField>
+
+<ParamField path="method" type='"GET" | "POST" | "PATCH" | "PUT" | "DELETE"' required>
+  HTTP method.
+</ParamField>
+
+<ParamField path="url_template" type="str" required>
+  Path relative to `base_url`, with a placeholder per [`Path()`](/reference/markers#path) field —
+  `"gmail/v1/users/{userId}/messages/send"`. Placeholder names are matched
+  against the path keys after casing is applied.
+</ParamField>
+
+<ParamField path="args_schema" type="Type[BaseModel]" required>
+  The schema — the contract. Markers on its fields decide routing, encoding,
+  visibility and key casing.
+</ParamField>
+
+<ParamField path="base_url" type="str | Callable[[], str]" required>
+  The API's base URL. A callable is resolved on every request, which is what a
+  single-tenant-per-installation host needs — a Shopify store, a Zendesk
+  account. The host must never be a schema field.
+</ParamField>
+
+<ParamField path="description" type="str" default='""'>
+  What the tool does, written for the model. Appears in `to_json_schema()`.
+</ParamField>
+
+<ParamField path="action_label" type="Optional[str]" default="None">
+  Short user-facing phrase for an approval UI — `"Send an email"`. Metadata; the
+  runtime does not read it.
+</ParamField>
+
+### Auth
+
+Exactly one of `api_key_headers` and `credential_provider` is required. Passing
+both, or neither, raises [`DeclarationError`](/reference/errors#declarationerror) at build time.
+
+<ParamField path="api_key_headers" type="Dict[str, str] | Callable[[], Dict[str, str]]" default="None">
+  Headers injected on every request. A callable is resolved per request, which
+  is how a credential can arrive after the tools are built. A literal mapping
+  with an empty value is rejected at build time rather than at the first 401.
+</ParamField>
+
+<ParamField path="credential_provider" type="Optional[CredentialProvider]" default="None">
+  Supplies the bearer token, fetched on every call. See
+  [Credentials](/reference/credentials).
+</ParamField>
+
+<ParamField path="provider" type="Optional[str]" default="None">
+  The identifier passed to `get_credentials(provider)`, and the `peer.service`
+  label on every `ToolCall`. One provider implementation can serve several APIs.
+</ParamField>
+
+<ParamField path="scopes" type="Optional[Sequence[str]]" default="None">
+  The scopes this tool needs. Metadata for consent screens and approval UIs —
+  Charter never requests them. Read back by
+  [`scopes_for`](/reference/oauth#scopes_for). Stored as a list; `None` becomes
+  `[]`.
+</ParamField>
+
+<ParamField path="expiry_leeway_seconds" type="int" default="10">
+  How dead a bearer token must be before the runtime refuses to send it. A last
+  guard against sending something already expired, not a refresh policy — see
+  [`OAuth2Client`](/reference/oauth#oauth2client), which renews well before
+  this.
+</ParamField>
+
+<ParamField path="credential_statuses" type="Optional[Iterable[int]]" default="None">
+  Response statuses that mean "your credential", raising `CredentialError`
+  rather than `APIError`. Defaults to `{401}`. Declare `{401, 403}` for an API
+  that means "your token" by 403; most mean "not allowed", which is an
+  `APIError`. Stored as a `frozenset`.
+</ParamField>
+
+### Casing and encoding
+
+<ParamField path="body_case" type='"camel" | "snake" | "pascal" | "kebab"' default='"camel"'>
+  Case convention for body keys.
+</ParamField>
+
+<ParamField path="query_case" type='"camel" | "snake" | "pascal" | "kebab"' default='"snake"'>
+  Case convention for query keys.
+</ParamField>
+
+<ParamField path="path_case" type='"camel" | "snake" | "pascal" | "kebab"' default='"snake"'>
+  Case convention for path keys.
+</ParamField>
+
+<ParamField path="body_format" type='"json" | "form"' default='"json"'>
+  `"form"` sends `application/x-www-form-urlencoded` with bracket notation for
+  nested values — what Stripe, Twilio and OAuth2 token endpoints expect.
+</ParamField>
+
+<ParamField path="query_format" type='"repeat" | "bracket"' default='"repeat"'>
+  `"repeat"` sends a list as repeated keys (`labelIds=A&labelIds=B`);
+  `"bracket"` sends `expand[0]=A`.
+</ParamField>
+
+<ParamField path="static_query" type="Optional[Dict[str, Any]]" default="None">
+  Query parameters sent verbatim on every request. Keys are not case-converted
+  and do not appear in the LLM schema.
+</ParamField>
+
+<ParamField path="static_headers" type="Optional[Dict[str, str]]" default="None">
+  Headers sent verbatim on every request — an Azure `api-version`, a
+  `Notion-Version`.
+</ParamField>
+
+<ParamField path="static_body" type="Optional[Dict[str, Any]]" default="None">
+  Body keys sent verbatim on every request. The GraphQL query document is the
+  case this exists for: the constant belongs to the operation, so it is declared
+  per tool.
+</ParamField>
+
+### Behaviour
+
+<ParamField path="mode" type="Optional[str]" default="None">
+  The tool's mode, which decides which [`Mode`](/reference/markers#mode)-marked fields survive into the LLM
+  schema. See [the mode system](/boundary/mode-system).
+</ParamField>
+
+<ParamField path="build_request" type="Optional[Callable[[BaseModel], TransportOverride]]" default="None">
+  Escape hatch: a function returning a
+  [`TransportOverride`](/reference/markers#transportoverride) that replaces the
+  path, query, body or headers derived from the schema. When omitted, one is
+  generated from `args_schema` — including the [`Format`](/reference/markers#format) transforms, which is why
+  a hand-written `build_request` takes over responsibility for them.
+</ParamField>
+
+<ParamField path="response_handler" type="Optional[ResponseHandler]" default="None">
+  Async callable that reshapes the payload before it is returned. Runs only on a
+  success — HTTP and envelope failures have already raised. A non-async callable
+  raises [`DeclarationError`](/reference/errors#declarationerror) at build time. See
+  [response handling](/reference/response-handling).
+</ParamField>
+
+<ParamField path="envelope" type="Optional[Envelope]" default="None">
+  How this API reports failure inside a 200 response. See
+  [`Envelope`](/reference/envelopes-and-pagination#envelope).
+</ParamField>
+
+<ParamField path="pagination" type="Optional[Pagination]" default="None">
+  Where this API keeps its cursor. Declares the location; does not loop. See
+  [`Pagination`](/reference/envelopes-and-pagination#pagination).
+</ParamField>
+
+<ParamField path="timeout" type="int" default="20">
+  Request timeout, in seconds.
+</ParamField>
+
+<ParamField path="on_call" type="Optional[CallSink]" default="None">
+  Receives a [`ToolCall`](/reference/observability#toolcall) after every
+  invocation, successful or not. There is no default sink and no ambient
+  registry: a tool reports to whoever was named when it was built, or to nobody.
+</ParamField>
+
+### Metadata
+
+<ParamField path="quota_cost" type="Optional[int]" default="None">
+  What one call costs against the provider's own rate limit, in that provider's
+  units — Gmail bills `messages.send` at 100 and `messages.list` at 5. Nothing
+  in the runtime enforces it; it is the input a budget policy needs.
+</ParamField>
+
+<ParamField path="quota_doc_url" type="Optional[str]" default="None">
+  Link to the API's own rate-limit documentation.
+</ParamField>
+
+## Attributes
+
+Every constructor parameter above is readable as an attribute of the same name,
+with three that are normalised on the way in.
+
+<ResponseField name="scopes" type="List[str]">
+  Always a list. `None` becomes `[]`.
+</ResponseField>
+
+<ResponseField name="static_query, static_headers, static_body" type="Optional[Dict]">
+  Copies, so the caller's dict cannot be mutated through the tool.
+</ResponseField>
+
+<ResponseField name="credential_statuses" type="Optional[FrozenSet[int]]">
+  A `frozenset`, or `None` when the default `{401}` applies.
+</ResponseField>
+
+<ResponseField name="args_schema" type="Type[BaseModel]">
+  The schema the tool was declared with — the full one, including
+  `Mode("response_only")` fields the model never sees.
+</ResponseField>
+
+## Methods
+
+### `Tool.llm_schema`
+
+```python
+def llm_schema(self) -> Type[BaseModel]: ...
+```
+
+The model the LLM fills in. Differs from `args_schema` in two ways:
+`Mode("response_only")` and `Mode("disabled")` fields are gone, and `Format`
+fields carry their semantic type — [`EmailContent`](/reference/semantic-types#emailcontent) rather than a base64 string.
+
+Derived once, on first use, and then memoised.
+[`Tool.prepare`](/reference/tool#tool-prepare) pays that cost at startup instead
+of inside a request.
+
+### `Tool.to_json_schema`
+
+```python
+def to_json_schema(self) -> Dict[str, Any]: ...
+```
+
+This tool as an OpenAI-style function definition: `name`, `description`, and
+`parameters` from the LLM schema's `model_json_schema()`.
+
+Generated once and copied out, so an adapter may run it inside the turn loop.
+The first call derives the view if nothing else has, which on a recursive schema
+takes about 1.8 seconds. This method is synchronous, so it blocks whichever
+thread calls it. [`Tool.prepare`](/reference/tool#tool-prepare) moves that to
+startup.
+
+### `Tool.prepare`
+
+```python
+def prepare(self) -> Tool: ...
+```
+
+Build everything this tool derives lazily: both views and the JSON schema.
+Returns the tool. Idempotent, and safe to call from several threads.
+
+Importing a pack does not build its tools' views: a session exposes a handful of
+a pack's tools and deriving all 128 of Linear's would be most of the import. The
+cost does not disappear, it moves to whoever asks first, and on a schema whose
+types refer to each other it is seconds rather than milliseconds. Call this for
+the tools a process will actually expose, while it is still starting up:
+
+```python
+from charter.packs.linear import TOOLS
+
+for tool in TOOLS:
+    tool.prepare()
+```
+
+[`ainvoke`](/reference/tool#tool-ainvoke) derives what it needs on a worker
+thread if this was never called, so skipping it costs latency on one call rather
+than blocking the event loop. Nothing can do that for a synchronous caller:
+[`to_openai_tools`](/using/adapters) is documented to run inside the turn loop and
+calls `to_json_schema`, which blocks the thread it is on.
+
+Constructing a [`ToolSession`](/reference/tool-discovery#toolsession) already does
+this for every tool you hand it. It sizes each schema to decide what to defer,
+and sizing one builds it. That is 2.5s for Linear's 128 tools, on whichever
+thread constructs the session, so build the session at startup rather than per
+request. `progressive=False` skips the sizing and leaves the tools cold.
+
+A non-zero
+[`schema_ms`](/reference/observability#toolcall) on a call in production means a
+tool nobody prepared.
+
+### `Tool.derived`
+
+```python
+def derived(
+    self,
+    *,
+    name: str,
+    description: Optional[str] = None,
+    keep: Optional[Iterable[Any]] = None,
+    drop: Optional[Iterable[Any]] = None,
+    pin: Optional[Dict[str, Any]] = None,
+    action_label: Optional[str] = None,
+) -> Tool: ...
+```
+
+The same tool with a narrower view: same URL, same credentials, same validators,
+same `extra="forbid"`. A projection can only remove, so an argument outside it
+raises [`ToolValidationError`](/reference/errors#toolvalidationerror) before a
+request is built.
+
+`keep` selects within the sibling group it names, leaving the rest of the schema
+alone. `drop` removes a path. `pin` removes a path from the view the model fills
+in and keeps it in the one the runtime executes, so the field is neither visible
+to the model nor reachable by it, and its value takes the same `Format`
+transform, body unwrapping, key casing and escaping a supplied one would.
+
+Selectors are dotted paths, unambiguous field names, or the model class a field
+is annotated with. Raises [`DeclarationError`](/reference/errors#declarationerror)
+when a selector names nothing, names several things, or would drop a field the
+API requires.
+
+Projections compose. Both `keep` and `pin` appear in
+[`egress_map()`](/reference/observability).
+
+### `Tool.paths`
+
+```python
+def paths(
+    self,
+    under: str = "",
+    *,
+    depth: Optional[int] = 1,
+    by_cost: bool = False,
+) -> Union[List[str], List[PathCost]]: ...
+```
+
+The paths [`Tool.derived`](/reference/tool#tool-derived) can name, one level at a
+time. Pass a prefix to drill down, `depth=None` for the whole subtree. Paths this
+tool already pruned are gone, along with everything beneath them.
+
+```python
+gdocs.documents_batch_update.paths()
+# ['document_id', 'body']
+gdocs.documents_batch_update.paths("body.requests")
+# ['replace_all_text', 'insert_text', 'update_text_style', ...]
+```
+
+<ParamField path="by_cost" type="bool" default="False">
+  Price each path instead of naming it. Returns
+  [`PathCost`](/reference/tool#pathcost) pairs, most expensive first.
+</ParamField>
+
+```python
+gdocs.documents_batch_update.paths(by_cost=True)
+# [PathCost(path='body', tokens=8122), PathCost(path='document_id', tokens=30)]
+```
+
+The figure is the tokens the generated schema loses when that path goes,
+measured by pruning it and regenerating rather than estimated from subtree size.
+Dropping `body.requests.replace_all_text` from a tool priced at 8,183 tokens
+leaves one of 7,822, which is its reported 361 exactly.
+
+Only the level being returned is priced, one schema generation per path. Drill
+down with `under` rather than pricing a whole subtree at once.
+
+Four properties to read the numbers by. Each is something `drop` really does,
+not noise in the measurement:
+
+- Costs do not sum to the total. Where two fields share a `$def`, dropping
+  either one alone leaves it in place, so both price cheap and dropping both is
+  worth more than the sum. The 33 members of the Docs `Request` union price at
+  6,827 between them; the branch they sit in costs 7,807.
+- A negative cost means the drop makes the tool larger. Pruning inside a model
+  several siblings share splits one `$def` into per-path copies. Dropping
+  `body.requests.insert_text.location.index` turns one `Location_LLM` into two
+  and takes the tool from 8,183 tokens to 8,435.
+- A cost of zero means the path is not in the view at all, because
+  [`Mode`](/reference/markers#mode) already removed it. `events_insert` prices
+  `event.i_cal_uid` at 0 under `mode="write"`; `events_import`, which reveals
+  the field, prices the same path at 103. A projection naming a zero-cost path
+  is inert.
+- A required path is priced even though [`drop`](/reference/tool#tool-derived)
+  would refuse it. The price is what says whether `pin` is worth reaching for.
+
+A projection prices what is left of it, not what the tool it came from had.
+
+<Note>
+  Drilling in with `under` does not reopen a cycle. The models passed through to
+  reach `under` are still held against the walk, so a field whose type is already
+  its own ancestor is listed once, wherever you ask from. On a recursive Notion
+  filter, `paths("body.filter")` lists `and_` and `paths("body.filter.and_")`
+  lists nothing, because `and_` is that same filter.
+
+  This is the listing only. Write such a path out and
+  [`derived`](/reference/tool#tool-derived) still resolves it, and `keep` still
+  prunes its siblings. What it buys you is the negative-cost case above: pruning
+  inside a model its siblings share splits one `$def` rather than removing
+  anything, so the tool comes back larger.
+</Note>
+
+### `PathCost`
+
+```python
+class PathCost(NamedTuple):
+    path: str
+    tokens: int
+```
+
+One entry from `paths(by_cost=True)`. A `NamedTuple`, so it unpacks as a pair and
+reads as one.
+
+### `Tool.ainvoke`
+
+```python
+async def ainvoke(
+    self,
+    args: Optional[Dict[str, Any]] = None,
+    /,
+    *,
+    headers: Optional[Mapping[str, str]] = None,
+    client: Optional[httpx.AsyncClient] = None,
+    **kwargs: Any,
+) -> Any: ...
+```
+
+Validate the arguments, build the request, send it, return the result.
+
+<ParamField path="args" type="Optional[Dict[str, Any]]" default="None">
+  Positional-only. Merged with `**kwargs`, which win on a conflict.
+</ParamField>
+
+<ParamField path="headers" type="Optional[Mapping[str, str]]" default="None">
+  Headers the host application decides for this one call — an
+  `Idempotency-Key`, a `Stripe-Account`, a correlation id. Keyword-only and
+  structurally separate from `args`, so a model filling in tool arguments can
+  never set a header. Charter generates none of these values.
+</ParamField>
+
+<ParamField path="client" type="Optional[httpx.AsyncClient]" default="None">
+  Reuse one client across calls. When omitted, a client is created and closed
+  per call.
+</ParamField>
+
+Three call shapes are accepted:
+
+```python
+await tool.ainvoke({"city": "Tokyo", "units": "metric"})
+await tool.ainvoke(city="Tokyo", units="metric")
+await tool.ainvoke({"city": "Tokyo"}, units="metric")
+```
+
+`headers` and `client` shadow schema fields of those names. Pass such a field in
+the positional dict.
+
+Every call is measured, including the ones that fail. See `on_call` and
+[observability](/reference/observability).
+
+### `Tool.invoke`
+
+```python
+def invoke(
+    self,
+    args: Optional[Dict[str, Any]] = None,
+    /,
+    *,
+    headers: Optional[Mapping[str, str]] = None,
+    **kwargs: Any,
+) -> Any: ...
+```
+
+Synchronous `ainvoke`, run with `asyncio.run`. Calling it from a thread that
+already has a running event loop raises `RuntimeError` naming the tool; inside
+async code, await `ainvoke` instead. It takes no `client`, since the loop that
+would own one does not outlive the call.
+
+## Raises
+
+| Exception | When |
+|---|---|
+| [`ToolValidationError`](/reference/errors#toolvalidationerror) | the arguments do not satisfy the schema — raised before the network |
+| [`TransformError`](/reference/errors#transformerror) | a `Format` transform failed — also before the network |
+| [`CredentialError`](/reference/errors#credentialerror) | credentials missing, expired, or rejected (401 by default) |
+| [`APIError`](/reference/errors#apierror) | any other non-success response, including a declared envelope failure inside a 200 |
+
+## Example
+
+```python
+from typing import Annotated, Optional
+
+from pydantic import BaseModel
+from charter import Path, Query, Tool
+
+
+class GetWeather(BaseModel):
+    city: Annotated[str, Path()]
+    units: Annotated[Optional[str], Query()] = "metric"
+
+
+tool = Tool(
+    name="get_current_weather",
+    description="Get current weather for a city.",
+    method="GET",
+    url_template="data/2.5/weather/{city}",
+    args_schema=GetWeather,
+    base_url="https://api.openweathermap.org/",
+    api_key_headers={"x-api-key": "test-key"},
+)
+
+await tool.ainvoke(city="Tokyo")
+```
+
+## Related
+
+- [The wire contract](/tools/wire-contract) — body format, static parameters, per-call headers
+- [The mode system](/boundary/mode-system) — what the model is allowed to see
+- [Projections](/tools/projections) — narrowing a tool you did not declare
+- [Adapters](/using/adapters) — the LangChain, MCP and OpenAI views of this object

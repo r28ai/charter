@@ -1,0 +1,813 @@
+---
+title: "Linear"
+description: "Read and file issues, comments, teams, projects and users."
+sidebarTitle: "Overview"
+---
+
+{/* generated:summary start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="pack-summary">
+  <span><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg>128 tools</span>
+  <span><svg viewBox="0 0 24 24"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4" /><path d="m21 2-9.6 9.6" /><circle cx="7.5" cy="15.5" r="5.5" /></svg>API key</span>
+</div>
+{/* generated:summary end */}
+
+```python linear_example.py {7}
+import os
+
+from charter.packs import linear
+
+linear.configure(api_key=os.environ["LINEAR_API_KEY"])
+
+issues = await linear.issues_list.ainvoke(variables={"first": 50})
+```
+
+Issues and their relations, comments and reactions, labels, teams, members,
+workflow states, projects with their milestones and status updates, cycles,
+initiatives, documents, attachments, customers, notifications, favorites, saved
+views, search and webhooks. Every tool POSTs the same document-shaped request to
+the same URL, and the argument the model fills in is always one field:
+`variables`.
+
+A GraphQL API breaks three assumptions a REST-shaped runtime makes, and this pack
+is where each one is answered.
+
+## Authenticating
+
+{/* generated:auth start — do not edit by hand; run scripts/generate_pack_docs.py */}
+This pack takes an API key in `Authorization`, and [`configure()`](/reference/configuration#configure) is optional when `$LINEAR_API_KEY` is set.
+
+There is no authorization server, no consent screen and no refresh — [API keys](/auth/api-key-tool-factory) is the whole story.
+{/* generated:auth end */}
+
+The key goes out **raw** — not `Bearer`, not `Token`, just the key. This is the
+one place Linear differs from almost every other API here. An OAuth access
+token does take `Bearer`; for that, build the factory yourself with
+`oauth_tool_factory`, which adds the prefix. Linear documents where a personal
+key is created in [its authentication guide](https://linear.app/developers/graphql#authentication).
+
+## The client
+
+{/* generated:wire start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<Note>
+[`api_key_tool_factory`](/reference/factories#api_key_tool_factory) is the whole client: a thin wrapper over `httpx` that attaches your key and these endpoint constants to each request. No vendor SDK enters your dependency tree.
+</Note>
+
+<div className="named-tabs" data-files="linear_api_client.py|linear_pack_client.py">
+<CodeGroup>
+
+```python Without the pack
+import os
+
+from charter import Envelope, api_key_tool_factory
+
+api_key = os.environ["LINEAR_API_KEY"]
+
+linear_api_client = api_key_tool_factory(
+    base_url="https://api.linear.app/",
+    api_key_headers={"Authorization": api_key},
+    body_format="json",
+    query_format="repeat",
+    body_case="camel",
+    query_case="snake",
+    path_case="snake",
+    envelope=Envelope(
+        ok_field="data.*.success",
+        errors_field="errors",
+    ),
+)
+
+# static_body is per tool, not per API: query differs across 128
+# of 128 tools.
+```
+
+```python With the pack
+import os
+
+from charter.packs import linear
+
+linear.configure(api_key=os.environ["LINEAR_API_KEY"])
+
+# The base URL, the casing, the envelope and the pagination are
+# already declared. 128 tools, ready to hand to a model:
+tools = linear.TOOLS
+```
+
+</CodeGroup>
+</div>
+
+### Paging through a list
+
+A cursor belongs to the tool that returns it, so it is declared on that tool's builder call:
+
+```python linear_pagination.py
+teams_list = linear_api_client(
+    name="teams_list",
+    args_schema=TeamsListRequest,
+    method="POST",
+    url_template="graphql",
+    pagination=Pagination(
+        cursor_field="pageInfo.endCursor",
+        cursor_param="variables.after",
+        more_field="pageInfo.hasNextPage",
+    ),
+)
+```
+
+<Note>
+Pagination is declared on `teams_list`, `users_list`, `workflow_states_list`, `team_memberships_list`, `issues_list`, `issue_relations_list`, `comments_list`, `issue_labels_list`, `project_labels_list`, `projects_list`, `project_statuses_list`, `project_milestones_list`, `project_updates_list`, `cycles_list`, `initiatives_list`, `initiative_updates_list`, `documents_list`, `attachments_list`, `attachments_for_url`, `customers_list`, `customer_needs_list`, `customer_statuses_list`, `customer_tiers_list`, `notifications_list`, `favorites_list`, `custom_views_list`, `search_issues`, `search_projects`, `search_documents` and `webhooks_list`. The other 98 take no cursor.
+</Note>
+{/* generated:wire end */}
+
+## Tools
+
+Each is a [`Tool`](/reference/tool), called with
+[`ainvoke`](/reference/tool#tool-ainvoke) as in the snippet above. The name
+links to its parameters, its response and what it costs.
+
+{/* generated:tools start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="tool-list">
+  <span className="tool-list-group">Workspace</span>
+  <a className="tool-row" href="/packs/linear/workspace/viewer">
+    <span className="tool-row-head"><span className="tool-row-name">viewer</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Get the authenticated Linear user.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/workspace/organization">
+    <span className="tool-row-head"><span className="tool-row-name">organization</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Get the workspace itself — its name, URL key and member count.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/workspace/teams_list">
+    <span className="tool-row-head"><span className="tool-row-name">teams_list</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">List the workspace's teams.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/workspace/team_get">
+    <span className="tool-row-head"><span className="tool-row-name">team_get</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Get one team, with its workflow states and current cycle.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/workspace/users_list">
+    <span className="tool-row-head"><span className="tool-row-name">users_list</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">List workspace members.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/workspace/user_get">
+    <span className="tool-row-head"><span className="tool-row-name">user_get</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Get one workspace member.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/workspace/workflow_states_list">
+    <span className="tool-row-head"><span className="tool-row-name">workflow_states_list</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">List workflow states — the statuses an issue can move between.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/workspace/workflow_state_get">
+    <span className="tool-row-head"><span className="tool-row-name">workflow_state_get</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Get one workflow state by its UUID.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/workspace/workflow_state_create">
+    <span className="tool-row-head"><span className="tool-row-name">workflow_state_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a workflow state for a team.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/workspace/workflow_state_update">
+    <span className="tool-row-head"><span className="tool-row-name">workflow_state_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Rename a workflow state, recolour it or move its position.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/workspace/workflow_state_archive">
+    <span className="tool-row-head"><span className="tool-row-name">workflow_state_archive</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Archive a workflow state, taking it out of the team's workflow.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/workspace/team_memberships_list">
+    <span className="tool-row-head"><span className="tool-row-name">team_memberships_list</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">List who belongs to which team, and who owns each one.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/workspace/team_membership_get">
+    <span className="tool-row-head"><span className="tool-row-name">team_membership_get</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Get one team membership by its UUID.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/workspace/team_membership_create">
+    <span className="tool-row-head"><span className="tool-row-name">team_membership_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Add a member to a team.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/workspace/team_membership_update">
+    <span className="tool-row-head"><span className="tool-row-name">team_membership_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Change a team membership — chiefly to make someone the team's owner.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/workspace/team_membership_delete">
+    <span className="tool-row-head"><span className="tool-row-name">team_membership_delete</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Remove a member from a team.</span>
+  </a>
+  <span className="tool-list-group">Issues</span>
+  <a className="tool-row" href="/packs/linear/issues/issues_list">
+    <span className="tool-row-head"><span className="tool-row-name">issues_list</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">List issues, optionally filtered.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/issues/issue_get">
+    <span className="tool-row-head"><span className="tool-row-name">issue_get</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Get one issue with its description, comments, sub-issues, relations and attachments.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/issues/issue_create">
+    <span className="tool-row-head"><span className="tool-row-name">issue_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create an issue.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/issues/issue_update">
+    <span className="tool-row-head"><span className="tool-row-name">issue_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Update an issue.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/issues/issue_batch_update">
+    <span className="tool-row-head"><span className="tool-row-name">issue_batch_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Apply one change to many issues at once — reassigning a queue, moving a set into a cycle.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/issues/issue_delete">
+    <span className="tool-row-head"><span className="tool-row-name">issue_delete</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Move an issue to the trash, from where it can be restored.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/issues/issue_archive">
+    <span className="tool-row-head"><span className="tool-row-name">issue_archive</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Archive an issue, taking it out of the active lists while keeping it findable.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/issues/issue_unarchive">
+    <span className="tool-row-head"><span className="tool-row-name">issue_unarchive</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Restore an archived issue to the active lists.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/issues/issue_add_label">
+    <span className="tool-row-head"><span className="tool-row-name">issue_add_label</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Add one label to an issue, leaving its other labels alone.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/issues/issue_remove_label">
+    <span className="tool-row-head"><span className="tool-row-name">issue_remove_label</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Remove one label from an issue, leaving its other labels alone.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/issues/issue_subscribe">
+    <span className="tool-row-head"><span className="tool-row-name">issue_subscribe</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Subscribe someone to an issue's updates.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/issues/issue_unsubscribe">
+    <span className="tool-row-head"><span className="tool-row-name">issue_unsubscribe</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Unsubscribe someone from an issue's updates.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/issues/issue_relations_list">
+    <span className="tool-row-head"><span className="tool-row-name">issue_relations_list</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">List the links between issues across the workspace.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/issues/issue_relation_get">
+    <span className="tool-row-head"><span className="tool-row-name">issue_relation_get</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Get one issue relation by its UUID.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/issues/issue_relation_create">
+    <span className="tool-row-head"><span className="tool-row-name">issue_relation_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Link two issues as blocking, duplicate, related or similar. 'blocks' and 'duplicate' are directional: the issue in <code>issue_id</code> is the one doing the blocking, or the one that is the duplicate.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/issues/issue_relation_update">
+    <span className="tool-row-head"><span className="tool-row-name">issue_relation_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Change how two issues are linked, or which issues the link joins.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/issues/issue_relation_delete">
+    <span className="tool-row-head"><span className="tool-row-name">issue_relation_delete</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Unlink two issues.</span>
+  </a>
+  <span className="tool-list-group">Comments</span>
+  <a className="tool-row" href="/packs/linear/comments/comments_list">
+    <span className="tool-row-head"><span className="tool-row-name">comments_list</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Read comments.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/comments/comment_get">
+    <span className="tool-row-head"><span className="tool-row-name">comment_get</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Get one comment with its replies.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/comments/comment_create">
+    <span className="tool-row-head"><span className="tool-row-name">comment_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Post a comment.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/comments/comment_update">
+    <span className="tool-row-head"><span className="tool-row-name">comment_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Edit a comment's text, by its UUID.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/comments/comment_delete">
+    <span className="tool-row-head"><span className="tool-row-name">comment_delete</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Delete a comment.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/comments/comment_resolve">
+    <span className="tool-row-head"><span className="tool-row-name">comment_resolve</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Mark a comment thread resolved.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/comments/comment_unresolve">
+    <span className="tool-row-head"><span className="tool-row-name">comment_unresolve</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Reopen a resolved comment thread.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/comments/reaction_create">
+    <span className="tool-row-head"><span className="tool-row-name">reaction_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">React to a comment, issue or status update with an emoji.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/comments/reaction_delete">
+    <span className="tool-row-head"><span className="tool-row-name">reaction_delete</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Remove a reaction.</span>
+  </a>
+  <span className="tool-list-group">Labels</span>
+  <a className="tool-row" href="/packs/linear/labels/issue_labels_list">
+    <span className="tool-row-head"><span className="tool-row-name">issue_labels_list</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">List the workspace's issue labels, with the UUIDs <code>issue_create</code> and <code>issue_update</code> need.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/labels/issue_label_get">
+    <span className="tool-row-head"><span className="tool-row-name">issue_label_get</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Get one label by its UUID.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/labels/issue_label_create">
+    <span className="tool-row-head"><span className="tool-row-name">issue_label_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a label.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/labels/issue_label_update">
+    <span className="tool-row-head"><span className="tool-row-name">issue_label_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Rename a label, recolour it, or retire it.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/labels/issue_label_delete">
+    <span className="tool-row-head"><span className="tool-row-name">issue_label_delete</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Delete a label, removing it from every issue that carries it.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/labels/project_labels_list">
+    <span className="tool-row-head"><span className="tool-row-name">project_labels_list</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">List the labels that tag projects.</span>
+  </a>
+  <span className="tool-list-group">Projects</span>
+  <a className="tool-row" href="/packs/linear/projects/projects_list">
+    <span className="tool-row-head"><span className="tool-row-name">projects_list</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">List projects in the workspace, with their status and progress.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/projects/project_get">
+    <span className="tool-row-head"><span className="tool-row-name">project_get</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Get one project with its content, milestones and members.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/projects/project_create">
+    <span className="tool-row-head"><span className="tool-row-name">project_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a project.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/projects/project_update">
+    <span className="tool-row-head"><span className="tool-row-name">project_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Update a project's name, description, lead, dates or status.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/projects/project_delete">
+    <span className="tool-row-head"><span className="tool-row-name">project_delete</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Move a project to the trash.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/projects/project_unarchive">
+    <span className="tool-row-head"><span className="tool-row-name">project_unarchive</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Restore a trashed project.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/projects/project_add_label">
+    <span className="tool-row-head"><span className="tool-row-name">project_add_label</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Add one project label to a project.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/projects/project_remove_label">
+    <span className="tool-row-head"><span className="tool-row-name">project_remove_label</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Remove one project label from a project.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/projects/project_statuses_list">
+    <span className="tool-row-head"><span className="tool-row-name">project_statuses_list</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">List the statuses a project can be in, with the UUIDs <code>project_create</code> and <code>project_update</code> need.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/projects/project_milestones_list">
+    <span className="tool-row-head"><span className="tool-row-name">project_milestones_list</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">List project milestones.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/projects/project_milestone_get">
+    <span className="tool-row-head"><span className="tool-row-name">project_milestone_get</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Get one project milestone by its UUID.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/projects/project_milestone_create">
+    <span className="tool-row-head"><span className="tool-row-name">project_milestone_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a milestone inside a project.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/projects/project_milestone_update">
+    <span className="tool-row-head"><span className="tool-row-name">project_milestone_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Rename a milestone, move its target date, or move it to another project.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/projects/project_milestone_delete">
+    <span className="tool-row-head"><span className="tool-row-name">project_milestone_delete</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Delete a project milestone.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/projects/project_updates_list">
+    <span className="tool-row-head"><span className="tool-row-name">project_updates_list</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Read the status updates posted on projects — the periodic 'on track, here is what moved' notes.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/projects/project_update_get">
+    <span className="tool-row-head"><span className="tool-row-name">project_update_get</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Get one project status update by its UUID.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/projects/project_update_create">
+    <span className="tool-row-head"><span className="tool-row-name">project_update_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Post a status update on a project, optionally reporting health as 'onTrack', 'atRisk' or 'offTrack'.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/projects/project_update_update">
+    <span className="tool-row-head"><span className="tool-row-name">project_update_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Edit a project status update that has already been posted.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/projects/project_update_archive">
+    <span className="tool-row-head"><span className="tool-row-name">project_update_archive</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Archive a project status update.</span>
+  </a>
+  <span className="tool-list-group">Cycles</span>
+  <a className="tool-row" href="/packs/linear/cycles/cycles_list">
+    <span className="tool-row-head"><span className="tool-row-name">cycles_list</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">List cycles — Linear's name for a team's time-box.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/cycles/cycle_get">
+    <span className="tool-row-head"><span className="tool-row-name">cycle_get</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Get one cycle with the issues in it.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/cycles/cycle_update">
+    <span className="tool-row-head"><span className="tool-row-name">cycle_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Rename a cycle or move its dates.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/cycles/cycle_archive">
+    <span className="tool-row-head"><span className="tool-row-name">cycle_archive</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Archive a cycle.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/cycles/cycle_start_upcoming_today">
+    <span className="tool-row-head"><span className="tool-row-name">cycle_start_upcoming_today</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Start a team's next cycle today rather than on its scheduled date.</span>
+  </a>
+  <span className="tool-list-group">Initiatives</span>
+  <a className="tool-row" href="/packs/linear/initiatives/initiatives_list">
+    <span className="tool-row-head"><span className="tool-row-name">initiatives_list</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">List initiatives — the grouping above a project, and what Linear replaced roadmaps with.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/initiatives/initiative_get">
+    <span className="tool-row-head"><span className="tool-row-name">initiative_get</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Get one initiative with its projects and links.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/initiatives/initiative_create">
+    <span className="tool-row-head"><span className="tool-row-name">initiative_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create an initiative.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/initiatives/initiative_update">
+    <span className="tool-row-head"><span className="tool-row-name">initiative_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Update an initiative's name, owner, status or target date.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/initiatives/initiative_delete">
+    <span className="tool-row-head"><span className="tool-row-name">initiative_delete</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Move an initiative to the trash.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/initiatives/initiative_archive">
+    <span className="tool-row-head"><span className="tool-row-name">initiative_archive</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Archive an initiative.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/initiatives/initiative_unarchive">
+    <span className="tool-row-head"><span className="tool-row-name">initiative_unarchive</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Restore an archived initiative.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/initiatives/initiative_to_project_create">
+    <span className="tool-row-head"><span className="tool-row-name">initiative_to_project_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Add a project to an initiative.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/initiatives/initiative_to_project_delete">
+    <span className="tool-row-head"><span className="tool-row-name">initiative_to_project_delete</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Remove a project from an initiative.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/initiatives/initiative_updates_list">
+    <span className="tool-row-head"><span className="tool-row-name">initiative_updates_list</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Read the status updates posted on initiatives.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/initiatives/initiative_update_create">
+    <span className="tool-row-head"><span className="tool-row-name">initiative_update_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Post a status update on an initiative.</span>
+  </a>
+  <span className="tool-list-group">Documents</span>
+  <a className="tool-row" href="/packs/linear/documents/documents_list">
+    <span className="tool-row-head"><span className="tool-row-name">documents_list</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">List documents.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/documents/document_get">
+    <span className="tool-row-head"><span className="tool-row-name">document_get</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Get one document with its full content.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/documents/document_create">
+    <span className="tool-row-head"><span className="tool-row-name">document_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a document.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/documents/document_update">
+    <span className="tool-row-head"><span className="tool-row-name">document_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Update a document.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/documents/document_delete">
+    <span className="tool-row-head"><span className="tool-row-name">document_delete</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Move a document to the trash.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/documents/document_unarchive">
+    <span className="tool-row-head"><span className="tool-row-name">document_unarchive</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Restore a trashed document.</span>
+  </a>
+  <span className="tool-list-group">Attachments</span>
+  <a className="tool-row" href="/packs/linear/attachments/attachments_list">
+    <span className="tool-row-head"><span className="tool-row-name">attachments_list</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">List attachments — the links between Linear issues and things outside it.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/attachments/attachment_get">
+    <span className="tool-row-head"><span className="tool-row-name">attachment_get</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Get one attachment and the issue it is on.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/attachments/attachments_for_url">
+    <span className="tool-row-head"><span className="tool-row-name">attachments_for_url</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Find which issues an external URL is attached to.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/attachments/attachment_create">
+    <span className="tool-row-head"><span className="tool-row-name">attachment_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Link an issue to something outside Linear.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/attachments/attachment_update">
+    <span className="tool-row-head"><span className="tool-row-name">attachment_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Update an attachment's title, subtitle or icon.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/attachments/attachment_delete">
+    <span className="tool-row-head"><span className="tool-row-name">attachment_delete</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Remove an attachment from its issue.</span>
+  </a>
+  <span className="tool-list-group">Customers</span>
+  <a className="tool-row" href="/packs/linear/customers/customers_list">
+    <span className="tool-row-head"><span className="tool-row-name">customers_list</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">List customers — the companies whose requests Linear tracks against issues.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/customers/customer_get">
+    <span className="tool-row-head"><span className="tool-row-name">customer_get</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Get one customer by its UUID.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/customers/customer_create">
+    <span className="tool-row-head"><span className="tool-row-name">customer_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a customer.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/customers/customer_update">
+    <span className="tool-row-head"><span className="tool-row-name">customer_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Update a customer's name, owner, tier, revenue or size.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/customers/customer_delete">
+    <span className="tool-row-head"><span className="tool-row-name">customer_delete</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Delete a customer.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/customers/customer_needs_list">
+    <span className="tool-row-head"><span className="tool-row-name">customer_needs_list</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">List customer requests.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/customers/customer_need_create">
+    <span className="tool-row-head"><span className="tool-row-name">customer_need_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Record a customer request, optionally attached to an issue or project.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/customers/customer_need_update">
+    <span className="tool-row-head"><span className="tool-row-name">customer_need_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Update a customer request, chiefly to attach it to an issue.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/customers/customer_need_delete">
+    <span className="tool-row-head"><span className="tool-row-name">customer_need_delete</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Delete a customer request.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/customers/customer_statuses_list">
+    <span className="tool-row-head"><span className="tool-row-name">customer_statuses_list</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">List the statuses a customer can be in, with the UUIDs customer writes need.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/customers/customer_tiers_list">
+    <span className="tool-row-head"><span className="tool-row-name">customer_tiers_list</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">List the tiers a customer can be assigned to.</span>
+  </a>
+  <span className="tool-list-group">Inbox</span>
+  <a className="tool-row" href="/packs/linear/inbox/notifications_list">
+    <span className="tool-row-head"><span className="tool-row-name">notifications_list</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Read the authenticated user's notifications — what Linear has told them about and what is still unread.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/inbox/notification_get">
+    <span className="tool-row-head"><span className="tool-row-name">notification_get</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Get one notification by its UUID.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/inbox/notification_update">
+    <span className="tool-row-head"><span className="tool-row-name">notification_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Mark a notification read by setting <code>read_at</code>, or snooze it with <code>snoozed_until_at</code>.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/inbox/notification_archive">
+    <span className="tool-row-head"><span className="tool-row-name">notification_archive</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Archive a notification.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/inbox/notification_unarchive">
+    <span className="tool-row-head"><span className="tool-row-name">notification_unarchive</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Restore an archived notification.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/inbox/notification_mark_read_all">
+    <span className="tool-row-head"><span className="tool-row-name">notification_mark_read_all</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Mark every notification raised by one issue, project or initiative as read.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/inbox/favorites_list">
+    <span className="tool-row-head"><span className="tool-row-name">favorites_list</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">List what the authenticated user has starred.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/inbox/favorite_create">
+    <span className="tool-row-head"><span className="tool-row-name">favorite_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Star an issue, project, document, view, label, team or user.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/inbox/favorite_update">
+    <span className="tool-row-head"><span className="tool-row-name">favorite_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Move a favorite into a folder, or reorder it.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/inbox/favorite_delete">
+    <span className="tool-row-head"><span className="tool-row-name">favorite_delete</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Unstar something.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/inbox/custom_views_list">
+    <span className="tool-row-head"><span className="tool-row-name">custom_views_list</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">List the workspace's saved views, each with the filter it holds.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/inbox/custom_view_get">
+    <span className="tool-row-head"><span className="tool-row-name">custom_view_get</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Get one saved view.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/inbox/custom_view_create">
+    <span className="tool-row-head"><span className="tool-row-name">custom_view_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Save a filter as a view.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/inbox/custom_view_delete">
+    <span className="tool-row-head"><span className="tool-row-name">custom_view_delete</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Delete a saved view.</span>
+  </a>
+  <span className="tool-list-group">Search</span>
+  <a className="tool-row" href="/packs/linear/search/search_issues">
+    <span className="tool-row-head"><span className="tool-row-name">search_issues</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Search issues by text, across titles and descriptions.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/search/search_projects">
+    <span className="tool-row-head"><span className="tool-row-name">search_projects</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Search projects by text, across names and descriptions.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/search/search_documents">
+    <span className="tool-row-head"><span className="tool-row-name">search_documents</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Search documents by text, across titles and content.</span>
+  </a>
+  <span className="tool-list-group">Webhooks</span>
+  <a className="tool-row" href="/packs/linear/webhooks/webhooks_list">
+    <span className="tool-row-head"><span className="tool-row-name">webhooks_list</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">List the workspace's webhooks.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/webhooks/webhook_get">
+    <span className="tool-row-head"><span className="tool-row-name">webhook_get</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Get one webhook by its UUID.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/webhooks/webhook_create">
+    <span className="tool-row-head"><span className="tool-row-name">webhook_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a webhook.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/webhooks/webhook_update">
+    <span className="tool-row-head"><span className="tool-row-name">webhook_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Update a webhook's URL, resource types, secret, or whether it is enabled.</span>
+  </a>
+  <a className="tool-row" href="/packs/linear/webhooks/webhook_delete">
+    <span className="tool-row-head"><span className="tool-row-name">webhook_delete</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Delete a webhook.</span>
+  </a>
+</div>
+{/* generated:tools end */}
+
+A hundred and twenty-eight identical rows in the Path column is not a rendering
+bug. It is the shape of the API.
+
+## The document is a constant, not a parameter
+
+What distinguishes `issues_list` from `issue_create` is the query document, which
+belongs to the tool rather than to the call. It goes on the wire through
+`static_body`:
+
+```python linear_declare_issues_list.py
+issues_list = linear(
+    name="issues_list",
+    args_schema=IssuesListRequest,      # one `variables` field, Body(envelop=True)
+    method="POST",
+    url_template="graphql",
+    static_body={"query": ISSUES_DOCUMENT},
+)
+```
+
+`static_body` keys are sent verbatim, are not case-converted, and never appear in
+the LLM schema — so the document costs nothing in context and a model cannot see
+or rewrite it. Static values are applied last, so a schema field named `query`
+would lose to the document rather than overwrite it.
+
+That is the whole boundary. A GraphQL endpoint accepts arbitrary documents, so a
+tool that let the model supply one would not be an integration, it would be a
+shell. The documents live in `charter.packs.linear.queries`.
+
+## Failure arrives as HTTP 200, twice over
+
+GraphQL puts document-level problems in an `errors` array beside the data. But a
+*mutation* Linear understood and then declined comes back with no `errors` at all,
+and the refusal one level below the operation name:
+
+```json linear_failure_200.json
+{"data": {"issueCreate": {"success": false, "issue": null}}}
+```
+
+Every signal a runtime normally trusts says the write happened. So the envelope's
+field names are paths, and `*` stands for whichever operation the tool called:
+
+```python linear_envelope.py
+from charter import Envelope
+
+Envelope(errors_field="errors", ok_field="data.*.success")
+```
+
+One declaration covers both places, every mutation in the pack, and any mutation
+added later by someone who never read the source. A query has no `success`
+anywhere, and a wildcard that matches nothing is not a failure, so queries pass
+through untouched. See [envelopes](/tools/envelopes) for why this is a declaration
+rather than a check inside each mutation's response handler.
+
+## A cursor that goes out nested
+
+Linear pages Relay-style: the cursor comes back at `pageInfo.endCursor` and goes
+out at `variables.after` — *inside* the variables object, not beside it.
+`cursor_param` takes a dotted path for exactly this.
+
+```python linear_page_through_issues.py
+args = {"variables": {"first": 50}}
+while args is not None:
+    page = await linear.issues_list.ainvoke(args)
+    handle(page)
+    args = linear.issues_list.pagination.next_page_args(page, args)
+```
+
+`pageInfo.hasNextPage` is declared because Linear keeps sending an `endCursor` on
+the last page — without it the walk never terminates. The paths are read against
+the *trimmed* payload: every tool runs an `unwrap` handler that strips `data` and
+the operation name first, which is why `pageInfo` sits at the root here rather
+than three levels down.
+
+## Gotchas
+
+<AccordionGroup>
+  <Accordion title="Everything takes UUIDs, not names">
+    `issue_create` wants a `team_id`, not `"ENG"`; `assignee_id`, not a person's
+    name; `state_id`, not `"Done"`. Resolve them first with `teams_list`,
+    `users_list` and `workflow_states_list`. Workflow states are per-team, so
+    filter by team when resolving one.
+  </Accordion>
+
+  <Accordion title="There is no close operation">
+    Closing an issue is `issue_update` with a `state_id` whose type is
+    `completed` or `canceled`. `workflow_states_list` returns each state's
+    `type`, which is how you find the right id without hard-coding it.
+  </Accordion>
+
+  <Accordion title="label_ids replaces; added_label_ids adds">
+    `issue_update` takes both. `label_ids` overwrites the issue's labels
+    outright, the way GitHub's `issues_update` behaves. `added_label_ids` and
+    `removed_label_ids` adjust the set that is already there, so the
+    read-modify-write round trip is not needed — and neither is
+    `issue_add_label`, which does the same thing for a single label.
+  </Accordion>
+
+  <Accordion title="Variables are camelCase on the wire">
+    `body_case="camel"`, so `team_id` in your arguments arrives as `teamId` in the
+    GraphQL variables. That is the [cascade](/tools/key-case-cascade) doing its
+    job; it is called out here because GraphQL's convention happens to match
+    Charter's default and it is easy to assume nothing is happening.
+  </Accordion>
+
+  <Accordion title="Boolean composition is spelled and_ / or_">
+    Linear's `IssueFilter` is recursive. Conditions on one filter object combine
+    with AND; `and_` and `or_` each take a list of filters and nest arbitrarily
+    deep, which is how "urgent **or** assigned to me" is written. The trailing
+    underscores are there because `and` and `or` are Python keywords — the
+    casing layer strips them on the way to the wire, exactly as it does for
+    `in_`.
+
+    What is modelled is the issue's own columns and its relationships one level
+    deep. Linear's own type also carries comparators for source metadata,
+    agent-session existence, SLA timings and suggestion collections; those
+    describe Linear's internals rather than the work, and are absent.
+  </Accordion>
+
+  <Accordion title="Two different things are called a project update">
+    The mutation `projectUpdate` edits a **project**. The resource
+    `ProjectUpdate` is a **status post** written on one, with its own
+    `projectUpdateCreate` and `projectUpdates` connection. The tools mirror
+    Linear's names rather than inventing clearer ones, so each can be checked
+    against the documentation it came from: `project_update` edits a project,
+    and `project_update_create`, `project_update_update`, `project_update_get`
+    and `project_updates_list` work on status posts.
+  </Accordion>
+
+  <Accordion title="A project's status is a UUID, not a word">
+    `project_create` and `project_update` take a `status_id` that comes from
+    `project_statuses_list`. There is no `state` field on either input, and a
+    pack that offered one sent a field Linear rejects. Setting the status is
+    also how a project is completed or cancelled — there is no separate
+    operation, the same way there is none for closing an issue.
+  </Accordion>
+
+  <Accordion title="Delete usually means trash">
+    `issue_delete`, `project_delete` and `document_delete` move the thing to the
+    trash and answer with it, so it can be restored. Only
+    `issue_delete`'s `permanently_delete` erases, and it is never sent unless
+    asked for. `comment_delete`, `webhook_delete` and the rest are true
+    deletes, and answer with the id they removed and nothing else.
+  </Accordion>
+
+  <Accordion title="Selection sets are fixed">
+    Each tool asks for the fields in its document and no others. That is
+    deliberate: it is what makes the response shape a property of the pack source
+    rather than of the call, and it is what keeps Linear's complexity budget
+    predictable.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [Envelopes](/tools/envelopes) — paths, wildcards, and failure below the root
+- [The wire contract](/tools/wire-contract) — `static_body` and nested cursor parameters
+- [Shopify](/packs/shopify) — the other GraphQL pack, and what it breaks that this one does not

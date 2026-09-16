@@ -1,0 +1,97 @@
+---
+title: "Command line"
+description: "python -m charter.mcp: the one entry point, its flags, and what it exits with."
+---
+
+Charter installs no console script. There is one module entry point, and it
+serves a shipped pack over the Model Context Protocol on stdio.
+
+```bash
+pip install 'charter[mcp]'
+python -m charter.mcp --pack gmail
+```
+
+## `python -m charter.mcp`
+
+```text
+usage: python -m charter.mcp [-h] --pack {gmail,gcalendar,gsheets,gdocs,gdrive,
+                                          gforms,slack,github,stripe,linear,
+                                          shopify,firecrawl,notion,granola,
+                                          tavily}
+                             [--name NAME] [--no-progressive]
+
+Serve an Charter pack over the Model Context Protocol (stdio).
+```
+
+<ParamField path="--pack" type="str" required>
+  Which pack to serve. One of `gmail`, `gcalendar`, `gsheets`, `gdocs`, `gdrive`,
+  `gforms`, `slack`, `github`, `stripe`, `linear`, `shopify`, `firecrawl`, `notion`,
+  `granola`, `tavily`.
+  Anything else
+  is rejected by the argument parser, which exits 2.
+</ParamField>
+
+<ParamField path="--name" type="str" default="the pack name">
+  The MCP server name reported to the client.
+</ParamField>
+
+<ParamField path="--no-progressive" type="flag">
+  Send every tool schema up front instead of loading them on demand. Use it with
+  a client that ignores `notifications/tools/list_changed`.
+</ParamField>
+
+<ParamField path="-h, --help" type="flag">
+  Print usage and exit.
+</ParamField>
+
+The tools come from the pack's `TOOLS`, and the credential from
+[the environment](/reference/configuration) — the packs read their documented
+variable on first use, so no `configure()` call is needed here.
+
+Schemas are sent on demand, through a
+[`ToolSession`](/reference/tool-discovery#toolsession) the server holds: the
+client is offered a single `ToolSearch` listing every tool by name, and loading
+one emits `notifications/tools/list_changed` so the client re-lists and sees it
+appear.
+
+On start it writes one line to stderr, keeping stdout clear for the protocol:
+
+```text
+charter: serving 23 gmail tools over MCP (stdio) (schemas on demand via ToolSearch)
+```
+
+Then it serves until the client disconnects. Missing the `mcp` extra raises
+`ImportError` from the adapter import, which happens after the pack loads.
+
+## Configuring a client
+
+```json
+{
+  "mcpServers": {
+    "gmail": {
+      "command": "python",
+      "args": ["-m", "charter.mcp", "--pack", "gmail"],
+      "env": { "GOOGLE_ACCESS_TOKEN": "ya29..." }
+    }
+  }
+}
+```
+
+## Using it as a function
+
+`main` and `load_pack` are importable, but `charter.mcp` is not part of the
+public surface: it is the entry point, and the supported way to reach a pack's
+tools from your own code is the pack itself.
+
+```python
+from charter.packs import gmail
+
+tools = list(gmail.TOOLS)
+assert tools
+```
+
+## Related
+
+- [MCP server](/using/mcp) — what the client sees, and why a raw token is the wrong credential for a long-lived server
+- [Adapters](/using/adapters) — the same tools as LangChain or OpenAI functions
+- [Configuration](/reference/configuration) — the environment variables

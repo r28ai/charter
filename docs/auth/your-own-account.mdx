@@ -1,0 +1,192 @@
+---
+title: "Your own account"
+description: "One mailbox — yours — connected in five steps, ending in a refresh token and a call that comes back."
+---
+
+Connecting a single account you control to a script, an MCP server, or an agent
+you run. Five steps, and the last one is a call that proves the other four
+worked.
+
+Two readers should stop here:
+
+- **Each of your users connects their own account.** You need a consent route
+  inside your app, a grant per user, and storage for them —
+  [your users' accounts](/auth/oauth-flow).
+- **You are using an API-key pack** — `stripe`, `linear`, `shopify`,
+  `firecrawl`, `granola`. There is no authorization server, no consent screen
+  and no refresh: paste the key into [`configure()`](/reference/configuration#configure) and you are done. See
+  [API keys](/auth/api-key-tool-factory).
+
+Everything below is written for Google, because one grant there serves
+[`gmail`](/packs/gmail), [`gcalendar`](/packs/gcalendar),
+[`gsheets`](/packs/gsheets), [`gdocs`](/packs/gdocs), [`gdrive`](/packs/gdrive) and
+[`gforms`](/packs/gforms). The shape is the same
+for [Slack](/auth/providers/slack) and [GitHub](/auth/providers/github); what
+changes is the console and the scope names.
+
+<Note>
+In a hurry, and fine with re-doing this in an hour? Every Google pack reads
+`$GOOGLE_ACCESS_TOKEN`, so an access token pasted into the environment skips
+steps 2 through 4 — step 5 still tells you whether it works — and expires in
+about an hour, with no way to renew it. That
+is the right trade for a throwaway script and the wrong one for anything you
+leave running.
+</Note>
+
+## Five steps
+
+<Steps>
+
+<Step title="Register an app with Google">
+
+At [console.cloud.google.com](https://console.cloud.google.com), four settings.
+Each one has a failure attached, and three of the four fail in a way that does
+not name the setting you missed:
+
+1. **A project.** Create one, or pick an existing one.
+2. **Enable the Gmail API** — *APIs & Services → Library → Gmail API → Enable*.
+   Skip it and the first call returns `403` with *"Gmail API has not been used
+   in project N before or it is disabled"*, which reads like a permission
+   problem and is not one.
+3. **The OAuth consent screen** — user type *External*, an app name, a support
+   email, and **your own address added under *Test users***. Skip the last and
+   consent ends in `access_denied` before Google ever asks you to approve
+   anything.
+4. **Credentials → Create credentials → OAuth client ID → *Desktop app***. A
+   desktop client accepts a loopback redirect on any port, which is what lets
+   the script in the next step serve its own callback with nothing registered.
+   Choose *Web application* instead and you have to register the redirect URI
+   by hand.
+
+Copy the client id and secret it gives you.
+
+**One more setting, and it decides whether the token survives the week.** A
+project left on publishing status *Testing* issues refresh tokens that expire
+after seven days — the works-all-week, `invalid_grant`-on-Monday symptom, which
+is a setting rather than a bug in your storage. Moving the project to *In
+production* stops it. Google will not have verified your app, so consent shows
+an unverified-app warning you click through; for one account that is the entire
+cost. Verification — and for a restricted scope like `gmail.modify`, a security
+assessment — is what going beyond your own account eventually needs, and it
+takes weeks. [Check Google's current scope tiers](https://developers.google.com/identity/protocols/oauth2/production-readiness/policy-compliance)
+before planning around it; they move.
+
+</Step>
+
+<Step title="Get the grant">
+
+[`examples/connect_google.py`](https://github.com/r28ai/charter/blob/main/examples/connect_google.py)
+runs the consent flow for one account, with a stdlib `http.server` holding the
+loopback callback:
+
+```bash
+export GOOGLE_CLIENT_ID=...
+export GOOGLE_CLIENT_SECRET=...
+uv run python examples/connect_google.py
+```
+
+It prints a URL. Open it, pick your account, click through the unverified-app
+warning, and the tab says *Connected*. The terminal prints a refresh token.
+
+That script is not a library feature — it is forty lines you can read in one
+screen, and only two of them are Charter's. `flow.authorize()` builds the
+authorization URL with PKCE and a `state`; `flow.exchange()` trades the
+callback's code for tokens. Everything between those two calls — the redirect,
+the wait, the callback — is the script's, and in a web app it would be your
+framework's. That is the same split, at a different scale:
+[getting the grant](/auth/oauth-flow).
+
+The script asks for `gmail.modify` only. To cover all four Google packs with
+this one grant, pass the union of their scopes instead —
+[scopes](/auth/providers/google#scopes) has the four names and the [`scopes_for`](/reference/oauth#scopes_for)
+call that reads them off the tools.
+
+</Step>
+
+<Step title="Store what you got">
+
+Three values, in your environment or your secret manager: the client id, the
+client secret, and the refresh token.
+
+Not the access token. It lasts about an hour, and the next step's client
+fetches a fresh one whenever it needs one.
+
+**Google does not rotate refresh tokens**, so the value printed in step 2 is the
+value you keep — a refresh returns a new access token and the same refresh
+token. Servers that *do* rotate need the `on_refresh` hook to write the new one
+back, which is [what varies between servers](/auth/authorization-servers).
+
+</Step>
+
+<Step title="Wire it to the packs">
+
+An [`OAuth2Client`](/reference/oauth#oauth2client) turns those three values into
+a credential provider: it fetches an access token, caches it, and renews it
+before it lapses.
+
+```python google_client.py
+from charter.auth import OAuth2Client
+from charter.packs import gcalendar, gdocs, gdrive, gforms, gmail, gsheets
+
+google = OAuth2Client(
+    GOOGLE,  # the server constant, from /auth/providers/google
+    client_id=os.environ["GOOGLE_CLIENT_ID"],
+    client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
+    refresh_token=os.environ["GOOGLE_REFRESH_TOKEN"],
+)
+
+for pack in (gmail, gcalendar, gsheets, gdocs, gdrive, gforms):
+    pack.configure(credential_provider=google)
+```
+
+One client across six packs on purpose: the access token is fetched once and
+cached once, so a run that sends a mail, files a calendar event and appends a
+row spends one refresh rather than five.
+
+</Step>
+
+<Step title="Verify">
+
+A refresh token is not proof that the scopes are right — that failure surfaces
+as a `403` from the API, hours later, inside an agent. One call settles it now:
+
+```python verify_scopes.py
+labels = await gmail.labels_list.ainvoke(userId="me")
+
+print([label["name"] for label in labels["labels"]])
+```
+
+`INBOX`, `SENT`, and whatever else you have made. It costs 1 unit of Gmail's
+quota, which is the cheapest call in the pack.
+
+That is the loop closed: a client you registered, a grant you own, a token the
+runtime renews without being asked, and a response that came back. Hand
+`gmail.TOOLS` to an [adapter](/using/adapters) and the same credential serves
+every tool in all six packs.
+
+</Step>
+
+</Steps>
+
+## What this does not cover
+
+Named rather than left for you to discover:
+
+- **Your users' accounts.** One grant per user, obtained through a route in your
+  app and held per subject — [getting the grant](/auth/oauth-flow), then
+  [serving many users](/auth/authorization-servers#serving-many-users).
+- **Rotation.** Google hands back the same refresh token; Slack and GitHub do
+  not. [What varies between servers](/auth/authorization-servers).
+- **Revocation.** A grant killed at `myaccount.google.com/permissions` answers
+  `invalid_grant`, and Charter then stops asking for 60 seconds rather than
+  hammering a rate-limited endpoint — [refresh behaviour](/auth/providers/google#refresh-behaviour).
+- **The rest of Google's silent failures** — the hundred-refresh-token cap, what
+  `login_hint` does and does not guarantee —
+  [what fails silently](/auth/providers/google#what-fails-silently).
+
+## Related
+
+- [Google](/auth/providers/google) — the server constant, the four scopes, the failure lore
+- [Getting the grant](/auth/oauth-flow) — the same two protocol steps, inside your app
+- [Authorization servers](/auth/authorization-servers) — refresh, caching, many users
+- [Credentials](/reference/credentials) — every credential provider, as reference

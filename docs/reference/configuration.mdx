@@ -1,0 +1,189 @@
+---
+title: "Configuration"
+description: "A pack's configure(), the settings that tune runtime behaviour, the environment variables, and the logger."
+---
+
+Everything Charter reads at run time, in one place: how a pack is given its
+credential, which parameters change behaviour rather than shape, and what the
+library does with logging.
+
+## `configure()`
+
+Every shipped pack builds its tools at import, so `from charter.packs.gmail
+import TOOLS` works before anything is configured — schemas, `llm_schema()` and
+`to_json_schema()` need no credential. The credential arrives afterwards,
+through the pack's `configure()`.
+
+<Info>
+A credential is resolved per request, not captured when the tool is built. That
+is why `configure()` reaches tools that already exist, and why a reference taken
+before configuration keeps working after it. Calling a tool on a pack that has
+none raises [`CredentialError`](/reference/errors#credentialerror) naming both
+the `configure()` call and the environment variable it would have accepted. It
+fails locally, before the request.
+</Info>
+
+Three shapes, depending on how the API authenticates.
+
+### Bearer packs
+
+```python
+def configure(credential_provider: CredentialProvider) -> None: ...
+```
+
+`gmail`, `gcalendar`, `gsheets`, `gdocs`, `gdrive`, `gforms`, `slack`, `github`, `notion`.
+
+```python
+from charter.auth import StaticTokenProvider
+from charter.packs import gmail
+
+gmail.configure(StaticTokenProvider("test-token"))
+```
+
+Pass any [`CredentialProvider`](/reference/credentials): a
+[`StaticTokenProvider`](/reference/credentials) for a script, an
+[`OAuth2Client`](/reference/oauth) for a process that stays up, a
+[`SubjectProvider`](/reference/credentials) wrapping one of those per end user.
+
+### API-key packs
+
+```python
+def configure(api_key: str) -> None: ...
+```
+
+`stripe`, `linear`, `firecrawl`, `granola`. An empty key raises
+[`CredentialError`](/reference/errors#credentialerror).
+
+```python
+from charter.packs import stripe
+
+stripe.configure("sk_test_123")
+```
+
+### Shopify
+
+```python
+def configure(shop: str, access_token: str) -> None: ...
+```
+
+Two values, because the host is a property of the store rather than of the API.
+`shop` is the subdomain — `"my-store"` for `my-store.myshopify.com` — and the
+full domain or URL is accepted too. `access_token` is an Admin API access token.
+
+## Environment fallbacks
+
+A pack with no `configure()` call falls back to a documented variable, read on
+first use.
+
+| Pack | Variable |
+|---|---|
+| `gmail`, `gcalendar`, `gsheets`, `gdocs`, `gdrive`, `gforms` | `GOOGLE_ACCESS_TOKEN` |
+| `slack` | `SLACK_BOT_TOKEN` |
+| `github` | `GITHUB_TOKEN` |
+| `stripe` | `STRIPE_API_KEY` |
+| `linear` | `LINEAR_API_KEY` |
+| `shopify` | `SHOPIFY_SHOP` and `SHOPIFY_ACCESS_TOKEN` |
+| `firecrawl` | `FIRECRAWL_API_KEY` |
+| `notion` | `NOTION_API_KEY` |
+| `granola` | `GRANOLA_API_KEY` |
+
+The bearer variables are read per call, so a sidecar that refreshes one is
+picked up without a restart. The API-key variables are read at import.
+
+This is the path the [MCP entry point](/using/mcp) uses, which is why it needs
+no configuration code. A raw access token expires in about an hour: for a server
+that stays up, configure the pack with an
+[`OAuth2Client`](/reference/oauth) in your own process instead.
+
+## Settings that tune behaviour
+
+These change how a request is made rather than what it contains. All are
+[factory](/reference/factories) parameters unless noted, and each can be
+overridden per tool.
+
+<ParamField path="timeout" type="int" default="20">
+  Request timeout in seconds. Per tool: `timeout_override`.
+</ParamField>
+
+<ParamField path="expiry_leeway_seconds" type="int" default="10">
+  How dead a bearer token must be before the runtime refuses to send it. On
+  [`oauth_tool_factory`](/reference/factories#oauth_tool_factory) only. This is a guard, not a refresh policy: keeping a
+  token fresh is the provider's job, and `OAuth2Client` renews 90 seconds early
+  by default. Ten seconds covers clock skew and the request itself — refusing a
+  token the server still calls valid for a minute would be the runtime
+  overruling the server.
+</ParamField>
+
+<ParamField path="credential_statuses" type="Optional[Iterable[int]]" default="{401}">
+  Which statuses raise `CredentialError` rather than [`APIError`](/reference/errors#apierror). Declare
+  `{401, 403}` for an API that means "your token" by 403.
+</ParamField>
+
+<ParamField path="on_call" type="Optional[CallSink]" default="None">
+  Where finished [`ToolCall`](/reference/observability) records go. Declared on
+  the factory because observability belongs to the deployment, not to one
+  endpoint. Per tool: `on_call_override`.
+</ParamField>
+
+<ParamField path="static_headers" type="Optional[Dict[str, str]]" default="None">
+  Headers sent verbatim on every request — an Azure `api-version`, a
+  `Notion-Version`. Not case-converted, absent from the LLM schema, applied
+  after tool input so a schema field cannot overwrite them.
+</ParamField>
+
+<ParamField path="static_query" type="Optional[Dict[str, Any]]" default="None">
+  Query parameters sent verbatim on every request. Same three properties.
+</ParamField>
+
+<ParamField path="static_body" type="Optional[Dict[str, Any]]" default="None">
+  Body keys sent verbatim. Per tool only: a constant in the body belongs to one
+  operation, the GraphQL query document being the case that motivated it.
+</ParamField>
+
+<ParamField path="body_case, query_case, path_case" type="KeyCase" default='"camel", "snake", "snake"'>
+  How keys are spelled on the wire. Per tool: `body_case_override`,
+  `query_case_override`, `path_case_override`. Per field:
+  [`Case`](/reference/markers). See
+  [the cascade](/tools/key-case-cascade).
+</ParamField>
+
+<ParamField path="body_format" type='"json" | "form"' default='"json"'>
+  `"form"` for `application/x-www-form-urlencoded`. Per tool:
+  `body_format_override`.
+</ParamField>
+
+<ParamField path="query_format" type='"repeat" | "bracket"' default='"repeat"'>
+  How structured query values serialise. Factory-wide; there is no per-tool
+  override.
+</ParamField>
+
+Nothing here is read from a config file or an environment variable other than
+the credentials above. A setting is a parameter, in code, at the place the tool
+is declared.
+
+## Logging
+
+The library attaches a `NullHandler` to the `charter` logger and configures
+nothing else for its host: emitting a record is a no-op until the application
+opts in.
+
+| Level | What is emitted |
+|---|---|
+| INFO | one line per call, the rendered [`format_call_line`](/reference/observability), with the `ToolCall` on the record as `charter_call` |
+| DEBUG | the tool input as `charter_input`, the OAuth refresh outcome, and a sink that raised |
+| WARNING | `on_refresh` raised and the new token was not persisted |
+
+Enabling INFO also switches on payload measurement, because something is then
+listening for the sizes.
+
+```python
+import logging
+
+logging.getLogger("charter").setLevel(logging.INFO)
+```
+
+## Related
+
+- [MCP server](/using/mcp) — the entry point these variables feed
+- [Packs](/packs/overview) — what each pack configures
+- [Authorization servers](/auth/authorization-servers) — declaring the server behind an `OAuth2Client`

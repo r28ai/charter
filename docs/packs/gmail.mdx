@@ -1,0 +1,450 @@
+---
+title: "Gmail"
+description: "Send and list mail, read threads, save drafts, and manage labels."
+sidebarTitle: "Overview"
+---
+
+{/* generated:summary start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="pack-summary">
+  <span><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg>23 tools</span>
+  <span><svg viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /></svg>OAuth bearer</span>
+</div>
+{/* generated:summary end */}
+
+```python gmail_example.py {7}
+from charter.auth import EnvTokenProvider
+from charter.packs import gmail
+
+credentials = EnvTokenProvider("GOOGLE_ACCESS_TOKEN")
+gmail.configure(credentials)
+
+unread = await gmail.messages_list.ainvoke(q="is:unread")
+```
+
+Twenty-three tools over one mailbox, against Gmail's own REST API. Sending takes a
+recipient, a subject and a body: the RFC-822 assembly and base64url encoding
+Gmail's `raw` field demands happen on the way out, and the MIME tree it returns
+never reaches your model.
+
+## Authenticating
+
+{/* generated:auth start — do not edit by hand; run scripts/generate_pack_docs.py */}
+This pack takes a Google OAuth bearer token, and [`configure()`](/reference/configuration#configure) is optional when `$GOOGLE_ACCESS_TOKEN` is set. Which credential provider you hand it depends on whose account the calls run as.
+
+<Note>
+Refer to [Google's provider page](/auth/providers/google) for the "GOOGLE" constant the snippets below name, the scopes these 23 tools ask for, and this server's refresh behaviour.
+</Note>
+
+### A token you hold
+
+For a script, or a notebook. [`EnvTokenProvider`](/reference/credentials#envtokenprovider) re-reads the variable on every call, so a token rotated beside the process is picked up without a restart; [`StaticTokenProvider`](/reference/credentials#statictokenprovider) takes one you already hold as a string. Neither renews anything, so the calls stop when the token expires.
+
+```python gmail_script.py {4}
+from charter.auth import EnvTokenProvider
+from charter.packs import gmail
+
+credentials = EnvTokenProvider("GOOGLE_ACCESS_TOKEN")
+gmail.configure(credentials)
+```
+
+### One account, refreshed
+
+For an agent or a server acting as you. [`OAuth2Client`](/reference/oauth#oauth2client) turns a client registration and a stored refresh token into an access token, and [renews it](/auth/authorization-servers#what-the-cache-does-precisely) before it lapses.
+
+```python gmail_agent.py {8}
+from charter.auth import OAuth2Client
+from charter.packs import gmail
+
+credentials = OAuth2Client(
+    GOOGLE,
+    client_id=os.environ["GOOGLE_CLIENT_ID"],
+    client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
+    refresh_token=os.environ["GOOGLE_REFRESH_TOKEN"],
+)
+gmail.configure(credentials)
+```
+
+<Note>
+No refresh token yet? [Your own account](/auth/your-own-account) is the one-time consent flow that hands you one.
+</Note>
+
+### Many end users
+
+For a product whose users each connect their own account. [`SubjectProvider`](/reference/credentials#subjectprovider) builds one credential per user through a factory you write, and [`use_subject`](/reference/credentials#use_subject) names the user a call acts for. [Your users' accounts](/auth/oauth-flow) is the consent route inside your app; [serving many users](/auth/authorization-servers#serving-many-users) is the per-subject cache and its eviction.
+
+```python gmail_server.py {17,21}
+from functools import partial
+
+from charter.auth import OAuth2Client, SubjectProvider, use_subject
+from charter.packs import gmail
+
+# Yours to write: a user id in, that user's credential out.
+async def for_user(user_id: str) -> OAuth2Client:
+    grant = await db.grants.get(user_id, "google")
+    return OAuth2Client(
+        GOOGLE,
+        client_id=os.environ["GOOGLE_CLIENT_ID"],
+        client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
+        refresh_token=grant.refresh_token,
+        on_refresh=partial(save_to_db, user_id),
+    )
+
+credentials = SubjectProvider(for_user)
+gmail.configure(credentials)
+
+# Per request: whose grant the tools use.
+with use_subject(request.user_id):
+    ...  # your agent runs here
+```
+{/* generated:auth end */}
+
+## The client
+
+{/* generated:wire start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<Note>
+[`oauth_tool_factory`](/reference/factories#oauth_tool_factory) is the whole client: a thin wrapper over `httpx` that attaches your token and these endpoint constants to each request. `google-api-python-client` and `google-auth` do not enter your dependency tree.
+</Note>
+
+<div className="named-tabs" data-files="gmail_api_client.py|gmail_pack_client.py">
+<CodeGroup>
+
+```python Without the pack
+from charter import oauth_tool_factory
+
+gmail_api_client = oauth_tool_factory(
+    base_url="https://gmail.googleapis.com/",
+    provider="google",
+    credential_provider=credentials,
+    body_format="json",
+    query_format="repeat",
+    body_case="camel",
+    query_case="camel",
+    path_case="snake",
+    # this API reports failure with an HTTP status code
+    envelope=None,
+)
+```
+
+```python With the pack
+from charter.packs import gmail
+
+gmail.configure(credentials)
+
+# The base URL, the casing, the envelope and the pagination are
+# already declared. 23 tools, ready to hand to a model:
+tools = gmail.TOOLS
+```
+
+</CodeGroup>
+</div>
+
+`credentials` is whichever of the three you built in [Authenticating](#authenticating). A pack takes it through [`configure()`](/reference/configuration#configure); a client you build takes the same object as `credential_provider`, and has no `configure()` of its own.
+
+### Paging through a list
+
+A cursor belongs to the tool that returns it, so it is declared on that tool's builder call:
+
+```python gmail_pagination.py
+messages_list = gmail_api_client(
+    name="messages_list",
+    args_schema=MessagesListRequest,
+    method="GET",
+    url_template="gmail/v1/users/{userId}/messages",
+    pagination=Pagination(
+        cursor_field="nextPageToken",
+        cursor_param="pageToken",
+    ),
+)
+```
+
+<Note>
+Pagination is declared on `messages_list`, `threads_list` and `drafts_list`. The other 20 take no cursor.
+</Note>
+{/* generated:wire end */}
+
+## Tools
+
+Each is a [`Tool`](/reference/tool), called with
+[`ainvoke`](/reference/tool#tool-ainvoke) as in the snippet above. The name
+links to its parameters, its response and what it costs.
+
+{/* generated:tools start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="tool-list">
+  <span className="tool-list-group">Message</span>
+  <a className="tool-row" href="/packs/gmail/message/messages_send">
+    <span className="tool-row-head"><span className="tool-row-name">messages_send</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Send an email via the Gmail API.</span>
+  </a>
+  <a className="tool-row" href="/packs/gmail/message/messages_list">
+    <span className="tool-row-head"><span className="tool-row-name">messages_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List messages in the user's mailbox.</span>
+  </a>
+  <a className="tool-row" href="/packs/gmail/message/messages_get">
+    <span className="tool-row-head"><span className="tool-row-name">messages_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Read one message, by the id messages_list returns.</span>
+  </a>
+  <a className="tool-row" href="/packs/gmail/message/messages_modify">
+    <span className="tool-row-head"><span className="tool-row-name">messages_modify</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Modify labels on a specific message.</span>
+  </a>
+  <a className="tool-row" href="/packs/gmail/message/messages_batch_modify">
+    <span className="tool-row-head"><span className="tool-row-name">messages_batch_modify</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Modify labels on multiple messages at once.</span>
+  </a>
+  <span className="tool-list-group">Thread</span>
+  <a className="tool-row" href="/packs/gmail/thread/threads_list">
+    <span className="tool-row-head"><span className="tool-row-name">threads_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List Gmail threads.</span>
+  </a>
+  <a className="tool-row" href="/packs/gmail/thread/threads_get">
+    <span className="tool-row-head"><span className="tool-row-name">threads_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Read a Gmail thread.</span>
+  </a>
+  <a className="tool-row" href="/packs/gmail/thread/threads_modify">
+    <span className="tool-row-head"><span className="tool-row-name">threads_modify</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Modify the labels on a thread, and so on every message in it.</span>
+  </a>
+  <a className="tool-row" href="/packs/gmail/thread/threads_trash">
+    <span className="tool-row-head"><span className="tool-row-name">threads_trash</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Move a thread and all of its messages to the trash.</span>
+  </a>
+  <a className="tool-row" href="/packs/gmail/thread/threads_untrash">
+    <span className="tool-row-head"><span className="tool-row-name">threads_untrash</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Take a thread and all of its messages back out of the trash.</span>
+  </a>
+  <a className="tool-row" href="/packs/gmail/thread/threads_delete">
+    <span className="tool-row-head"><span className="tool-row-name">threads_delete</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Permanently delete a thread and every message in it.</span>
+  </a>
+  <span className="tool-list-group">Draft</span>
+  <a className="tool-row" href="/packs/gmail/draft/drafts_create">
+    <span className="tool-row-head"><span className="tool-row-name">drafts_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Save an email draft to Gmail.</span>
+  </a>
+  <a className="tool-row" href="/packs/gmail/draft/drafts_get">
+    <span className="tool-row-head"><span className="tool-row-name">drafts_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Read a saved draft, including the message it holds.</span>
+  </a>
+  <a className="tool-row" href="/packs/gmail/draft/drafts_list">
+    <span className="tool-row-head"><span className="tool-row-name">drafts_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the drafts in the user's mailbox.</span>
+  </a>
+  <a className="tool-row" href="/packs/gmail/draft/drafts_update">
+    <span className="tool-row-head"><span className="tool-row-name">drafts_update</span><span className="tool-row-method" data-method="PUT">PUT</span></span>
+    <span className="tool-row-desc">Replace a saved draft's content with a new message.</span>
+  </a>
+  <a className="tool-row" href="/packs/gmail/draft/drafts_delete">
+    <span className="tool-row-head"><span className="tool-row-name">drafts_delete</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Permanently delete a draft.</span>
+  </a>
+  <a className="tool-row" href="/packs/gmail/draft/drafts_send">
+    <span className="tool-row-head"><span className="tool-row-name">drafts_send</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Send a saved draft to the recipients in its To, Cc and Bcc headers.</span>
+  </a>
+  <span className="tool-list-group">Label</span>
+  <a className="tool-row" href="/packs/gmail/label/labels_list">
+    <span className="tool-row-head"><span className="tool-row-name">labels_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List all labels in the user's mailbox.</span>
+  </a>
+  <a className="tool-row" href="/packs/gmail/label/labels_get">
+    <span className="tool-row-head"><span className="tool-row-name">labels_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Read one label, including its message and thread counts.</span>
+  </a>
+  <a className="tool-row" href="/packs/gmail/label/labels_create">
+    <span className="tool-row-head"><span className="tool-row-name">labels_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a new Gmail label.</span>
+  </a>
+  <a className="tool-row" href="/packs/gmail/label/labels_update">
+    <span className="tool-row-head"><span className="tool-row-name">labels_update</span><span className="tool-row-method" data-method="PUT">PUT</span></span>
+    <span className="tool-row-desc">Replace a label's name, visibility and colour.</span>
+  </a>
+  <a className="tool-row" href="/packs/gmail/label/labels_patch">
+    <span className="tool-row-head"><span className="tool-row-name">labels_patch</span><span className="tool-row-method" data-method="PATCH">PATCH</span></span>
+    <span className="tool-row-desc">Change some of a label's fields, leaving the rest as they are.</span>
+  </a>
+  <a className="tool-row" href="/packs/gmail/label/labels_delete">
+    <span className="tool-row-head"><span className="tool-row-name">labels_delete</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Delete a label and remove it from every message and thread it is on.</span>
+  </a>
+</div>
+{/* generated:tools end */}
+
+## What crosses the boundary
+
+### On the way out
+
+`messages_send`, `drafts_create` and `drafts_update` take an
+[`EmailContent`](/reference/semantic-types#emailcontent) (`to`, `subject`,
+`body`, `mimeType`, `cc`, `bcc`), and
+[`Format("rfc822_base64")`](/reference/markers#format) turns it into the
+base64url RFC-822 blob Gmail wants in `raw`. [Transforms](/tools/transforms) is
+how the marker works, and [the built-in list](/reference/transforms#built-in-transforms)
+is what else it could have said.
+
+### On the way back
+
+The return direction is a [`Mode`](/reference/markers#mode) declaration.
+`Message.payload`, the whole MIME tree with attachment bytes included, is marked
+`response_only`, so it is absent from the type the model fills in and cannot be
+constructed by anything in the pipeline. `messages_send` shows four visible
+fields against eight withheld; print it with
+[`format_egress_map`](/reference/observability#format_egress_map), which
+[egress control](/boundary/egress-control) reads line by line.
+
+### Trimming a message
+
+Six tools go further and run a
+[`ResponseHandler`](/reference/response-handling#responsehandler):
+`extract_thread_text` on `threads_get`, `threads_modify`, `threads_trash` and
+`threads_untrash`, `extract_message_text` on `messages_get`, and
+`extract_draft_text` on `drafts_get`. All three project a message the same way. They walk the MIME part tree, base64-decode `text/plain`
+and `text/calendar`, convert `text/html` to text, and keep attachment metadata
+without the bytes. All three are exported, so a tool of your own can hand
+Gmail's MIME tree to the same walk:
+
+```python thread_reader.py
+from charter.packs.gmail import extract_thread_text
+
+threads_get = gmail_api_client(
+    name="threads_get",
+    args_schema=ThreadsGetRequest,
+    method="GET",
+    url_template="gmail/v1/users/{userId}/threads/{id}",
+    response_handler=extract_thread_text,
+)
+```
+
+<Note>
+Even with no attachment, a thread comes back as kilobytes of base64 JSON per
+conversation, enough for one tool call to blow out a context window. The
+response handler is what stops it, and
+[the call log](/running/observability#sizes-on-both-sides) tells you exactly how
+many bytes never reached your model.
+</Note>
+
+The `format` a read asks for decides which representation arrives, and the
+handler follows it. `full` and `metadata` fill `payload`; `raw` fills `raw`
+instead, and gets parsed to the same shape; `minimal` fills neither, and comes
+back with no `bodyText` key rather than an empty one.
+
+The other 17 tools return Gmail's payload as it arrived.
+
+## Gotchas
+
+<AccordionGroup>
+  <Accordion title="Gmail's schema fields are camelCase; the other Google packs' are not">
+    The model fills in `userId`, `maxResults` and `includeSpamTrash` here, but
+    `calendar_id` and `max_results` on [Google Calendar](/packs/gcalendar). Both
+    reach Google as camelCase — the [key case cascade](/tools/key-case-cascade)
+    converts Calendar's, and Gmail's are already there — but the names a model
+    sees differ between the two packs, and a prompt that hard-codes one will not
+    transfer to the other.
+  </Accordion>
+
+  <Accordion title="Walking the pages of messages_list">
+    [`next_page_args`](/reference/envelopes-and-pagination#pagination) reads
+    `nextPageToken` off the page you just got and returns the arguments for the
+    next one, or `None` when Gmail stops sending a token:
+
+    ```python gmail_paginate.py
+    args = {"userId": "me", "q": "is:unread"}
+    while args is not None:
+        page = await gmail.messages_list.ainvoke(args)
+        handle(page)
+        args = gmail.messages_list.pagination.next_page_args(page, args)
+    ```
+  </Accordion>
+
+  <Accordion title='userId is always "me"'>
+    Every tool takes a `userId`, and on an ordinary OAuth token the value is
+    `"me"` — Gmail's special value for whichever mailbox the token belongs to.
+    It is a parameter of the API rather than of the pack, which is why it is on
+    the schemas the model fills in rather than hidden behind `configure()`.
+  </Accordion>
+
+  <Accordion title="Label operations take ids, not names">
+    `messages_modify` and `messages_batch_modify` take `add_label_ids` and
+    `remove_label_ids`. System labels are their own ids (`INBOX`, `UNREAD`,
+    `SPAM`); a user label's id is the opaque `Label_5` string that `labels_list`
+    returns, not its display name. Resolve the name first.
+  </Accordion>
+
+  <Accordion title="labels_update replaces, labels_patch does not">
+    Both take the same four writable fields, and they differ in what leaving one
+    out means. `labels_update` is a PUT, so the label becomes exactly what you
+    send and `name` is required. `labels_patch` keeps every field you omit, so
+    it requires nothing: recolouring a label is a `color` and no name. The other
+    six fields on a `Label` are Gmail's own, and neither endpoint offers them.
+  </Accordion>
+
+  <Accordion title="A colour is two fields or none">
+    Gmail documents `textColor` and `backgroundColor` as both required to set a
+    label's colour, and answers a half-set one with a 400 that reads like any
+    other bad request. `Color` carries that as a validator, so the model is told
+    which field is missing before anything is sent. Both take hex strings from a
+    fixed palette, listed on each field.
+  </Accordion>
+
+  <Accordion title="threads_delete is the one tool that needs a wider scope">
+    Every other tool here runs on
+    `https://www.googleapis.com/auth/gmail.modify`. Google requires
+    `https://mail.google.com/`, full mailbox access, for `threads_delete`
+    alone, because the delete cannot be undone. The pack exports it as
+    `gmail.FULL_MAILBOX_SCOPE`. It is declared on that tool rather than on the
+    pack, so
+    [`scopes_for`](/reference/oauth#scopes_for) adds it to a consent screen
+    only when you hand that tool out. Drop `threads_delete` from your tool list
+    and your users are asked for `gmail.modify` and nothing more.
+  </Accordion>
+
+  <Accordion title="Trash is reversible, delete is not">
+    `threads_trash` moves a conversation and every message in it to `TRASH`,
+    and `threads_untrash` brings it back. `threads_delete` removes the thread
+    and its messages outright, and Google's own reference says to prefer trash.
+    The same split exists for drafts, except there is no untrash for a draft:
+    `drafts_delete` is permanent and has no reversible counterpart.
+  </Accordion>
+
+  <Accordion title="threads_modify labels every message in the conversation">
+    It takes the same `add_label_ids` and `remove_label_ids` as
+    `messages_modify` and applies them thread-wide, so marking a conversation
+    read is one call rather than one per message. Gmail returns the whole
+    thread back, which is why the trimming handler runs on it.
+  </Accordion>
+
+  <Accordion title="System labels cannot be edited or deleted">
+    `INBOX`, `SENT`, `DRAFT`, `SPAM` and the rest come back from `labels_list`
+    with `type: "system"`, and `labels_update`, `labels_patch` and
+    `labels_delete` all refuse them. Deleting a user label is permanent, and it
+    is removed from every message and thread it was on.
+  </Accordion>
+
+  <Accordion title="messages_list returns ids only">
+    Gmail's list endpoints return `{"id": ..., "threadId": ...}` per message and
+    nothing else: no subject, no sender, no snippet. Reading content is a second
+    call, `messages_get` per message or `threads_get` for the whole
+    conversation. `threads_get` costs 40 quota units against 20 for a single
+    `messages_get`, so a conversation of three messages or more is cheaper read
+    as a thread.
+  </Accordion>
+
+  <Accordion title="A draft's id is not its message's id">
+    `drafts_list` and `drafts_get` return `{"id": ..., "message": {"id": ...}}`,
+    and the two are different strings. `drafts_update`, `drafts_send` and
+    `drafts_delete` all take the draft id, the outer one. The message id belongs
+    to `messages_get` and `messages_modify`.
+  </Accordion>
+
+  <Accordion title="drafts_update replaces, and drafts_delete does not trash">
+    `drafts_update` writes a whole message over the saved one, so send the draft
+    you want to end up with rather than the part that changed. `drafts_delete`
+    removes the draft permanently: it does not go to `TRASH`, and there is no
+    untrash for it.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [Google](/auth/providers/google) — consent screen, scopes, refresh
+- [Transforms](/tools/transforms) — what `Format("rfc822_base64")` does
+- [Egress control](/boundary/egress-control) — the `messages_send` map in full

@@ -1,0 +1,70 @@
+name: Pack request
+description: Ask for an API to ship as a pack, or say you are building one
+labels: ["pack"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Packs are the most useful thing anyone can add here, and you do not need
+        permission — see
+        [`skills/writing-charter-packs/SKILL.md`](https://github.com/r28ai/charter/blob/main/skills/writing-charter-packs/SKILL.md).
+        Opening this first is still worth it: it stops two people writing the
+        same pack, and the questions below are the ones that decide whether a
+        pack is a day or a week.
+
+  - type: input
+    id: api
+    attributes:
+      label: Which API
+      placeholder: "Notion, Twilio, Zendesk…"
+    validations:
+      required: true
+
+  - type: input
+    id: docs
+    attributes:
+      label: Link to the reference docs
+      description: The endpoint reference, not the marketing page.
+    validations:
+      required: true
+
+  - type: textarea
+    id: endpoints
+    attributes:
+      label: Which endpoints an agent actually needs
+      description: Five well-chosen tools beat forty generated ones.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: auth
+    attributes:
+      label: Authentication
+      options:
+        - API key in a header
+        - OAuth 2.0 bearer token
+        - Both, depending on the account type
+        - Something else (describe below)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: envelope
+    attributes:
+      label: Does it report failure inside an HTTP 200?
+      description: |
+        GraphQL always does. Slack does. A surprising number of REST APIs do.
+        If you are unsure, say so — it is worth checking before writing schemas.
+      options:
+        - "No — real status codes"
+        - "Yes"
+        - "Not sure"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: building
+    attributes:
+      label: Are you building it?
+      options:
+        - label: I intend to open a PR for this

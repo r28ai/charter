@@ -1,0 +1,102 @@
+---
+title: "Getting it right first try"
+sidebarTitle: "First-try accuracy"
+description: "A call the model gets wrong is paid three times. What the contract can check, what it can only say, and the order to reach for them in."
+---
+
+A tool call the model gets wrong is the most expensive thing on these pages. It
+costs a round trip, the tokens for the arguments, the tokens for the error, and
+then the whole thing again. Optimizing context and latency while the model is
+sending `amount=15` for a fifteen-dollar refund is tuning the wrong variable.
+
+Three mechanisms sit between a model and a wrong call, and they are not equally
+strong. Reach for them in this order.
+
+## 1. A constraint, because it is checked
+
+Anything expressible as a bound belongs in the schema, where it is enforced
+rather than suggested. `ge`, `le`, `pattern`, an enum, a required field — all of
+it is [checked before the request is
+built](/running/tool-validation-error-handling), so a wrong value never reaches
+the network and never spends a round trip.
+
+[`ConflictsWith`](/reference/markers#conflictswith) covers the rule APIs state in
+prose and answer with a 400. Google Calendar's `events.list` refuses `syncToken`
+beside eight other parameters, because an incremental sync continues the query
+its token came from. Declared on the field, that fact travels with the field
+instead of living in a validator's list that the next edit forgets to update.
+
+## 2. A gloss, for what no constraint can express
+
+Some mistakes are valid. Stripe's `POST /v1/refunds` documents `amount` as "a
+positive integer in the smallest currency unit", which is correct and complete.
+A model reading `15.00` off a spreadsheet sent `amount=15` and refunded fifteen
+cents. Nothing rejects that — the units are the caller's to get right, the
+request is well-formed, and the API answers `200`.
+
+No constraint catches it. [`Gloss`](/reference/markers#gloss) is the sentence
+that does:
+
+```python gloss.py
+amount: Annotated[
+    Optional[int],
+    Field(None, ge=1, description="A positive integer in the smallest "
+          "currency unit representing how much to refund."),
+    Body(),
+    Gloss("Cents, not dollars: $15.00 is 1500. Multiply a decimal amount by 100."),
+]
+```
+
+The gloss is appended to the description in the LLM-facing schema only. The wire
+schema keeps the vendor's text intact, which is what keeps a pack diffable
+against the reference page it came from — edit the description to help a model
+and the next person to regenerate that field deletes the help without knowing it
+was there.
+
+What belongs in one: the unit and its conversion, the value a model reaches for
+that the API reads as something else, the field that looks optional and is not.
+What does not: a restatement of the description, or a rule a constraint can carry
+instead. A constraint is checked; a gloss is only read. The packs ship 32 of
+them.
+
+## 3. A rejection the model can act on
+
+The third case is the mistake you did not anticipate. Here the goal is not to
+prevent the call but to make the failure cost one turn instead of three.
+
+Two things the runtime does without being asked. Mistakes that are
+[unambiguous are absorbed](/running/llm-input-auto-corrections) rather than
+bounced — a nested object serialised as a JSON *string* is parsed, and
+`dateTime`, `DateTime` and `date_time` are all declared aliases for the same
+field, so a model matching the API's own docs is not punished for it. Mistakes
+that are real are refused with a message
+[written to be handed back verbatim](/reference/errors#toolvalidationerror),
+naming the field and what it wanted.
+
+An argument the schema does not declare is refused rather than dropped, which is
+the deliberate exception. Silently discarding it would produce a successful call
+that did not do what was asked — the one failure mode an agent cannot recover
+from, because nothing tells it anything went wrong.
+
+## What it was worth
+
+Tool errors per run, from the [measured results](/guarantees/measured-results):
+
+```
+            Charter    raw
+breadth        0.15    0.77
+depth          0.12    0.38
+```
+
+The comparison is conservative in a way worth naming: on the Charter arm that
+count *includes* calls rejected locally by schema validation, which never reached
+an API and cost no round trip. The raw arm's figure counts only real API
+failures. The gap in calls that actually went wrong on the wire is wider than
+these numbers show.
+
+## Related
+
+- [LLM input auto-corrections](/running/llm-input-auto-corrections) — the three mistakes absorbed, and the one refused
+- [Tool validation and error handling](/running/tool-validation-error-handling) — where validation runs and how to catch it
+- [Markers](/reference/markers) — `Gloss`, `ConflictsWith`, and the rest of the declarative vocabulary
+- [Latency](/optimization/latency) — why the retry loop is usually the wall-clock story

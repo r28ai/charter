@@ -1,0 +1,170 @@
+---
+title: "Slack OAuth"
+sidebarTitle: "Slack"
+description: "The constant, the bot and user token split, and why an app without token rotation should not use OAuth2Client."
+---
+
+Slack's token endpoint is an ordinary form POST wearing a Web API method name.
+The part that catches people is not the endpoint — it is that a Slack app hands
+back two tokens, and that whether it hands back a *refresh* token at all is a
+per-app setting.
+
+## The server
+
+```python slack_server.py
+from charter.auth import OAuth2Server
+
+SLACK = OAuth2Server(
+    issuer="https://slack.com",
+    authorization_endpoint="https://slack.com/oauth/v2/authorize",
+    token_endpoint="https://slack.com/api/oauth.v2.access",
+    token_endpoint_auth_method="client_secret_post",
+)
+```
+
+[`OAuth2Server.discover("https://slack.com")`](/reference/oauth#oauth2server-discover) is the wrong move here. Sign in with
+Slack is a separate OpenID Connect surface with its own token endpoint
+(`openid.connect.token`), and it issues an identity token — not the workspace
+token the packs' tools authenticate with. Declare the constant.
+
+## Two shapes of Slack app
+
+Token rotation is opt-in per app, and it changes which credential provider you
+want:
+
+| rotation | what `oauth.v2.access` returns | what to use |
+|---|---|---|
+| off (the default) | a `xoxb-` token, no `expires_in`, no `refresh_token` | [`StaticTokenProvider`](/reference/credentials#statictokenprovider) |
+| on | a 12-hour token plus a `refresh_token` that rotates on every use | [`OAuth2Client`](/reference/oauth#oauth2client) |
+
+With rotation off there is nothing to refresh, and `OAuth2Client` will refuse to
+be built without a refresh token — correctly, since a client that can never
+refresh is a footgun:
+
+```python slack_bot_token.py
+from charter.auth import StaticTokenProvider
+from charter.packs import slack
+
+slack.configure(credential_provider=StaticTokenProvider(os.environ["SLACK_BOT_TOKEN"]))
+```
+
+With rotation on:
+
+```python slack_client.py
+from charter.auth import OAuth2Client
+from charter.packs import slack
+
+slack.configure(credential_provider=OAuth2Client(
+    SLACK,
+    client_id=os.environ["SLACK_CLIENT_ID"],
+    client_secret=os.environ["SLACK_CLIENT_SECRET"],
+    refresh_token=stored_refresh_token,
+    on_refresh=save_to_db,
+))
+```
+
+`$SLACK_BOT_TOKEN` is also the pack's fallback: with no [`configure()`](/reference/configuration#configure) call at
+all, the tools read it directly. That is the shape for a script, not for a
+product.
+
+## Scopes
+
+The pack declares eleven bot scopes — `chat:write`, the four `*:read` and four
+`*:history` scopes conversations need, `users:read` and `reactions:write`:
+
+```python slack_scopes.py
+from charter.auth import scopes_for
+from charter.packs import slack
+
+BOT_SCOPES = scopes_for(slack.TOOLS)
+```
+
+Two things that list will not tell you:
+
+**`search_messages` needs a user token.** Slack's `search.messages` cannot be
+called with a bot token at all; it wants a user token carrying `search:read`.
+That scope is not in `slack.SCOPES`, and [`scopes_for(slack.TOOLS)`](/reference/oauth#scopes_for) reports the
+pack's bot scopes for every tool including that one. Ask for it explicitly, or
+accept that one of the eighteen tools will fail with `not_allowed_token_type`.
+
+**Slack splits scopes across two parameters.** `scope` asks for bot scopes;
+user-token scopes go in a separate `user_scope`. `authorize()` puts your scopes
+in `scope`, so the user half travels as a vendor parameter:
+
+```python slack_connect.py
+from charter.auth import OAuth2Flow
+
+flow = OAuth2Flow(
+    SLACK,
+    client_id=os.environ["SLACK_CLIENT_ID"],
+    client_secret=os.environ["SLACK_CLIENT_SECRET"],
+    redirect_uri="https://app.example.com/oauth/slack/callback",
+)
+
+request = flow.authorize(BOT_SCOPES, extra_params={"user_scope": "search:read"})
+```
+
+A constant `user_scope` can live in the server's `authorization_params` instead,
+beside the rest of the vendor lore.
+
+## Getting the first grant
+
+The route, the session and `state` are [yours](/auth/oauth-flow). What is
+Slack-specific is reading the response, because the token you want may not be
+the one at the top level:
+
+```python slack_callback.py
+grant = await flow.exchange(code, code_verifier=verifier)
+
+bot_token = grant.access_token                          # xoxb-…
+user_token = grant.raw["authed_user"]["access_token"]   # xoxp-…, if user_scope was asked for
+
+await db.grants.put(user.id, "slack", grant.refresh_token)
+```
+
+`grant.access_token` is the bot token. The user token — the one
+`search_messages` needs — is nested under `authed_user`, along with its own
+scopes and, under rotation, its own refresh token. The two refresh
+independently; whichever refresh token you store is the one you get back.
+
+On an app without rotation, `exchange()` raises: no refresh token came back and
+the default `expect_refresh_token=True` says that is the silent-death case. Here
+it is not, so say so — `flow.exchange(code, expect_refresh_token=False)` — and
+hold the result in a `StaticTokenProvider`.
+
+## Refresh behaviour
+
+**Rotation invalidates the token you just used.** Slack returns a new refresh
+token on every refresh and kills the old one, so a refresh token you failed to
+persist is a dead integration at the next refresh. `on_refresh` is where that
+write goes, and it is not optional on a rotating app.
+
+**Concurrency is the trap rotation brings.** Twelve parallel tool calls each
+firing their own refresh would poison eleven of them. One `OAuth2Client`
+serialises refreshes across those calls; what it cannot see is your *other*
+process holding the same refresh token. Across processes, your store is the
+shared cache — one writer through `on_refresh`, readers rebuilding the client
+from the stored value.
+
+**Slack reports token failures inside a 200.** `oauth.v2.access` answers a bad
+code with `HTTP 200` and `{"ok": false, "error": "invalid_code"}`. Charter checks
+the `error` field regardless of status, so it raises [`CredentialError`](/reference/errors#credentialerror) like any
+other server — the same rule the pack's [envelope](/tools/envelopes) applies to
+the tools themselves.
+
+**Reinstalling replaces the grant.** A workspace reinstall issues fresh tokens;
+the previous refresh token stops working, and the symptom is `invalid_grant`
+against a user who just clicked "Allow". Re-run the callback path that stores
+the grant on every install, not only the first.
+
+One thing this page has not verified against the live server: whether Slack acts
+on PKCE. Charter sends `code_challenge` by default, and Slack does not document
+`oauth.v2.access` as verifying a `code_verifier`. If your install flow rejects
+the extra parameters, `flow.authorize(..., pkce=False)` exists for that; `state`
+is your CSRF defense either way.
+
+## Where the rest is
+
+- [Getting the grant](/auth/oauth-flow) — the route, the session, `state`, PKCE
+- [Authorization servers](/auth/authorization-servers) — discovery, and what varies between servers
+- [Packs](/packs/overview) — the ten Slack tools and what they trim

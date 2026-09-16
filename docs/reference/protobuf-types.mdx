@@ -1,0 +1,137 @@
+---
+title: "Protobuf types"
+description: "Value, ListValue, Struct, FieldMask and NullValue: the google.protobuf well-known types as Pydantic models."
+---
+
+Google's APIs describe several fields as protobuf well-known types. These
+mirror them as Pydantic models, so a schema can be strict about a dynamically
+typed cell while the
+[`proto_json`](/reference/transforms#built-in-transforms) transform writes the
+plain JSON the wire actually wants.
+
+Needed by anything Sheets-shaped: `values` in a Sheets update is
+`List[List[Value]]`, and a partial update carries a `FieldMask`.
+
+## `Value`
+
+A dynamically typed value: null, number, string, bool, a nested `Struct`, or a
+`ListValue`. Exactly one variant must be set — zero or two raise a
+`ValidationError` from `check_one_variant`.
+
+<ResponseField name="null_value" type="Optional[Literal['NULL_VALUE']]">
+  A null.
+</ResponseField>
+
+<ResponseField name="number_value" type="Optional[float]">
+  A double.
+</ResponseField>
+
+<ResponseField name="string_value" type="Optional[str]">
+  A string.
+</ResponseField>
+
+<ResponseField name="bool_value" type="Optional[bool]">
+  A boolean.
+</ResponseField>
+
+<ResponseField name="struct_value" type="Optional[Struct]">
+  A structured value.
+</ResponseField>
+
+<ResponseField name="list_value" type="Optional[ListValue]">
+  A repeated value.
+</ResponseField>
+
+The `coerce_primitive` validator accepts a plain JSON primitive and promotes it
+to the right variant, so a model can write `"hello"` where the type says
+`Value`:
+
+```python
+from charter import Value
+
+assert Value.model_validate("hello").string_value == "hello"
+assert Value.model_validate(42).number_value == 42.0
+assert Value.model_validate(True).bool_value is True
+assert Value.model_validate(None).null_value == "NULL_VALUE"
+```
+
+Booleans are checked before numbers, so `True` is a `bool_value` rather than
+`1.0`.
+
+## `ListValue`
+
+A wrapper around a repeated field of values. Its JSON representation is an
+array.
+
+<ResponseField name="values" type="List[Value]" required>
+  The elements.
+</ResponseField>
+
+## `Struct`
+
+Structured data: a map of names to dynamically typed values. Its JSON
+representation is an object.
+
+<ResponseField name="fields" type="Optional[Dict[str, Value]]">
+  Unordered map of dynamically typed values.
+</ResponseField>
+
+## `FieldMask`
+
+A set of symbolic field paths, naming what a partial update should touch.
+
+<ResponseField name="paths" type="List[str]" required>
+  Dot-separated camelCase field paths, e.g. `"userEnteredValue"` or
+  `"userEnteredFormat.horizontalAlignment"`.
+</ResponseField>
+
+The `coerce_shorthand` validator also accepts the two shapes a model is likely
+to produce — a list, or the comma-separated wire string:
+
+```python
+from charter import FieldMask, apply_transform
+
+assert FieldMask.model_validate(["a", "b"]).paths == ["a", "b"]
+assert FieldMask.model_validate("a,b").paths == ["a", "b"]
+assert apply_transform("field_mask", FieldMask(paths=["user.displayName", "photo"])) == (
+    "user.displayName,photo"
+)
+```
+
+## `NullValue`
+
+```python
+NullValue = Literal["NULL_VALUE"]
+```
+
+The single-member enum protobuf uses for null. It is the type of
+`Value.null_value`; write it directly only when declaring a field that is always
+null.
+
+## Wire encoding
+
+Protobuf's JSON mapping is not the struct representation. `Value` encodes as the
+bare primitive, `ListValue` as an array, `Struct` as an object, `FieldMask` as
+one comma-separated string. `Format("proto_json")` performs the first three and
+`Format("field_mask")` the fourth:
+
+```python
+from typing import Annotated, List, Optional
+
+from pydantic import BaseModel, Field
+from charter import Body, Format, Value
+
+
+class ValueRange(BaseModel):
+    values: Annotated[
+        Optional[List[List[Value]]],
+        Body(),
+        Format("proto_json"),
+        Field(default=None, description="Rows of cell values."),
+    ]
+```
+
+## Related
+
+- [Transforms](/tools/transforms) — the registry these two transforms live in
+- [`Format`](/reference/markers#format)

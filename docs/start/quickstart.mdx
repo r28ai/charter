@@ -1,0 +1,137 @@
+---
+title: "Quickstart"
+description: "Declare a tool, print the boundary it makes, call a pack, hand any of it to a framework."
+---
+
+import FrameworkHandoff from '/snippets/framework-handoff.mdx';
+
+## Declare a tool
+
+Every pack is built from declarations like this one. This is Gmail's `messages_list`, written out by hand.
+
+<Steps>
+  <Step title="Describe the arguments">
+    ```python list_messages.py
+    from typing import Annotated
+    from pydantic import BaseModel
+    from charter import Query
+
+    class ListMessages(BaseModel):
+        q: Annotated[str, Query()]
+        max_results: Annotated[int, Query()] = 10
+    ```
+
+    <Note>
+    Each field says where it belongs in the request. [`Query()`](/reference/markers#query) makes it a query parameter; [`Path()`](/reference/markers#path) interpolates it into the URL template instead.
+    </Note>
+  </Step>
+
+  <Step title="Build a factory">
+    The factory carries everything shared across the tools of one API: the base URL, the credential, and the conventions the API's wire format follows.
+
+    ```python list_messages.py
+    from charter import oauth_tool_factory
+    from charter.auth import EnvTokenProvider
+
+    gmail = oauth_tool_factory(
+        base_url="https://gmail.googleapis.com/",
+        provider="google",
+        credential_provider=EnvTokenProvider("GOOGLE_ACCESS_TOKEN"),
+        query_case="camel",
+    )
+    ```
+
+    <Note>
+    For an API that authenticates with a header instead of a bearer token, [`api_key_tool_factory`](/auth/api-key-tool-factory) takes the same arguments.
+    </Note>
+  </Step>
+
+  <Step title="Declare the tool">
+    Assign the arguments a target endpoint. The marked line is the model's half.
+
+    ```python list_messages.py highlight={6}
+    list_messages = gmail(
+        name="list_messages",
+        description="Search the mailbox and return matching messages.",
+        method="GET",
+        url_template="gmail/v1/users/me/messages",
+        args_schema=ListMessages,
+    )
+    ```
+  </Step>
+
+  <Step title="Call it">
+    ```python list_messages.py
+    await list_messages.ainvoke({"q": "is:unread", "maxResults": 5})
+    ```
+
+    That sends `GET gmail/v1/users/me/messages?q=is:unread&maxResults=5` with the token attached, and returns the parsed body. Spelling the parameter Gmail's way on the wire is what `query_case` did, and it is part of [the casing cascade](/tools/key-case-cascade).
+
+    A declaration also carries [wire format](/tools/transforms), [field policy](/boundary/mode-system) and [failure that arrives as HTTP 200](/tools/envelopes). [The wire contract](/tools/wire-contract) is where those go.
+  </Step>
+</Steps>
+
+## See what the model sees
+
+Before wiring a tool into an agent, print the boundary. It is computed from the same declarations the runtime executes, so it cannot drift from what actually happens.
+
+```python egress_map.py
+from charter import format_egress_map
+from charter.packs import gmail
+
+print(format_egress_map([gmail.messages_send]))
+```
+
+```text
+messages_send  (POST gmail/v1/users/{userId}/messages/send)
+  visible to the model (4):
+    + userId
+    + body
+    + body.threadId
+    + body.raw
+  withheld (8):
+    - body.id  [response_only]
+    - body.payload  [response_only]
+    - body.snippet  [response_only]
+    ...
+```
+
+## Call a pack
+
+A pack is the tools of one API, already declared. Configure the credential once and every tool in it is callable.
+
+```python quickstart.py
+from charter.auth import StaticTokenProvider
+from charter.packs import gmail
+
+gmail.configure(StaticTokenProvider(access_token))
+
+await gmail.messages_send.ainvoke(
+    body={"raw": {"to": "ada@example.com", "subject": "Hi", "body": "Hello"}}
+)
+```
+
+<Note>
+A static access token is fine for a script and useless for a product, because it expires in about an hour. See [authorization servers](/auth/authorization-servers) for refresh against any OAuth 2.0 token endpoint, and [getting the grant](/auth/oauth-flow) for where the refresh token comes from.
+</Note>
+
+## Hand it to a framework
+
+Every pack exports `TOOLS`, and a list of your own declarations works the same way. An adapter turns either into what the framework expects.
+
+<FrameworkHandoff />
+
+<Note>
+The OpenAI format needs nothing beyond the core. LangChain needs `pip install 'charter[langchain]'`. Client configuration for the MCP server is on [its page](/using/mcp), and the other two on [adapters](/using/adapters).
+</Note>
+
+## Next steps
+
+<Columns cols={2}>
+  <Card title="The wire contract" icon="ethernet" href="/tools/wire-contract">
+    Body format, static parameters, per-call headers, pagination.
+  </Card>
+  <Card title="Authentication" icon="key" href="/auth/authorization-servers">
+    OAuth refresh against any token endpoint, and one set of tools for many users.
+  </Card>
+</Columns>

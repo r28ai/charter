@@ -1,0 +1,520 @@
+---
+title: "Stripe"
+description: "Customers, payments, refunds, subscriptions and Checkout Sessions."
+sidebarTitle: "Overview"
+---
+
+{/* generated:summary start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="pack-summary">
+  <span><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg>59 tools</span>
+  <span><svg viewBox="0 0 24 24"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4" /><path d="m21 2-9.6 9.6" /><circle cx="7.5" cy="15.5" r="5.5" /></svg>API key</span>
+</div>
+{/* generated:summary end */}
+
+```python stripe_example.py {7}
+import os
+
+from charter.packs import stripe
+
+stripe.configure(api_key=os.environ["STRIPE_API_KEY"])
+
+customers = await stripe.customers_list.ainvoke(limit=10)
+```
+
+Customers, payments, charges, refunds, the product catalogue, subscriptions,
+Checkout Sessions and the account balance. Stripe's parameter surface is enormous
+— `checkout.sessions.create` alone has around fifty parameters with deep nesting —
+so these schemas model the commonly-used subset exactly rather than claiming
+completeness badly.
+
+Form-encoded bodies, bracket notation for nesting, and a cursor the API never
+hands back are all declared in [the wire contract](/tools/wire-contract).
+
+## Authenticating
+
+{/* generated:auth start — do not edit by hand; run scripts/generate_pack_docs.py */}
+This pack takes an API key in `Authorization`, and [`configure()`](/reference/configuration#configure) is optional when `$STRIPE_API_KEY` is set.
+
+There is no authorization server, no consent screen and no refresh — [API keys](/auth/api-key-tool-factory) is the whole story.
+{/* generated:auth end */}
+
+Prefer a [restricted key](https://docs.stripe.com/keys/restricted-api-keys)
+scoped to what the agent actually needs — an agent that only reads should not
+hold a key that can issue refunds.
+
+## The client
+
+{/* generated:wire start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<Note>
+[`api_key_tool_factory`](/reference/factories#api_key_tool_factory) is the whole client: a thin wrapper over `httpx` that attaches your key and these endpoint constants to each request. `stripe` does not enter your dependency tree.
+</Note>
+
+<div className="named-tabs" data-files="stripe_api_client.py|stripe_pack_client.py">
+<CodeGroup>
+
+```python Without the pack
+import os
+
+from charter import api_key_tool_factory
+
+api_key = os.environ["STRIPE_API_KEY"]
+
+stripe_api_client = api_key_tool_factory(
+    base_url="https://api.stripe.com/",
+    api_key_headers={"Authorization": f"Bearer {api_key}"},
+    body_format="form",
+    query_format="bracket",
+    body_case="snake",
+    query_case="snake",
+    path_case="snake",
+    static_headers={"Stripe-Version": "2026-08-26.dahlia"},
+    # this API reports failure with an HTTP status code
+    envelope=None,
+)
+```
+
+```python With the pack
+import os
+
+from charter.packs import stripe
+
+stripe.configure(api_key=os.environ["STRIPE_API_KEY"])
+
+# The base URL, the casing, the envelope and the pagination are
+# already declared. 59 tools, ready to hand to a model:
+tools = stripe.TOOLS
+```
+
+</CodeGroup>
+</div>
+
+### Paging through a list
+
+A cursor belongs to the tool that returns it, so it is declared on that tool's builder call:
+
+```python stripe_pagination.py
+customers_list = stripe_api_client(
+    name="customers_list",
+    args_schema=CustomersListRequest,
+    method="GET",
+    url_template="v1/customers",
+    pagination=Pagination(
+        cursor_field="data[-1].id",
+        cursor_param="starting_after",
+        more_field="has_more",
+    ),
+)
+```
+
+<Note>
+Pagination is declared on `customers_list`, `payment_intents_list`, `charges_list`, `refunds_list`, `products_list`, `prices_list`, `subscriptions_list`, `invoices_list`, `invoice_items_list`, `checkout_sessions_list`, `checkout_sessions_line_items`, `payment_methods_list`, `customer_payment_methods_list`, `disputes_list`, `accounts_list`, `transfers_list`, `payouts_list`, `application_fees_list` and `balance_transactions_list`. The other 40 take no cursor.
+</Note>
+{/* generated:wire end */}
+
+## Tools
+
+Each is a [`Tool`](/reference/tool), called with
+[`ainvoke`](/reference/tool#tool-ainvoke) as in the snippet above. The name
+links to its parameters, its response and what it costs.
+
+{/* generated:tools start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="tool-list">
+  <span className="tool-list-group">Customers</span>
+  <a className="tool-row" href="/packs/stripe/customers/customers_list">
+    <span className="tool-row-head"><span className="tool-row-name">customers_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List customers, most recently created first.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/customers/customers_retrieve">
+    <span className="tool-row-head"><span className="tool-row-name">customers_retrieve</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Retrieve a single customer by ID.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/customers/customers_create">
+    <span className="tool-row-head"><span className="tool-row-name">customers_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a customer.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/customers/customers_update">
+    <span className="tool-row-head"><span className="tool-row-name">customers_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Update a customer.</span>
+  </a>
+  <span className="tool-list-group">Payments</span>
+  <a className="tool-row" href="/packs/stripe/payments/payment_intents_list">
+    <span className="tool-row-head"><span className="tool-row-name">payment_intents_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List PaymentIntents, most recently created first.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/payments/payment_intents_retrieve">
+    <span className="tool-row-head"><span className="tool-row-name">payment_intents_retrieve</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Retrieve a single PaymentIntent by ID.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/payments/charges_list">
+    <span className="tool-row-head"><span className="tool-row-name">charges_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List charges, most recently created first.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/payments/refunds_create">
+    <span className="tool-row-head"><span className="tool-row-name">refunds_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Refund a charge.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/payments/refunds_list">
+    <span className="tool-row-head"><span className="tool-row-name">refunds_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List refunds, most recently created first.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/payments/refunds_retrieve">
+    <span className="tool-row-head"><span className="tool-row-name">refunds_retrieve</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Retrieve a single refund by ID, including its current status.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/payments/balance_retrieve">
+    <span className="tool-row-head"><span className="tool-row-name">balance_retrieve</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Retrieve the current account balance.</span>
+  </a>
+  <span className="tool-list-group">Catalog</span>
+  <a className="tool-row" href="/packs/stripe/catalog/products_list">
+    <span className="tool-row-head"><span className="tool-row-name">products_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List products in the catalog.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/catalog/prices_list">
+    <span className="tool-row-head"><span className="tool-row-name">prices_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List prices.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/catalog/subscriptions_list">
+    <span className="tool-row-head"><span className="tool-row-name">subscriptions_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List subscriptions.</span>
+  </a>
+  <span className="tool-list-group">Subscriptions</span>
+  <a className="tool-row" href="/packs/stripe/subscriptions/subscriptions_create">
+    <span className="tool-row-head"><span className="tool-row-name">subscriptions_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Subscribe a customer to one or more prices.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/subscriptions/subscriptions_update">
+    <span className="tool-row-head"><span className="tool-row-name">subscriptions_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Update a subscription.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/subscriptions/subscriptions_cancel">
+    <span className="tool-row-head"><span className="tool-row-name">subscriptions_cancel</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Cancel a subscription immediately.</span>
+  </a>
+  <span className="tool-list-group">Invoices</span>
+  <a className="tool-row" href="/packs/stripe/invoices/invoices_list">
+    <span className="tool-row-head"><span className="tool-row-name">invoices_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List invoices, most recently created first.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/invoices/invoices_retrieve">
+    <span className="tool-row-head"><span className="tool-row-name">invoices_retrieve</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Retrieve a single invoice by ID.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/invoices/invoices_create">
+    <span className="tool-row-head"><span className="tool-row-name">invoices_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a draft invoice for a customer.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/invoices/invoices_update">
+    <span className="tool-row-head"><span className="tool-row-name">invoices_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Update an invoice.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/invoices/invoices_finalize">
+    <span className="tool-row-head"><span className="tool-row-name">invoices_finalize</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Finalise a draft invoice, making it open and payable.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/invoices/invoices_send">
+    <span className="tool-row-head"><span className="tool-row-name">invoices_send</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Email an invoice to the customer outside the normal schedule.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/invoices/invoices_void">
+    <span className="tool-row-head"><span className="tool-row-name">invoices_void</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Void a finalised invoice.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/invoices/invoices_mark_uncollectible">
+    <span className="tool-row-head"><span className="tool-row-name">invoices_mark_uncollectible</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Record an invoice as bad debt.</span>
+  </a>
+  <span className="tool-list-group">Invoiceitems</span>
+  <a className="tool-row" href="/packs/stripe/invoiceitems/invoice_items_create">
+    <span className="tool-row-head"><span className="tool-row-name">invoice_items_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Add a line to an invoice.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/invoiceitems/invoice_items_list">
+    <span className="tool-row-head"><span className="tool-row-name">invoice_items_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List invoice lines.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/invoiceitems/invoice_items_update">
+    <span className="tool-row-head"><span className="tool-row-name">invoice_items_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Update an invoice line.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/invoiceitems/invoice_items_delete">
+    <span className="tool-row-head"><span className="tool-row-name">invoice_items_delete</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Remove an invoice line, while it is unattached or its invoice is a draft.</span>
+  </a>
+  <span className="tool-list-group">Catalog writes</span>
+  <a className="tool-row" href="/packs/stripe/catalog_writes/checkout_sessions_retrieve">
+    <span className="tool-row-head"><span className="tool-row-name">checkout_sessions_retrieve</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Retrieve a checkout session.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/catalog_writes/checkout_sessions_list">
+    <span className="tool-row-head"><span className="tool-row-name">checkout_sessions_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List checkout sessions.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/catalog_writes/checkout_sessions_line_items">
+    <span className="tool-row-head"><span className="tool-row-name">checkout_sessions_line_items</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List what a checkout session sold, with amounts and quantities.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/catalog_writes/products_create">
+    <span className="tool-row-head"><span className="tool-row-name">products_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a product.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/catalog_writes/products_update">
+    <span className="tool-row-head"><span className="tool-row-name">products_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Update a product.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/catalog_writes/prices_create">
+    <span className="tool-row-head"><span className="tool-row-name">prices_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a price for a product.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/catalog_writes/prices_update">
+    <span className="tool-row-head"><span className="tool-row-name">prices_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Update a price's label, metadata or active flag.</span>
+  </a>
+  <span className="tool-list-group">Payment intents</span>
+  <a className="tool-row" href="/packs/stripe/payment_intents/payment_intents_create">
+    <span className="tool-row-head"><span className="tool-row-name">payment_intents_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Start a payment.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/payment_intents/payment_intents_capture">
+    <span className="tool-row-head"><span className="tool-row-name">payment_intents_capture</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Take funds previously authorised by a manual-capture payment.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/payment_intents/payment_intents_cancel">
+    <span className="tool-row-head"><span className="tool-row-name">payment_intents_cancel</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Cancel a payment, releasing any authorised funds back to the customer.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/payment_intents/charges_retrieve">
+    <span className="tool-row-head"><span className="tool-row-name">charges_retrieve</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Retrieve a single charge by ID.</span>
+  </a>
+  <span className="tool-list-group">Payment methods</span>
+  <a className="tool-row" href="/packs/stripe/payment_methods/payment_methods_list">
+    <span className="tool-row-head"><span className="tool-row-name">payment_methods_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List payment methods.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/payment_methods/payment_methods_retrieve">
+    <span className="tool-row-head"><span className="tool-row-name">payment_methods_retrieve</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Retrieve a payment method by ID.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/payment_methods/payment_methods_attach">
+    <span className="tool-row-head"><span className="tool-row-name">payment_methods_attach</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Attach a payment method to a customer so it can be charged later.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/payment_methods/payment_methods_detach">
+    <span className="tool-row-head"><span className="tool-row-name">payment_methods_detach</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Detach a payment method from its customer.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/payment_methods/customer_payment_methods_list">
+    <span className="tool-row-head"><span className="tool-row-name">customer_payment_methods_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the payment methods attached to one customer.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/payment_methods/customer_payment_method_retrieve">
+    <span className="tool-row-head"><span className="tool-row-name">customer_payment_method_retrieve</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Retrieve one payment method belonging to a customer.</span>
+  </a>
+  <span className="tool-list-group">Disputes</span>
+  <a className="tool-row" href="/packs/stripe/disputes/disputes_list">
+    <span className="tool-row-head"><span className="tool-row-name">disputes_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List disputes, most recently created first.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/disputes/disputes_retrieve">
+    <span className="tool-row-head"><span className="tool-row-name">disputes_retrieve</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Retrieve a dispute by ID.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/disputes/disputes_update">
+    <span className="tool-row-head"><span className="tool-row-name">disputes_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Add evidence to a dispute.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/disputes/disputes_close">
+    <span className="tool-row-head"><span className="tool-row-name">disputes_close</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Concede a dispute.</span>
+  </a>
+  <span className="tool-list-group">Connect</span>
+  <a className="tool-row" href="/packs/stripe/connect/accounts_list">
+    <span className="tool-row-head"><span className="tool-row-name">accounts_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the connected accounts on this platform.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/connect/accounts_retrieve">
+    <span className="tool-row-head"><span className="tool-row-name">accounts_retrieve</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Retrieve a connected account by ID.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/connect/transfers_list">
+    <span className="tool-row-head"><span className="tool-row-name">transfers_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List transfers to connected accounts, most recently created first.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/connect/transfers_retrieve">
+    <span className="tool-row-head"><span className="tool-row-name">transfers_retrieve</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Retrieve a transfer by ID.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/connect/payouts_list">
+    <span className="tool-row-head"><span className="tool-row-name">payouts_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List payouts to your own bank account or card, most recently created first.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/connect/payouts_retrieve">
+    <span className="tool-row-head"><span className="tool-row-name">payouts_retrieve</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Retrieve a payout by ID.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/connect/application_fees_list">
+    <span className="tool-row-head"><span className="tool-row-name">application_fees_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the platform fees collected from connected accounts.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/connect/balance_transactions_list">
+    <span className="tool-row-head"><span className="tool-row-name">balance_transactions_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List every movement across the Stripe balance: charges, refunds, fees and payouts.</span>
+  </a>
+  <span className="tool-list-group">Checkout</span>
+  <a className="tool-row" href="/packs/stripe/checkout/checkout_sessions_create">
+    <span className="tool-row-head"><span className="tool-row-name">checkout_sessions_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a Checkout Session and get a hosted payment URL.</span>
+  </a>
+</div>
+{/* generated:tools end */}
+
+## Form-encoded, in both directions
+
+Stripe speaks `application/x-www-form-urlencoded` with bracket notation.
+`body_format="form"` and `query_format="bracket"` say so once on the factory, and
+a nested schema serialises the way Stripe expects:
+
+| Schema value | On the wire |
+|---|---|
+| `{"amount": 2000}` | `amount=2000` |
+| `{"metadata": {"order_id": "x1"}}` | `metadata[order_id]=x1` |
+| `{"line_items": [{"price": "p1"}]}` | `line_items[0][price]=p1` |
+| `{"expand": ["customer"]}` | `expand[0]=customer` |
+| `{"capture": False}` | `capture=false` |
+| `{"note": None}` | *omitted* |
+
+The bracket form applies to the query too, which is what `created[gte]=1700000000`
+needs.
+
+## A cursor that is derived, not returned
+
+Where Slack and Google hand back an opaque token, Stripe's `starting_after` takes
+the **last object's id**. The declaration reads it straight out of the page:
+
+```python stripe_derived_cursor.py
+from charter import Pagination
+
+Pagination(cursor_field="data[-1].id", cursor_param="starting_after", more_field="has_more")
+```
+
+`has_more` is declared because a derived cursor is *always* present — there is
+always a last object — so without it the walk would never terminate. This is the
+constraint the trimming handlers work under: they must keep each object's `id` and
+they must keep `has_more`, or paging breaks. It is stated in the pack source next
+to the handlers for exactly that reason.
+
+## No envelope
+
+Stripe uses real HTTP status codes and puts the detail in `error.message`, which
+the runtime already understands. Nothing to declare — worth saying out loud,
+because the right amount of configuration for a well-behaved API is none.
+
+## A pinned API version
+
+An unpinned Stripe request does not use the latest version. It uses whichever
+version the *account* defaults to, set in a dashboard this library cannot see —
+so the same code answers differently for two callers, and a schema written
+against one of them is correct by luck.
+
+`stripe.API_VERSION` goes out as a `Stripe-Version` header on every request,
+declared once as `static_headers` on the factory. It never appears in a tool's
+LLM schema, so it costs nothing in context and the model has no path to changing
+it.
+
+The cost of not doing this is not hypothetical. Stripe moved
+`current_period_start` and `current_period_end` off the Subscription object and
+onto each subscription item; a handler still projecting them from the
+subscription finds nothing, drops both, and hands the model an active
+subscription with no renewal date and no indication that anything is missing.
+`trim_subscriptions` reads them from the items, and the pin is what keeps that
+true.
+
+## Idempotency and Connect
+
+Both are values your application decides and the model never sees, so they go
+through the [per-call header channel](/tools/wire-contract) rather than onto the
+tool:
+
+```python stripe_idempotent_refund.py
+key = f"refund-{order_id}"          # yours, and stable across your retries
+await stripe.refunds_create.ainvoke(
+    {"charge": charge_id}, headers={"Idempotency-Key": key}
+)
+
+await stripe.balance_retrieve.ainvoke(
+    headers={"Stripe-Account": "acct_1032D82eZvKYlo2C"}
+)
+```
+
+Charter never mints the idempotency key. A key generated per call defeats the
+purpose — the point is that *your* retry sends the same one — and Charter does not
+own retries, so it does not own the key. `headers` is keyword-only and is never
+merged into `args`, so it cannot appear in a tool's LLM schema.
+
+## Gotchas
+
+<AccordionGroup>
+  <Accordion title="Amounts are in the currency's smallest unit">
+    `amount=2000` is €20.00, not €2,000. Zero-decimal currencies such as JPY are
+    the exception, where `amount=2000` is ¥2000. Stripe applies this to refunds
+    too, so a partial refund of "ten euros" is `amount=1000`.
+  </Accordion>
+
+  <Accordion title="refunds_create and checkout_sessions_create return untrimmed">
+    So do `products_list` and `balance_retrieve`. The other nine tools run a
+    handler that projects each object down to the fields an agent can act on. A
+    raw PaymentIntent carries around forty fields, most of them null or
+    infrastructural.
+  </Accordion>
+
+  <Accordion title="An update is a POST, and omitted fields are left alone">
+    `customers_update` is `POST /v1/customers/{customer}`, not PATCH — that is
+    Stripe's convention. Parameters you do not send are unchanged; sending
+    `metadata` replaces the whole metadata object rather than merging into it.
+  </Accordion>
+
+  <Accordion title="ending_before pages backwards, and the declaration does not use it">
+    Both `starting_after` and `ending_before` are on the list schemas because
+    Stripe accepts both. The `Pagination` declares the forward direction only, so
+    `next_page_args` walks forwards; `ending_before` is there for you to use
+    directly. They are the two directions of one cursor, so sending both is
+    refused locally.
+  </Accordion>
+
+  <Accordion title="A subscription's billing period comes from its items">
+    `current_period_start` and `current_period_end` used to be fields on the
+    Subscription; they now live on each subscription item, which can be on
+    different schedules. `trim_subscriptions` lifts the period back to the top
+    level when every item agrees, which is nearly always, and reports it per item
+    when they do not. Nothing is averaged and nothing is guessed.
+  </Accordion>
+
+  <Accordion title="Four rules are checked before the call, not by Stripe">
+    A refund names exactly one of `charge` or `payment_intent`; a Checkout
+    Session in `payment` or `subscription` mode needs `line_items`; one in
+    `setup` mode needs `currency`; and `success_url` and `cancel_url` are refused
+    when `ui_mode` is `embedded_page` or `elements`, where the customer never
+    leaves your page. Each is a documented 400 turned into a local validation
+    error — worth doing here because a Checkout Session is usually created with a
+    customer waiting on it.
+
+    Conditions that depend on parameters these schemas do not model are left to
+    Stripe and named in the field descriptions instead. `return_url` is the one
+    to know: it is required for the in-page modes only when redirect-based
+    payment methods are enabled on the session, which is not visible from here.
+  </Accordion>
+
+  <Accordion title="A form body must be a mapping of named fields">
+    A schema with exactly one `Body()` field unwraps to its bare value, which for
+    a list would produce `[0][price]=…` — meaningless to any server. That raises
+    a clear error rather than sending it. No tool in this pack trips it; a tool
+    you add might.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [The wire contract](/tools/wire-contract) — form bodies, bracket queries, per-call headers
+- [The API-key factory](/auth/api-key-tool-factory) — what an API-key pack does not have

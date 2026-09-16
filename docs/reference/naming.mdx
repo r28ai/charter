@@ -1,0 +1,96 @@
+---
+title: "Naming"
+description: "Qualifying tool names when several packs share one tool surface."
+---
+
+A tool's `name` is what the API calls the endpoint, and Charter never changes
+it. Qualification belongs to whoever assembles tools into one namespace; these
+are the functions that do it, so every assembler uses one convention.
+
+Two APIs really do declare the same tool name — `products_list` exists in both
+Stripe and Shopify — so a surface holding both has to disambiguate them.
+
+See [Tool names across packs](/tools/naming) for why the library does not
+qualify its own names, and why `pack` is not `provider`.
+
+## `qualified_names`
+
+Every tool under `<pack>__<tool>`, keyed by the qualified name. This is what the
+three shipped adapters call, so a pack is named the same way inline, through
+LangChain, and over MCP.
+
+Qualified whatever else is loaded. A name is a property of the tool, not of its
+neighbours: qualifying only once a second pack appeared would rename every tool
+in the first the day someone added one, breaking saved prompts, allow-lists and
+logged traces in silence. MCP servers publish the same names whatever else is
+installed, and a host composes `mcp__<server>__<tool>` on top — `charter-mcp`
+names its server `charter`, so the result reads
+`mcp__charter__gcalendar__events_list`.
+
+```python
+def qualified_names(tools: Iterable[Tool]) -> Dict[str, Tool]: ...
+```
+
+```python
+from charter import qualified_names
+from charter.packs import gcalendar
+
+qualified_names(gcalendar.TOOLS)
+# {"gcalendar__events_insert": Tool(...), "gcalendar__events_list": Tool(...), ...}
+```
+
+Neither function qualifies only the colliding names. A surface where
+`stripe__products_list` sits beside a bare `balance_retrieve` makes the pack a
+substring of some names and not others, so any filter over it silently misses
+the unqualified half.
+
+Raises [`DeclarationError`](/reference/errors#declarationerror) if a tool
+declares no `pack`, or if two tools qualify to the same name.
+
+## `qualified_name`
+
+One tool's qualified name.
+
+```python
+def qualified_name(tool: Tool) -> str: ...
+```
+
+```python
+from charter import qualified_name
+from charter.packs import stripe
+
+qualified_name(stripe.products_list)   # "stripe__products_list"
+```
+
+Raises [`DeclarationError`](/reference/errors#declarationerror) if the tool
+declares no `pack`. Falling back to the bare name would produce the
+half-qualified surface above, silently.
+
+## Routing a tool call back
+
+MCP and LangChain resolve a tool call by name for you. The OpenAI APIs hand it
+back to you to execute, so you need the same mapping you published with —
+`qualified_names` is it.
+
+```python
+import json
+
+from charter import qualified_names
+from charter.adapters.openai import to_openai_tools
+from charter.packs import stripe
+
+stripe.configure(api_key="sk_test_...")
+
+tools = list(stripe.TOOLS)
+by_name = qualified_names(tools)          # name -> Tool
+definitions = to_openai_tools(tools)      # published under the same names
+
+# what the model sends back, as OpenAI shapes it
+name, arguments = "stripe__customers_list", '{"limit": 3}'
+
+result = await by_name[name].ainvoke(json.loads(arguments))
+```
+
+Calling a `Tool` directly in Python never involves a name at all — `tool.name`
+stays `events_list`, and `await gcalendar.events_list.ainvoke(...)` is a Python
+reference. Qualification exists only where tools are published to a model.

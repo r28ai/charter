@@ -1,0 +1,918 @@
+---
+title: "GitHub"
+description: "Read a failing CI log, comment on a line of a diff, and commit across files in one commit."
+sidebarTitle: "Overview"
+---
+
+{/* generated:summary start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="pack-summary">
+  <span><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg>139 tools</span>
+  <span><svg viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /></svg>OAuth bearer</span>
+</div>
+{/* generated:summary end */}
+
+```python github_example.py {7}
+from charter.auth import EnvTokenProvider
+from charter.packs import github
+
+credentials = EnvTokenProvider("GITHUB_TOKEN")
+github.configure(credentials)
+
+issues = await github.issues_list_for_repo.ainvoke(owner="octocat", repo="hello-world")
+```
+
+Most of the REST API an agent working in a repository reaches for: issues and
+their labels, assignees, milestones and history; pull requests down to a comment
+on one line of a diff; CI, from listing runs to reading the failing job's log;
+the Git object store, which is how a change across six files becomes one commit
+rather than six; releases; repositories, commits, file contents and search; and
+the notification and security-alert feeds an always-on agent wakes up on.
+
+Two boundaries worth knowing before you look for them. **Projects v2 and
+resolving a review thread are GraphQL-only** — there is no REST equivalent, so
+neither is here. And **the Actions secrets write endpoints are not carried**:
+they take a libsodium-sealed box, which is a dependency this library does not
+have. `actions_list_repo_secrets` reads the names, which is the part an agent
+debugging a workflow actually needs, and it is an endpoint that cannot return a
+value.
+
+## Authenticating
+
+{/* generated:auth start — do not edit by hand; run scripts/generate_pack_docs.py */}
+This pack takes a GitHub OAuth bearer token, and [`configure()`](/reference/configuration#configure) is optional when `$GITHUB_TOKEN` is set. Which credential provider you hand it depends on whose account the calls run as.
+
+<Note>
+Refer to [GitHub's provider page](/auth/providers/github) for the "GITHUB" constant the snippets below name, the scopes these 139 tools ask for, and this server's refresh behaviour.
+</Note>
+
+### A token you hold
+
+For a script, or a notebook. [`EnvTokenProvider`](/reference/credentials#envtokenprovider) re-reads the variable on every call, so a token rotated beside the process is picked up without a restart; [`StaticTokenProvider`](/reference/credentials#statictokenprovider) takes one you already hold as a string. Neither renews anything, so the calls stop when the token expires.
+
+```python github_script.py {4}
+from charter.auth import EnvTokenProvider
+from charter.packs import github
+
+credentials = EnvTokenProvider("GITHUB_TOKEN")
+github.configure(credentials)
+```
+
+### One account, refreshed
+
+For an agent or a server acting as you. [`OAuth2Client`](/reference/oauth#oauth2client) turns a client registration and a stored refresh token into an access token, and [renews it](/auth/authorization-servers#what-the-cache-does-precisely) before it lapses.
+
+```python github_agent.py {8}
+from charter.auth import OAuth2Client
+from charter.packs import github
+
+credentials = OAuth2Client(
+    GITHUB,
+    client_id=os.environ["GITHUB_CLIENT_ID"],
+    client_secret=os.environ["GITHUB_CLIENT_SECRET"],
+    refresh_token=os.environ["GITHUB_REFRESH_TOKEN"],
+)
+github.configure(credentials)
+```
+
+<Note>
+No refresh token yet? [Getting the first grant](/auth/providers/github#getting-the-first-grant) is the one-time consent flow that hands you one.
+</Note>
+
+### Many end users
+
+For a product whose users each connect their own account. [`SubjectProvider`](/reference/credentials#subjectprovider) builds one credential per user through a factory you write, and [`use_subject`](/reference/credentials#use_subject) names the user a call acts for. [Your users' accounts](/auth/oauth-flow) is the consent route inside your app; [serving many users](/auth/authorization-servers#serving-many-users) is the per-subject cache and its eviction.
+
+```python github_server.py {17,21}
+from functools import partial
+
+from charter.auth import OAuth2Client, SubjectProvider, use_subject
+from charter.packs import github
+
+# Yours to write: a user id in, that user's credential out.
+async def for_user(user_id: str) -> OAuth2Client:
+    grant = await db.grants.get(user_id, "github")
+    return OAuth2Client(
+        GITHUB,
+        client_id=os.environ["GITHUB_CLIENT_ID"],
+        client_secret=os.environ["GITHUB_CLIENT_SECRET"],
+        refresh_token=grant.refresh_token,
+        on_refresh=partial(save_to_db, user_id),
+    )
+
+credentials = SubjectProvider(for_user)
+github.configure(credentials)
+
+# Per request: whose grant the tools use.
+with use_subject(request.user_id):
+    ...  # your agent runs here
+```
+{/* generated:auth end */}
+
+A classic PAT, a fine-grained token and a GitHub App installation token all
+work. The declared scopes are what a classic PAT needs; a fine-grained token
+instead wants read/write on Issues, Pull requests, Contents and Metadata.
+
+## The client
+
+{/* generated:wire start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<Note>
+[`oauth_tool_factory`](/reference/factories#oauth_tool_factory) is the whole client: a thin wrapper over `httpx` that attaches your token and these endpoint constants to each request. `PyGithub` does not enter your dependency tree.
+</Note>
+
+<div className="named-tabs" data-files="github_api_client.py|github_pack_client.py">
+<CodeGroup>
+
+```python Without the pack
+from charter import oauth_tool_factory
+
+github_api_client = oauth_tool_factory(
+    # except releases_upload_asset, which uses a different host
+    base_url="https://api.github.com/",
+    provider="github",
+    credential_provider=credentials,
+    scopes=["repo", "read:user"],
+    # except releases_upload_asset
+    body_format="json",
+    query_format="repeat",
+    body_case="snake",
+    query_case="snake",
+    path_case="snake",
+    # Accept and Content-Type differ on pulls_get_diff and releases_upload_asset
+    static_headers={
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "charter",
+        "X-GitHub-Api-Version": "2022-11-28",
+    },
+    # this API reports failure with an HTTP status code
+    envelope=None,
+)
+```
+
+```python With the pack
+from charter.packs import github
+
+github.configure(credentials)
+
+# The base URL, the casing, the envelope and the pagination are
+# already declared. 139 tools, ready to hand to a model:
+tools = github.TOOLS
+```
+
+</CodeGroup>
+</div>
+
+`credentials` is whichever of the three you built in [Authenticating](#authenticating). A pack takes it through [`configure()`](/reference/configuration#configure); a client you build takes the same object as `credential_provider`, and has no `configure()` of its own.
+
+### Paging through a list
+
+A cursor belongs to the tool that returns it, so it is declared on that tool's builder call:
+
+```python github_pagination.py
+# On issues_list_for_repo, issues_list_comments, pulls_list,
+# pulls_list_files, repos_list_for_authenticated_user,
+# repos_list_commits, pulls_list_reviews, branches_list,
+# actions_list_workflow_runs, search_code,
+# actions_list_jobs_for_run, actions_list_workflows,
+# actions_list_runs_for_workflow, actions_list_run_artifacts,
+# actions_list_repo_secrets, checks_list_for_ref,
+# checks_list_annotations, checks_list_suites_for_ref,
+# repos_get_combined_status, pulls_list_review_comments,
+# pulls_list_review_comments_for_repo,
+# pulls_list_comments_for_review, pulls_list_commits,
+# repos_get_commit, repos_compare_commits, repos_list_tags,
+# issues_list_labels_for_repo, issues_list_milestones,
+# issues_list_timeline, issues_list_events,
+# issues_list_for_authenticated_user, issues_list_sub_issues,
+# releases_list, releases_list_assets, notifications_list,
+# code_scanning_list_alerts, secret_scanning_list_alerts,
+# repos_list_for_org and repos_list_contributors.
+issues_list_for_repo = github_api_client(
+    name="issues_list_for_repo",
+    args_schema=IssuesListForRepoRequest,
+    method="GET",
+    url_template="repos/{owner}/{repo}/issues",
+    pagination=Pagination(
+        page_param="page",
+        per_page_param="per_page",
+    ),
+)
+
+# On search_issues, search_repositories, search_commits and
+# search_users.
+search_issues = github_api_client(
+    name="search_issues",
+    args_schema=SearchIssuesRequest,
+    method="GET",
+    url_template="search/issues",
+    pagination=Pagination(
+        page_param="page",
+        per_page_param="per_page",
+        items_field="items",
+    ),
+)
+```
+
+<Note>
+Pagination is declared on `issues_list_for_repo`, `issues_list_comments`, `pulls_list`, `pulls_list_files`, `repos_list_for_authenticated_user`, `repos_list_commits`, `pulls_list_reviews`, `branches_list`, `actions_list_workflow_runs`, `search_code`, `actions_list_jobs_for_run`, `actions_list_workflows`, `actions_list_runs_for_workflow`, `actions_list_run_artifacts`, `actions_list_repo_secrets`, `checks_list_for_ref`, `checks_list_annotations`, `checks_list_suites_for_ref`, `repos_get_combined_status`, `pulls_list_review_comments`, `pulls_list_review_comments_for_repo`, `pulls_list_comments_for_review`, `pulls_list_commits`, `repos_get_commit`, `repos_compare_commits`, `repos_list_tags`, `issues_list_labels_for_repo`, `issues_list_milestones`, `issues_list_timeline`, `issues_list_events`, `issues_list_for_authenticated_user`, `issues_list_sub_issues`, `releases_list`, `releases_list_assets`, `notifications_list`, `code_scanning_list_alerts`, `secret_scanning_list_alerts`, `repos_list_for_org`, `repos_list_contributors`, `search_issues`, `search_repositories`, `search_commits` and `search_users`. The other 96 take no cursor.
+</Note>
+{/* generated:wire end */}
+
+## Tools
+
+Each is a [`Tool`](/reference/tool), called with
+[`ainvoke`](/reference/tool#tool-ainvoke) as in the snippet above. The name
+links to its parameters, its response and what it costs.
+
+{/* generated:tools start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="tool-list">
+  <span className="tool-list-group">Issues</span>
+  <a className="tool-row" href="/packs/github/issues/issues_list_for_repo">
+    <span className="tool-row-head"><span className="tool-row-name">issues_list_for_repo</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List issues in a repository.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/issues/issues_get">
+    <span className="tool-row-head"><span className="tool-row-name">issues_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get a single issue by its number, including the full body text.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/issues/issues_create">
+    <span className="tool-row-head"><span className="tool-row-name">issues_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Open an issue.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/issues/issues_update">
+    <span className="tool-row-head"><span className="tool-row-name">issues_update</span><span className="tool-row-method" data-method="PATCH">PATCH</span></span>
+    <span className="tool-row-desc">Update an issue.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/issues/issues_create_comment">
+    <span className="tool-row-head"><span className="tool-row-name">issues_create_comment</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Post a comment on an issue or pull request.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/issues/issues_list_comments">
+    <span className="tool-row-head"><span className="tool-row-name">issues_list_comments</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the comments on an issue or pull request, oldest first.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/issues/issues_list_labels_for_repo">
+    <span className="tool-row-head"><span className="tool-row-name">issues_list_labels_for_repo</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the labels a repository defines, with their colours and descriptions.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/issues/issues_add_labels">
+    <span className="tool-row-head"><span className="tool-row-name">issues_add_labels</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Add labels to an issue, keeping the ones already on it.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/issues/issues_set_labels">
+    <span className="tool-row-head"><span className="tool-row-name">issues_set_labels</span><span className="tool-row-method" data-method="PUT">PUT</span></span>
+    <span className="tool-row-desc">Replace an issue's labels with exactly this set, dropping any others.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/issues/issues_remove_label">
+    <span className="tool-row-head"><span className="tool-row-name">issues_remove_label</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Take one label off an issue, leaving the others in place.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/issues/issues_create_label">
+    <span className="tool-row-head"><span className="tool-row-name">issues_create_label</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Define a new label on the repository.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/issues/issues_update_label">
+    <span className="tool-row-head"><span className="tool-row-name">issues_update_label</span><span className="tool-row-method" data-method="PATCH">PATCH</span></span>
+    <span className="tool-row-desc">Rename a label or change its colour, description, or archived state.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/issues/issues_delete_label">
+    <span className="tool-row-head"><span className="tool-row-name">issues_delete_label</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Delete a label, removing it from every issue that carries it.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/issues/issues_add_assignees">
+    <span className="tool-row-head"><span className="tool-row-name">issues_add_assignees</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Assign people to an issue, keeping whoever is already assigned.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/issues/issues_remove_assignees">
+    <span className="tool-row-head"><span className="tool-row-name">issues_remove_assignees</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Unassign people from an issue.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/issues/issues_list_milestones">
+    <span className="tool-row-head"><span className="tool-row-name">issues_list_milestones</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List a repository's milestones, with how many issues in each are open and closed.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/issues/issues_create_milestone">
+    <span className="tool-row-head"><span className="tool-row-name">issues_create_milestone</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a milestone.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/issues/issues_update_milestone">
+    <span className="tool-row-head"><span className="tool-row-name">issues_update_milestone</span><span className="tool-row-method" data-method="PATCH">PATCH</span></span>
+    <span className="tool-row-desc">Update a milestone.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/issues/issues_get_comment">
+    <span className="tool-row-head"><span className="tool-row-name">issues_get_comment</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get one issue comment by its id — the <code>id</code> from <code>issues_list_comments</code>, not the issue number.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/issues/issues_update_comment">
+    <span className="tool-row-head"><span className="tool-row-name">issues_update_comment</span><span className="tool-row-method" data-method="PATCH">PATCH</span></span>
+    <span className="tool-row-desc">Edit an issue comment's text.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/issues/issues_delete_comment">
+    <span className="tool-row-head"><span className="tool-row-name">issues_delete_comment</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Delete an issue comment.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/issues/issues_list_timeline">
+    <span className="tool-row-head"><span className="tool-row-name">issues_list_timeline</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List everything that has happened to an issue in order — comments, labels, assignments, cross-references, the commits that mentioned it.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/issues/issues_list_events">
+    <span className="tool-row-head"><span className="tool-row-name">issues_list_events</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List an issue's state changes — labelled, assigned, closed, renamed — without the comments.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/issues/issues_lock">
+    <span className="tool-row-head"><span className="tool-row-name">issues_lock</span><span className="tool-row-method" data-method="PUT">PUT</span></span>
+    <span className="tool-row-desc">Lock an issue or pull request's conversation.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/issues/issues_unlock">
+    <span className="tool-row-head"><span className="tool-row-name">issues_unlock</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Unlock a conversation that was locked.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/issues/issues_list_for_authenticated_user">
+    <span className="tool-row-head"><span className="tool-row-name">issues_list_for_authenticated_user</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the authenticated user's issues across every repository they can see — the agent's own queue.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/issues/issues_list_sub_issues">
+    <span className="tool-row-head"><span className="tool-row-name">issues_list_sub_issues</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the sub-issues of an issue — how a tracking issue's pieces are found.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/issues/issues_add_sub_issue">
+    <span className="tool-row-head"><span className="tool-row-name">issues_add_sub_issue</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Attach an existing issue to this one as a sub-issue.</span>
+  </a>
+  <span className="tool-list-group">Pulls</span>
+  <a className="tool-row" href="/packs/github/pulls/pulls_list">
+    <span className="tool-row-head"><span className="tool-row-name">pulls_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List pull requests.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/pulls/pulls_get">
+    <span className="tool-row-head"><span className="tool-row-name">pulls_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get a single pull request, including its mergeability and the counts of changed files, additions and deletions.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/pulls/pulls_create">
+    <span className="tool-row-head"><span className="tool-row-name">pulls_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Open a pull request from <code>head</code> into <code>base</code>.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/pulls/pulls_list_files">
+    <span className="tool-row-head"><span className="tool-row-name">pulls_list_files</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the files a pull request changes, with per-file additions, deletions and patch text.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/pulls/pulls_update">
+    <span className="tool-row-head"><span className="tool-row-name">pulls_update</span><span className="tool-row-method" data-method="PATCH">PATCH</span></span>
+    <span className="tool-row-desc">Update a pull request's title, body, state or base branch.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/pulls/pulls_merge">
+    <span className="tool-row-head"><span className="tool-row-name">pulls_merge</span><span className="tool-row-method" data-method="PUT">PUT</span></span>
+    <span className="tool-row-desc">Merge a pull request.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/pulls/pulls_create_review">
+    <span className="tool-row-head"><span className="tool-row-name">pulls_create_review</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Approve a pull request, request changes on it, or leave a comment.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/pulls/pulls_list_reviews">
+    <span className="tool-row-head"><span className="tool-row-name">pulls_list_reviews</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the reviews left on a pull request, oldest first.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/pulls/pulls_request_reviewers">
+    <span className="tool-row-head"><span className="tool-row-name">pulls_request_reviewers</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Ask users or teams to review a pull request.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/pulls/pulls_create_review_comment">
+    <span className="tool-row-head"><span className="tool-row-name">pulls_create_review_comment</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Leave a comment on a specific line of a pull request's diff — the thing reviewing is made of.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/pulls/pulls_list_review_comments">
+    <span className="tool-row-head"><span className="tool-row-name">pulls_list_review_comments</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the line comments on a pull request, each with the file and line it sits on.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/pulls/pulls_reply_to_review_comment">
+    <span className="tool-row-head"><span className="tool-row-name">pulls_reply_to_review_comment</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Reply to an existing review comment, continuing its thread.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/pulls/pulls_update_review_comment">
+    <span className="tool-row-head"><span className="tool-row-name">pulls_update_review_comment</span><span className="tool-row-method" data-method="PATCH">PATCH</span></span>
+    <span className="tool-row-desc">Edit the text of a review comment.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/pulls/pulls_delete_review_comment">
+    <span className="tool-row-head"><span className="tool-row-name">pulls_delete_review_comment</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Delete a review comment.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/pulls/pulls_list_review_comments_for_repo">
+    <span className="tool-row-head"><span className="tool-row-name">pulls_list_review_comments_for_repo</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the line comments across every pull request in a repository.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/pulls/pulls_get_review">
+    <span className="tool-row-head"><span className="tool-row-name">pulls_get_review</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get one review of a pull request, with its state and summary text.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/pulls/pulls_submit_review">
+    <span className="tool-row-head"><span className="tool-row-name">pulls_submit_review</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Submit a pending review as an approval, a request for changes, or a comment.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/pulls/pulls_update_review">
+    <span className="tool-row-head"><span className="tool-row-name">pulls_update_review</span><span className="tool-row-method" data-method="PUT">PUT</span></span>
+    <span className="tool-row-desc">Edit a review's summary text.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/pulls/pulls_dismiss_review">
+    <span className="tool-row-head"><span className="tool-row-name">pulls_dismiss_review</span><span className="tool-row-method" data-method="PUT">PUT</span></span>
+    <span className="tool-row-desc">Dismiss a review so it stops blocking the pull request, with a message saying why.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/pulls/pulls_delete_pending_review">
+    <span className="tool-row-head"><span className="tool-row-name">pulls_delete_pending_review</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Discard a review that was never submitted.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/pulls/pulls_list_comments_for_review">
+    <span className="tool-row-head"><span className="tool-row-name">pulls_list_comments_for_review</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the line comments that belong to one review, rather than to the pull request as a whole.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/pulls/pulls_get_diff">
+    <span className="tool-row-head"><span className="tool-row-name">pulls_get_diff</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get a pull request's whole change as a unified diff, in one call.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/pulls/pulls_list_commits">
+    <span className="tool-row-head"><span className="tool-row-name">pulls_list_commits</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the commits on a pull request.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/pulls/pulls_update_branch">
+    <span className="tool-row-head"><span className="tool-row-name">pulls_update_branch</span><span className="tool-row-method" data-method="PUT">PUT</span></span>
+    <span className="tool-row-desc">Bring a pull request's branch up to date by merging the base branch into it — the fix for a 'this branch is out of date' block.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/pulls/pulls_check_merged">
+    <span className="tool-row-head"><span className="tool-row-name">pulls_check_merged</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Ask whether a pull request has been merged.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/pulls/pulls_list_requested_reviewers">
+    <span className="tool-row-head"><span className="tool-row-name">pulls_list_requested_reviewers</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List who has been asked to review and has not answered yet.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/pulls/pulls_remove_requested_reviewers">
+    <span className="tool-row-head"><span className="tool-row-name">pulls_remove_requested_reviewers</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Withdraw a review request from users or teams.</span>
+  </a>
+  <span className="tool-list-group">Repos</span>
+  <a className="tool-row" href="/packs/github/repos/repos_get">
+    <span className="tool-row-head"><span className="tool-row-name">repos_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get a repository's metadata, including its default branch and topics.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/repos/repos_list_for_authenticated_user">
+    <span className="tool-row-head"><span className="tool-row-name">repos_list_for_authenticated_user</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List repositories the authenticated user can access.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/repos/repos_get_content">
+    <span className="tool-row-head"><span className="tool-row-name">repos_get_content</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Read a file, or list a directory.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/repos/repos_list_commits">
+    <span className="tool-row-head"><span className="tool-row-name">repos_list_commits</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List commits, newest first.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/repos/repos_create_or_update_file">
+    <span className="tool-row-head"><span className="tool-row-name">repos_create_or_update_file</span><span className="tool-row-method" data-method="PUT">PUT</span></span>
+    <span className="tool-row-desc">Create a file or replace an existing one, in a single commit.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/repos/branches_list">
+    <span className="tool-row-head"><span className="tool-row-name">branches_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List a repository's branches and the commit each one points at.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/repos/git_refs_create">
+    <span className="tool-row-head"><span className="tool-row-name">git_refs_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a branch or tag pointing at an existing commit.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/repos/repos_get_commit">
+    <span className="tool-row-head"><span className="tool-row-name">repos_get_commit</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get one commit with its diff and per-file line counts.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/repos/repos_compare_commits">
+    <span className="tool-row-head"><span className="tool-row-name">repos_compare_commits</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Compare two refs and get what is in one and not the other: the status, how far ahead or behind, the commits and the changed files.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/repos/repos_delete_file">
+    <span className="tool-row-head"><span className="tool-row-name">repos_delete_file</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Delete a file in a commit of its own.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/repos/repos_merge_branches">
+    <span className="tool-row-head"><span className="tool-row-name">repos_merge_branches</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Merge one branch into another directly, without opening a pull request.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/repos/repos_get_branch">
+    <span className="tool-row-head"><span className="tool-row-name">repos_get_branch</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get one branch: its head commit and whether it is protected.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/repos/repos_rename_branch">
+    <span className="tool-row-head"><span className="tool-row-name">repos_rename_branch</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Rename a branch.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/repos/repos_get_branch_protection">
+    <span className="tool-row-head"><span className="tool-row-name">repos_get_branch_protection</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Read a branch's protection rules — required checks, required reviews, linear history — before attempting a write that they would refuse.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/repos/repos_list_branches_for_head_commit">
+    <span className="tool-row-head"><span className="tool-row-name">repos_list_branches_for_head_commit</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the branches whose head is this exact commit — 'has this landed, and where', asked from the commit's side.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/repos/repos_get_readme">
+    <span className="tool-row-head"><span className="tool-row-name">repos_get_readme</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get the repository's README, decoded to text.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/repos/repos_list_tags">
+    <span className="tool-row-head"><span className="tool-row-name">repos_list_tags</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List a repository's tags with the commit each points at, newest first.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/repos/repos_create_fork">
+    <span className="tool-row-head"><span className="tool-row-name">repos_create_fork</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Fork a repository, optionally into an organization or under a new name.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/repos/repos_list_for_org">
+    <span className="tool-row-head"><span className="tool-row-name">repos_list_for_org</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List an organization's repositories.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/repos/repos_list_languages">
+    <span className="tool-row-head"><span className="tool-row-name">repos_list_languages</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List a repository's languages with bytes of code each — the quickest way to find out what a repository is written in before reading any of it.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/repos/repos_list_contributors">
+    <span className="tool-row-head"><span className="tool-row-name">repos_list_contributors</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List contributors, most commits first — who to ask about a repository.</span>
+  </a>
+  <span className="tool-list-group">Search</span>
+  <a className="tool-row" href="/packs/github/search/search_issues">
+    <span className="tool-row-head"><span className="tool-row-name">search_issues</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Search issues and pull requests across GitHub with qualifiers, e.g. 'repo:owner/name is:issue is:open label:bug'.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/search/search_repositories">
+    <span className="tool-row-head"><span className="tool-row-name">search_repositories</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Search repositories with qualifiers, e.g. 'topic:cli language:go stars:&gt;500'.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/search/search_code">
+    <span className="tool-row-head"><span className="tool-row-name">search_code</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Search code across GitHub.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/search/search_commits">
+    <span className="tool-row-head"><span className="tool-row-name">search_commits</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Search commits by message, author or date across GitHub — 'repo:owner/name fix flaky test'.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/search/search_users">
+    <span className="tool-row-head"><span className="tool-row-name">search_users</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Search users and organizations — 'type:org language:rust'.</span>
+  </a>
+  <span className="tool-list-group">Users</span>
+  <a className="tool-row" href="/packs/github/users/users_get_authenticated">
+    <span className="tool-row-head"><span className="tool-row-name">users_get_authenticated</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get the authenticated user.</span>
+  </a>
+  <span className="tool-list-group">Actions</span>
+  <a className="tool-row" href="/packs/github/actions/actions_list_workflow_runs">
+    <span className="tool-row-head"><span className="tool-row-name">actions_list_workflow_runs</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List CI runs, most recent first.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/actions/actions_rerun_workflow">
+    <span className="tool-row-head"><span className="tool-row-name">actions_rerun_workflow</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Run a workflow again from the start, including jobs that passed.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/actions/actions_cancel_workflow_run">
+    <span className="tool-row-head"><span className="tool-row-name">actions_cancel_workflow_run</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Ask GitHub to cancel a running workflow.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/actions/actions_get_workflow_run">
+    <span className="tool-row-head"><span className="tool-row-name">actions_get_workflow_run</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get one workflow run: its status, conclusion, branch, commit and attempt number.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/actions/actions_list_jobs_for_run">
+    <span className="tool-row-head"><span className="tool-row-name">actions_list_jobs_for_run</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List a run's jobs, each with its conclusion and its failing steps named.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/actions/actions_get_job">
+    <span className="tool-row-head"><span className="tool-row-name">actions_get_job</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get one job of a workflow run, with the steps that did not pass named individually and the runner it ran on.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/actions/actions_download_job_logs">
+    <span className="tool-row-head"><span className="tool-row-name">actions_download_job_logs</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Read a failing job's log.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/actions/actions_download_run_logs">
+    <span className="tool-row-head"><span className="tool-row-name">actions_download_run_logs</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Read a whole run's logs in one call.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/actions/actions_rerun_failed_jobs">
+    <span className="tool-row-head"><span className="tool-row-name">actions_rerun_failed_jobs</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Re-run only the failed jobs of a run, and the jobs that depend on them.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/actions/actions_list_workflows">
+    <span className="tool-row-head"><span className="tool-row-name">actions_list_workflows</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the repository's workflows, with the file each one is defined in and whether it is active or disabled.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/actions/actions_get_workflow">
+    <span className="tool-row-head"><span className="tool-row-name">actions_get_workflow</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get one workflow.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/actions/actions_create_workflow_dispatch">
+    <span className="tool-row-head"><span className="tool-row-name">actions_create_workflow_dispatch</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Trigger a workflow by hand on a branch or tag.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/actions/actions_list_runs_for_workflow">
+    <span className="tool-row-head"><span className="tool-row-name">actions_list_runs_for_workflow</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the runs of one workflow, most recent first — 'is this pipeline green', rather than 'is anything red'.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/actions/actions_list_run_artifacts">
+    <span className="tool-row-head"><span className="tool-row-name">actions_list_run_artifacts</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List what a run uploaded, with each artifact's size and whether it has expired.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/actions/actions_get_artifact">
+    <span className="tool-row-head"><span className="tool-row-name">actions_get_artifact</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get one artifact's name, size, expiry and digest.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/actions/actions_download_artifact">
+    <span className="tool-row-head"><span className="tool-row-name">actions_download_artifact</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Download an artifact and report what is in it: every entry's name and size, plus the contents of the small text files — a JUnit report or a coverage summary comes back readable.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/actions/actions_get_run_usage">
+    <span className="tool-row-head"><span className="tool-row-name">actions_get_run_usage</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get a run's total run time and its billable milliseconds per runner operating system.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/actions/actions_list_pending_deployments">
+    <span className="tool-row-head"><span className="tool-row-name">actions_list_pending_deployments</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the environments a run is waiting on for approval, and who can approve them.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/actions/actions_review_pending_deployments">
+    <span className="tool-row-head"><span className="tool-row-name">actions_review_pending_deployments</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Approve or reject a run's pending deployments.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/actions/actions_list_repo_secrets">
+    <span className="tool-row-head"><span className="tool-row-name">actions_list_repo_secrets</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the names of the repository's Actions secrets, with when each was created and last changed.</span>
+  </a>
+  <span className="tool-list-group">Checks</span>
+  <a className="tool-row" href="/packs/github/checks/checks_list_for_ref">
+    <span className="tool-row-head"><span className="tool-row-name">checks_list_for_ref</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the check runs reported against a commit, branch or tag — every CI provider that reports as a GitHub App, Actions included.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/checks/checks_get_run">
+    <span className="tool-row-head"><span className="tool-row-name">checks_get_run</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get one check run, with its summary text and how many annotations it produced.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/checks/checks_list_annotations">
+    <span className="tool-row-head"><span className="tool-row-name">checks_list_annotations</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List a check run's annotations: each failure with the file, the line range, a level and a message, already extracted by whoever ran the check.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/checks/checks_list_suites_for_ref">
+    <span className="tool-row-head"><span className="tool-row-name">checks_list_suites_for_ref</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the check suites for a commit, branch or tag — one suite per app that reported.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/checks/repos_get_combined_status">
+    <span className="tool-row-head"><span className="tool-row-name">repos_get_combined_status</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get the single rolled-up state of a commit — 'success', 'failure', 'pending' or 'error' — plus one line per reporting context.</span>
+  </a>
+  <span className="tool-list-group">Git</span>
+  <a className="tool-row" href="/packs/github/git/git_refs_get">
+    <span className="tool-row-head"><span className="tool-row-name">git_refs_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get a reference and the commit SHA it points at — how you read a branch's current head before building on it.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/git/git_refs_update">
+    <span className="tool-row-head"><span className="tool-row-name">git_refs_update</span><span className="tool-row-method" data-method="PATCH">PATCH</span></span>
+    <span className="tool-row-desc">Point a branch or tag at a different commit — the step that makes a commit built with <code>git_trees_create</code> and <code>git_commits_create</code> visible.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/git/git_refs_delete">
+    <span className="tool-row-head"><span className="tool-row-name">git_refs_delete</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Delete a branch or tag, by reference.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/git/git_refs_list_matching">
+    <span className="tool-row-head"><span className="tool-row-name">git_refs_list_matching</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List every reference under a prefix — <code>heads/</code> for all branches, <code>tags/v2</code> for the v2 tags.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/git/git_blobs_create">
+    <span className="tool-row-head"><span className="tool-row-name">git_blobs_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Write a file's content into the object store and get its SHA back, without committing anything.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/git/git_blobs_get">
+    <span className="tool-row-head"><span className="tool-row-name">git_blobs_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Read a blob by SHA, decoded to text.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/git/git_trees_create">
+    <span className="tool-row-head"><span className="tool-row-name">git_trees_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Build one commit's worth of changes across any number of files.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/git/git_trees_get">
+    <span className="tool-row-head"><span className="tool-row-name">git_trees_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Read a tree: every path in it with its mode and object SHA.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/git/git_commits_create">
+    <span className="tool-row-head"><span className="tool-row-name">git_commits_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a commit pointing at a tree.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/git/git_commits_get">
+    <span className="tool-row-head"><span className="tool-row-name">git_commits_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Read a commit object: its message, its tree SHA and its parents.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/git/git_tags_create">
+    <span className="tool-row-head"><span className="tool-row-name">git_tags_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create an annotated tag object.</span>
+  </a>
+  <span className="tool-list-group">Releases</span>
+  <a className="tool-row" href="/packs/github/releases/releases_list">
+    <span className="tool-row-head"><span className="tool-row-name">releases_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List a repository's releases, newest first.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/releases/releases_get">
+    <span className="tool-row-head"><span className="tool-row-name">releases_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get one release by its numeric id, with its notes and its assets.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/releases/releases_get_latest">
+    <span className="tool-row-head"><span className="tool-row-name">releases_get_latest</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get the latest published release — GitHub's definition, meaning the most recent release that is neither a draft nor a prerelease.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/releases/releases_get_by_tag">
+    <span className="tool-row-head"><span className="tool-row-name">releases_get_by_tag</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get a release by its tag name, such as 'v1.4.0'.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/releases/releases_create">
+    <span className="tool-row-head"><span className="tool-row-name">releases_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Publish a release, creating its tag if it does not exist.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/releases/releases_update">
+    <span className="tool-row-head"><span className="tool-row-name">releases_update</span><span className="tool-row-method" data-method="PATCH">PATCH</span></span>
+    <span className="tool-row-desc">Update a release; anything omitted is left unchanged.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/releases/releases_delete">
+    <span className="tool-row-head"><span className="tool-row-name">releases_delete</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Delete a release.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/releases/releases_generate_notes">
+    <span className="tool-row-head"><span className="tool-row-name">releases_generate_notes</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Generate release-note text from the pull requests merged since a previous tag.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/releases/releases_list_assets">
+    <span className="tool-row-head"><span className="tool-row-name">releases_list_assets</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the files attached to a release, with sizes and download counts.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/releases/releases_upload_asset">
+    <span className="tool-row-head"><span className="tool-row-name">releases_upload_asset</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Attach a file to a release.</span>
+  </a>
+  <span className="tool-list-group">Monitoring</span>
+  <a className="tool-row" href="/packs/github/monitoring/notifications_list">
+    <span className="tool-row-head"><span className="tool-row-name">notifications_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List your unread notifications — mentions, review requests, assignments — most recently updated first.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/monitoring/notifications_mark_read">
+    <span className="tool-row-head"><span className="tool-row-name">notifications_mark_read</span><span className="tool-row-method" data-method="PUT">PUT</span></span>
+    <span className="tool-row-desc">Mark notifications as read — all of them, or everything up to <code>last_read_at</code>.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/monitoring/notifications_get_thread">
+    <span className="tool-row-head"><span className="tool-row-name">notifications_get_thread</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get one notification thread: what it concerns, and the <code>reason</code> you were notified.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/monitoring/notifications_mark_thread_read">
+    <span className="tool-row-head"><span className="tool-row-name">notifications_mark_thread_read</span><span className="tool-row-method" data-method="PATCH">PATCH</span></span>
+    <span className="tool-row-desc">Mark one notification thread as read — how an agent takes a handled item off its own queue.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/monitoring/dependabot_list_alerts">
+    <span className="tool-row-head"><span className="tool-row-name">dependabot_list_alerts</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List a repository's Dependabot alerts: which dependency, how severe, and the first version that fixes it.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/monitoring/dependabot_get_alert">
+    <span className="tool-row-head"><span className="tool-row-name">dependabot_get_alert</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get one Dependabot alert, with its advisory summary and the patched version.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/monitoring/dependabot_update_alert">
+    <span className="tool-row-head"><span className="tool-row-name">dependabot_update_alert</span><span className="tool-row-method" data-method="PATCH">PATCH</span></span>
+    <span className="tool-row-desc">Dismiss a Dependabot alert or reopen one.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/monitoring/code_scanning_list_alerts">
+    <span className="tool-row-head"><span className="tool-row-name">code_scanning_list_alerts</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List code scanning alerts, each with the rule that fired and the file and line it fired on.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/monitoring/code_scanning_get_alert">
+    <span className="tool-row-head"><span className="tool-row-name">code_scanning_get_alert</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get one code scanning alert, with the rule's description and the most recent place it was seen.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/monitoring/secret_scanning_list_alerts">
+    <span className="tool-row-head"><span className="tool-row-name">secret_scanning_list_alerts</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List secret scanning alerts: which pattern matched, which provider, and whether the credential is still valid.</span>
+  </a>
+  <a className="tool-row" href="/packs/github/monitoring/rate_limit_get">
+    <span className="tool-row-head"><span className="tool-row-name">rate_limit_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Check how much API budget is left, per resource.</span>
+  </a>
+</div>
+{/* generated:tools end */}
+
+## Constant headers beside a bearer token
+
+GitHub wants three headers on every request that have nothing to do with the model:
+an `Accept` naming the media type, an `X-GitHub-Api-Version`, and a `User-Agent`
+— GitHub answers 403 to a request without one.
+
+They are declared once as `static_headers` on the factory and sent verbatim. None
+of them appears in any tool's LLM schema, so they cost nothing in context and a
+model has no path to setting them. This is the OAuth-plus-constant-headers shape
+that [`static_headers`](/tools/wire-contract) exists for.
+
+Pinning the version is the point of the exercise: an unpinned integration is one
+that breaks on GitHub's schedule rather than on yours. `github.API_VERSION` is the
+version these schemas were written against.
+
+## Paging by number
+
+There is no cursor. You ask for page 1, 2, 3 and stop when a page comes back
+shorter than `per_page`, which is why both parameters are required on a
+page-number `Pagination` — without the page size there is no way to tell a full
+page from the last one. Both are real fields on the schemas that declare it.
+
+```python github_page_through_issues.py
+args = {"owner": "octocat", "repo": "hello-world", "per_page": 30}
+while args is not None:
+    page = await github.issues_list_for_repo.ainvoke(args)
+    handle(page)
+    args = github.issues_list_for_repo.pagination.next_page_args(page, args)
+```
+
+The search endpoints wrap their results in `items` rather than returning a bare
+array, so they declare the same style with `items_field="items"`. That is the only
+difference between `GITHUB_PAGINATION` and `SEARCH_PAGINATION`.
+
+## Response trimming
+
+One issue is 4–6KB of nested user objects, reaction counts and twenty `*_url`
+fields; a page of thirty is a quarter of a million characters, almost none of it
+actionable. Twenty-four of the twenty-nine tools carry a response handler.
+
+The handlers **project rather than filter** — they narrow each object but never
+drop one, because dropping an item would corrupt the page-length signal that
+page-number pagination depends on.
+
+`issues_create_comment`, `issues_list_comments` and `pulls_list_files` have no
+handler and return GitHub's payload as it arrived. `pulls_list_files` in
+particular carries full patch text, which is the point of calling it and also the
+largest response in the pack.
+
+## Gotchas
+
+<AccordionGroup>
+  <Accordion title="Issues include pull requests">
+    That is GitHub's model, not a quirk of this pack: `issues_list_for_repo`
+    returns both. GitHub's own signal for it is the presence of a `pull_request`
+    key, which does not survive trimming, so the handler sets `is_pull_request`
+    on the ones that are.
+  </Accordion>
+
+  <Accordion title="The Link header is not read">
+    GitHub also advertises the next page in a `Link` header (RFC 8288). A
+    Charter response is the parsed body, so the page number is the marker this
+    pack declares. In practice the two agree; where they differ is a repository
+    mutating under you mid-walk, and neither marker is reliable then.
+  </Accordion>
+
+  <Accordion title="Search has its own rate limit and its own envelope">
+    30 requests per minute, against 5,000 per hour for the rest of the REST API.
+    A search-heavy agent hits that long before it hits the general limit. When it
+    does, `APIError.retry_after` carries GitHub's own answer to "when?" — see
+    [the wire contract](/tools/wire-contract).
+  </Accordion>
+
+  <Accordion title="issues_update replaces sets, it does not add to them">
+    `labels` and `assignees` on `issues_update` overwrite what is there. To add
+    one label, read the current set with `issues_get` and send the union. Closing
+    an issue is `state="closed"`, with `state_reason` saying why.
+  </Accordion>
+
+  <Accordion title="repos_list_for_authenticated_user rejects some combinations">
+    Passing `type` together with `visibility` or `affiliation` is a 422 from
+    GitHub. Use one or the other; a request carrying both is refused locally,
+    before the round trip.
+
+    All three carry a documented default, and none of them is set on the schema.
+    That is deliberate. GitHub's defaults describe what it applies to a request
+    that *omits* the parameter, so copying them onto the fields put all three on
+    the wire for every call and made the 422 the normal case rather than the
+    edge one. A default you send is not a default.
+  </Accordion>
+
+  <Accordion title="repos_get_content is two endpoints wearing one name">
+    Pass a file path and it returns that file with its contents decoded as text;
+    pass a directory path and it returns a listing. Pass an empty `path` for the
+    repository root. The shape of the response depends on what the path pointed
+    at, which is GitHub's design.
+  </Accordion>
+
+  <Accordion title="Two files repos_get_content cannot hand you">
+    A binary file and a file over 1MB both come back as a `content` string
+    saying which of the two happened, plus the `download_url` to fetch it with.
+    Neither is an error, and both are silent if you do not look for them: a
+    binary file base64-decodes to replacement characters, which reads as content
+    until you try to use it, and GitHub answers a file between 1MB and 100MB
+    with `encoding: "none"` and an empty string. Over 100MB it does not serve
+    this endpoint at all.
+  </Accordion>
+
+  <Accordion title="Search stops at 1,000 results, whatever total_count says">
+    GitHub serves only the first 1,000 matches of any query. `total_count`
+    reports the real size of the match set, so a page-number walk has every
+    reason to keep going and gets a 422 when `page × per_page` passes 1,000.
+    The search schemas check that pair locally and say to narrow the query
+    instead — a date range, a repository, a label.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [GitHub](/auth/providers/github) — OAuth app flow and token types
+- [The wire contract](/tools/wire-contract) — `static_headers` and page-number pagination
+- [Observability](/running/observability) — what a call records
