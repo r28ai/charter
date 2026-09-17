@@ -69,23 +69,6 @@
     return crumbs;
   }
 
-  /* A page with no group renders no eyebrow for us to fill, so it gets one. It
-     goes first inside the header's stack, where the themed eyebrow sits on every
-     other page, and inherits the same class so one rule in custom.css covers
-     both. */
-  function eyebrowFor() {
-    var existing = document.querySelector("#header .eyebrow");
-    if (existing) return existing;
-
-    var stack = document.querySelector("#header > div");
-    if (!stack) return null;
-
-    var eyebrow = document.createElement("div");
-    eyebrow.className = "eyebrow h-5 text-sm";
-    stack.insertBefore(eyebrow, stack.firstChild);
-    return eyebrow;
-  }
-
   function isPacksPage(path) {
     return path === "/packs" || path.indexOf("/packs/") === 0;
   }
@@ -107,10 +90,20 @@
       return;
     }
 
+    /* Only ever fills the eyebrow the theme rendered; never makes one. An
+       eyebrow inserted here would arrive at hydration, and the line plus the
+       24px custom.css hangs under it would push the title and the whole page
+       down 44px a second after it had painted — which is the one thing the
+       reserved box over there exists to prevent, and it cannot reserve space
+       for an element that is not in the served HTML. Mintlify renders the
+       eyebrow on every page that sits inside a group, which on this tab is
+       every page with a trail worth drawing; a page directly under the tab gets
+       no eyebrow and no trail, and its title starts at the top of the header,
+       where a root belongs. */
     var crumbs = trailFor(path);
     if (!crumbs || crumbs.length < 2) return;
 
-    var eyebrow = existing || eyebrowFor();
+    var eyebrow = existing;
     if (!eyebrow) return;
 
     eyebrow.textContent = "";

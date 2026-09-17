@@ -1,3 +1,38 @@
+/* The metric-matched fallback for Inter, which Mintlify builds and then does not
+   ship to the page.
+
+   Inter loads `font-display: swap`, so every cold load paints the whole site in
+   a fallback first and re-lays it out when the woff2 lands. That is only free if
+   the fallback occupies the same space as the real font, which is what next/font
+   generates an "Inter Fallback" face for — Arial, stretched 107.12% with Inter's
+   ascent and descent written over it, so a line of text is the same width and
+   height either way. Mintlify builds that face, and puts it in a chunk this page
+   never loads: the stylesheet in <head> declares
+   `--font-inter: "Inter", -apple-system, …` and no fallback face at all, so the
+   swap window renders in SF Pro or Segoe UI and every paragraph re-wraps when
+   Inter arrives — an H2 and the prose under it moving ~28px, about half a second
+   in. CLS on /packs/gmail measures 0.0467 with the fonts fetched and exactly 0
+   with them blocked.
+
+   So the face is restated here, with Mintlify's own descriptors, and
+   `--font-inter` is pointed back at it. Nothing else is touched: `body` already
+   reads the variable and already carries the system stack behind it, which stays
+   as the last resort on a machine with no Arial. Delete this if Mintlify starts
+   shipping the chunk — the two definitions would be identical, and theirs is
+   render-blocking, which this one is not. */
+@font-face {
+  font-family: "Inter Fallback";
+  src: local("Arial");
+  ascent-override: 90.44%;
+  descent-override: 22.52%;
+  line-gap-override: 0%;
+  size-adjust: 107.12%;
+}
+
+:root {
+  --font-inter: "Inter", "Inter Fallback";
+}
+
 /* Dark mode: pure white body text instead of the default muted gray. */
 .dark #content-area,
 .dark #content-area p,
@@ -13,41 +48,37 @@
   color: #ffffff !important;
 }
 
-/* 20px gutters on the left and right, at every screen size.
+/* The gutters are Mintlify's — 48px at lg inside a max-w-8xl cap — and they are
+   its because nothing in this file may move a box in the navbar or the sidebar.
 
-   Mintlify stacks three separately padded containers — the navbar row
-   (mx-4 / lg:px-12), the tab row (px-12), and the sidebar+content row
-   (px-4 / lg:px-8) — each centered inside a max-w-8xl cap. Normalize their
-   padding to 20px and drop the cap, so the gutter stays 20px instead of growing
-   with the viewport.
+   Those two are the only parts of the page that can be seen before this
+   stylesheet exists. Mintlify serves one streamed document and puts custom CSS
+   in the *body*: the navbar's markup lands around 20KB in, the sidebar's runs to
+   about 57KB, and this <style> opens right after it, with #table-of-contents and
+   #content-area another 85KB downstream. Everything from the contents panel down
+   is therefore parsed with these rules already in force and cannot flash. The
+   navbar and the sidebar are painted before them and can only be corrected.
 
-   These values cost a brief flash on load: Mintlify emits custom.css as a
-   <style> in the *body*, after the header and sidebar have already streamed, so
-   both paint at Mintlify's native 48px line before snapping to 20px. docs.json
-   has no css/head hook to make it render-blocking. It is worst on mint dev,
-   which flushes the shell early; measure it again on a real deploy before
-   trading any of this away for it. */
-header [class*="lg:px-12"],
-:has(> .nav-tabs),
-:has(> nav#sidebar) {
-  margin-left: 0 !important;
-  margin-right: 0 !important;
-  padding-left: 20px !important;
-  padding-right: 20px !important;
-}
+   This used to normalize all three containers — the navbar row, the tab row and
+   the sidebar+content row — to a 20px gutter and drop the cap. It read better
+   and it cost a jump: the shell painted on Mintlify's 48px line and then slid
+   28px left, 80-450ms after first paint, every load. Measured on a static
+   `mint export` build served locally over gzip, first paint at 232ms and the
+   slide at 311ms — so this is not a `mint dev` artifact, and compression does
+   not outrun it. There is no fix from inside the stylesheet, because the
+   stylesheet is the thing that arrives late: docs.json exposes no head or CSS
+   hook (`styling` carries only `eyebrows` and `codeblocks`), and custom JS lands
+   later still, ~394KB in, after hydration.
 
-header [class*="max-w-8xl"],
-:has(> nav#sidebar) {
-  max-width: none !important;
-}
+   So the rule for this region is: colors, weights and radii, which repaint in
+   place, and nothing that changes a width, a height, a padding or a margin. The
+   gutter was the largest of those and it is gone. Everything below keeps the
+   sidebar's look and leaves its geometry to the theme. */
 
-/* Sidebar rows sit on the same 20px line as the logo and tabs, while their
-   hover/active highlight bleeds 8px further left.
-
-   Mintlify writes each row's indent as an inline padding-left — 1rem at the top
-   level, 1.75rem for nested pages. Both are rewritten here. The group header
-   takes the same 8px as a top-level row, so a section label and the rows under
-   it start on one line.
+/* A sidebar row is identified by the inline padding-left Mintlify writes on it —
+   1rem at the top level, 1.75rem for a nested page. That is the only mark the
+   rows share, so it is how the color rules below reach them; the value itself is
+   left alone, along with the row's height and the space between groups.
 
    Match on the *value* alone, never on "padding-left:1rem". React serializes
    inline styles two different ways over a page's life: the server renderer
@@ -55,30 +86,10 @@ header [class*="max-w-8xl"],
    the row through the CSSOM and the browser re-serializes the attribute as
    `padding-left: 1rem;` — a space after the colon and a trailing semicolon. A
    selector carrying the colon matches the served page and silently stops
-   matching the moment you click a sidebar link, dropping every row back to
-   Mintlify's 16px while the group headers — which match on a real class — hold
-   at 8px. That is the misalignment, and it appears only after the first click.
-   Two attribute selectors, neither spanning the colon, survive both forms.
-   ("1.75rem" does not contain "1rem", so the two stay mutually exclusive.)
-
-   The nested indent is set rather than inherited: Mintlify's 1.75rem against a
-   1rem parent is a 12px step, but once the top level is pulled back to 8px that
-   same absolute value becomes a 20px step, which throws the pages under a group
-   ("Google" under "Providers") a full row's worth to the right of every other
-   label in the sidebar. 20px restores the 12px step — still unmistakably a
-   child, still reading down the same left edge. */
-nav#sidebar {
-  margin-left: -8px !important;
-  margin-right: 8px !important;
-}
-
-nav#sidebar [style*="padding-left"][style*="1rem"] {
-  padding-left: 8px !important;
-}
-
-nav#sidebar [style*="padding-left"][style*="1.75rem"] {
-  padding-left: 20px !important;
-}
+   matching the moment you click a sidebar link, which would drop every row's
+   color back to the theme's on the first click and hold it there. Two attribute
+   selectors, neither spanning the colon, survive both forms. ("1.75rem" does not
+   contain "1rem", so the two stay mutually exclusive.) */
 
 /* The sidebar's three-state row: idle, hover, current page.
 
@@ -99,8 +110,6 @@ nav#sidebar [style*="padding-left"][style*="1.75rem"] {
 nav#sidebar a[style*="padding-left"],
 nav#sidebar button[style*="padding-left"] {
   border-radius: 6px !important;
-  padding-top: 7px !important;
-  padding-bottom: 7px !important;
   color: rgba(24, 24, 27, 0.78) !important;
   text-shadow: none !important;
 }
@@ -137,21 +146,17 @@ nav#sidebar button[class*="bg-primary"] {
 
 /* The section label ("Get started", "Declaring a tool") is a label, not a
    heading. It defaults to semibold at the row font size, which makes it compete
-   with — and outrank — the pages it names. Drop it a point, drop the weight, and
-   let it sit back in gray: the rows are what you are reading down.
+   with — and outrank — the pages it names. Drop the weight and let it sit back
+   in gray: the rows are what you are reading down.
 
-   It also inherits the row line-height, 24px around 13px text, which is 5.5px of
-   dead leading under the label on top of its own 10px margin and the first row's
-   7px padding — enough air that the label floats free of the group it heads.
-   Line-height at 20px and margin at 2px closes it to the ~17px of text-to-text
-   gap Vercel leaves, where the label reads as attached to the rows below it. */
+   Weight and color only. The label also carries a size, a line-height and a
+   margin that were tuned here to close it onto the rows it heads, and all three
+   are boxes — they moved the sidebar when this stylesheet landed, so they went
+   back to the theme with the rest of the shell's geometry. Weight repaints the
+   glyphs inside a line box the theme has already sized, and moves nothing. */
 nav#sidebar .sidebar-group-header {
-  padding-left: 8px !important;
-  font-size: 13px !important;
   font-weight: 400 !important;
-  line-height: 20px !important;
   color: rgba(24, 24, 27, 0.55) !important;
-  margin-bottom: 2px !important;
 }
 
 .dark nav#sidebar .sidebar-group-header {
@@ -171,19 +176,45 @@ nav#sidebar .sidebar-group-header {
 
    The fixed h-5 becomes a minimum, because a deep trail on a narrow window has
    to be allowed to wrap rather than be clipped. */
-/* Hidden unless breadcrumbs.js has built a trail into it, which it does on the
-   Packs tab and nowhere else. Hiding by default rather than on a per-page rule
-   means the failure direction is a missing trail, never a stray group name. */
+/* Hidden everywhere but the Packs tab, where the line is held open before there
+   is a trail to put in it.
+
+   Gating the box on `.breadcrumb-trail` — the class breadcrumbs.js adds once it
+   has walked the sidebar — meant the line, and the 24px under it, came into
+   existence at hydration, seconds after the page had painted, and pushed the
+   title and every word below it 44px down the screen. The trail is allowed to
+   arrive late; the space it lands in is not.
+
+   So the tab is read off the *sidebar* rather than off the trail. Mintlify
+   streams the navigation, then this stylesheet, then #header — so a rule keyed
+   on a sidebar link is already resolved by the time the eyebrow is parsed,
+   while one keyed on anything inside #header is resolving against markup the
+   browser has not read yet. `#navigation-items a[href^="/packs/"]` is true on
+   the Packs tab and nowhere else, because the sidebar only ever carries the
+   current tab's tree — and it re-resolves on client-side navigation, like the
+   tab match the subtitle rule below uses, with no script.
+
+   The eyebrow is then hidden rather than collapsed. `visibility` keeps the 20px
+   the trail is going to need and keeps what the element holds until
+   breadcrumbs.js overwrites it — the theme's own group name — off the screen in
+   the meantime. The failure direction moves from a missing trail to a blank
+   line above the title, which is the cheaper of the two: it costs 20px on a
+   Packs page where the script did not run, and it costs nothing anywhere else. */
 #header .eyebrow {
   display: none !important;
 }
 
-#header .eyebrow.breadcrumb-trail {
+body:has(#navigation-items a[href^="/packs/"]) #header .eyebrow {
   display: block !important;
+  visibility: hidden;
   height: auto !important;
   min-height: 20px;
   font-weight: 400 !important;
   color: rgba(24, 24, 27, 0.5) !important;
+}
+
+body:has(#navigation-items a[href^="/packs/"]) #header .eyebrow.breadcrumb-trail {
+  visibility: visible;
 }
 
 #header .eyebrow .breadcrumb-current {
@@ -195,7 +226,11 @@ nav#sidebar .sidebar-group-header {
   color: rgba(24, 24, 27, 0.28);
 }
 
-.dark #header .eyebrow.breadcrumb-trail {
+/* Carries the same sidebar gate as the rule it is darkening. `:has()` takes the
+   specificity of its heaviest argument, so the gated light rule counts an id it
+   does not spell — without the gate here, `.dark` loses to it and the trail
+   comes out in the light gray on black. */
+.dark body:has(#navigation-items a[href^="/packs/"]) #header .eyebrow {
   color: rgba(255, 255, 255, 0.55) !important;
 }
 
@@ -241,8 +276,11 @@ body:has(.nav-tabs a[href="/"][data-active="true"]) #header > div[class~="text-l
 
    The top rule needs an eyebrow to hang off. A tab's landing page has no
    breadcrumb and no eyebrow, so its title stays where it is — there is nothing
-   above it to be separated from. */
-#header .eyebrow.breadcrumb-trail + div {
+   above it to be separated from. It hangs off the eyebrow rather than off the
+   trail inside it for the reason the eyebrow's own box does: the 24px has to be
+   there on the first frame, not added at hydration under a line that was not
+   there either. */
+body:has(#navigation-items a[href^="/packs/"]) #header .eyebrow + div {
   margin-top: 24px !important;
 }
 
@@ -311,8 +349,17 @@ body:has(.nav-tabs a[href="/"][data-active="true"]) #header > div[class~="text-l
 
    The idle glyph leaves at 75% and the check arrives from 75%, so the swap
    reads as one mark replacing another in place rather than two separate icons
-   blinking. */
-#page-context-menu > button:first-of-type > div > svg {
+   blinking.
+
+   The theme's icon goes only once ours is in the button beside it. This
+   stylesheet lands well before copy-button.js — the CSS streams with the page,
+   the script runs after hydration — so hiding it unconditionally left the
+   button with no icon at all for as long as that gap lasts, and it sat 24px
+   narrower than it ends up, then widened under the reader's eye a second after
+   the page had settled. `:has()` ties the two halves of the swap together: one
+   16px mark in that slot at every moment, and a button that is never a
+   different width than it was. */
+#page-context-menu > button:first-of-type:has(.copy-page-icon) > div > svg {
   display: none !important;
 }
 
@@ -362,15 +409,33 @@ body:has(.nav-tabs a[href="/"][data-active="true"]) #header > div[class~="text-l
 
 /* A divider above every sidebar section after the first. Each section is a direct
    child of #navigation-items, so the universal sibling selector also covers tabs
-   that open with a standalone page (Packs, Reference) rather than a group. */
+   that open with a standalone page (Packs, Reference) rather than a group.
+
+   Drawn as an absolutely positioned line rather than a border, and hung in the
+   middle of the margin the theme already leaves between sections rather than
+   opening one of its own. A border on these is 1px of box per section, and the
+   20px margin and 20px padding that used to sit around it were 9px more — the
+   sidebar is painted before this stylesheet arrives, so every one of those
+   pixels was a row of navigation stepping down the screen a moment after the
+   reader could already see it. Out of flow, the line costs nothing: `relative`
+   with no offsets moves the section not at all, and the rule adds the one thing
+   here that was ever wanted, which is the line itself. */
 #navigation-items > * + * {
-  border-top: 1px solid rgba(0, 0, 0, 0.09);
-  margin-top: 20px;
-  padding-top: 20px;
+  position: relative;
 }
 
-.dark #navigation-items > * + * {
-  border-top-color: rgba(255, 255, 255, 0.11);
+#navigation-items > * + *::before {
+  content: "";
+  position: absolute;
+  top: -1rem;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background-color: rgba(0, 0, 0, 0.09);
+}
+
+.dark #navigation-items > * + *::before {
+  background-color: rgba(255, 255, 255, 0.11);
 }
 
 /* The pack grid on /packs/overview: brand logos as card icons.
@@ -1169,7 +1234,7 @@ html.dark {
 }
 
 #content-area [data-component-part="code-block-header-filename"]::before,
-#content-area .code-block:not(:has(> [data-component-part="code-block-header"]))::after {
+#content-area .code-block:not([data-has-header])::after {
   content: "";
   flex: none;
   width: 16px;
@@ -1179,8 +1244,17 @@ html.dark {
   mask: var(--code-lang-mark) center / 16px 16px no-repeat;
 }
 
-/* The header a titleless block does not have. */
-#content-area .code-block:not(:has(> [data-component-part="code-block-header"]))::before {
+/* The header a titleless block does not have.
+
+   Matched on the block's own `data-has-header`, never on whether the header is
+   among its children. Mintlify streams the page, so a titled block spends the
+   first part of its life with its header not yet parsed — `:not(:has(> …))` is
+   true for that whole window, and every titled block on the page took the 40px
+   bar and the 40px of padding under it, then dropped both the moment the header
+   arrived. That is a reflow per code block, mid-load, under text the reader can
+   already see. The attribute is written on the opening tag, so it is known
+   before the first child is read and the answer never changes. */
+#content-area .code-block:not([data-has-header])::before {
   content: var(--code-lang-name);
   position: absolute;
   inset: 0 0 auto 0;
@@ -1195,13 +1269,13 @@ html.dark {
   color: var(--code-chrome-fg);
 }
 
-#content-area .code-block:not(:has(> [data-component-part="code-block-header"]))::after {
+#content-area .code-block:not([data-has-header])::after {
   position: absolute;
   top: 12px;
   left: 12px;
 }
 
-#content-area .code-block:not(:has(> [data-component-part="code-block-header"])) {
+#content-area .code-block:not([data-has-header]) {
   padding-top: 40px !important;
 }
 
