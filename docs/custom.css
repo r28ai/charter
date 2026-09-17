@@ -189,10 +189,20 @@ nav#sidebar .sidebar-group-header {
    streams the navigation, then this stylesheet, then #header — so a rule keyed
    on a sidebar link is already resolved by the time the eyebrow is parsed,
    while one keyed on anything inside #header is resolving against markup the
-   browser has not read yet. `#navigation-items a[href^="/packs/"]` is true on
+   browser has not read yet. `#navigation-items a[href*="/packs/"]` is true on
    the Packs tab and nowhere else, because the sidebar only ever carries the
    current tab's tree — and it re-resolves on client-side navigation, like the
    tab match the subtitle rule below uses, with no script.
+
+   The match is on `*=` rather than `^=` because the site is not served from the
+   root everywhere. `mint dev` serves it at `/`, and docs.r28.ai serves it under
+   `/charter`, so the same sidebar link is `/packs/gmail` locally and
+   `/charter/packs/gmail` in production. Anchoring the match to the start of the
+   href ties the rule to one of those two deployments — it held locally and
+   silently did nothing in production, which is the direction that does not get
+   noticed. Matching the segment anywhere in the href holds under any base path,
+   and it stays exact enough: `#navigation-items` is the current tab's tree, and
+   no other tab's tree carries a `/packs/` link.
 
    The eyebrow is then hidden rather than collapsed. `visibility` keeps the 20px
    the trail is going to need and keeps what the element holds until
@@ -204,7 +214,7 @@ nav#sidebar .sidebar-group-header {
   display: none !important;
 }
 
-body:has(#navigation-items a[href^="/packs/"]) #header .eyebrow {
+body:has(#navigation-items a[href*="/packs/"]) #header .eyebrow {
   display: block !important;
   visibility: hidden;
   height: auto !important;
@@ -213,7 +223,7 @@ body:has(#navigation-items a[href^="/packs/"]) #header .eyebrow {
   color: rgba(24, 24, 27, 0.5) !important;
 }
 
-body:has(#navigation-items a[href^="/packs/"]) #header .eyebrow.breadcrumb-trail {
+body:has(#navigation-items a[href*="/packs/"]) #header .eyebrow.breadcrumb-trail {
   visibility: visible;
 }
 
@@ -230,7 +240,7 @@ body:has(#navigation-items a[href^="/packs/"]) #header .eyebrow.breadcrumb-trail
    specificity of its heaviest argument, so the gated light rule counts an id it
    does not spell — without the gate here, `.dark` loses to it and the trail
    comes out in the light gray on black. */
-.dark body:has(#navigation-items a[href^="/packs/"]) #header .eyebrow {
+.dark body:has(#navigation-items a[href*="/packs/"]) #header .eyebrow {
   color: rgba(255, 255, 255, 0.55) !important;
 }
 
@@ -259,8 +269,22 @@ body:has(#navigation-items a[href^="/packs/"]) #header .eyebrow.breadcrumb-trail
    current tab `data-active="true"` in the server-rendered HTML, so the match
    holds on first paint and re-resolves on client-side navigation with no
    script. The subtitle is the one child of the page header carrying `text-lg`;
-   the token match ignores the rest of its Tailwind class list. */
-body:has(.nav-tabs a[href="/"][data-active="true"]) #header > div[class~="text-lg"] {
+   the token match ignores the rest of its Tailwind class list.
+
+   The tab is identified by what its href is *not*, for the base-path reason the
+   eyebrow rule above spells out: this tab's href is the site root, which is `/`
+   under `mint dev` and `/charter` on docs.r28.ai, so there is no one literal to
+   match it against. Its two siblings are stable under any base path — they end
+   in `/packs/overview` and `/reference/overview` — so the active tab that is
+   neither of those is Documentation, at the root and under a prefix alike. A
+   fourth tab would land in this rule by default; it wants the line hidden or it
+   wants its own segment added here. */
+body:has(
+    .nav-tabs
+      a[data-active="true"]:not([href*="/packs"]):not([href*="/reference"])
+  )
+  #header
+  > div[class~="text-lg"] {
   display: none !important;
 }
 
@@ -280,7 +304,7 @@ body:has(.nav-tabs a[href="/"][data-active="true"]) #header > div[class~="text-l
    trail inside it for the reason the eyebrow's own box does: the 24px has to be
    there on the first frame, not added at hydration under a line that was not
    there either. */
-body:has(#navigation-items a[href^="/packs/"]) #header .eyebrow + div {
+body:has(#navigation-items a[href*="/packs/"]) #header .eyebrow + div {
   margin-top: 24px !important;
 }
 

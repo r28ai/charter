@@ -69,8 +69,15 @@
     return crumbs;
   }
 
+  /* The Packs tab, under any base path. `mint dev` serves the site at `/` and
+     docs.r28.ai serves it under `/charter`, so this page is `/packs/gmail` in
+     one and `/charter/packs/gmail` in the other; a check anchored to the start
+     of the path passes locally and fails in production, taking the trail with
+     it. Matching `packs` as a whole segment holds in both, and the sidebar
+     lookup in trailFor needs no such care — it keys `li[id]` off the same
+     `location.pathname` the theme wrote those ids from, prefix and all. */
   function isPacksPage(path) {
-    return path === "/packs" || path.indexOf("/packs/") === 0;
+    return /(^|\/)packs(\/|$)/.test(path);
   }
 
   function render() {
