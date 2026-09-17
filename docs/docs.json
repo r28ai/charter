@@ -8,10 +8,6 @@
     "light": "#E8586B",
     "dark": "#18181b"
   },
-  "appearance": {
-    "default": "dark",
-    "strict": true
-  },
   "background": {
     "color": {
       "dark": "#000000"
