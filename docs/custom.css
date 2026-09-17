@@ -1,25 +1,3 @@
-/* The metric-matched fallback for Inter, which Mintlify builds and then does not
-   ship to the page.
-
-   Inter loads `font-display: swap`, so every cold load paints the whole site in
-   a fallback first and re-lays it out when the woff2 lands. That is only free if
-   the fallback occupies the same space as the real font, which is what next/font
-   generates an "Inter Fallback" face for — Arial, stretched 107.12% with Inter's
-   ascent and descent written over it, so a line of text is the same width and
-   height either way. Mintlify builds that face, and puts it in a chunk this page
-   never loads: the stylesheet in <head> declares
-   `--font-inter: "Inter", -apple-system, …` and no fallback face at all, so the
-   swap window renders in SF Pro or Segoe UI and every paragraph re-wraps when
-   Inter arrives — an H2 and the prose under it moving ~28px, about half a second
-   in. CLS on /packs/gmail measures 0.0467 with the fonts fetched and exactly 0
-   with them blocked.
-
-   So the face is restated here, with Mintlify's own descriptors, and
-   `--font-inter` is pointed back at it. Nothing else is touched: `body` already
-   reads the variable and already carries the system stack behind it, which stays
-   as the last resort on a machine with no Arial. Delete this if Mintlify starts
-   shipping the chunk — the two definitions would be identical, and theirs is
-   render-blocking, which this one is not. */
 @font-face {
   font-family: "Inter Fallback";
   src: local("Arial");
@@ -33,7 +11,6 @@
   --font-inter: "Inter", "Inter Fallback";
 }
 
-/* Dark mode: pure white body text instead of the default muted gray. */
 .dark #content-area,
 .dark #content-area p,
 .dark #content-area li,
@@ -48,65 +25,6 @@
   color: #ffffff !important;
 }
 
-/* The gutters are Mintlify's — 48px at lg inside a max-w-8xl cap — and they are
-   its because nothing in this file may move a box in the navbar or the sidebar.
-
-   Those two are the only parts of the page that can be seen before this
-   stylesheet exists. Mintlify serves one streamed document and puts custom CSS
-   in the *body*: the navbar's markup lands around 20KB in, the sidebar's runs to
-   about 57KB, and this <style> opens right after it, with #table-of-contents and
-   #content-area another 85KB downstream. Everything from the contents panel down
-   is therefore parsed with these rules already in force and cannot flash. The
-   navbar and the sidebar are painted before them and can only be corrected.
-
-   This used to normalize all three containers — the navbar row, the tab row and
-   the sidebar+content row — to a 20px gutter and drop the cap. It read better
-   and it cost a jump: the shell painted on Mintlify's 48px line and then slid
-   28px left, 80-450ms after first paint, every load. Measured on a static
-   `mint export` build served locally over gzip, first paint at 232ms and the
-   slide at 311ms — so this is not a `mint dev` artifact, and compression does
-   not outrun it. There is no fix from inside the stylesheet, because the
-   stylesheet is the thing that arrives late: docs.json exposes no head or CSS
-   hook (`styling` carries only `eyebrows` and `codeblocks`), and custom JS lands
-   later still, ~394KB in, after hydration.
-
-   So the rule for this region is: colors, weights and radii, which repaint in
-   place, and nothing that changes a width, a height, a padding or a margin. The
-   gutter was the largest of those and it is gone. Everything below keeps the
-   sidebar's look and leaves its geometry to the theme. */
-
-/* A sidebar row is identified by the inline padding-left Mintlify writes on it —
-   1rem at the top level, 1.75rem for a nested page. That is the only mark the
-   rows share, so it is how the color rules below reach them; the value itself is
-   left alone, along with the row's height and the space between groups.
-
-   Match on the *value* alone, never on "padding-left:1rem". React serializes
-   inline styles two different ways over a page's life: the server renderer
-   emits the compact `padding-left:1rem`, but a client-side navigation rewrites
-   the row through the CSSOM and the browser re-serializes the attribute as
-   `padding-left: 1rem;` — a space after the colon and a trailing semicolon. A
-   selector carrying the colon matches the served page and silently stops
-   matching the moment you click a sidebar link, which would drop every row's
-   color back to the theme's on the first click and hold it there. Two attribute
-   selectors, neither spanning the colon, survive both forms. ("1.75rem" does not
-   contain "1rem", so the two stay mutually exclusive.) */
-
-/* The sidebar's three-state row: idle, hover, current page.
-
-   Mintlify's default spends the accent color on the current page — red text on a
-   red wash — which makes the one row you are already on the loudest thing on the
-   screen, and leaves hover and idle nearly indistinguishable from each other.
-   Invert that. The current page is a filled gray row with white text; hover is
-   the same fill, lighter; idle is white held just off full. The accent stays
-   free for the thing it means everywhere else in these docs: a destination you
-   have not been to yet.
-
-   The fill has to read at a glance — a 4% wash on near-black is invisible on a
-   laptop screen in daylight — so hover sits at 8% and the current page at 13%,
-   about the separation Vercel gets from #1f1f1f on #0a0a0a.
-
-   A nested group ("Providers") is a <button> rather than an <a>, but it is a row
-   in the same list and has to look like one, so every selector here takes both. */
 nav#sidebar a[style*="padding-left"],
 nav#sidebar button[style*="padding-left"] {
   border-radius: 6px !important;
@@ -133,27 +51,17 @@ nav#sidebar button[class*="bg-primary"] {
 }
 
 .dark nav#sidebar a[style*="padding-left"]:hover,
-nav#sidebar button[style*="padding-left"]:hover {
+.dark nav#sidebar button[style*="padding-left"]:hover {
   background-color: rgba(255, 255, 255, 0.08) !important;
   color: #ffffff !important;
 }
 
 .dark nav#sidebar a[class*="bg-primary"],
-nav#sidebar button[class*="bg-primary"] {
+.dark nav#sidebar button[class*="bg-primary"] {
   background-color: rgba(255, 255, 255, 0.13) !important;
   color: #ffffff !important;
 }
 
-/* The section label ("Get started", "Declaring a tool") is a label, not a
-   heading. It defaults to semibold at the row font size, which makes it compete
-   with — and outrank — the pages it names. Drop the weight and let it sit back
-   in gray: the rows are what you are reading down.
-
-   Weight and color only. The label also carries a size, a line-height and a
-   margin that were tuned here to close it onto the rows it heads, and all three
-   are boxes — they moved the sidebar when this stylesheet landed, so they went
-   back to the theme with the rest of the shell's geometry. Weight repaints the
-   glyphs inside a line box the theme has already sized, and moves nothing. */
 nav#sidebar .sidebar-group-header {
   font-weight: 400 !important;
   color: rgba(24, 24, 27, 0.55) !important;
@@ -163,53 +71,6 @@ nav#sidebar .sidebar-group-header {
   color: rgba(255, 255, 255, 0.45) !important;
 }
 
-/* Breadcrumbs. The trail itself is assembled in breadcrumbs.js, which writes it
-   into the theme's eyebrow; this is only how it reads.
-
-   Mintlify ships the eyebrow as semibold in the accent color, which makes the
-   line above the title the loudest thing in the header — the accent belongs to
-   destinations, and where you already are is not one. So the whole trail drops
-   to regular weight in gray, and the only contrast left inside it is between the
-   ancestors and the page you are on: the ancestors sit back, the current page
-   comes forward, and the separators sit back further still so the names read as
-   names rather than as one slashed string.
-
-   The fixed h-5 becomes a minimum, because a deep trail on a narrow window has
-   to be allowed to wrap rather than be clipped. */
-/* Hidden everywhere but the Packs tab, where the line is held open before there
-   is a trail to put in it.
-
-   Gating the box on `.breadcrumb-trail` — the class breadcrumbs.js adds once it
-   has walked the sidebar — meant the line, and the 24px under it, came into
-   existence at hydration, seconds after the page had painted, and pushed the
-   title and every word below it 44px down the screen. The trail is allowed to
-   arrive late; the space it lands in is not.
-
-   So the tab is read off the *sidebar* rather than off the trail. Mintlify
-   streams the navigation, then this stylesheet, then #header — so a rule keyed
-   on a sidebar link is already resolved by the time the eyebrow is parsed,
-   while one keyed on anything inside #header is resolving against markup the
-   browser has not read yet. `#navigation-items a[href*="/packs/"]` is true on
-   the Packs tab and nowhere else, because the sidebar only ever carries the
-   current tab's tree — and it re-resolves on client-side navigation, like the
-   tab match the subtitle rule below uses, with no script.
-
-   The match is on `*=` rather than `^=` because the site is not served from the
-   root everywhere. `mint dev` serves it at `/`, and docs.r28.ai serves it under
-   `/charter`, so the same sidebar link is `/packs/gmail` locally and
-   `/charter/packs/gmail` in production. Anchoring the match to the start of the
-   href ties the rule to one of those two deployments — it held locally and
-   silently did nothing in production, which is the direction that does not get
-   noticed. Matching the segment anywhere in the href holds under any base path,
-   and it stays exact enough: `#navigation-items` is the current tab's tree, and
-   no other tab's tree carries a `/packs/` link.
-
-   The eyebrow is then hidden rather than collapsed. `visibility` keeps the 20px
-   the trail is going to need and keeps what the element holds until
-   breadcrumbs.js overwrites it — the theme's own group name — off the screen in
-   the meantime. The failure direction moves from a missing trail to a blank
-   line above the title, which is the cheaper of the two: it costs 20px on a
-   Packs page where the script did not run, and it costs nothing anywhere else. */
 #header .eyebrow {
   display: none !important;
 }
@@ -236,10 +97,6 @@ body:has(#navigation-items a[href*="/packs/"]) #header .eyebrow.breadcrumb-trail
   color: rgba(24, 24, 27, 0.28);
 }
 
-/* Carries the same sidebar gate as the rule it is darkening. `:has()` takes the
-   specificity of its heaviest argument, so the gated light rule counts an id it
-   does not spell — without the gate here, `.dark` loses to it and the trail
-   comes out in the light gray on black. */
 .dark body:has(#navigation-items a[href*="/packs/"]) #header .eyebrow {
   color: rgba(255, 255, 255, 0.55) !important;
 }
@@ -252,33 +109,6 @@ body:has(#navigation-items a[href*="/packs/"]) #header .eyebrow.breadcrumb-trail
   color: rgba(255, 255, 255, 0.3);
 }
 
-/* No subtitle under the title, on the Documentation tab.
-
-   Mintlify renders frontmatter `description` twice: once as
-   <meta name="description"> in the head, once as a line under the H1. On this
-   tab the opening paragraph or the first heading already carries what the
-   description carries, so the visible half is the page said twice. Hiding it
-   leaves title then body, and leaves the meta tag alone, which is the half
-   worth keeping.
-
-   The other two tabs keep the line. A generated tool page carries a title, a
-   subtitle and a parameter table, so the subtitle is the only sentence on it,
-   and pack pages open on a chip row rather than on prose.
-
-   Scoped off the active tab because CSS cannot read a path. Mintlify marks the
-   current tab `data-active="true"` in the server-rendered HTML, so the match
-   holds on first paint and re-resolves on client-side navigation with no
-   script. The subtitle is the one child of the page header carrying `text-lg`;
-   the token match ignores the rest of its Tailwind class list.
-
-   The tab is identified by what its href is *not*, for the base-path reason the
-   eyebrow rule above spells out: this tab's href is the site root, which is `/`
-   under `mint dev` and `/charter` on docs.r28.ai, so there is no one literal to
-   match it against. Its two siblings are stable under any base path — they end
-   in `/packs/overview` and `/reference/overview` — so the active tab that is
-   neither of those is Documentation, at the root and under a prefix alike. A
-   fourth tab would land in this rule by default; it wants the line hidden or it
-   wants its own segment added here. */
 body:has(
     .nav-tabs
       a[data-active="true"]:not([href*="/packs"]):not([href*="/reference"])
@@ -288,22 +118,6 @@ body:has(
   display: none !important;
 }
 
-/* 24px of air above and below the page's content — the block that runs from the
-   title down through the body.
-
-   The breadcrumb is not part of that block; it is the line that says where the
-   block sits. Mintlify stacks the header on a flat 10px rhythm, which puts the
-   trail as close to the title as the title is to its own subtitle, so the three
-   read as one run-on unit. Opening the top margin to 24px separates the address
-   from the page, and the same 24px at the bottom closes the block before the
-   prev/next row (down from 56px, which left the pagination adrift).
-
-   The top rule needs an eyebrow to hang off. A tab's landing page has no
-   breadcrumb and no eyebrow, so its title stays where it is — there is nothing
-   above it to be separated from. It hangs off the eyebrow rather than off the
-   trail inside it for the reason the eyebrow's own box does: the 24px has to be
-   there on the first frame, not added at hydration under a line that was not
-   there either. */
 body:has(#navigation-items a[href*="/packs/"]) #header .eyebrow + div {
   margin-top: 24px !important;
 }
@@ -312,21 +126,6 @@ body:has(#navigation-items a[href*="/packs/"]) #header .eyebrow + div {
   margin-bottom: 24px !important;
 }
 
-/* The page-actions control — "Copy page" and its dropdown, from the contextual
-   options in docs.json.
-
-   It ships at rounded-xl with a 7% border, which on a pure-black background is
-   a control you have to look for: the fill matches the page exactly, so the
-   border is the only thing drawing it, and 7% is not enough edge to do that
-   alone. Take the border to 18% so the control has a visible outline, and the
-   corners to 6px, the radius the sidebar rows already use — a 12px pill on a
-   34px-tall button reads as decoration, not as a button.
-
-   The two ends are matched on `of-type` rather than on `:first-child` /
-   `:last-child`, because opening the dropdown appends hidden spans to the same
-   container. The chevron stopped being the last child at that moment, so its
-   6px reverted to the theme's 12px on the way open and back again on the way
-   closed — the corner visibly changing shape under the tap that opened it. */
 #page-context-menu > button {
   border-color: rgba(0, 0, 0, 0.14) !important;
 }
@@ -343,16 +142,6 @@ body:has(#navigation-items a[href*="/packs/"]) #header .eyebrow + div {
   border-color: rgba(255, 255, 255, 0.18) !important;
 }
 
-/* The dropdown the chevron opens. It is portaled out of #page-context-menu to
-   the end of the body, so it cannot inherit anything from the control — it
-   ships its own rounded-2xl and its own 7% border, and lands under a 6px button
-   as a 16px panel with an edge you cannot see. Both are restated here at the
-   button's values, and the rows inside drop to 4px: the panel's 4px of padding
-   subtracts from its corner, so 4px is the radius that stays concentric with
-   the 6px it sits inside.
-
-   [role="menu"] is the whole hit — the page-actions dropdown is the only menu
-   the theme renders — and anything else that grows one should match it. */
 [role="menu"] {
   border-radius: 6px !important;
   border-color: rgba(0, 0, 0, 0.14) !important;
@@ -366,23 +155,6 @@ body:has(#navigation-items a[href*="/packs/"]) #header .eyebrow + div {
   border-color: rgba(255, 255, 255, 0.18) !important;
 }
 
-/* The copy button's two glyphs, stacked in one 16px box and cross-faded by
-   copy-button.js — the copy sheets while idle, a check circle for the two
-   seconds after the page lands on the clipboard. The theme's own icon is hidden
-   rather than removed: it is React's, and React would put it back.
-
-   The idle glyph leaves at 75% and the check arrives from 75%, so the swap
-   reads as one mark replacing another in place rather than two separate icons
-   blinking.
-
-   The theme's icon goes only once ours is in the button beside it. This
-   stylesheet lands well before copy-button.js — the CSS streams with the page,
-   the script runs after hydration — so hiding it unconditionally left the
-   button with no icon at all for as long as that gap lasts, and it sat 24px
-   narrower than it ends up, then widened under the reader's eye a second after
-   the page had settled. `:has()` ties the two halves of the swap together: one
-   16px mark in that slot at every moment, and a button that is never a
-   different width than it was. */
 #page-context-menu > button:first-of-type:has(.copy-page-icon) > div > svg {
   display: none !important;
 }
@@ -416,34 +188,11 @@ body:has(#navigation-items a[href*="/packs/"]) #header .eyebrow + div {
   transform: scale(1);
 }
 
-/* Dark mode: the control reads at full white, label and both glyphs, in every
-   state.
-
-   Mintlify holds the label at gray-300 and the chevron at white/50 — the same
-   recessed scale the theme uses for its chrome. It does not belong here. The
-   top of this file already takes body copy to pure white, and a button sitting
-   beside the H1 at 75% of that reads as disabled next to it. The glyphs are
-   drawn with fill="currentColor", so the color declaration carries them too,
-   and the hover states inherit rather than restate — there is nowhere brighter
-   for a hover to go. */
 .dark #page-context-menu > button,
 .dark #page-context-menu > button svg {
   color: #ffffff !important;
 }
 
-/* A divider above every sidebar section after the first. Each section is a direct
-   child of #navigation-items, so the universal sibling selector also covers tabs
-   that open with a standalone page (Packs, Reference) rather than a group.
-
-   Drawn as an absolutely positioned line rather than a border, and hung in the
-   middle of the margin the theme already leaves between sections rather than
-   opening one of its own. A border on these is 1px of box per section, and the
-   20px margin and 20px padding that used to sit around it were 9px more — the
-   sidebar is painted before this stylesheet arrives, so every one of those
-   pixels was a row of navigation stepping down the screen a moment after the
-   reader could already see it. Out of flow, the line costs nothing: `relative`
-   with no offsets moves the section not at all, and the rule adds the one thing
-   here that was ever wanted, which is the line itself. */
 #navigation-items > * + * {
   position: relative;
 }
@@ -462,21 +211,11 @@ body:has(#navigation-items a[href*="/packs/"]) #header .eyebrow + div {
   background-color: rgba(255, 255, 255, 0.11);
 }
 
-/* The pack grid on /packs/overview: brand logos as card icons.
-
-   Mintlify sizes a card icon at 24px (size-6) whether it is a glyph or an image.
-   A logo needs a little more room than a stroke icon to stay legible, so the
-   images in this grid are bumped to 28px. */
 .pack-grid img[src*="/images/logos/"] {
   width: 28px !important;
   height: 28px !important;
 }
 
-/* The strip under a pack page's title: tool count, auth style, import path.
-   Generated by scripts/generate_pack_docs.py, so it cannot drift from the pack.
-
-   These sit above the intro prose and answer the two questions a reader arrives
-   with, before the wire table forty rows down answers everything else. */
 .pack-summary {
   display: flex;
   flex-wrap: wrap;
@@ -500,12 +239,6 @@ body:has(#navigation-items a[href*="/packs/"]) #header .eyebrow + div {
   border-color: rgba(255, 255, 255, 0.16);
 }
 
-/* The pill glyphs — a wrench for the tool count, a shield for OAuth, a key for
-   an API key. The generator emits only the path data, so every one of them is
-   sized, stroked and colored here.
-
-   They inherit the pill's own color at 70% so the glyph reads as a marker for
-   the label rather than competing with it. */
 .pack-summary svg {
   width: 14px;
   height: 14px;
@@ -518,20 +251,6 @@ body:has(#navigation-items a[href*="/packs/"]) #header .eyebrow + div {
   opacity: 0.7;
 }
 
-/* The tool list on a pack page. Generated by scripts/generate_pack_docs.py, one
-   entry per exported tool: the name, the HTTP method, and what the tool does.
-
-   It replaced a four-column table. A table put the URL template in a column of
-   its own, which on Gmail meant nine rows of `gmail/v1/users/{userId}/…` — the
-   same forty characters of prefix down the page, with the four that differ at
-   the far right. The path and the quota cost are both on the tool's own page,
-   which is what the name links to, so the index carries the two facts a reader
-   is actually scanning for and lets the rows breathe.
-
-   The whole row is the link. A red chip on every name — the house treatment for
-   a symbol you can click — would be eighty-six of them stacked; in a list that
-   is nothing but links, the list is the affordance, and the accent is spent on
-   hover instead. */
 .tool-list {
   margin: 0 0 28px;
 }
@@ -539,15 +258,12 @@ body:has(#navigation-items a[href*="/packs/"]) #header .eyebrow + div {
 .tool-row {
   display: block;
   padding: 13px 2px;
-  /* Mintlify draws a link's underline as a border-bottom in the accent color,
-     which on a block-level row lands as a full-width red rule under every
-     entry. The divider below is this list's own. */
+
   border: 0;
   text-decoration: none !important;
   color: inherit;
 }
 
-/* The divider, on every entry after the first. */
 .tool-row + .tool-row {
   border-top: 1px solid rgba(0, 0, 0, 0.09);
 }
@@ -590,14 +306,6 @@ body:has(#navigation-items a[href*="/packs/"]) #header .eyebrow + div {
   color: rgba(255, 255, 255, 0.62);
 }
 
-/* The method pill, in the sidebar's own colors — Tailwind's 400 at 20% behind
-   the 700 in light mode and the 400 in dark. A reader who finds a tool in the
-   sidebar and then reads it here should not have to check that green means the
-   same thing twice.
-
-   DELETE is the one deviation: the sidebar abbreviates it to DEL and paints it
-   solid red on white, which is right for an eight-pixel column and shouts in a
-   body list, so it takes the translucent treatment the other three have. */
 .tool-row-method {
   flex: none;
   padding: 2px 5px;
@@ -646,35 +354,10 @@ body:has(#navigation-items a[href*="/packs/"]) #header .eyebrow + div {
   color: #f87171;
 }
 
-/* GitHub ships one monochrome mark, in near-black, which disappears against the
-   dark theme's background. Inverting is exact for a single-color glyph, and it
-   is the only logo in the set that needs it — every other brand mark carries its
-   own color and reads on both backgrounds. */
 .dark .pack-grid img[src*="/images/logos/github.svg"] {
   filter: invert(1);
 }
 
-/* Three treatments for three different things, so a reader can tell them apart
-   without hovering:
-
-     1. a link            — body-colored text, red underline, no chip
-     2. inline code       — quiet gray chip, muted text, never underlined
-     3. a reference link  — red chip *and* underline
-
-   Mintlify gives every prose link `class="link"` and leaves inline code
-   unclassed, so the three cases separate on structure alone: `a.link` with no
-   code inside, `code` with no link around it, and `a.link > code`. Case 3 is
-   the one that matters — it is how a guide points into the reference, and
-   before this it was a gray chip identical to the forty non-clickable ones
-   around it.
-
-   Red is the accent that marks *a destination*, never decoration. Code that
-   only names a symbol stays gray. */
-
-/* 1. Links. The text keeps the body color — an underline is enough to mark a
-      destination, and coloring the words red would spend the accent on every
-      sentence. The underline sits below the descenders at a hairline weight,
-      and saturates to full Signal Red on hover. */
 #content-area a.link:not(:has(code)) {
   text-decoration-line: underline;
   text-decoration-thickness: 1px;
@@ -694,16 +377,6 @@ body:has(#navigation-items a[href*="/packs/"]) #header .eyebrow + div {
   text-decoration-color: #e8586b;
 }
 
-/* 2. Inline code. `:not(pre) > code` excludes code blocks, which Mintlify emits
-      as a `<code>` directly inside the Shiki `<pre>`.
-
-      The two halves pull in opposite directions on purpose. The fill is lifted
-      just far enough off the page to give the chip an edge — on a near-black
-      background a 9% wash disappears and 15% starts competing with the prose,
-      so it sits at 12% — while the text is held *down* at 74%. Dark mode forces
-      body copy to pure white at the top of this file, and code inherited it, so
-      a chip used to read as emphasis. Legible box, quiet text: easy to find,
-      still ranked below the sentence, which is where a symbol name belongs. */
 #content-area :not(pre) > code {
   background-color: #ededee !important;
   color: #3f3f46 !important;
@@ -714,21 +387,6 @@ body:has(#navigation-items a[href*="/packs/"]) #header .eyebrow + div {
   color: rgba(255, 255, 255, 0.74) !important;
 }
 
-/* 3. Reference links — inline code wrapped in a link, i.e. a symbol you can
-      click through to its entry in the reference. It takes both signals: the
-      chip turns red so it separates from the gray chips at a glance, and the
-      underline stays so it still reads as a link rather than as highlighted
-      code.
-
-      The text stays red rather than white. White would sit at the same weight
-      as the body copy and leave the hue wash as the only thing separating a
-      reference from a gray chip; red keeps it on the same axis as the
-      underline — the one signal in prose that means "this goes somewhere."
-
-      Red carries less luminance than white at the same alpha, so these tints
-      run a few points above the gray chip's — 11% on paper, 15% on black — to
-      land at the same apparent lift. Both leave the red text above 4.5:1 on the
-      chip it sits on. */
 #content-area a.link:has(> code) {
   text-decoration-line: underline;
   text-decoration-thickness: 1px;
@@ -766,20 +424,6 @@ body:has(#navigation-items a[href*="/packs/"]) #header .eyebrow + div {
   background-color: rgba(232, 88, 107, 0.24) !important;
 }
 
-/* The line under the header, at the site's divider weight instead of 5%.
-
-   `#navbar-transition` is the pane the theme paints the header's background on,
-   and it carries the header's bottom border — the one edge separating all of the
-   chrome from all of the content. It ships at `gray-500/5` on paper and 6% on
-   black, which on this background is not a line, it is the memory of one. These
-   are the sidebar divider's own values, so the site has one divider weight
-   rather than three.
-
-   Colour only. The border is already 1px of box in the theme's own layout, so
-   repainting it moves nothing — which matters more here than anywhere else in
-   this file: the header is parsed at ~21KB and this stylesheet at ~62KB, so the
-   chrome can be on screen before these rules are read. The same 40KB is what
-   put a step in the sidebar until its divider was moved out of flow. */
 #navbar-transition {
   border-bottom-color: rgba(0, 0, 0, 0.09) !important;
 }
@@ -788,31 +432,12 @@ body:has(#navigation-items a[href*="/packs/"]) #header .eyebrow + div {
   border-bottom-color: rgba(255, 255, 255, 0.11) !important;
 }
 
-/* Dark mode: the chrome (tabs, navbar) defaults to gray-400. Read it as white
-   instead, leaving the primary-colored active states alone so the current tab is
-   still obvious. The sidebar and the table of contents are not in this list —
-   they run their own idle/hover/current scales. */
 .dark header .nav-tabs a:not([class*="text-primary"]),
 .dark header [class*="navbar"] a {
   color: #ffffff !important;
 }
 
-/* The navbar's PyPI button, inverted rather than brand-filled.
-
-   Mintlify paints its primary CTA with `colors.dark`, which here is Charter's
-   red, and a filled red control in a developer navbar reads as destructive
-   before it reads as branded. Inverted against the page it is the highest
-   contrast thing in the bar and still claims nothing about danger. The red keeps
-   the places where it can only mean Charter: the logo, the active tab, the link
-   underlines.
-
-   The theme draws the fill as an absolutely positioned span behind the label,
-   and paints the label and its arrow `text-white`, so all three are repainted
-   here. Hover dims the fill explicitly, and the theme's own `opacity: 0.9` on
-   the same element is switched off: on the light theme it lightened a near-black
-   pill, which reads as releasing the button rather than pressing it. */
 #topbar-cta-button a > span.absolute {
-  background-color: #18181b !important;
   border-radius: 6px !important;
 }
 
@@ -840,48 +465,15 @@ body:has(#navigation-items a[href*="/packs/"]) #header .eyebrow + div {
   color: #18181b !important;
 }
 
-/* One assistant entry point instead of two.
-
-   Mintlify hard-codes both and offers a setting for neither: a button beside the
-   search bar, and a floating composer pinned to the bottom of every page.
-   `assistant` appears in docs.json only as a contextual option, and the
-   dashboard switch turns the whole assistant on or off — so the bar goes here.
-
-   It is the full width of the content column and draws a 200px background fade
-   behind itself as a `::before`, which is the part that makes it a second
-   permanent input competing with the page's last paragraph on every page of the
-   site. The header button says the same thing without taking a row.
-
-   The element lands ~283KB into the document, long after this stylesheet, so it
-   is hidden before it is ever painted rather than removed after. */
 [data-assistant-bar] {
   display: none !important;
 }
 
-/* The CTA keeps its colors — inverted, filled, no border, which is what makes it
-   the one control in the bar that is obviously the action — and takes only the
-   geometry. `py-2` on a 20px line box is a 36px button; the height is stated
-   instead, and the padding closes to 10px with 8px on the chevron's side, which
-   carries its own optical space. */
 #topbar-cta-button a {
   height: 32px;
   padding: 0 10px !important;
 }
 
-/* The chevron goes. Mintlify appends one to every CTA, which is right for a
-   button whose label names a place inside the docs and wrong for one whose
-   label names the repository: the arrow says "onward", and this button says
-   "off this site entirely". The mark says that better, and says which site.
-
-   It is drawn as a mask rather than an <img> so it takes `currentColor`, which
-   is the only way one glyph can sit on both pills — white on the near-black
-   fill the light theme uses, near-black on the white one the dark theme uses.
-   The path is GitHub's own, the same 24x24 mark already in images/logos, inlined
-   because a `url()` to that file would resolve against the site root and the
-   docs are served under /charter.
-
-   `::before` on a flex container is a flex item, so it lands ahead of the label
-   in the same row the chevron used to end. */
 #topbar-cta-button a svg {
   display: none !important;
 }
@@ -900,31 +492,6 @@ body:has(#navigation-items a[href*="/packs/"]) #header .eyebrow + div {
   mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20d%3D%22M12%20.297c-6.63%200-12%205.373-12%2012%200%205.303%203.438%209.8%208.205%2011.385.6.113.82-.258.82-.577%200-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422%2018.07%203.633%2017.7%203.633%2017.7c-1.087-.744.084-.729.084-.729%201.205.084%201.838%201.236%201.838%201.236%201.07%201.835%202.809%201.305%203.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93%200-1.31.465-2.38%201.235-3.22-.135-.303-.54-1.523.105-3.176%200%200%201.005-.322%203.3%201.23.96-.267%201.98-.399%203-.405%201.02.006%202.04.138%203%20.405%202.28-1.552%203.285-1.23%203.285-1.23.645%201.653.24%202.873.12%203.176.765.84%201.23%201.91%201.23%203.22%200%204.61-2.805%205.625-5.475%205.92.42.36.81%201.096.81%202.22%200%201.606-.015%202.896-.015%203.286%200%20.315.21.69.825.57C20.565%2022.092%2024%2017.592%2024%2012.297c0-6.627-5.373-12-12-12%22%2F%3E%3C%2Fsvg%3E") center / contain no-repeat;
 }
 
-/* The table of contents, rebuilt as the rail Vercel uses.
-
-   Four things separate Mintlify's from that one, and they are independent, so
-   they are fixed in order below: when it appears, the heading above it, the rail
-   beside it, and the color scale inside it. */
-
-/* 1. When it appears.
-
-   Mintlify hides the contents below xl (1280px), which is wider than a MacBook's
-   own window — the panel a reader needs to navigate a long page is the first
-   thing the layout drops, and on a laptop it is never there at all. Vercel shows
-   it from lg (1024px) and it is still the right call here: the sidebar is
-   already 16rem by then, and a 15rem contents panel leaves the prose the ~30rem
-   it needs to stay readable.
-
-   Between the two breakpoints the panel is narrowed — 15rem of column against a
-   32px gutter, rather than 19rem against the theme's 48px flex gap plus its own
-   40px of padding — because every pixel of it is borrowed from the prose, and
-   the headings it lists are short enough to survive the trim. That keeps the
-   body around 500px at 1100px of viewport, wide enough to still read as prose.
-   From 1280px up the theme's own measurements fit, and are left alone.
-
-   The panel is hidden twice — the column and the sticky wrapper around it both
-   carry `hidden xl:flex` — so both are unhidden, and the wrapper is given back
-   the `xl:flex-col` it only has above the breakpoint. */
 @media (min-width: 1024px) {
   div:has(> #table-of-contents),
   div:has(> div > #table-of-contents) {
@@ -951,20 +518,6 @@ body:has(#navigation-items a[href*="/packs/"]) #header .eyebrow + div {
   }
 }
 
-/* 2. The heading.
-
-   "On this page" ships as a button — an icon, medium weight, near-body color —
-   that collapses the list. It is the same size as the entries it heads, so the
-   panel opens with its label as the loudest line in it, and the icon adds a
-   glyph that means nothing the words do not already say.
-
-   It is a label, not a control, so it is styled as the one label these docs
-   already have: the sidebar's group header, to the point of the same rule.
-   Pointer events come off with it — a label that highlights under the cursor is
-   promising an action it no longer performs.
-
-   The icon is hidden rather than removed, so the button's `space-x-2` still
-   sees a first child to skip; the span's own 8px margin has to go with it. */
 #table-of-contents nav > h2 {
   padding-bottom: 8px;
 }
@@ -990,27 +543,6 @@ body:has(#navigation-items a[href*="/packs/"]) #header .eyebrow + div {
   color: rgba(255, 255, 255, 0.45) !important;
 }
 
-/* 3. The rail.
-
-   A hairline down the left of the list, with the entry you are reading marked by
-   a solid segment of it. That segment is what makes the panel a position
-   indicator rather than a list of links: it moves as the page scrolls, so where
-   you are is legible from the shape of the rail without reading a word of it.
-
-   The rail hangs off `ul.toc`, the one list that wraps every level, so it spans
-   the whole contents including nested entries. Everything then indents 1rem off
-   it — added to the theme's own `--toc-padding-left` rather than replacing it,
-   which keeps each level's step and the focus ring's 0.25rem nudge intact.
-
-   The marker goes on the anchor, not on the `li`: a top-level `li` contains its
-   own children, so a marker there would run the height of the whole subtree
-   instead of the one row that is current. Inset 4px top and bottom, it leaves a
-   24px segment on a 32px row.
-
-   Mintlify keeps `data-active` on an ancestor while one of its children is
-   current, which puts two marks on the rail at once — and a rail that says you
-   are in two places has stopped being a position indicator. The ancestor's mark
-   is dropped: the deepest active entry is the one you are actually reading. */
 #table-of-contents ul.toc {
   position: relative;
 }
@@ -1054,14 +586,6 @@ body:has(#navigation-items a[href*="/packs/"]) #header .eyebrow + div {
   background-color: rgba(255, 255, 255, 0.92);
 }
 
-/* 4. The color scale.
-
-   Mintlify marks the current heading in the accent — red text, and a faux-bold
-   text-shadow under it — which spends the accent on where you already are, the
-   same inversion the sidebar rows undo above. The rail already says which entry
-   is current; the text only has to come forward to meet it. So the scale is
-   contrast, not hue: idle sits back, hover and current come to full, and the
-   accent stays with destinations. */
 #table-of-contents li.toc-item > a {
   color: rgba(24, 24, 27, 0.6) !important;
   text-shadow: none !important;
@@ -1092,39 +616,6 @@ body:has(#navigation-items a[href*="/packs/"]) #header .eyebrow + div {
 .dark #table-of-contents li.toc-item:has(li[data-active]) > a:not(:hover) {
   color: rgba(255, 255, 255, 0.6) !important;
 }
-
-/* ---------------------------------------------------------------------------
-   Code blocks.
-
-   Four things, in this order: a palette, the cell, the highlighted line, and
-   the tab bar a <CodeGroup> puts above it.
-
-   The palette is the interesting one. Mintlify renders through Shiki with two
-   themes at once — github-light-default for light, dark-plus for dark — and
-   emits both colors inline on every span:
-
-       <span style="color:#0550AE;--shiki-dark:#4EC9B0">str</span>
-
-   Light mode reads the `color`; a theme rule swaps in `--shiki-dark` for dark.
-   Neither theme is settable from docs.json, but that inline pair is a *token
-   class*: the two hexes together say what Shiki decided the token was, more
-   precisely than either says alone. #0550AE alone is types, numbers, functions
-   and constants all at once; #0550AE paired with #4EC9B0 is a type and nothing
-   else. Twenty-one pairs cover every block on the site — the set was read off
-   the rendered HTML of all 56 pages, so it is closed, not guessed — and they
-   collapse to nine roles. Matching the pair and restating the color is
-   therefore a real syntax theme, written in CSS.
-
-   The two overridden rules both carry !important — the inline style in light
-   mode, `html.dark .shiki span` in dark — so every rule here needs !important
-   and, for dark, more specificity than (0,2,2). The `#content-area` id carries
-   that on its own. Hex case is Shiki's, but the `i` flag means a future
-   lowercase build still matches.
-
-   One role has no Shiki token behind it: punctuation. Shiki hands back
-   identifiers, dots, brackets and commas in a single "everything else" bucket,
-   which is why unstyled code reads as a wall of white. code-blocks.js splits
-   that bucket's text — `.tok-punct` below is the half it marks. */
 
 :root {
   --code-bg: #ffffff;
@@ -1166,19 +657,6 @@ html.dark {
   --tok-prop: #5fd3c4;
 }
 
-/* Nine roles, keyed on the dark hex.
-
-   The dark half of the pair is the reliable half. After hydration React writes
-   these styles back through the CSSOM, which normalizes `color:#0A3069` into
-   `color: rgb(10, 48, 105)` but leaves the custom property's text alone — so
-   the light hex is only in the DOM until the page becomes interactive, and the
-   dark hex is there the whole time. The two hex sets are disjoint, so matching
-   a dark hex on its own is unambiguous.
-
-   Eleven of the pairs are settled by that hex alone. Five are not: four token
-   classes share dark-plus's #D4D4D4, two share #9CDCFE, two share #569CD6. Each
-   of those is given the majority reading here and corrected below, where the
-   light half of the pair is finally needed. */
 #content-area pre.shiki,
 #content-area .shiki span[style*="#D4D4D4" i],
 #content-area .shiki span[style*="#4FC1FF" i] {
@@ -1206,39 +684,24 @@ html.dark {
   color: var(--tok-number) !important;
 }
 
-/* Types, both where they are used and where they are declared. */
 #content-area .shiki span[style*="#4EC9B0" i] {
   color: var(--tok-type) !important;
 }
 
-/* Anything callable, and the names being declared as callable: a `def`, a
-   decorator, a builtin, a shell command. */
 #content-area .shiki span[style*="#DCDCAA" i] {
   color: var(--tok-fn) !important;
 }
 
-/* Named slots: keyword arguments, function parameters, JSON keys, shell flags.
-   Every one of them is a name on the left of a value. */
 #content-area .shiki span[style*="#9CDCFE" i],
 #content-area .shiki span[style*="#569CD6" i] {
   color: var(--tok-prop) !important;
 }
 
-/* The five corrections.
-
-   These need the light half to tell them apart from the class they share a dark
-   hex with, so each is written twice — once against the hex the server sends,
-   once against the rgb() the CSSOM leaves behind. Specificity is identical to
-   the rules above; they win on source order, which is why they are last. */
-
-/* Operators — `=`, `|`, `*` — read with the keywords, not with the identifiers
-   they sit between. */
 #content-area .shiki span[style*="#CF222E;--shiki-dark:#D4D4D4" i],
 #content-area .shiki span[style*="rgb(207, 34, 46); --shiki-dark: #D4D4D4" i] {
   color: var(--tok-keyword) !important;
 }
 
-/* Module constants and `__dunder__` names, with the literals. */
 #content-area .shiki span[style*="#0550AE;--shiki-dark:#D4D4D4" i],
 #content-area .shiki span[style*="rgb(5, 80, 174); --shiki-dark: #D4D4D4" i],
 #content-area .shiki span[style*="#0550AE;--shiki-dark:#9CDCFE" i],
@@ -1246,35 +709,16 @@ html.dark {
   color: var(--tok-number) !important;
 }
 
-/* TOML table and key names. */
 #content-area .shiki span[style*="#953800;--shiki-dark:#D4D4D4" i],
 #content-area .shiki span[style*="rgb(149, 56, 0); --shiki-dark: #D4D4D4" i] {
   color: var(--tok-prop) !important;
 }
 
-/* `def` and `class` — the keyword that introduces a name reads with the name,
-   not with `import`. */
 #content-area .shiki span[style*="#CF222E;--shiki-dark:#569CD6" i],
 #content-area .shiki span[style*="rgb(207, 34, 46); --shiki-dark: #569CD6" i] {
   color: var(--tok-fn) !important;
 }
 
-/* The cell.
-
-   Mintlify draws two different blocks depending on whether the fence carries a
-   title. With one, there is a header row holding the filename and the copy
-   button. Without, the copy button floats over the code and there is no header
-   at all. Both are given the same chrome here: a 40px bar with the language's
-   mark, a label, and the copy button at the right end.
-
-   The header a titleless block does not have is drawn with the two pseudo-
-   elements on .code-block — ::before is the bar and the language name,
-   ::after is the mark. That is one more visual than there are pseudo-elements,
-   so the bar and the label share ::before: the bar is its background and the
-   label is its content, read out of --code-lang-name.
-
-   The mark is a mask, not an image, so a single data URI per language colors
-   itself from --code-chrome-fg in both themes. */
 #content-area .code-block,
 #content-area .code-group [data-component-part="code-block-root"] {
   --code-lang-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 4.5 2.5 8 6 11.5M10 4.5 13.5 8 10 11.5'/%3E%3C/svg%3E");
@@ -1324,7 +768,6 @@ html.dark {
   background: var(--code-bg) !important;
 }
 
-/* The header a titled block already has. */
 #content-area [data-component-part="code-block-header"] {
   height: 40px;
   align-items: center;
@@ -1351,16 +794,6 @@ html.dark {
   mask: var(--code-lang-mark) center / 16px 16px no-repeat;
 }
 
-/* The header a titleless block does not have.
-
-   Matched on the block's own `data-has-header`, never on whether the header is
-   among its children. Mintlify streams the page, so a titled block spends the
-   first part of its life with its header not yet parsed — `:not(:has(> …))` is
-   true for that whole window, and every titled block on the page took the 40px
-   bar and the 40px of padding under it, then dropped both the moment the header
-   arrived. That is a reflow per code block, mid-load, under text the reader can
-   already see. The attribute is written on the opening tag, so it is known
-   before the first child is read and the answer never changes. */
 #content-area .code-block:not([data-has-header])::before {
   content: var(--code-lang-name);
   position: absolute;
@@ -1386,9 +819,6 @@ html.dark {
   padding-top: 40px !important;
 }
 
-/* With a header now above it, the copy button that used to float over the first
-   line of code moves up into that bar, where the titled block already keeps
-   its own. */
 #content-area .code-block [data-floating-buttons] {
   top: 0 !important;
   right: 6px !important;
@@ -1396,11 +826,6 @@ html.dark {
   align-items: center;
 }
 
-/* Two things existed only to keep the floating button legible over code: a
-   99px gradient masking the first line under it, and 99px of right padding on
-   the code itself to keep text out from under it. Both are dead weight now that
-   the button sits in an opaque bar — and the gradient, which is exactly as tall
-   as that bar, showed through it as a seam. */
 #content-area .code-block > .code-block-fade-overlay {
   display: none;
 }
@@ -1420,11 +845,6 @@ html.dark {
   color: var(--code-chrome-fg-strong) !important;
 }
 
-/* A highlighted line — ```python {6,8} — in blue rather than the site's crimson,
-   which everywhere else on the page means "this is a link" or "you are here".
-   Mintlify paints the band in three pieces: the line itself, and a ::before and
-   ::after that bleed it out over the block's horizontal padding. The rule down
-   the left edge is the ::before's border. */
 #content-area .line-highlight,
 #content-area .line-highlight::before,
 #content-area [data-component-part="code-block-root"]:not(.has-line-numbers) .line-highlight::after {
@@ -1435,30 +855,11 @@ html.dark {
   border-left: 2px solid var(--code-mark-rule) !important;
 }
 
-/* A comment inside a highlighted line is a step label, not an aside.
-
-   Everywhere else a comment is deliberately recessive, because it is
-   commentary on code the reader came for. In the numbered walkthrough on the
-   front page the relationship is inverted: the comments are the six steps
-   being counted, and the code under them is the evidence. Left at the
-   recessive grey they read as dim text sitting on a blue band, which is two
-   signals arguing. Taking the rule's own blue makes the band and the label one
-   mark.
-
-   The selector has to repeat the shiki colour match because that rule is
-   `!important` and would otherwise win on order. */
 #content-area .line-highlight .tok-punct,
 #content-area .line-highlight span[style*="#6A9955" i] {
   color: var(--code-mark-rule) !important;
 }
 
-/* The tab bar over a <CodeGroup>.
-
-   Mintlify keeps the tabs inside the card, as its top row. They are lifted out
-   and set above it instead: an underline row, hairline across the full width,
-   the card below with its own border. The bar is where the group's copy button
-   lives, so the card underneath carries no header of its own — the tab is the
-   label. */
 #content-area .code-group {
   border: 0 !important;
   padding: 0 !important;
@@ -1476,9 +877,6 @@ html.dark {
   gap: 0 !important;
 }
 
-/* 13px and an 18px gap, not the 15px the reference uses: these labels are whole
-   filenames — "Cursor (.cursor/mcp.json)" — and four of them have to fit on one
-   row above a code block that is narrower than a marketing page. */
 #content-area [data-component-part="code-group-tab-bar"] [role="tab"] {
   margin: 0 18px 0 0 !important;
   padding: 0 0 10px !important;
@@ -1494,8 +892,6 @@ html.dark {
   color: var(--code-chrome-fg-strong) !important;
 }
 
-/* The label's own hover chip — a rounded gray fill behind the text — is what
-   the underline replaces. */
 #content-area [data-component-part="code-group-tab-bar"] [role="tab"] > div:first-child {
   padding: 0 !important;
   background: transparent !important;
@@ -1514,15 +910,6 @@ html.dark {
   background: var(--code-bg) !important;
 }
 
-/* The card under the tabs keeps the chrome every other block on the site has:
-   the language's mark, its name, and the copy button, in the same 40px bar.
-
-   The tab bar says which version you are reading; the bar below says what it
-   is and copies it, which is the pair a reader already knows from every
-   untabbed block. Drawn the same way as on a titleless block — ::before is the
-   bar and the label, ::after is the mark — except that the card here is
-   code-block-root rather than .code-block, and the language attribute sits on
-   the <pre> inside it, which is why the table above matches it with :has(). */
 #content-area .code-group [role="tabpanel"] [data-component-part="code-block-root"] {
   position: relative;
   overflow: hidden;
@@ -1545,9 +932,6 @@ html.dark {
   color: var(--code-chrome-fg);
 }
 
-/* The tab's own label, copied onto the card by code-blocks.js. A
-   named block says its name here, exactly as an untabbed one does; the
-   language name above is what a group with unnamed tabs falls back to. */
 #content-area .code-group [data-component-part="code-block-root"][data-filename]::before {
   content: attr(data-filename);
 }
@@ -1565,11 +949,6 @@ html.dark {
   mask: var(--code-lang-mark) center / 16px 16px no-repeat;
 }
 
-/* Mintlify mints one copy button per group and puts it in the tab bar. It
-   belongs at the right end of the bar below, where every other block keeps it,
-   so it is moved there: `top: 100%` lands on the tab bar's own bottom edge and
-   the margin clears the gap to the card, which keeps the offset correct if the
-   tab row ever wraps. */
 #content-area [data-component-part="code-group-tab-bar"] {
   position: relative;
 }
@@ -1583,22 +962,6 @@ html.dark {
   margin-top: 14px;
 }
 
-/* The second shape a <CodeGroup> can take: the tabs inside the card's header.
-
-   Lifting the bar out is right when the tabs are two readings of one thing —
-   the same Gmail tool declared and hand-written — because the underline row
-   reads as a comparison and the card below stays a single object.
-
-   It is wrong when the tabs are three destinations for one line of code. On
-   /index the OpenAI, LangChain and MCP tabs are not versions to weigh against
-   each other; they are the same sentence addressed to whichever runner you
-   have. A lifted bar gives that choice the weight of an argument. Inside the
-   header it is what it is: a switch on a block, with the tab standing in for
-   the filename the way Mintlify ships it.
-
-   The page opts in with a wrapper, <div className="header-tabs">, and every
-   rule below is scoped to it and undoes one part of the lift. The default is
-   still the lifted bar, so no other group on the site moves. */
 #content-area .header-tabs .code-group {
   border: 1px solid var(--code-line) !important;
   border-radius: 12px !important;
@@ -1608,7 +971,6 @@ html.dark {
   --fade-width: 0px;
 }
 
-/* The bar becomes the 40px header every other block on the site carries. */
 #content-area .header-tabs [data-component-part="code-group-tab-bar"] {
   height: 40px;
   align-items: center;
@@ -1618,26 +980,17 @@ html.dark {
   border-bottom: 1px solid var(--code-line);
 }
 
-/* Tabs as tall as the bar. The underline is pinned to the tab's own bottom, so
-   a tab left at its label's height would centre in the bar and hang the mark in
-   mid-air; at 40px the mark lands on the header's bottom edge and covers the
-   hairline there, which is where an underline reads as one. */
 #content-area .header-tabs [data-component-part="code-group-tab-bar"] [role="tab"] {
   height: 40px;
   padding: 0 !important;
 }
 
-/* The copy button stays where Mintlify minted it, at the right end of the bar,
-   because the bar is now the header it was moved down to reach. */
 #content-area .header-tabs [data-component-part="code-group-tab-bar"] > div:last-child {
   position: static;
   height: auto;
   margin-top: 0;
 }
 
-/* The card underneath is the group's inside, not a card of its own: the border
-   and the drawn header belong to the wrapper now, and the wrapper's overflow
-   clips the corners, so the radius the card keeps is never on screen. */
 #content-area .header-tabs .code-group [role="tabpanel"] [data-component-part="code-block-root"] {
   border: 0;
   padding-top: 0 !important;
@@ -1648,40 +1001,10 @@ html.dark {
   content: none;
 }
 
-/* With no drawn header over it, the gradient that masks the first line under a
-   floating copy button has nothing left to hide behind, and no button to hide
-   for. */
 #content-area .header-tabs .code-block-fade-overlay {
   display: none;
 }
 
-/* Why the landing page's comparison is tabbed and not two columns.
-
-   Side by side was tried and does not survive the measurement. The content
-   column is 751px on a 1512px window, half of it holds about 44 characters of
-   the code font, and the hand-written example runs to 75 on its longest line.
-   Two columns turn both blocks into horizontal scrollers.
-
-   A <CodeGroup> shows one tab at a time, which was the objection to it: the
-   page would open on the hand-written version and the short answer would sit
-   behind a click. Ordering the tabs With Charter first answers that. The page
-   opens on the two-step version and the six-step one is one deliberate click
-   away, which is the click a reader makes on purpose.
-
-   The rules that laid out the stacked pair are gone with the markup. This note
-   stays because the measurement is the reason not to try it again. */
-
-/* The ownership diagram on /auth/oauth-flow, drawn by
-   scripts/generate_split_diagram.py into a light and a dark WebP.
-
-   Two files rather than one: the picture is mostly text, and text baked into a
-   raster cannot be recoloured by the page around it. Both are transparent, so
-   each one sits on whatever ground the theme is painting rather than carrying a
-   white or black rectangle into it.
-
-   The dark copy's alt is empty on purpose — only one of the pair is ever shown,
-   and a screen reader that ignores `display: none` would otherwise read the
-   same description twice. */
 .split-diagram {
   display: block;
   width: 100%;
@@ -1701,42 +1024,15 @@ html.dark {
   display: block;
 }
 
-/* The setup prompt's controls.
-
-   Two pills of the same shape: the one that copies, and the one that opens what
-   was copied. They are the page's first controls and the only ones whose job is
-   to be recognised rather than read, so the four marks sit after the label the
-   way a suffix reads, and the copy pill carries them while the other does not.
-
-   The copy pill is filled with the page's own opposite: white on the black
-   theme, near-black on the white one. That is the most contrast available
-   without spending a colour, and it leaves Charter's red free to mean Charter
-   somewhere else. Red is skipped here on purpose. In developer tooling a filled
-   red control is what deletes a database or revokes a key, and this one copies a
-   string. The second pill stays outlined, which is the whole of the hierarchy
-   between them.
-
-   Three of the four marks are drawn in currentColor, so they invert with the
-   pill they sit in. The Claude mark is its own orange in both themes, because
-   that is the colour it is recognised by. */
 .agent-setup {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 10px 12px;
 
-  /* The 28px this used to carry never reached the page: the next block is an h2
-     whose own ~32px top margin collapses with it, so the winner was 32 and the
-     controls sat right on top of the section below. 88 is the first value that
-     actually opens the gap, because it is the one that wins the collapse. */
-  /* Nothing on top: the content container sets `contain: inline-size`, which
-     stops it collapsing margins with its first child, so its own 32px already
-     separates the controls from the description above them. Anything added here
-     was stacked on that, not merged with it. */
   margin: 0 0 88px;
 }
 
-/* Shape only. The two pills part company on colour, below. */
 .agent-setup-btn,
 .agent-setup-read {
   display: inline-flex;
@@ -1748,16 +1044,13 @@ html.dark {
   border-radius: 999px;
   font-size: 14px;
   font-weight: 500;
-  /* The theme underlines every prose anchor, and this one is a control. */
+
   text-decoration: none !important;
   white-space: nowrap;
   transition: background-color 0.15s ease, border-color 0.15s ease,
     color 0.15s ease;
 }
 
-/* The primary control: the page, inverted. The border matches the fill rather
-   than being dropped, so the pill keeps the 42px height the outlined one has and
-   the two still line up on the row. */
 .agent-setup-btn {
   cursor: copy;
   border-color: #18181b;
@@ -1783,8 +1076,6 @@ html.dark {
   color: #18181b;
 }
 
-/* The secondary control: outlined, and the one of the two that could be read as
-   a sentence, so it keeps the border that says it is not. */
 .agent-setup-read {
   border-color: rgba(24, 24, 27, 0.14);
   background-color: #ffffff;
@@ -1812,28 +1103,10 @@ html.dark {
   color: rgba(255, 255, 255, 0.94);
 }
 
-/* Both labels occupy the same grid cell, so the pill is as wide as the longer
-   of them and confirming the copy moves nothing. The idle label is the one that
-   stays in the accessible name and only fades; the confirmation is decoration
-   over the top, announced instead from the status region.
-
-   The state lives on the root element, not on the button. Mintlify renders
-   the page with React, which strips an attribute this script writes onto a
-   node it owns within a few hundred milliseconds; <html> is outside the tree
-   it re-renders, so the confirmation survives long enough to be read. */
 .agent-setup-label > span {
   white-space: nowrap;
 }
 
-/* A hard swap, not a crossfade: only one label is in the box at a time, so the
-   pill resizes as it changes and the click has a visible consequence. The
-   confirmation is not aria-hidden, because while it shows it is the button's
-   name.
-
-   The state is a class on the root element rather than on the button. Mintlify
-   renders the page with React, which strips an attribute this script writes
-   onto a node it owns within a few hundred milliseconds; <html> is outside the
-   tree it re-renders, so the confirmation survives long enough to be read. */
 .agent-setup-label-done {
   display: none;
 }
@@ -1858,8 +1131,6 @@ html.dark {
   flex: none;
 }
 
-/* OpenCode's mark is drawn 32x40, so squaring it would stretch it. It keeps its
-   ratio and matches the others on height instead. */
 .agent-setup-logo-tall {
   width: auto;
   height: 17px;
@@ -1870,12 +1141,6 @@ html.dark {
   margin: -12px 0 28px;
 }
 
-/* Two things that exist for assistive technology only: the agent names the
-   logos carry, since the logos themselves are aria-hidden decoration, and the
-   copy confirmation, which is shown visually on the pill but has to be spoken
-   from a live region rather than inferred from a label that faded. Visually
-   hidden rather than display:none, which would take them out of the
-   accessibility tree along with everything else. */
 .agent-setup-sr,
 .agent-setup-status {
   position: absolute;
@@ -1889,9 +1154,6 @@ html.dark {
   border: 0;
 }
 
-/* On the narrowest phones the pills are close to the content column, so the
-   labels and their padding give up a little rather than letting the row decide
-   the page's minimum width. */
 @media (max-width: 460px) {
   .agent-setup-btn,
   .agent-setup-read {
@@ -1901,22 +1163,6 @@ html.dark {
   }
 }
 
-/* Prev/next: say which direction each one is.
-
-   Mintlify gives the row two chevrons and two page names and nothing that says
-   what the names are. A chevron alone is direction without a word for it, and
-   the name alone is a destination with no indication it is the previous rather
-   than the next thing — you have to know the sidebar order to read the row.
-
-   The words are generated rather than authored because the anchors are the
-   theme's, rebuilt on every navigation, so anything written into them by script
-   would be wiped on the next one.
-
-   Each anchor becomes a two-row grid with the chevron in its own column
-   spanning both, which is what keeps the arrow centred against the pair instead
-   of sitting on one line of it. The direction reads first and the destination
-   sits under it, and the whole thing mirrors: chevron outside on both sides,
-   text ranged toward the edge it points at. */
 #pagination .pagination-prev,
 #pagination .pagination-next {
   display: grid;
@@ -1935,9 +1181,6 @@ html.dark {
   text-align: right;
 }
 
-/* The label. Gray at regular weight and a step down in size, the same recessive
-   value the sidebar's group labels carry: this line says what kind of link it
-   is, and the page name stays the thing you are reading. */
 #pagination .pagination-prev::after,
 #pagination .pagination-next::before {
   grid-row: 1;
@@ -1975,16 +1218,6 @@ html.dark {
   grid-column: 1;
 }
 
-/* Spanning both rows is what centres the chevron against the stack.
-
-   The theme sizes it h-1.5 — six pixels, drawn for a single line of text, which
-   beside a two-line block reads as a speck. Doubling it to twelve is the whole
-   correction; going further made it compete with the words.
-
-   The stroke has to come down as it grows. It is declared in viewBox units, so
-   scaling the box scales the line with it: at 6px the width of 2 rendered as
-   2px, and at 12px it would render as 4. Halving it to 1 keeps the line the
-   weight it always was and only the arrow gets bigger. */
 #pagination .pagination-prev > [data-component-part="pagination-chevron"],
 #pagination .pagination-next > [data-component-part="pagination-chevron"] {
   grid-row: 1 / span 2;
@@ -2005,15 +1238,10 @@ html.dark {
   grid-column: 2;
 }
 
-/* The two lines are one link, so they read as a block rather than as a label
-   with a heading under it: no row gap, and the title's leading pulled in to what
-   it actually needs. */
 #pagination [data-component-part="pagination-title"] {
   line-height: 20px;
 }
 
-/* The theme lifts only the destination on hover. The label lifts with it, so the
-   whole target responds rather than half of it. */
 #pagination .pagination-prev:hover::after,
 #pagination .pagination-next:hover::before {
   color: rgba(24, 24, 27, 0.8);
@@ -2024,25 +1252,10 @@ html.dark {
   color: rgba(255, 255, 255, 0.75);
 }
 
-/* Air above the row, not a line across it. The pagination is not part of the
-   page's argument, it is what comes after it, and at 24px it sat close enough to
-   read as one more paragraph. The value has to beat the 24px below the content,
-   because adjacent margins collapse to the larger of the two rather than adding
-   up. */
 #pagination {
   margin-top: 56px;
 }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   The pack reference: tool pages and object pages
-   scripts/generate_pack_specs.py writes the markup these rules style.
-   ───────────────────────────────────────────────────────────────────────── */
-
-/* Method and route on one line, above the call. Together they are one fact —
-   which endpoint this tool is — and splitting them over two lines made the
-   route read as a stray string. The pill is the pack page's pill, class and
-   all, so the same method is the same color in the sidebar, in the tool list
-   and here. */
 .tool-route {
   display: flex;
   flex-wrap: wrap;
@@ -2051,9 +1264,6 @@ html.dark {
   margin-bottom: 20px;
 }
 
-/* The route is one token, so breaking it to fit splits a path segment down the
-   middle: `.../event` above `s`. It drops below the method pill when it cannot
-   sit beside it, and scrolls rather than wraps when it still does not fit. */
 .tool-route code {
   min-width: 0;
   max-width: 100%;
@@ -2071,15 +1281,6 @@ html.dark {
   color: rgba(255, 255, 255, 0.55);
 }
 
-/* A field is required or it is not, and that is the one thing a reader scans a
-   parameter table for. It rides beside the name rather than taking a column of
-   its own, because a fourth column costs every row width that the descriptions
-   need more.
-
-   An asterisk, not a word in a box. A filled pill reading REQUIRED is louder
-   than the field name it qualifies, it repeats down the column at the width of
-   a short identifier, and in red it spends the one color that means Charter on
-   a fact that is true of half the rows. */
 .required {
   margin-left: 3px;
   color: #c72c41;
@@ -2091,10 +1292,6 @@ html.dark {
   color: #e8586b;
 }
 
-/* The markers are the part of this reference no other catalogue prints: that a
-   value is re-encoded on the way out, that its key is spelled differently from
-   the rest of the pack. They sit under the type because that is what they
-   modify, and they are gray because they qualify the row rather than head it. */
 .markers {
   display: inline-flex;
   flex-wrap: wrap;
@@ -2118,9 +1315,6 @@ html.dark {
   color: rgba(255, 255, 255, 0.6);
 }
 
-/* Bounds the provider declared, at the end of its own prose. Muted, because a
-   reader looking for what a field means should reach the sentence first and the
-   range only if the sentence left them wondering. */
 .field-constraints {
   color: rgba(24, 24, 27, 0.5);
   font-size: 12px;
@@ -2130,16 +1324,6 @@ html.dark {
   color: rgba(255, 255, 255, 0.45);
 }
 
-/* Reference tables run wide — a provider's description is a paragraph, not a
-   phrase — and left to itself the browser sizes each table to its own content.
-   So no two agreed: `Event` gave its description 163px of a 610px row, less
-   than either column beside it, while the table under it split into equal
-   thirds. Fixed layout with declared widths is what makes every table on every
-   page read as the same table.
-
-   The split favors the description because that is the column carrying
-   sentences; the other two carry one identifier each. A long identifier breaks
-   across two lines rather than pushing the prose into a gutter. */
 .reference-table table {
   table-layout: fixed;
   width: 100%;
@@ -2165,26 +1349,11 @@ html.dark {
   overflow-wrap: break-word;
 }
 
-/* One column of literals. Full width like the tables around it, so a page of
-   objects and enums does not change shape halfway down. */
 .enum-table table {
   table-layout: fixed;
   width: 100%;
 }
 
-/* The model tree: what this category's shapes contain, before the tables that
-   say what is in each one. Divs, not a list — Mintlify's prose styles own `li`,
-   down to an absolutely positioned bullet, and a tree drawn with lists spends
-   its life outbidding them. Connectors are drawn rather than typed, so a name
-   stays selectable and a link stays a link.
-
-   The border and fill are the ones Mintlify gives a code block, so the tree
-   reads as a sibling of the sample above it rather than as prose that lost its
-   paragraph. Both are the page showing you something rather than telling you.
-
-   The box holds the frame and the scroller holds the content, because the copy
-   button model-tree.js puts in the corner has to stay where it is while the
-   tree scrolls under it. */
 .model-tree {
   position: relative;
   margin: 0 0 28px;
@@ -2198,24 +1367,9 @@ html.dark {
   background-color: rgba(255, 255, 255, 0.05);
 }
 
-/* `--default-mono-font-family` is the family Mintlify sets on every `code` and
-   `pre`, so naming it here is what makes the tree and the sample above it the
-   same typeface. The theme has no `--font-mono`; asking for one silently fell
-   back to the platform default and the two blocks were set differently. */
 .model-tree-scroll {
   padding: 18px 20px;
-  /* Sideways only. A capped height made this a scroll container, and a scroll
-     container eats the wheel: over gdocs' tree, a 560px window onto 1852px, the
-     page stopped moving until the pointer left the box. `overscroll-behavior:
-     contain` made it worse by refusing to chain even at the end. Three of the
-     seventeen category trees were long enough to do it.
 
-     So the tree is ordinary page content that scrolls with the page. It costs
-     gdocs a tall outline above its tables, which is honest — it has 52 models —
-     and the contents rail beside it still reaches any object in one click.
-
-     Vertical overflow cannot happen without a height, so naming `overflow-x`
-     alone leaves nothing to capture, whatever it computes `overflow-y` to. */
   overflow-x: auto;
   font-family: var(--default-mono-font-family, ui-monospace, monospace);
   font-size: 12.5px;
@@ -2265,14 +1419,6 @@ html.dark {
   text-decoration-color: currentColor;
 }
 
-/* The copy button, in the corner of the box and outside the scroller, so it
-   holds still while the tree moves under it. Idle until the box is hovered or
-   the button is tabbed to, the way the theme treats a code block's own copy
-   control: the tree is the content, and a button parked on top of it at full
-   strength competes with the first node for the same corner.
-
-   The two glyphs are stacked and cross-faded off data-copy rather than swapped,
-   so the button never changes size and nothing under it reflows. */
 .model-tree-copy {
   position: absolute;
   top: 10px;
@@ -2312,7 +1458,6 @@ html.dark {
   color: rgba(255, 255, 255, 0.8);
 }
 
-/* Both glyphs occupy the one cell; data-copy decides which is showing. */
 .model-tree-copy svg {
   grid-area: 1 / 1;
   transition: opacity 0.15s ease;
@@ -2323,15 +1468,10 @@ html.dark {
   opacity: 0;
 }
 
-/* Held visible while the check is showing, so the confirmation does not vanish
-   the moment the pointer leaves. No colour change: the check is the message,
-   and green here would be the same green the sidebar uses for GET. */
 .model-tree[data-copy="copied"] .model-tree-copy {
   opacity: 1;
 }
 
-/* On a model whose subtree is drawn at its first appearance and referenced
-   here. Muted, because it qualifies the node rather than naming it. */
 .model-tree .tree-note {
   color: rgba(24, 24, 27, 0.45);
   font-size: 11px;
@@ -2341,9 +1481,6 @@ html.dark {
   color: rgba(255, 255, 255, 0.4);
 }
 
-/* The heading over a run of tools in a pack's list, where the pack has more
-   than one category. Small and gray: it is a divider that happens to be a word,
-   not a heading competing with the ones the page's own outline is built from. */
 .tool-list-group {
   display: block;
   padding: 14px 2px 2px;
@@ -2362,11 +1499,6 @@ html.dark {
   color: rgba(255, 255, 255, 0.42);
 }
 
-/* The method beside a tool in the sidebar, from each page's `tag` frontmatter.
-   Mintlify paints every nav tag in the primary color, which here is Charter's
-   red and would say DELETE and GET in the same voice. These are the colors the
-   pack list and the tool page already use, so the three readings of one method
-   agree, and red goes back to meaning Charter. */
 .nav-tag-pill-text[data-nav-tag] {
   background-color: rgba(24, 24, 27, 0.06);
   color: rgba(24, 24, 27, 0.62);
