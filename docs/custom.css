@@ -742,6 +742,28 @@ body:has(#navigation-items a[href^="/packs/"]) #header .eyebrow + div {
   background-color: rgba(232, 88, 107, 0.24) !important;
 }
 
+/* The line under the header, at the site's divider weight instead of 5%.
+
+   `#navbar-transition` is the pane the theme paints the header's background on,
+   and it carries the header's bottom border — the one edge separating all of the
+   chrome from all of the content. It ships at `gray-500/5` on paper and 6% on
+   black, which on this background is not a line, it is the memory of one. These
+   are the sidebar divider's own values, so the site has one divider weight
+   rather than three.
+
+   Colour only. The border is already 1px of box in the theme's own layout, so
+   repainting it moves nothing — which matters more here than anywhere else in
+   this file: the header is parsed at ~21KB and this stylesheet at ~62KB, so the
+   chrome can be on screen before these rules are read. The same 40KB is what
+   put a step in the sidebar until its divider was moved out of flow. */
+#navbar-transition {
+  border-bottom-color: rgba(0, 0, 0, 0.09) !important;
+}
+
+.dark #navbar-transition {
+  border-bottom-color: rgba(255, 255, 255, 0.11) !important;
+}
+
 /* Dark mode: the chrome (tabs, navbar) defaults to gray-400. Read it as white
    instead, leaving the primary-colored active states alone so the current tab is
    still obvious. The sidebar and the table of contents are not in this list —
@@ -767,6 +789,7 @@ body:has(#navigation-items a[href^="/packs/"]) #header .eyebrow + div {
    pill, which reads as releasing the button rather than pressing it. */
 #topbar-cta-button a > span.absolute {
   background-color: #18181b !important;
+  border-radius: 6px !important;
 }
 
 #topbar-cta-button a:hover > span.absolute {
@@ -775,7 +798,7 @@ body:has(#navigation-items a[href^="/packs/"]) #header .eyebrow + div {
 }
 
 #topbar-cta-button a span:not(.absolute),
-#topbar-cta-button a svg {
+#topbar-cta-button a > div {
   color: #ffffff !important;
 }
 
@@ -789,8 +812,68 @@ body:has(#navigation-items a[href^="/packs/"]) #header .eyebrow + div {
 }
 
 .dark #topbar-cta-button a span:not(.absolute),
-.dark #topbar-cta-button a svg {
+.dark #topbar-cta-button a > div {
   color: #18181b !important;
+}
+
+/* One assistant entry point instead of two.
+
+   Mintlify hard-codes both and offers a setting for neither: a button beside the
+   search bar, and a floating composer pinned to the bottom of every page.
+   `assistant` appears in docs.json only as a contextual option, and the
+   dashboard switch turns the whole assistant on or off — so the bar goes here.
+
+   It is the full width of the content column and draws a 200px background fade
+   behind itself as a `::before`, which is the part that makes it a second
+   permanent input competing with the page's last paragraph on every page of the
+   site. The header button says the same thing without taking a row.
+
+   The element lands ~283KB into the document, long after this stylesheet, so it
+   is hidden before it is ever painted rather than removed after. */
+[data-assistant-bar] {
+  display: none !important;
+}
+
+/* The CTA keeps its colors — inverted, filled, no border, which is what makes it
+   the one control in the bar that is obviously the action — and takes only the
+   geometry. `py-2` on a 20px line box is a 36px button; the height is stated
+   instead, and the padding closes to 10px with 8px on the chevron's side, which
+   carries its own optical space. */
+#topbar-cta-button a {
+  height: 32px;
+  padding: 0 10px !important;
+}
+
+/* The chevron goes. Mintlify appends one to every CTA, which is right for a
+   button whose label names a place inside the docs and wrong for one whose
+   label names the repository: the arrow says "onward", and this button says
+   "off this site entirely". The mark says that better, and says which site.
+
+   It is drawn as a mask rather than an <img> so it takes `currentColor`, which
+   is the only way one glyph can sit on both pills — white on the near-black
+   fill the light theme uses, near-black on the white one the dark theme uses.
+   The path is GitHub's own, the same 24x24 mark already in images/logos, inlined
+   because a `url()` to that file would resolve against the site root and the
+   docs are served under /charter.
+
+   `::before` on a flex container is a flex item, so it lands ahead of the label
+   in the same row the chevron used to end. */
+#topbar-cta-button a svg {
+  display: none !important;
+}
+
+#topbar-cta-button a > div {
+  gap: 6px !important;
+}
+
+#topbar-cta-button a > div::before {
+  content: "";
+  flex: none;
+  width: 15px;
+  height: 15px;
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20d%3D%22M12%20.297c-6.63%200-12%205.373-12%2012%200%205.303%203.438%209.8%208.205%2011.385.6.113.82-.258.82-.577%200-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422%2018.07%203.633%2017.7%203.633%2017.7c-1.087-.744.084-.729.084-.729%201.205.084%201.838%201.236%201.838%201.236%201.07%201.835%202.809%201.305%203.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93%200-1.31.465-2.38%201.235-3.22-.135-.303-.54-1.523.105-3.176%200%200%201.005-.322%203.3%201.23.96-.267%201.98-.399%203-.405%201.02.006%202.04.138%203%20.405%202.28-1.552%203.285-1.23%203.285-1.23.645%201.653.24%202.873.12%203.176.765.84%201.23%201.91%201.23%203.22%200%204.61-2.805%205.625-5.475%205.92.42.36.81%201.096.81%202.22%200%201.606-.015%202.896-.015%203.286%200%20.315.21.69.825.57C20.565%2022.092%2024%2017.592%2024%2012.297c0-6.627-5.373-12-12-12%22%2F%3E%3C%2Fsvg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20d%3D%22M12%20.297c-6.63%200-12%205.373-12%2012%200%205.303%203.438%209.8%208.205%2011.385.6.113.82-.258.82-.577%200-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422%2018.07%203.633%2017.7%203.633%2017.7c-1.087-.744.084-.729.084-.729%201.205.084%201.838%201.236%201.838%201.236%201.07%201.835%202.809%201.305%203.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93%200-1.31.465-2.38%201.235-3.22-.135-.303-.54-1.523.105-3.176%200%200%201.005-.322%203.3%201.23.96-.267%201.98-.399%203-.405%201.02.006%202.04.138%203%20.405%202.28-1.552%203.285-1.23%203.285-1.23.645%201.653.24%202.873.12%203.176.765.84%201.23%201.91%201.23%203.22%200%204.61-2.805%205.625-5.475%205.92.42.36.81%201.096.81%202.22%200%201.606-.015%202.896-.015%203.286%200%20.315.21.69.825.57C20.565%2022.092%2024%2017.592%2024%2012.297c0-6.627-5.373-12-12-12%22%2F%3E%3C%2Fsvg%3E") center / contain no-repeat;
 }
 
 /* The table of contents, rebuilt as the rail Vercel uses.

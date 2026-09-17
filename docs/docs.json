@@ -1352,16 +1352,10 @@
     ]
   },
   "navbar": {
-    "links": [
-      {
-        "label": "GitHub",
-        "href": "https://github.com/r28ai/charter"
-      }
-    ],
     "primary": {
       "type": "button",
-      "label": "PyPI",
-      "href": "https://pypi.org/project/charter/"
+      "label": "GitHub",
+      "href": "https://github.com/r28ai/charter"
     }
   },
   "footer": {
