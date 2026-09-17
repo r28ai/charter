@@ -209,7 +209,20 @@ def _render_auth_short(tool: Tool) -> Tuple[str, str]:
 
 
 def _pill(icon: str, label: str) -> str:
-    return f'  <span><svg viewBox="0 0 24 24">{icon}</svg>{label}</span>'
+    """The glyph is drawn for readers and withheld from agents.
+
+    Mintlify serves every page twice: as HTML, and as the Markdown behind the
+    same URL with `.md` on the end, which is what a coding agent fetches. The
+    MDX source is what that Markdown is made of, so an inline `<svg>` ships its
+    whole path string into the agent's context — and this glyph says nothing the
+    label beside it does not already say in words. `Visibility` drops it from the
+    Markdown and leaves the HTML untouched: it renders as a fragment, so the
+    chip's span keeps the svg as its own first child and the CSS still reaches
+    it. Kept on one line because the whitespace inside the chip is load-bearing
+    — the label sits directly against the glyph, with no space between them.
+    """
+    glyph = f'<Visibility for="humans"><svg viewBox="0 0 24 24">{icon}</svg></Visibility>'
+    return f"  <span>{glyph}{label}</span>"
 
 
 def render_summary(pack: str, module: ModuleType) -> str:

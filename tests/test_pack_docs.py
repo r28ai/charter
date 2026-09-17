@@ -476,11 +476,11 @@ def test_the_summary_states_the_count_and_the_auth(pack):
     module = GEN.pack_module(pack)
     summary = GEN.blocks(pack)["summary"]
 
-    assert f"</svg>{len(module.TOOLS)} tools</span>" in summary
+    assert f"</Visibility>{len(module.TOOLS)} tools</span>" in summary
 
     oauth = module.TOOLS[0].credential_provider is not None
-    assert ("</svg>OAuth bearer</span>" in summary) is oauth
-    assert ("</svg>API key</span>" in summary) is not oauth
+    assert ("</Visibility>OAuth bearer</span>" in summary) is oauth
+    assert ("</Visibility>API key</span>" in summary) is not oauth
 
 
 @pytest.mark.parametrize("pack", PACKS)
@@ -490,11 +490,19 @@ def test_the_summary_pills_carry_a_glyph(pack):
     A wrench and a shield are different shapes; a shield on an API-key pack is
     the kind of wrong a reader believes, so the pairing is asserted rather than
     left to the renderer.
+
+    Both glyphs are drawn for readers only. The `.md` behind this page is what a
+    coding agent fetches, and it is made from this MDX, so an unwrapped `<svg>`
+    would spend the agent's context on a path string that says nothing the label
+    beside it does not already say. The wrapper is asserted here because nothing
+    on the rendered page would look wrong if it went missing.
     """
     module = GEN.pack_module(pack)
     summary = GEN.blocks(pack)["summary"]
 
     assert summary.count('<svg viewBox="0 0 24 24">') == 2
+    assert summary.count('<Visibility for="humans"><svg viewBox="0 0 24 24">') == 2
+    assert summary.count("</svg></Visibility>") == 2
     assert GEN._ICON_TOOLS in summary
 
     oauth = module.TOOLS[0].credential_provider is not None
