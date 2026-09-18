@@ -424,6 +424,12 @@ body:has(#navigation-items a[href*="/packs/"]) #header .eyebrow + div {
   background-color: rgba(232, 88, 107, 0.24) !important;
 }
 
+img[src*="/logo-light.svg"],
+img[src*="/logo-dark.svg"] {
+  width: auto !important;
+  height: 19px !important;
+}
+
 #navbar-transition {
   border-bottom-color: rgba(0, 0, 0, 0.09) !important;
 }

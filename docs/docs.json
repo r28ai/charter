@@ -4,7 +4,7 @@
   "name": "Charter Docs",
   "description": "The schema is the contract. Define AI-agent tools as Pydantic schemas.",
   "colors": {
-    "primary": "#FFFFFF",
+    "primary": "#C72C41",
     "light": "#E8586B",
     "dark": "#18181b"
   },
@@ -13,10 +13,12 @@
       "dark": "#000000"
     }
   },
-  "favicon": {
-    "light": "/docs/images/CHARTER-C-C72C41.svg",
-    "dark": "/docs/images/CHARTER-C-C72C41.svg"
+  "logo": {
+    "light": "/logo-light.svg",
+    "dark": "/logo-dark.svg",
+    "href": "/"
   },
+  "favicon": "/favicon.ico",
   "navigation": {
     "tabs": [
       {
