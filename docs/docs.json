@@ -1,10 +1,10 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "Charter",
+  "name": "Charter Docs",
   "description": "The schema is the contract. Define AI-agent tools as Pydantic schemas.",
   "colors": {
-    "primary": "#C72C41",
+    "primary": "#FFFFFF",
     "light": "#E8586B",
     "dark": "#18181b"
   },
@@ -13,7 +13,10 @@
       "dark": "#000000"
     }
   },
-  "favicon": "/favicon.svg",
+  "favicon": {
+    "light": "/docs/images/CHARTER-C-C72C41.svg",
+    "dark": "/docs/images/CHARTER-C-C72C41.svg"
+  },
   "navigation": {
     "tabs": [
       {
