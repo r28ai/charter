@@ -1,3 +1,5 @@
+<img src="https://raw.githubusercontent.com/r28ai/charter/main/docs/images/charter-mark-144.png" alt="" width="72" height="72">
+
 # Charter
 
 **Give an agent access to your users' accounts without giving it everything.**
@@ -572,3 +574,5 @@ uv run pyright --pythonpath .venv/bin/python src
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+Charter is built by [R28](https://r28.ai).
