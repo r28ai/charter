@@ -1,0 +1,45 @@
+---
+title: "What this can't express"
+sidebarTitle: "Limitations"
+description: "The edges of a declarative boundary — what belongs in your agent, and what is a real gap."
+---
+
+The boundary is declarative, and declarative has edges. Charter describes *one request*.
+
+## Out of scope by design
+
+These are orchestration, and orchestration belongs in your agent where you can debug it.
+
+- **Pagination loops.** Where the cursor lives *is* declared (`Pagination`), so you can page without knowing each API's convention — but the loop is yours to write.
+- **Multi-call compositions.** "Find the location key, then fetch its forecast" is two calls with a data dependency between them.
+- **Retry policies.** Backoff and partial-failure recovery. `APIError` carries `retry_after` when the server sent one, and you can pass a stable `Idempotency-Key` per call, but deciding whether and when to retry is yours.
+
+## Not yet supported
+
+Real gaps, named rather than hidden.
+
+- **Multipart bodies and file upload.** `body_format` covers JSON and form encoding; `multipart/form-data` (Slack `files.upload`, Drive, OpenAI files) is not there yet.
+- **Request signing.** AWS SigV4 and HMAC-signed payment APIs need to sign the serialised body, which needs a hook further down than the per-call header channel. Static headers, bearer tokens and per-call headers are covered.
+- **Pagination markers in response headers.** `Pagination` reads the body, in either the cursor or the page-number style. GitHub also advertises its next page in a `Link` header (RFC 8288); Charter hands back the parsed body, so that marker is not reachable. The page number is, which is why the GitHub pack declares it.
+- **Arbitrary GraphQL.** The document is a constant declared in `static_body`, and the variables are a typed schema — see the [Linear and Shopify packs](/packs/overview). What is not expressible is a *dynamic* selection set: each tool asks for the fields its document names. That is deliberate, since a model-authored query against a GraphQL endpoint is not a boundary, but it does mean one tool per operation.
+- **Streaming and long-polling responses.** Every call is a single request/response.
+
+The escape hatch for single-call shaping is `build_request` (pre-request) and `response_handler` (post-request). Anything spanning calls goes in your agent.
+
+## Two limits on the guarantee
+
+[Egress control](/boundary/egress-control) governs what crosses the boundary. What your own code does with a response afterwards is your prompt, not ours.
+
+And `Mode` is schema visibility, not authorization: it decides what a tool exposes, never who may call it. [`ToolSession(tools, mode=...)`](/reference/tool-discovery#the-mode-a-session-resolves) resolves the view once per conversation, so a surface can be keyed to a plan or a region. It resolves when the session is built and not per call, because a schema already serialised into a prompt cannot change under the model reading it.
+
+## Authentication
+
+Charter refreshes a grant you already hold. The consent redirect, `state`, PKCE and the callback route belong to your web framework — [`OAuth2Flow`](/auth/oauth-flow) builds the authorization URL and exchanges the code, and stops there.
+
+Nothing here signs anything, so JWT-bearer and service-account grants are out of scope by the same rule that excludes request signing.
+
+## Roadmap
+
+- **Policy markers** — `HITL`, `Budget`, `Approve` as first-class field and tool markers, so approval rules live in the schema next to everything else. `quota_cost` and `action_label` are already carried for exactly this.
+- **Referential-integrity provenance** for identifier fields, so a model cannot pass an ID it never legitimately obtained.
+- **A public API drift observatory** — detecting when an upstream API changes shape under a schema that claims to match it.

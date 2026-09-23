@@ -1,0 +1,183 @@
+---
+title: "Tavily"
+description: "Real-time web search, extraction, crawling, mapping, and cited research for AI agents."
+sidebarTitle: "Overview"
+---
+
+{/* generated:summary start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="pack-summary">
+  <span><Visibility for="humans"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg></Visibility>9 tools</span>
+  <span><Visibility for="humans"><svg viewBox="0 0 24 24"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4" /><path d="m21 2-9.6 9.6" /><circle cx="7.5" cy="15.5" r="5.5" /></svg></Visibility>API key</span>
+</div>
+{/* generated:summary end */}
+
+```python tavily_example.py {7}
+import os
+
+from charter.packs import tavily
+
+tavily.configure(api_key=os.environ["TAVILY_API_KEY"])
+
+results = await tavily.search.ainvoke(query="latest AI news", search_depth="advanced")
+```
+
+Tavily is the web layer for AI agents: search when sources are unknown, extract
+when the URL is already selected, map and crawl when a whole site needs to be
+read, and research when the output should be a cited synthesis.
+
+## Authenticating
+
+{/* generated:auth start — do not edit by hand; run scripts/generate_pack_docs.py */}
+This pack takes an API key in `Authorization`, and [`configure()`](/reference/configuration#configure) is optional when `$TAVILY_API_KEY` is set.
+
+There is no authorization server, no consent screen and no refresh — [API keys](/auth/api-key-tool-factory) is the whole story.
+{/* generated:auth end */}
+
+The key is prefixed `tvly-…` and goes out as a bearer token.
+
+## The client
+
+{/* generated:wire start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<Note>
+[`api_key_tool_factory`](/reference/factories#api_key_tool_factory) is the whole client: a thin wrapper over `httpx` that attaches your key and these endpoint constants to each request. No vendor SDK enters your dependency tree.
+</Note>
+
+<div className="named-tabs" data-files="tavily_api_client.py|tavily_pack_client.py">
+<CodeGroup>
+
+```python Without the pack
+import os
+
+from charter import api_key_tool_factory
+
+api_key = os.environ["TAVILY_API_KEY"]
+
+tavily_api_client = api_key_tool_factory(
+    base_url="https://api.tavily.com/",
+    api_key_headers={"Authorization": f"Bearer {api_key}"},
+    pack="tavily",
+    body_format="json",
+    query_format="repeat",
+    body_case="snake",
+    query_case="snake",
+    path_case="snake",
+    # this API reports failure with an HTTP status code
+    envelope=None,
+)
+```
+
+```python With the pack
+import os
+
+from charter.packs import tavily
+
+tavily.configure(api_key=os.environ["TAVILY_API_KEY"])
+
+# The base URL, the casing, the envelope and the pagination are
+# already declared. 9 tools, ready to hand to a model:
+tools = tavily.TOOLS
+```
+
+</CodeGroup>
+</div>
+{/* generated:wire end */}
+
+## Tools
+
+Each is a [`Tool`](/reference/tool), called with
+[`ainvoke`](/reference/tool#tool-ainvoke) as in the snippet above.
+
+{/* generated:tools start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="tool-list">
+  <span className="tool-list-group">Search</span>
+  <a className="tool-row" href="/packs/tavily/search/search">
+    <span className="tool-row-head"><span className="tool-row-name">search</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Execute a real-time web search optimized for AI agents.</span>
+  </a>
+  <span className="tool-list-group">Extract</span>
+  <a className="tool-row" href="/packs/tavily/extract/extract">
+    <span className="tool-row-head"><span className="tool-row-name">extract</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Extract clean markdown or text from one or more known URLs.</span>
+  </a>
+  <span className="tool-list-group">Crawl</span>
+  <a className="tool-row" href="/packs/tavily/crawl/crawl">
+    <span className="tool-row-head"><span className="tool-row-name">crawl</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Graph-based website traversal with built-in extraction.</span>
+  </a>
+  <span className="tool-list-group">Map</span>
+  <a className="tool-row" href="/packs/tavily/map/map">
+    <span className="tool-row-head"><span className="tool-row-name">map</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Discover URLs on a site without extracting content.</span>
+  </a>
+  <span className="tool-list-group">Research</span>
+  <a className="tool-row" href="/packs/tavily/research/research_create">
+    <span className="tool-row-head"><span className="tool-row-name">research_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create an async research task that searches, analyzes sources, and generates a cited report.</span>
+  </a>
+  <a className="tool-row" href="/packs/tavily/research/research_get">
+    <span className="tool-row-head"><span className="tool-row-name">research_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Retrieve the status and results of a research task by request_id.</span>
+  </a>
+  <span className="tool-list-group">Usage</span>
+  <a className="tool-row" href="/packs/tavily/usage/usage">
+    <span className="tool-row-head"><span className="tool-row-name">usage</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get API key and account usage for the current billing cycle, broken down by endpoint type.</span>
+  </a>
+  <a className="tool-row" href="/packs/tavily/usage/logs">
+    <span className="tool-row-head"><span className="tool-row-name">logs</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Retrieve per-request usage logs for API keys under your account.</span>
+  </a>
+  <a className="tool-row" href="/packs/tavily/usage/org_usage">
+    <span className="tool-row-head"><span className="tool-row-name">org_usage</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Retrieve organization-wide usage, PayGo USD cost, and request counts across all API keys.</span>
+  </a>
+</div>
+{/* generated:tools end */}
+
+## What each tool is for
+
+`search` is the starting point when sources are unknown or current web context is
+needed. Prefer `search_depth="advanced"` with `chunks_per_source=3` for stronger
+evidence per source.
+
+`extract` reads one or more known URLs as markdown or text. Use it after search
+when the URL is already selected.
+
+`map` discovers URLs on a site without extracting content — useful before `crawl`
+to understand structure.
+
+`crawl` traverses a site graph and extracts page content. Use when many pages on
+a site need to be read.
+
+`research_create` starts an async research task that searches, analyzes sources,
+and generates a cited report. Poll with `research_get` until status is
+`completed`. SSE streaming is not exposed as a tool.
+
+`usage`, `logs`, and `org_usage` report credit consumption. `logs` requires a
+paid plan or pay-as-you-go; `org_usage` is enterprise-only and must authenticate
+with the organization owner's personal API key.
+
+## Gotchas
+
+<AccordionGroup>
+  <Accordion title="The wire is snake_case throughout">
+    Parameters, bodies and query strings are all snake_case. Tavily ignores
+    parameters it does not recognise, so a misspelled filter silently drops
+    rather than failing.
+  </Accordion>
+
+  <Accordion title="Research is async">
+    `research_create` returns a `request_id`. Poll with `research_get` — HTTP 202
+    means still running; HTTP 200 with `status: completed` carries the report.
+  </Accordion>
+
+  <Accordion title="Credits vary by depth">
+    Search costs 1 credit for `basic`/`fast`/`ultra-fast` and 2 for `advanced`.
+    Extract bills per five successful URLs; crawl and map bill per ten pages.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [Tavily API reference](https://docs.tavily.com/documentation/api-reference/introduction)
+- [The API-key factory](/auth/api-key-tool-factory)

@@ -1,0 +1,203 @@
+---
+title: "Packs"
+sidebarTitle: "Overview"
+---
+
+A pack is a set of tools already declared against one API. Configure the
+credential once and every tool in it is callable — the schemas, the wire contract,
+the failure convention and the pagination style are already written down.
+
+Doing it yourself is the slow part. One endpoint can pull in a dozen schemas that
+reference each other across as many pages, sometimes on a different site, and one
+field in the wrong place is a 400 you cannot reproduce. A pack is that reading
+already done, from the vendor's own docs, and [checked by the conformance
+suite](/guarantees/conformance). [Why Charter](/why-charter) is the longer answer
+to why the gap exists at all.
+
+## Coverage
+
+<div className="pack-grid">
+<Columns cols={3}>
+  <Card title="Gmail" icon="/images/logos/gmail.svg" href="/packs/gmail">
+    23 tools · OAuth bearer
+  </Card>
+
+  <Card title="Google Calendar" icon="/images/logos/gcalendar.svg" href="/packs/gcalendar">
+    13 tools · OAuth bearer
+  </Card>
+
+  <Card title="Google Sheets" icon="/images/logos/gsheets.svg" href="/packs/gsheets">
+    17 tools · OAuth bearer
+  </Card>
+
+  <Card title="Google Docs" icon="/images/logos/gdocs.svg" href="/packs/gdocs">
+    3 tools · OAuth bearer
+  </Card>
+
+  <Card title="Google Drive" icon="/images/logos/gdrive.svg" href="/packs/gdrive">
+    25 tools · OAuth bearer
+  </Card>
+
+  <Card title="Google Forms" icon="/images/logos/gforms.svg" href="/packs/gforms">
+    6 tools · OAuth bearer
+  </Card>
+
+  <Card title="Slack" icon="/images/logos/slack.svg" href="/packs/slack">
+    18 tools · OAuth bearer
+  </Card>
+
+  <Card title="GitHub" icon="/images/logos/github.svg" href="/packs/github">
+    139 tools · OAuth bearer
+  </Card>
+
+  <Card title="Stripe" icon="/images/logos/stripe.svg" href="/packs/stripe">
+    59 tools · API key
+  </Card>
+
+  <Card title="Linear" icon="/images/logos/linear.svg" href="/packs/linear">
+    128 tools · API key
+  </Card>
+
+  <Card title="Shopify" icon="/images/logos/shopify.svg" href="/packs/shopify">
+    22 tools · API key
+  </Card>
+
+  <Card title="Notion" icon="/images/logos/notion.svg" href="/packs/notion">
+    35 tools · OAuth bearer
+  </Card>
+
+  <Card title="Granola" icon="/images/logos/granola.svg" href="/packs/granola">
+    9 tools · API key
+  </Card>
+
+  <Card title="Firecrawl" icon="/images/logos/firecrawl.svg" href="/packs/firecrawl">
+    43 tools · API key
+  </Card>
+
+  <Card title="Tavily" icon="/images/logos/tavily.svg" href="/packs/tavily">
+    9 tools · API key
+  </Card>
+</Columns>
+</div>
+
+Every tool in every pack has its LLM schema built, its egress map checked
+against that schema, and its OpenAI function definition validated in the suite.
+
+## Compatibility with agents
+
+Every pack exports `TOOLS`, which is what an [adapter](/using/adapters) takes:
+
+```python packs_to_langchain_tools.py
+from charter.adapters.langchain import to_langchain_tools
+from charter.packs import gmail, slack
+
+tools = to_langchain_tools([*gmail.TOOLS, *slack.TOOLS])
+```
+
+`TOOLS` is the default list, not the complete one. A pack may build tools it
+leaves out.
+
+## What the hard cases taught the runtime
+
+<AccordionGroup>
+  <Accordion title="Slack — failure arrives as HTTP 200">
+    Slack reports failure as HTTP 200 with `{"ok": false, "error": "..."}`, so a
+    generic HTTP client hands the model an error payload as if the message had
+    sent.
+
+    That is not patched per tool. It is declared once, as an
+    [`Envelope`](/tools/envelopes) on the factory, and enforced by the runtime on
+    every call — including calls by tools somebody adds next year. The same one
+    line handles any GraphQL API, whose failures are always a 200 with an
+    `errors` array. [Read more](/packs/slack).
+  </Accordion>
+
+  <Accordion title="Stripe — form encoding and a derived cursor">
+    Form-encoded in both directions with bracket notation
+    (`line_items[0][price]=…`), and a cursor that is the last object's id rather
+    than a token the API hands back (`data[-1].id`). Both are declared once on
+    the factory. [Read more](/packs/stripe).
+  </Accordion>
+
+  <Accordion title="GitHub — OAuth plus constant headers">
+    A bearer token from your credential provider, alongside an `Accept`, an
+    `X-GitHub-Api-Version` and a `User-Agent` that GitHub requires and the model
+    must never see. Those go in `static_headers`.
+
+    GitHub also pages by number rather than by cursor — ask for page 1, 2, 3 and
+    stop when a page comes back short — which is the second pagination style
+    `Pagination` declares. [Read more](/packs/github).
+  </Accordion>
+
+  <Accordion title="Linear and Shopify — GraphQL, and why static_body exists">
+    Every tool in a GraphQL pack POSTs to the same URL. What makes `issues_list`
+    different from `issue_create` is the query document, which is a constant
+    belonging to the tool rather than a parameter. Putting it in `static_body`
+    keeps it off the schema entirely.
+
+    That is the whole boundary: a GraphQL endpoint accepts arbitrary documents,
+    so a tool that let the model write the query would not be an integration, it
+    would be a shell.
+
+    Both packs also carry a failure GraphQL's own `errors` array does not. A
+    mutation the server understood and then declined comes back HTTP 200, with no
+    `errors`, and the refusal in the payload — Linear's `success: false`,
+    Shopify's `userErrors`. Every signal a runtime normally trusts says the write
+    happened. So `Envelope` field names are paths, with `*` standing for
+    whichever operation the tool called:
+
+    ```python
+    from charter import Envelope
+
+    Envelope(errors_field=("errors", "data.*.userErrors"))
+    ```
+
+    Shopify additionally has no fixed host: a store lives at
+    `https://{shop}.myshopify.com/`, so its base URL is resolved per request from
+    `configure()` rather than being a schema field the model could point
+    elsewhere. [Linear](/packs/linear) · [Shopify](/packs/shopify).
+  </Accordion>
+</AccordionGroup>
+
+## Writing your own pack
+
+Fifteen packs will never cover the API you actually work with. That is the normal
+case, and the answer is not to wait for a sixteenth.
+
+A pack is declarations rather than integration code, which makes writing one
+small: the same
+[`oauth_tool_factory`](/reference/factories#oauth_tool_factory) or
+[`api_key_tool_factory`](/reference/factories#api_key_tool_factory) call that
+every pack page prints in full, then one schema per endpoint.
+
+And you mostly do not write it yourself. [The pack-writing
+skill](/start/coding-agents#the-pack-writing-skill) is a single markdown file that gives a coding agent the order
+to work in and the reading it must not skip, which is the step that decides
+whether a pack is right. The [conformance suite](/guarantees/conformance) then
+holds the result to the same rules as the fifteen above.
+
+### Improving existing packs
+
+A pack covers the endpoints most people reach for, not all of them. When yours is
+missing, `TOOLS` is an ordinary list:
+
+```python packs_extend.py
+from charter.packs import gmail
+
+# history_list is yours, built with the same factory the pack uses
+tools = [*gmail.TOOLS, history_list]
+```
+
+If a tool already in the pack declares something wrong, write your own and leave
+that one out. The runtime treats them the same. Either way the fix is worth
+sending back, because the next person hits the same thing.
+
+### Contributing it back
+
+A pack for an API you actually use is the most useful thing anyone can add here,
+and it does not need permission first. Open a
+[pack request](https://github.com/r28ai/charter/issues/new?template=pack_request.yml)
+so that two people do not write the same pack, then follow
+[the skill file](https://github.com/r28ai/charter/blob/main/skills/writing-charter-packs/SKILL.md).
+[CONTRIBUTING.md](https://github.com/r28ai/charter/blob/main/CONTRIBUTING.md)
+covers the setup and the rules the suite enforces anyway.

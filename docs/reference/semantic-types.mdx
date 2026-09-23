@@ -1,0 +1,150 @@
+---
+title: "Semantic types"
+description: "EmailContent, CalendarEvent, DocumentContent and FileContent: the shapes a model fills in before a transform encodes them."
+---
+
+A semantic type is what the model sees where the API wants an encoding. Pair one
+with a [`Format`](/reference/markers#format) marker and the field is an
+`EmailContent` in `llm_schema()` and a base64url RFC822 string on the wire.
+
+All four are Pydantic models, so they validate with the rest of the schema and
+appear in `to_json_schema()` with their field descriptions.
+
+## `EmailContent`
+
+An email message. Transformed by
+[`rfc822_base64`](/reference/transforms#built-in-transforms) for Gmail, or
+`email_json` for APIs that accept JSON.
+
+<ResponseField name="to" type="str | List[str]" required>
+  Recipient address, or addresses.
+</ResponseField>
+
+<ResponseField name="subject" type="str" required>
+  Subject line.
+</ResponseField>
+
+<ResponseField name="body" type="str" required>
+  Body content — plain text, or HTML when `mimeType` says so.
+</ResponseField>
+
+<ResponseField name="mimeType" type="Optional[str]">
+  `"text/plain"` (the default behaviour) or `"text/html"`.
+</ResponseField>
+
+<ResponseField name="bodyHtml" type="Optional[str]">
+  HTML version of the body. Supplied alongside `body`, the message goes out as
+  `multipart/alternative` with both parts.
+</ResponseField>
+
+<ResponseField name="cc" type="Optional[str | List[str]]">
+  Carbon copy recipients.
+</ResponseField>
+
+<ResponseField name="bcc" type="Optional[str | List[str]]">
+  Blind carbon copy recipients.
+</ResponseField>
+
+<ResponseField name="from_" type="Optional[str]">
+  Sender address. Aliased to `from` on the wire, and `populate_by_name` is on, so
+  both spellings validate. Defaults to the authenticated user.
+</ResponseField>
+
+<ResponseField name="reply_to" type="Optional[str]">
+  Reply-to address.
+</ResponseField>
+
+<ResponseField name="in_reply_to" type="Optional[str]">
+  Message-ID of the message being replied to. Required to keep a thread
+  together.
+</ResponseField>
+
+<ResponseField name="references" type="Optional[str]">
+  Space-separated Message-IDs tracing the thread, most recent first.
+</ResponseField>
+
+```python
+from typing import Annotated
+
+from pydantic import BaseModel
+from charter import Body, EmailContent, Format, Mode, Path
+
+
+class MessagesSend(BaseModel):
+    user_id: Annotated[str, Path()] = "me"
+    raw: Annotated[str, Body(), Format("rfc822_base64"), Mode("request_only")]
+```
+
+The field is typed `str` — the wire type — and the model is offered an
+`EmailContent`, because `Format` swaps in the transform's semantic type when the
+LLM schema is derived.
+
+## `CalendarEvent`
+
+An event, for calendar APIs.
+
+<ResponseField name="summary" type="str" required>
+  Event title.
+</ResponseField>
+
+<ResponseField name="start" type="datetime" required>
+  Start time.
+</ResponseField>
+
+<ResponseField name="end" type="datetime" required>
+  End time.
+</ResponseField>
+
+<ResponseField name="description" type="Optional[str]">
+  Detailed description.
+</ResponseField>
+
+<ResponseField name="location" type="Optional[str]">
+  Location.
+</ResponseField>
+
+<ResponseField name="attendees" type="Optional[List[str]]">
+  Attendee email addresses.
+</ResponseField>
+
+No transform is registered against `CalendarEvent`: Google Calendar takes a JSON
+body whose shape the schema declares directly. Use it where an API wants an
+event as one value, and register a transform for that API's encoding.
+
+## `DocumentContent`
+
+A document. Transformed by `document_json`.
+
+<ResponseField name="title" type="str" required>
+  Document title.
+</ResponseField>
+
+<ResponseField name="content" type="str" required>
+  Document content. Markdown is accepted.
+</ResponseField>
+
+<ResponseField name="metadata" type="Optional[Dict[str, Any]]">
+  Additional metadata.
+</ResponseField>
+
+## `FileContent`
+
+A file, as text. Transformed by `file_base64`.
+
+<ResponseField name="filename" type="str" required>
+  Name of the file.
+</ResponseField>
+
+<ResponseField name="content" type="str" required>
+  File content as text. Binary payloads are out of scope — a model produces
+  text.
+</ResponseField>
+
+<ResponseField name="mime_type" type="Optional[str]">
+  MIME type.
+</ResponseField>
+
+## Related
+
+- [Transforms](/tools/transforms) — how a semantic type reaches the wire
+- [`Format`](/reference/markers#format) — the marker that pairs the two

@@ -1,0 +1,98 @@
+---
+title: "Framework adapters"
+description: "Charter sits below your agent framework. A Tool is the object; these are projections of it."
+---
+
+Charter is not an agent framework and does not ship an agent loop. It is the layer your framework calls through, so an adapter is a projection of a [`Tool`](/reference/tool#tool): it hands the framework an argument schema and a coroutine, and execution stays in Charter.
+
+That means tools stay built once. The [credential lookup](/auth/authorization-servers) happens below every adapter, so [serving many users](/auth/authorization-servers) works unchanged whichever one you use — or none.
+
+<Note>
+**Every adapter publishes `<pack>__<tool>`.** Both factories require a `pack` for that reason, so a tool built by one always has a name an assembler can use. A [`Tool`](/reference/tool#tool) constructed directly does not — that case is for something you only ever `ainvoke` yourself — and publishing one is refused here rather than given a bare name that a `+stripe` filter or a log grep would silently miss. [The naming rules](/tools/naming) are the argument.
+</Note>
+
+## OpenAI
+
+```python openai_tools.py
+from charter.adapters.openai import to_openai_tools
+from charter.packs import gmail
+
+tools = to_openai_tools(gmail.TOOLS)
+```
+
+Plain function definitions — the same JSON Schema [`Tool.to_json_schema`](/reference/tool#tool-to_json_schema) produces — so this needs no extra. The same output works anywhere the OpenAI tool format is accepted.
+
+## LangChain
+
+```python langchain_tools.py
+from charter.adapters.langchain import to_langchain_tools
+from charter.packs import gmail
+
+tools = to_langchain_tools(gmail.TOOLS)
+```
+
+Returns a `StructuredTool` per tool, whose `args_schema` is the Charter LLM view ([`Tool.llm_schema`](/reference/tool#tool-llm_schema)) and whose coroutine is [`Tool.ainvoke`](/reference/tool#tool-ainvoke). LangChain supplies the calling convention; it does not touch serialization, casing, or field policy.
+
+Validation failures surface the way LangChain expects, so a model that sends a malformed argument gets a message it can act on rather than a stack trace. See [tool validation and error handling](/running/tool-validation-error-handling).
+
+<Warning>
+  **Do not let a client flatten the schema on the way out.** Charter emits `$ref`/`$defs`, and support for references in tool schemas is uneven, so some code resolves them before sending. Resolving is multiplicative, and against a cyclic schema — Linear's GraphQL filters, for instance — there is no size it converges to. `langchain_core` 1.6.1 does this in `convert_to_openai_function`, which calls `dereference_refs` and discards `$defs`; on the uncurated `linear.teams_list_full` it had not returned after 45 seconds and had allocated 1.92 GB.
+
+  `to_langchain_tools` does not do this. If something downstream of you does, the fix is to [remove the cycle with a projection](/optimization/context-window#clients-that-flatten-make-it-worse) rather than to bound the expansion.
+</Warning>
+
+This one needs the extra:
+
+```bash
+pip install 'charter-ai[langchain]'
+```
+
+The import is deferred, so a missing extra is a clear error at the moment you build the tools rather than a dependency everyone carries:
+
+```
+ImportError: The LangChain adapter needs langchain-core.
+Install it with: pip install 'charter-ai[langchain]'
+```
+
+## Sending schemas on demand
+
+A [`ToolSession`](/reference/tool-discovery#toolsession) sends the schemas of the tools the model has reached for, plus a `ToolSearch` that loads the rest, so Gmail and Stripe together cost 893 tokens on the first turn instead of 36,710.
+
+Its tool list grows, which means the loop has to rebuild that list every turn. Charter ships the loop rather than asking you to remember:
+
+<CodeGroup>
+
+```python OpenAI
+from charter import ToolSession
+from charter.adapters.openai import run
+from charter.packs import gmail, stripe
+
+session = ToolSession([*gmail.TOOLS, *stripe.TOOLS])
+result = await run(client, model="gpt-4o", messages=messages, session=session)
+```
+
+```python LangChain
+from langchain.agents import create_agent
+from charter import ToolSession
+from charter.adapters.langchain import CharterMiddleware
+from charter.packs import gmail, stripe
+
+session = ToolSession([*gmail.TOOLS, *stripe.TOOLS])
+agent = create_agent(model, tools=[], middleware=[CharterMiddleware(session)])
+```
+
+</CodeGroup>
+
+Both run every Charter tool through [`Tool.ainvoke`](/reference/tool#tool-ainvoke) exactly as a statically bound tool would be. A loaded tool is the same fully typed tool it would have been.
+
+`to_openai_tools` and `to_langchain_tools` both accept a session too, if you own your loop and want to drive the projection yourself. See [`run`](/reference/tool-discovery#run) and [`CharterMiddleware`](/reference/tool-discovery#chartermiddleware).
+
+<Note>
+Serving over the Model Context Protocol is a compile target rather than an adapter, and has [its own page](/using/mcp).
+</Note>
+
+## Related
+
+- [`Tool`](/reference/tool#tool) — the object every adapter projects
+- [`Tool.llm_schema`](/reference/tool#tool-llm_schema) and [`Tool.to_json_schema`](/reference/tool#tool-to_json_schema) — the two views an adapter hands over
+- [`Tool.ainvoke`](/reference/tool#tool-ainvoke) — the coroutine they wrap

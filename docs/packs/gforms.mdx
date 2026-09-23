@@ -1,0 +1,303 @@
+---
+title: "Google Forms"
+description: "Create a form, edit its questions in one batch, publish it, and read what people answered."
+sidebarTitle: "Overview"
+---
+
+{/* generated:summary start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="pack-summary">
+  <span><Visibility for="humans"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg></Visibility>6 tools</span>
+  <span><Visibility for="humans"><svg viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /></svg></Visibility>OAuth bearer</span>
+</div>
+{/* generated:summary end */}
+
+```python gforms_example.py {7}
+from charter.auth import EnvTokenProvider
+from charter.packs import gforms
+
+credentials = EnvTokenProvider("GOOGLE_ACCESS_TOKEN")
+gforms.configure(credentials)
+
+form = await gforms.forms_create.ainvoke(body={"info": {"title": "Q3 survey"}})
+```
+
+Six endpoints over two collections. Four of them change or read the form, two
+read what respondents submitted, and the two halves take different OAuth scopes.
+
+## Authenticating
+
+{/* generated:auth start — do not edit by hand; run scripts/generate_pack_docs.py */}
+This pack takes a Google OAuth bearer token, and [`configure()`](/reference/configuration#configure) is optional when `$GOOGLE_ACCESS_TOKEN` is set. Which credential provider you hand it depends on whose account the calls run as.
+
+<Note>
+Refer to [Google's provider page](/auth/providers/google) for the "GOOGLE" constant the snippets below name, the scopes these 6 tools ask for, and this server's refresh behaviour.
+</Note>
+
+### A token you hold
+
+For a script, or a notebook. [`EnvTokenProvider`](/reference/credentials#envtokenprovider) re-reads the variable on every call, so a token rotated beside the process is picked up without a restart; [`StaticTokenProvider`](/reference/credentials#statictokenprovider) takes one you already hold as a string. Neither renews anything, so the calls stop when the token expires.
+
+```python gforms_script.py {4}
+from charter.auth import EnvTokenProvider
+from charter.packs import gforms
+
+credentials = EnvTokenProvider("GOOGLE_ACCESS_TOKEN")
+gforms.configure(credentials)
+```
+
+### One account, refreshed
+
+For an agent or a server acting as you. [`OAuth2Client`](/reference/oauth#oauth2client) turns a client registration and a stored refresh token into an access token, and [renews it](/auth/authorization-servers#what-the-cache-does-precisely) before it lapses.
+
+```python gforms_agent.py {8}
+from charter.auth import OAuth2Client
+from charter.packs import gforms
+
+credentials = OAuth2Client(
+    GOOGLE,
+    client_id=os.environ["GOOGLE_CLIENT_ID"],
+    client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
+    refresh_token=os.environ["GOOGLE_REFRESH_TOKEN"],
+)
+gforms.configure(credentials)
+```
+
+<Note>
+No refresh token yet? [Your own account](/auth/your-own-account) is the one-time consent flow that hands you one.
+</Note>
+
+### Many end users
+
+For a product whose users each connect their own account. [`SubjectProvider`](/reference/credentials#subjectprovider) builds one credential per user through a factory you write, and [`use_subject`](/reference/credentials#use_subject) names the user a call acts for. [Your users' accounts](/auth/oauth-flow) is the consent route inside your app; [serving many users](/auth/authorization-servers#serving-many-users) is the per-subject cache and its eviction.
+
+```python gforms_server.py {17,21}
+from functools import partial
+
+from charter.auth import OAuth2Client, SubjectProvider, use_subject
+from charter.packs import gforms
+
+# Yours to write: a user id in, that user's credential out.
+async def for_user(user_id: str) -> OAuth2Client:
+    grant = await db.grants.get(user_id, "google")
+    return OAuth2Client(
+        GOOGLE,
+        client_id=os.environ["GOOGLE_CLIENT_ID"],
+        client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
+        refresh_token=grant.refresh_token,
+        on_refresh=partial(save_to_db, user_id),
+    )
+
+credentials = SubjectProvider(for_user)
+gforms.configure(credentials)
+
+# Per request: whose grant the tools use.
+with use_subject(request.user_id):
+    ...  # your agent runs here
+```
+{/* generated:auth end */}
+
+Reading responses is `forms.responses.readonly`, which `forms.body` does not
+cover, so `forms_responses_get` and `forms_responses_list` carry it instead of
+the pack default. A consent screen built with
+[`scopes_for`](/reference/oauth#scopes_for) over `gforms.TOOLS` asks for both.
+
+## The client
+
+{/* generated:wire start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<Note>
+[`oauth_tool_factory`](/reference/factories#oauth_tool_factory) is the whole client: a thin wrapper over `httpx` that attaches your token and these endpoint constants to each request. `google-api-python-client` and `google-auth` do not enter your dependency tree.
+</Note>
+
+<div className="named-tabs" data-files="gforms_api_client.py|gforms_pack_client.py">
+<CodeGroup>
+
+```python Without the pack
+from charter import oauth_tool_factory
+
+gforms_api_client = oauth_tool_factory(
+    base_url="https://forms.googleapis.com/",
+    provider="google",
+    credential_provider=credentials,
+    pack="gforms",
+    body_format="json",
+    query_format="repeat",
+    body_case="camel",
+    query_case="camel",
+    path_case="snake",
+    # this API reports failure with an HTTP status code
+    envelope=None,
+)
+```
+
+```python With the pack
+from charter.packs import gforms
+
+gforms.configure(credentials)
+
+# The base URL, the casing, the envelope and the pagination are
+# already declared. 6 tools, ready to hand to a model:
+tools = gforms.TOOLS
+```
+
+</CodeGroup>
+</div>
+
+`credentials` is whichever of the three you built in [Authenticating](#authenticating). A pack takes it through [`configure()`](/reference/configuration#configure); a client you build takes the same object as `credential_provider`, and has no `configure()` of its own.
+
+### Paging through a list
+
+A cursor belongs to the tool that returns it, so it is declared on that tool's builder call:
+
+```python gforms_pagination.py
+forms_responses_list = gforms_api_client(
+    name="forms_responses_list",
+    args_schema=FormsResponsesListRequest,
+    method="GET",
+    url_template="v1/forms/{form_id}/responses",
+    pagination=Pagination(
+        cursor_field="nextPageToken",
+        cursor_param="pageToken",
+    ),
+)
+```
+
+<Note>
+Pagination is declared on `forms_responses_list`. The other 5 take no cursor.
+</Note>
+{/* generated:wire end */}
+
+## Tools
+
+Each is a [`Tool`](/reference/tool), called with
+[`ainvoke`](/reference/tool#tool-ainvoke) as in the snippet above. The name
+links to its parameters, its response and what it costs.
+
+{/* generated:tools start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="tool-list">
+  <span className="tool-list-group">Forms</span>
+  <a className="tool-row" href="/packs/gforms/forms/forms_create">
+    <span className="tool-row-head"><span className="tool-row-name">forms_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a new form from a title.</span>
+  </a>
+  <a className="tool-row" href="/packs/gforms/forms/forms_get">
+    <span className="tool-row-head"><span className="tool-row-name">forms_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Read a form: its title and description, its settings, and every item in order with the item and question IDs.</span>
+  </a>
+  <a className="tool-row" href="/packs/gforms/forms/forms_batch_update">
+    <span className="tool-row-head"><span className="tool-row-name">forms_batch_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Change a form with a batch of updates.</span>
+  </a>
+  <a className="tool-row" href="/packs/gforms/forms/forms_set_publish_settings">
+    <span className="tool-row-head"><span className="tool-row-name">forms_set_publish_settings</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Publish or unpublish a form, and turn response collection on or off.</span>
+  </a>
+  <span className="tool-list-group">Form responses</span>
+  <a className="tool-row" href="/packs/gforms/form_responses/forms_responses_get">
+    <span className="tool-row-head"><span className="tool-row-name">forms_responses_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Read one submitted response by ID.</span>
+  </a>
+  <a className="tool-row" href="/packs/gforms/form_responses/forms_responses_list">
+    <span className="tool-row-head"><span className="tool-row-name">forms_responses_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List a form's submitted responses, newest page first, up to 5000 per page.</span>
+  </a>
+</div>
+{/* generated:tools end */}
+
+## Creating a form takes two calls
+
+`forms.create` copies `info.title` and `info.documentTitle` and nothing else.
+Google's own reference calls the description, the items and the settings
+disallowed there. Questions arrive in a second call:
+
+```python gforms_two_calls.py
+form = await gforms.forms_create.ainvoke(body={"info": {"title": "Q3 survey"}})
+
+await gforms.forms_batch_update.ainvoke(
+    form_id=form["formId"],
+    body={"requests": [{
+        "create_item": {
+            "item": {
+                "title": "How did the release go?",
+                "question_item": {"question": {
+                    "required": True,
+                    "choice_question": {
+                        "type": "RADIO",
+                        "options": [{"value": "Smoothly"}, {"value": "Badly"}],
+                    },
+                }},
+            },
+            "location": {"index": 0},
+        }
+    }]},
+)
+```
+
+The create body models the two fields that are honoured rather than the whole
+`Form`, so the schema cannot offer a field the endpoint rejects.
+
+## One `Info`, two contracts
+
+`documentTitle` can be set on create and cannot be modified by a `batchUpdate`.
+The form description is the other way round. That is one resource with two field
+sets, so `Info` carries [`Mode`](/boundary/mode-system) markers and each tool
+declares which operation it is:
+
+| Field | `forms_create` | `forms_batch_update` |
+|---|---|---|
+| `title` | offered | offered |
+| `documentTitle` | offered | withheld |
+| `description` | withheld | offered |
+
+Writing two near-identical models instead would put every field description in
+two places, and nothing keeps those in step.
+
+## Gotchas
+
+<AccordionGroup>
+  <Accordion title="Indices shift as the batch applies">
+    Items are addressed by index, and a `create_item` at index 2 moves every
+    later item down before the next request in the same batch reads its own
+    location. Order several insertions back-to-front, or state each location
+    against the form as it will be by then. Nothing in the API warns you.
+  </Accordion>
+
+  <Accordion title="forms_get returns Google's payload untouched">
+    Google's documented way to change a question is to read the form, edit your
+    copy of the item and write it back through `update_item` with the IDs
+    unchanged. An item that came back reshaped is an item that cannot be written
+    back, so this tool has no response handler. The responses collection is
+    trimmed, because nothing is written back there.
+  </Accordion>
+
+  <Accordion title="Publishing takes both flags">
+    `is_published` and `is_accepting_responses` are both required when you set
+    the publish state. Accepting responses while unpublished is refused by the
+    API, and the schema refuses it locally, so that combination never costs a
+    round trip. Legacy forms have no `publishSettings` field and this endpoint
+    does not support them.
+  </Accordion>
+
+  <Accordion title="Answers come back keyed by question ID">
+    A response holds `answers` keyed by `questionId`, and nothing in it names
+    the question. `forms_get` is where the ID maps back to the wording, so read
+    the form once and keep the mapping rather than fetching it per response.
+  </Accordion>
+
+  <Accordion title="File upload questions cannot be created">
+    Google does not support creating one through the API. `FileUploadQuestion`
+    is still modelled, because an existing one comes back on `forms_get` and can
+    be moved or deleted, and because its answers name Drive file IDs a caller
+    can act on.
+  </Accordion>
+
+  <Accordion title="Deleting a form is a Drive operation">
+    So is changing who can open it. The Forms API creates and edits; the file
+    itself belongs to Drive. Use [`gdrive`](/packs/gdrive) for both.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [Google](/auth/providers/google): consent screen, scopes, refresh
+- [The mode system](/boundary/mode-system): one resource, two operations, different field sets
+- [Google Drive](/packs/gdrive): deleting a form, and sharing it

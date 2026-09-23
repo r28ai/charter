@@ -1,0 +1,109 @@
+---
+title: "MCP server"
+description: "Compile a pack into a lean MCP server. Write once with Charter markers; serve over the protocol."
+---
+
+MCP is a compile target, not an adapter. You declare tools once as schemas, and Charter emits a server that speaks the protocol — with serialization, casing, [egress policy](/boundary/egress-control) and [envelope checking](/tools/envelopes) still owned by the runtime rather than by the transport.
+
+```bash
+pip install 'charter-ai[mcp]'
+python -m charter.mcp --pack gmail
+```
+
+`--pack` takes one pack name or several, repeated or comma-separated; `--name` overrides the server name, which defaults to `charter` and [not to the pack](/reference/naming), so the name a host composes reads `mcp__charter__gmail__messages_send` rather than spelling the pack twice. Every flag is listed under [`python -m charter.mcp`](/reference/cli#python-m-charter-mcp).
+
+<Note>
+**On an Intel Mac, install `cryptography` first.** The extra reaches `cryptography` three levels down — `mcp` → `pyjwt[crypto]` → `cryptography` — and its current releases ship macOS wheels for Apple Silicon only. On x86_64 both pip and uv fall through to a source build that needs a Rust toolchain, and the install fails before Charter is reached. Pinning to the last release that carries an Intel wheel avoids the build:
+
+```bash
+pip install 'cryptography<47'
+pip install 'charter-ai[mcp]'
+```
+
+Nothing in Charter uses `cryptography`; the core install and every pack are unaffected, and no other extra pulls it.
+</Note>
+
+Schemas are sent on demand. MCP is the surface where that costs nothing: the server holds a [`ToolSession`](/reference/tool-discovery#toolsession), `tools/list` reports what is currently loaded, and a load emits `notifications/tools/list_changed` so your client re-lists on its own. Gmail's 23 tools arrive as a single `ToolSearch` whose description lists them by name; each one appears as it is used. Pass [`--no-progressive`](/reference/cli#python-m-charter-mcp) for a client that ignores the notification.
+
+## Add it to your client
+
+The server speaks stdio, so a client runs it as a command rather than connecting to a URL. Put the credential in the environment, not in a config file you commit.
+
+<CodeGroup>
+
+```bash Claude Code
+claude mcp add charter -- python -m charter.mcp --pack gmail,gsheets,slack
+```
+
+```json Cursor (.cursor/mcp.json)
+{
+  "mcpServers": {
+    "charter": {
+      "command": "python",
+      "args": ["-m", "charter.mcp", "--pack", "gmail,gsheets,slack"],
+      "env": {
+        "GOOGLE_ACCESS_TOKEN": "${GOOGLE_ACCESS_TOKEN}",
+        "SLACK_BOT_TOKEN": "${SLACK_BOT_TOKEN}"
+      }
+    }
+  }
+}
+```
+
+```json VS Code (.vscode/mcp.json)
+{
+  "servers": {
+    "charter": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["-m", "charter.mcp", "--pack", "gmail,gsheets,slack"]
+    }
+  }
+}
+```
+
+```toml Codex (~/.codex/config.toml)
+[mcp_servers.charter]
+command = "python"
+args = ["-m", "charter.mcp", "--pack", "gmail,gsheets,slack"]
+```
+
+</CodeGroup>
+
+**One entry, however many packs.** Name the server `charter` and give `--pack` a list. This is worth getting right, because the name your host composes is built from the key you write here, not from anything the server reports. Under `charter` a tool arrives as `mcp__charter__gsheets__values_get`; under a key named after the pack, `charter-gsheets`, it arrives as `mcp__charter-gsheets__gsheets__values_get`, which says `gsheets` twice and spends eight more of the 64 characters a function name is allowed. On the widest pack shipped that is the difference between 61 characters and 69, and three gsheets tools stop being callable.
+
+Nothing is lost by combining them. Schemas already load on demand, and a single [`ToolSearch`](/reference/tool-discovery#toolsession) spans every pack the server holds, so three packs cost the same up-front context as one. A pack you have no credential for is inert rather than broken: the tool is listed, and calling it raises a [`CredentialError`](/reference/errors#credentialerror) naming the variable to set.
+
+Restart the client after adding the server.
+
+## Credentials
+
+The entry point reads them from the environment — the same [environment fallbacks](/reference/configuration#environment-fallbacks) every pack honours.
+
+| Pack | Environment variable |
+|---|---|
+| `gmail`, `gcalendar`, `gsheets`, `gdocs`, `gdrive`, `gforms` | `GOOGLE_ACCESS_TOKEN` |
+| `slack` | `SLACK_BOT_TOKEN` |
+| `github` | `GITHUB_TOKEN` |
+| `stripe` | `STRIPE_API_KEY` |
+| `linear` | `LINEAR_API_KEY` |
+| `shopify` | `SHOPIFY_SHOP` and `SHOPIFY_ACCESS_TOKEN` |
+| `firecrawl` | `FIRECRAWL_API_KEY` |
+| `notion` | `NOTION_API_KEY` |
+| `granola` | `GRANOLA_API_KEY` |
+
+Shopify needs both variables, since the host is a property of the store.
+
+<Note>
+A raw access token expires in about an hour. For a server that stays up, configure the pack with an [OAuth client](/auth/authorization-servers) in your own process rather than using the environment entry point.
+</Note>
+
+## What the client sees
+
+The tools a pack exports, with the schema the model is allowed to see — not the full API surface. A field marked [`Mode("response_only")`](/reference/markers#mode) is absent from the tool definition the MCP client receives, because the LLM view is computed before anything is serialised. The boundary is the same one every other caller crosses.
+
+## Related
+
+- [`python -m charter.mcp`](/reference/cli) — the flags, the client configuration, and using it as a function
+- [Environment fallbacks](/reference/configuration#environment-fallbacks) — the variable each pack reads
+- [`Mode`](/reference/markers#mode) — what the client is not shown, and why

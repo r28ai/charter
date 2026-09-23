@@ -1,0 +1,168 @@
+---
+title: "Transforms"
+description: "TransformRegistry, TransformSpec, register_transform, get_transform, apply_transform, and the ten built-in transform names."
+---
+
+A transform converts what the model wrote into what the wire wants. Fields opt
+in with [`Format("name")`](/reference/markers#format); the registry holds the
+name, the semantic type the model is offered, and the function between them.
+
+## `TransformSpec`
+
+```python
+class TransformSpec:
+    def __init__(
+        self,
+        name: str,
+        semantic_type: type,
+        transform_fn: Callable[[Any], Any],
+        llm_description: Optional[str] = None,
+    ) -> None: ...
+```
+
+One registered transform.
+
+<ResponseField name="name" type="str">
+  The name written in a `Format` marker.
+</ResponseField>
+
+<ResponseField name="semantic_type" type="type">
+  What the model sees for a field carrying this transform. Substituted into
+  `llm_schema()` in place of the declared wire type.
+</ResponseField>
+
+<ResponseField name="transform_fn" type="Callable[[Any], Any]">
+  Semantic value in, wire value out.
+</ResponseField>
+
+<ResponseField name="llm_description" type="str">
+  Description offered to the model. Defaults to `f"{semantic_type.__name__} data"`.
+</ResponseField>
+
+## `TransformRegistry`
+
+The registry itself. Its `_transforms` mapping is a class attribute, so
+registration is process-wide and a name registered twice is replaced.
+
+<ResponseField name="TransformRegistry.register(name, semantic_type, llm_description=None)" type="Callable">
+  Decorator form. Returns the function unchanged, so the transform stays
+  callable on its own.
+</ResponseField>
+
+<ResponseField name="TransformRegistry.get(name)" type="Optional[TransformSpec]">
+  The spec, or `None` when nothing is registered under that name.
+</ResponseField>
+
+<ResponseField name="TransformRegistry.names()" type="list[str]">
+  Every registered name, sorted.
+</ResponseField>
+
+<ResponseField name="TransformRegistry.apply(name, value)" type="Any">
+  Run the transform. A dict is coerced into the spec's `semantic_type` first,
+  which is what lets a model's JSON object arrive where an [`EmailContent`](/reference/semantic-types#emailcontent) is
+  expected. A transform registered against bare `BaseModel` — `proto_json` — is
+  exempt, since coercing to a model with no fields would discard the payload.
+</ResponseField>
+
+```python
+from charter import EmailContent, TransformRegistry
+
+
+@TransformRegistry.register("subject_line", EmailContent, "Email message content")
+def to_subject_line(email: EmailContent) -> str:
+    return email.subject
+
+
+assert TransformRegistry.get("subject_line").semantic_type is EmailContent
+assert "subject_line" in TransformRegistry.names()
+```
+
+## `register_transform`
+
+```python
+def register_transform(
+    name: str,
+    semantic_type: Type[Any],
+    transform_fn: Callable[[Any], Any],
+    llm_description: Optional[str] = None,
+) -> None: ...
+```
+
+The non-decorator form, for registering a function you already have.
+
+<ParamField path="name" type="str" required>
+  Unique name, as written in `Format`.
+</ParamField>
+
+<ParamField path="semantic_type" type="Type[Any]" required>
+  The type the model is offered.
+</ParamField>
+
+<ParamField path="transform_fn" type="Callable[[Any], Any]" required>
+  Semantic value in, wire value out.
+</ParamField>
+
+<ParamField path="llm_description" type="Optional[str]" default="None">
+  Description for the model.
+</ParamField>
+
+## `get_transform`
+
+```python
+def get_transform(name: str) -> Optional[TransformSpec]: ...
+```
+
+`TransformRegistry.get` as a function. `None` when the name is unregistered —
+this is a lookup, not an assertion.
+
+## `apply_transform`
+
+```python
+def apply_transform(name: str, value: Any) -> Any: ...
+```
+
+`TransformRegistry.apply` as a function. Raises
+[`TransformError`](/reference/errors#transformerror) when the name is unknown
+(the message lists what is registered), when the value does not validate as the
+semantic type, or when the transform function itself raises.
+
+You rarely call this: the executor applies transforms as part of building the
+request. Call it to test a transform of your own.
+
+```python
+from charter import EmailContent, apply_transform, decode_base64url
+
+encoded = apply_transform(
+    "rfc822_base64",
+    EmailContent(to="ada@example.com", subject="Hello", body="Hi there"),
+)
+assert "Subject: Hello" in decode_base64url(encoded)
+```
+
+## Built-in transforms
+
+| Name | Semantic type | Wire format |
+|---|---|---|
+| `rfc822_base64` | `EmailContent` | RFC822 message, base64url, unpadded — Gmail's `raw` |
+| `email_json` | `EmailContent` | the model dumped by alias, `None` fields dropped |
+| `document_json` | [`DocumentContent`](/reference/semantic-types#documentcontent) | the model dumped, `None` fields dropped |
+| `file_base64` | [`FileContent`](/reference/semantic-types#filecontent) | the file's content, standard base64 |
+| `base64` | `str` | standard base64, padded |
+| `base64url` | `str` | URL-safe base64, unpadded |
+| `bytes` | `str` | URL-safe base64, unpadded — Google's `bytes` schema type |
+| `json_base64` | `dict` | compact JSON, standard base64 |
+| `field_mask` | [`FieldMask`](/reference/protobuf-types#fieldmask) | one comma-separated string |
+| `proto_json` | `BaseModel` | [`Value`](/reference/protobuf-types#value) / [`ListValue`](/reference/protobuf-types#listvalue) / [`Struct`](/reference/protobuf-types#struct) as plain JSON |
+
+`bytes` and `base64url` encode identically. The separate name exists for
+readability against Google APIs whose schemas say `bytes`.
+
+`rfc822_base64` builds `multipart/alternative` when `bodyHtml` is set alongside
+`body`, sends `text/html` when `mimeType` says so, and carries `In-Reply-To` and
+`References` through so a reply threads.
+
+## Related
+
+- [Transforms](/tools/transforms) — the narrative version, including writing your own
+- [Semantic types](/reference/semantic-types) — the shapes these transforms consume
+- [Protobuf types](/reference/protobuf-types) — `proto_json` and `field_mask` inputs

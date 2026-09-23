@@ -1,0 +1,500 @@
+---
+title: "Observability and egress"
+description: "ToolCall, CallSink, CallCollector, format_call_line, format_call_summary, egress_map and format_egress_map."
+---
+
+Two questions with mechanical answers: what did a call cost, and what can the
+model see. Both are read from the same declarations the runtime executes, in
+your process, and go nowhere else.
+
+## `ToolCall`
+
+```python
+@dataclass(frozen=True)
+class ToolCall: ...
+```
+
+One invocation, measured. Minted on every call — successful or not, and
+including the ones that never reached the network.
+
+### Identity
+
+<ResponseField name="tool" type="str">
+  The tool's name.
+</ResponseField>
+
+<ResponseField name="provider" type="Optional[str]">
+  The provider identifier, when the tool was built by an OAuth factory.
+</ResponseField>
+
+<ResponseField name="method" type="str">
+  HTTP method.
+</ResponseField>
+
+<ResponseField name="url_template" type="str">
+  The template, never the resolved URL: the resolved path carries customer
+  identifiers, and it would make every call its own label in a metrics backend.
+</ResponseField>
+
+### Outcome
+
+<ResponseField name="outcome" type="str">
+  One of `invalid_input`, `transform_failed`, `credential_unavailable`, `ok`,
+  `envelope_error`, `http_error`, `credential_rejected`, `transport_error`,
+  `cancelled`, `error` — in the order a summary lists them. The first three
+  never reached the network.
+</ResponseField>
+
+<ResponseField name="reached_network" type="bool">
+  Whether the tool's own request went out. This, not the outcome name, is what
+  counts the calls that cost nothing.
+</ResponseField>
+
+<ResponseField name="status_code" type="Optional[int]">
+  The response status, when there was a response.
+</ResponseField>
+
+<ResponseField name="error_type" type="Optional[str]">
+  The exception class name, when the call raised.
+</ResponseField>
+
+Three of those values exist because a status code cannot express them.
+`invalid_input` and `transform_failed` happened before anything was sent — the
+model produced a bad call and it cost no request, no quota and no money.
+`envelope_error` is the opposite surprise: HTTP 200 with the failure inside the
+body, which a generic HTTP metric records as a success.
+
+`cancelled` is separated from `transport_error` on purpose: a caller's timeout
+is not the API failing, and filing it as one puts someone else's latency budget
+in your provider's column.
+
+### Timings
+
+All in milliseconds, decomposed by owner.
+
+<ResponseField name="total_ms" type="float">
+  Wall time for the whole invocation.
+</ResponseField>
+
+<ResponseField name="schema_ms" type="float">
+  Deriving this tool's view, on the one call that had to. Zero on every other.
+
+  A tool's view is built on first use rather than at import, so whichever call
+  arrives first pays for it. On a schema whose types refer to each other that is
+  seconds. It has its own field because it used to be reported as `validate_ms`,
+  which put a one-off build in the number you watch to find out whether the model
+  is sending malformed arguments.
+
+  [`Tool.prepare`](/reference/tool#tool-prepare) moves it to startup. After
+  that, a non-zero `schema_ms` in production means a tool nobody prepared.
+</ResponseField>
+
+<ResponseField name="validate_ms" type="float">
+  Validating the arguments against the LLM schema. This call's arguments only.
+  See `schema_ms` for the build.
+</ResponseField>
+
+<ResponseField name="transform_ms" type="float">
+  Building the request, including [`Format`](/reference/markers#format) transforms.
+</ResponseField>
+
+<ResponseField name="credential_ms" type="float">
+  The credential provider's own time — reported separately so a slow vault does
+  not read as a slow API.
+</ResponseField>
+
+<ResponseField name="upstream_ms" type="float">
+  The provider's share: the HTTP call.
+</ResponseField>
+
+<ResponseField name="handler_ms" type="float">
+  The response handler.
+</ResponseField>
+
+<ResponseField name="overhead_ms" type="float">
+  Derived. `total_ms` minus `upstream_ms`, floored at zero — the number that
+  answers "is this layer in my way?".
+</ResponseField>
+
+### Sizes
+
+In bytes, and named bytes. All four are `None` unless the call was observed: a
+sink was attached, or the `charter` logger was enabled for INFO. Timings are a
+few clock reads and always taken; sizes cost a serialisation, so they are paid
+for only when something will read them.
+
+<ResponseField name="args_bytes" type="Optional[int]">
+  The arguments as compact JSON.
+</ResponseField>
+
+<ResponseField name="request_bytes" type="Optional[int]">
+  The request body as sent.
+</ResponseField>
+
+<ResponseField name="payload_bytes" type="Optional[int]">
+  The response as the server formatted it.
+</ResponseField>
+
+<ResponseField name="context_bytes" type="Optional[int]">
+  The result the model receives, as compact JSON. `None` when the call failed.
+</ResponseField>
+
+<ResponseField name="saved_bytes" type="Optional[int]">
+  Derived. `payload_bytes - context_bytes`. Negative is possible and is not
+  hidden: a handler that adds more than it removes is worth seeing.
+</ResponseField>
+
+<ResponseField name="saved_ratio" type="Optional[float]">
+  Derived. `saved_bytes` as a fraction of what the API sent. `None` when either
+  size is missing or the payload was empty.
+</ResponseField>
+
+Bytes are not tokens. A tokens-saved figure derived from a bytes-per-token
+constant would be a guess with a decimal point in it, so nothing here prints
+one. One caveat on `saved_bytes`: `payload_bytes` is the response as the server
+formatted it, so against an API that pretty-prints, some of the difference is
+that API's whitespace.
+
+### `ToolCall.to_dict`
+
+```python
+def to_dict(self) -> Dict[str, Any]: ...
+```
+
+Flat attributes using OpenTelemetry's names where one exists —
+`http.request.method`, `http.route`, `http.response.status_code`,
+`peer.service`, `error.type` — and `charter.*` for the rest. Keys whose value is
+`None` are dropped. Forwarding a record to an OTel span or a log pipeline needs
+no translation table.
+
+## `CallSink`
+
+```python
+CallSink = Callable[[ToolCall], None]
+```
+
+Something to hand each finished record to. Declared as `on_call` on a tool or a
+factory.
+
+Called synchronously, once per invocation, after the call has finished and
+before any exception propagates. It must not be slow, and it must not raise —
+one that does is caught and logged at DEBUG, never allowed to fail the call it
+was only supposed to describe. A sink that raises does not stop the others from
+being called.
+
+## `collecting`
+
+Send every call made inside a block to a sink, without attaching it to a tool.
+
+```python
+@contextmanager
+def collecting(*sinks: CallSink) -> Iterator[None]: ...
+```
+
+`on_call` is a constructor argument, and a [shipped pack](/packs/overview) calls
+the constructor at import. `charter.packs.gmail` exports one set of tool objects
+for the whole process, so assigning `on_call` to one of them reaches every other
+caller in that process. `collecting` attaches a sink to a scope instead.
+
+```python
+from charter import CallCollector, collecting, format_call_summary
+from charter.auth import StaticTokenProvider
+from charter.packs import gmail
+
+gmail.configure(StaticTokenProvider("ya29..."))
+
+calls = CallCollector()
+with collecting(calls):
+    await gmail.labels_list.ainvoke({"userId": "me"})
+
+print(format_call_summary(calls))
+```
+
+The scope is a context, not a process. A context is copied whenever a task is
+created, so a sink set before `gather` reaches every branch, and two requests
+[served concurrently](/auth/authorization-servers) keep their records apart
+without knowing about each other.
+
+It follows work off the event loop only where the copy is made for you.
+
+| Where the call happens | Sees the sink |
+|---|---|
+| `asyncio.create_task`, `gather` | yes |
+| `asyncio.to_thread` | yes |
+| `loop.run_in_executor` | no |
+| a bare `threading.Thread` | no |
+
+In the last two, open the block inside that thread rather than around it.
+
+Nesting adds rather than replaces, and a tool's own `on_call` fires too. An outer
+collector that stopped receiving because something inside opened its own would be
+a silent hole in a measurement. A sink named twice is called once.
+
+## `current_sinks`
+
+The sinks `collecting` has active in this context.
+
+```python
+def current_sinks() -> Tuple[CallSink, ...]: ...
+```
+
+Empty outside any `collecting` block. Useful for deciding whether to build an
+expensive record at all; the runtime uses it for exactly that, skipping payload
+sizing when nothing is listening.
+
+## `CallCollector`
+
+```python
+class CallCollector:
+    def __init__(self, max_records: int = 1000) -> None: ...
+```
+
+A `CallSink` that keeps what it is given, for a summary at the end. Pass it
+straight to a factory's `on_call`.
+
+<ParamField path="max_records" type="int" default="1000">
+  How many individual records to retain. Counters and totals stay exact past
+  this; percentiles are computed over what was retained.
+</ParamField>
+
+<ResponseField name="count" type="int">
+  Calls seen. Also `len(collector)`.
+</ResponseField>
+
+<ResponseField name="dropped" type="int">
+  Records not retained, past `max_records`.
+</ResponseField>
+
+<ResponseField name="by_outcome" type="Dict[str, int]">
+  Count per outcome.
+</ResponseField>
+
+<ResponseField name="total_ms, upstream_ms, overhead_ms" type="float">
+  Summed timings. Sums, not wall clock: concurrent calls are each counted.
+</ResponseField>
+
+<ResponseField name="payload_bytes, context_bytes" type="int">
+  Summed sizes over the calls that were measured.
+</ResponseField>
+
+<ResponseField name="records" type="List[ToolCall]">
+  The retained records, oldest first. Iterating the collector yields the same.
+</ResponseField>
+
+<ResponseField name="reset()" type="None">
+  Forget everything, keeping the collector usable.
+</ResponseField>
+
+Thread-safe through one lock. Not a metrics backend: it holds one process's own
+run in memory and forgets it on exit.
+
+## `format_call_line`
+
+```python
+def format_call_line(call: ToolCall) -> str: ...
+```
+
+One record as a single scannable line. This is the message of the INFO record
+the runtime emits, so enabling `logging` at INFO gives a call log without
+writing a sink:
+
+```text
+stripe.list_charges    GET  v1/charges       200    412ms  ↑ 118 B  ↓ 38.4 KB → 412 B  (99%)
+stripe.create_charge   POST v1/charges       ✗ invalid_input — not sent, 0ms
+```
+
+Sizes, never values. The arguments and the response body are logged only on the
+DEBUG path, which a host has to ask for.
+
+## `format_call_summary`
+
+```python
+def format_call_summary(calls: Iterable[ToolCall]) -> str: ...
+```
+
+A run's calls, totalled, for a human at the end of a script or a test. Accepts a
+`CallCollector` or any iterable of records; an empty one returns
+`"charter — no calls recorded"`.
+
+Reports the outcome breakdown, how many calls never reached the network, context
+trimmed, upstream p50 and p95 (nearest-rank, over calls that reached the
+network), Charter's own overhead, and a per-tool table.
+
+```python
+from charter import CallCollector, api_key_tool_factory, format_call_summary
+
+calls = CallCollector()
+api = api_key_tool_factory(
+    pack="acme",
+    base_url="https://api.example.com/",
+    api_key_headers={"x-api-key": "key-123"},
+    on_call=calls,
+)
+
+print(format_call_summary(calls))
+```
+
+## `egress_map`
+
+```python
+def egress_map(tools: Iterable[Tool] | Mapping[str, Tool]) -> Dict[str, Dict[str, Any]]: ...
+```
+
+What each tool can and cannot expose to the model. Walks the schema every tool
+was declared with and splits every field, at every nesting depth, into what
+reaches the model and what is withheld — with the reason taken from the
+declaration.
+
+Returns a plain dict, keyed by [`report_key`](/reference/naming#report_key)
+(`<pack>__<tool>`, or the bare name for a tool with no pack), so it serialises
+straight to JSON for an audit trail. Every tool handed in gets a row: two that
+would share one raises [`DeclarationError`](/reference/errors#declarationerror)
+rather than overwriting, because a map that quietly holds fewer rows than it was
+given is the one failure a reader cannot catch.
+
+<ResponseField name="[report key]" type="Dict[str, Any]">
+  One entry per tool.
+
+  <Expandable title="entry">
+    <ResponseField name="name, pack, provider, method, url_template" type="Optional[str]">
+      The tool's identity, copied from the declaration.
+    </ResponseField>
+
+    <ResponseField name="mode, session_mode" type="Optional[str]">
+      Both ends of [`Mode`](/reference/markers#mode), because they are different
+      claims: `mode` is the operation the pack declared, `session_mode` is the
+      surface this deployment resolved it at.
+    </ResponseField>
+
+    <ResponseField name="modes" type="List[str]">
+      The labels in force — what actually filtered this view. Empty means no
+      partition applied, which is the widest view and not the narrowest. See
+      [`Tool.modes`](/reference/tool#tool-modes).
+    </ResponseField>
+
+    <ResponseField name="visible" type="List[str]">
+      Dotted field paths the model can see.
+    </ResponseField>
+
+    <ResponseField name="withheld" type="List[Dict[str, str]]">
+      One `field` and `reason` pair per hidden field. The reason is
+      `"disabled"`, `"response_only"`, `"mode=..."` naming the modes that did
+      not match, or `"filtered"`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+Takes the tools, or a map of name to tool — which is the shape
+[`ToolSession.tools`](/reference/tool-discovery#toolsession) has, so the surface
+one conversation resolved maps without unpacking it:
+
+```python
+session = ToolSession(reports.TOOLS, mode=plan_of(user))
+report = egress_map(session.tools)
+```
+
+The map's own keys are discarded either way, since a row is keyed by
+`report_key`.
+
+Recursion stops at depth 12 and at a schema already seen, so a self-referential
+model terminates.
+
+```python
+from charter import egress_map
+from charter.packs import gmail
+
+report = egress_map(gmail.TOOLS)
+withheld = {entry["field"] for entry in report["gmail__messages_send"]["withheld"]}
+assert "body.id" in withheld
+assert "body.raw" in report["gmail__messages_send"]["visible"]
+```
+
+## `conflict_map`
+
+```python
+def conflict_map(tools: Iterable[Tool] | Mapping[str, Tool]) -> Dict[str, List[Dict[str, Any]]]: ...
+```
+
+The exclusion rules each tool declares, keyed the same way
+[`egress_map`](#egress_map) is. Every
+[`ConflictsWith`](/reference/markers#conflictswith) in the pack, read back from
+the declarations the runtime enforces.
+
+The marker puts each rule on the field it is about, which is the right place to
+declare one and the wrong place to read the set of them: "what does this pack
+refuse together?" becomes a walk over every field rather than a glance at one
+list. This is that glance.
+
+Only tools that declare a conflict appear. It reads the schema the tool was
+declared with, so a field withheld from the model by [`Mode`](/reference/markers#mode)
+is still reported: the rule binds the request, not the prompt.
+
+<ResponseField name="[report key]" type="List[Dict[str, Any]]">
+  One entry per rule.
+
+  <Expandable title="entry">
+    <ResponseField name="field" type="str">
+      The field declaring the rule, as named in Python.
+    </ResponseField>
+
+    <ResponseField name="api_name" type="str">
+      The same field as the API names it — a [`WireName`](/reference/markers#wirename)
+      when it has one, otherwise the published name.
+    </ResponseField>
+
+    <ResponseField name="excludes" type="List[Dict[str, Any]]">
+      One `field`, `api_name` and `declared` entry per excluded parameter.
+      `declared` is `false` when the rule names a field the schema does not
+      have — such a rule never fires, and is reported rather than resolved.
+    </ResponseField>
+
+    <ResponseField name="reason" type="str">
+      The clause appended to the error, or `""`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## `format_conflicts`
+
+```python
+def format_conflicts(tools: Iterable[Tool] | Mapping[str, Tool]) -> str: ...
+```
+
+[`conflict_map`](#conflict_map) rendered for a human reading a review, grouped by
+what is excluded rather than by the field declaring it — because that is the
+question being asked.
+
+```python
+from charter import format_conflicts
+from charter.packs import gcalendar
+
+print(format_conflicts(gcalendar.TOOLS))
+```
+
+```text
+gcalendar__events_list
+  syncToken refuses 8:
+    - iCalUID
+    - orderBy
+    - q
+    ...
+    why: An incremental sync continues the query the token came from, so the
+         filters have to be the ones already in effect.
+```
+
+Returns `"no exclusion rules declared"` when there are none.
+
+## `format_egress_map`
+
+```python
+def format_egress_map(tools: Iterable[Tool] | Mapping[str, Tool]) -> str: ...
+```
+
+`egress_map` rendered for a human reading a review: one block per tool, `+` for
+visible fields and `- field [reason]` for withheld ones.
+
+## Related
+
+- [What a call cost](/running/observability) — the narrative version, with output worth reading
+- [Egress control](/boundary/egress-control) — why the map cannot drift from the runtime
+- [`Mode`](/reference/markers) — the marker the map reports on

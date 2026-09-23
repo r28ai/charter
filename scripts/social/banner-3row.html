@@ -1,0 +1,156 @@
+<!doctype html><html><head><meta charset="utf-8">
+<!--
+  X / Twitter profile banner, 1500x500 — the three-row cut of banner.html.
+
+  Same argument as banner.html: plain values on the left, the contract in the
+  middle, the mechanical shapes the world demands on the right. What changed is
+  density. A banner is seen at ~600px on web and ~380px on mobile, where the
+  five-row version's right pane renders at 6px and 3.8px and becomes texture.
+  The right pane carries the conclusion, so it is the one pane that cannot be
+  texture. Three rows buys the type size that survives the scale it is read at.
+
+  Which two pairs were dropped, and why these three stayed: page_size -> pageSize
+  was casing, the cheapest of the five to grasp and the least surprising, and
+  cell -> userEnteredValue needed the most prior knowledge to land. What is left
+  is three different *families* of wire shape — a base64url document, a GraphQL
+  operation, a bracketed form body — which is what "repertoire" has to mean if
+  it means anything. Sourced from the Coverage table: Gmail, Linear, Stripe.
+
+  The pairing is the whole argument and the five-row version never showed it.
+  Left row N becomes right row N, so: to becomes the base64url of the RFC 2822
+  document, title becomes a variable on an IssueCreateInput, amount becomes a
+  bracketed form field. Three things now carry that. The two panes share a font
+  size and a 56px row rhythm, so the rows sit on common baselines. Rows 1 and 3
+  are banded, and the bands line up across both panes, so the eye reads a table
+  rather than two lists. And at this width two of the three fragments fit whole,
+  so only the base64 fades — where the fade is true, because base64 of a real
+  message does go on. Keep the pairing if either pane is edited, or the
+  alignment starts lying.
+
+  The middle pane is deliberately NOT banded. It is the contract every row
+  passes through, not three cells paired with anything: `Format()` is what makes
+  row 1's base64, and banding it would claim a per-row correspondence that is
+  false for rows 2 and 3. Its three rows are the thesis's own list — HTTP
+  mechanics, semantic-to-wire compilation, visibility policy. oauth_tool_factory
+  and the response handler came out with the row count. Auth is the commercial
+  wedge but it is not this picture's argument, and the bio carries it.
+
+  The base64 is real: it decodes to "To: ada@example.com\r\nSubject: Ship v2".
+  Regenerate it rather than editing a character if the sample message changes.
+
+  The tagline occupies the bottom band, which the five-row version left empty.
+  It starts at x=430 because the avatar's circle covers roughly x=45..390 at
+  this width, and it is the README's own h3. It is also the only line here that
+  is still readable at 380px, which is the argument for keeping it.
+
+  No vendor logo. A row of marks is catalogue grammar and the first thing "What
+  Charter is not" walks away from; a single mark would read as Gmail-only and
+  sits badly under a neutrality claim. The format labels signal breadth without
+  naming anyone.
+
+  Panes run to y=336 for the avatar safe area. The avatar's top arc clips ~11px
+  of the first pane's bottom border and no text.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1500px;height:500px;overflow:hidden}
+  body{background:#141417;font-family:Inter,system-ui,-apple-system,sans-serif;
+       -webkit-font-smoothing:antialiased;position:relative;padding:40px 44px 0}
+  .glow{position:absolute;inset:0;
+        background:radial-gradient(1250px 760px at -2% 24%, rgba(199,44,65,.42), transparent 64%),
+                   radial-gradient(620px 420px at 6% 96%, rgba(199,44,65,.24), transparent 66%);}
+  .row{position:relative;display:flex;align-items:stretch;width:100%;height:279px}
+
+  /* min-width:0 throughout, or the nowrap base64 row's intrinsic width wins over
+     the column's flex-basis and pane 3 runs off the 1500px canvas. */
+  .col{display:flex;flex-direction:column;min-width:0}
+  .c1{flex:0 0 380px}.c2{flex:0 0 380px}.c3{flex:0 0 568px}
+
+  .pane{flex:1;min-width:0;overflow:hidden;background:#23262e;
+        border:1px solid #3b414e;border-radius:11px;
+        padding:24px 26px;display:flex;flex-direction:column}
+  .hd{display:flex;align-items:center;gap:13px;padding-bottom:15px;
+      border-bottom:1px solid #3b414e;margin-bottom:15px}
+  .hd .nm{font-size:20px;font-weight:600;color:#fff;letter-spacing:-.015em}
+  .hd .mk{flex:0 0 28px;height:28px;display:flex;align-items:center}
+  .hd .mk svg{display:block}
+  .body{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center}
+  .body div{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace;
+            color:#eaeaec;white-space:nowrap;line-height:56px;height:56px}
+  .k{color:#9CDCFE}.s{color:#a5d6a7}.b{font-weight:600}
+
+  /* The pairing cue: rows 1 and 3 banded in the outer panes only, bled to the
+     pane edges so the bands line up across the gutter. The middle pane is left
+     unbanded on purpose — see the note at the top. */
+  .c1 .body div,.c3 .body div{margin:0 -26px;padding:0 26px}
+  .c1 .body div:nth-child(odd),.c3 .body div:nth-child(odd){background:rgba(255,255,255,.032)}
+
+  .c1 .body div{font-size:20px}
+  .c2 .body div{font-size:20px;display:flex;align-items:center;gap:16px}
+  .c3 .body div{font-size:18px;display:flex;align-items:center}
+  .c3 .fmt{flex:0 0 132px;font-weight:600;font-size:16px;color:#c3c7d0}
+  .c3 .frag{color:#a5d6a7;overflow:hidden}
+  /* Only the base64 is cut, and the fade is the honest way to say so. */
+  .c3 .frag.cut{flex:1;min-width:0;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 54px),transparent)}
+
+  .ic{flex:0 0 28px;width:28px;height:28px;display:block;color:#f2f4f7}
+  .ic svg{width:28px;height:28px;display:block;fill:none;stroke:currentColor;
+          stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+
+  .arrow{flex:0 0 42px;display:flex;align-items:center;justify-content:center}
+  .arrow svg{display:block;fill:none;stroke:#C72C41;stroke-width:3.4;
+             stroke-linecap:round;stroke-linejoin:round}
+
+  .tag{position:absolute;left:430px;top:336px;height:164px;display:flex;
+       align-items:center;font-size:34px;font-weight:500;color:#d8dae0;
+       letter-spacing:-.018em}
+</style></head><body>
+<div class="glow"></div>
+<div class="row">
+
+  <div class="col c1"><div class="pane">
+    <div class="hd">
+      <span class="mk"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M12 2.6l2.3 6.1 6.1 2.3-6.1 2.3L12 19.4l-2.3-6.1L3.6 11l6.1-2.3z" fill="#f2f4f7"/><path d="M19 3.2l.85 2.25L22.1 6.3l-2.25.85L19 9.4l-.85-2.25L15.9 6.3l2.25-.85z" fill="#f2f4f7" opacity=".62"/></svg></span>
+      <span class="nm">Your agent</span>
+    </div>
+    <div class="body">
+      <div>{<span class="k">"to"</span>: <span class="s">"ada@example.com"</span>}</div>
+      <div>{<span class="k">"title"</span>: <span class="s">"Ship v2"</span>}</div>
+      <div>{<span class="k">"amount"</span>: <span class="s">2000</span>}</div>
+    </div>
+  </div></div>
+
+  <div class="arrow"><svg width="30" height="24" viewBox="0 0 30 24"><path d="M2.5 12h24"/><path d="M19 5l7 7-7 7"/></svg></div>
+
+  <div class="col c2"><div class="pane">
+    <div class="hd">
+      <span class="mk"><svg width="28" height="28" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" ry="112" fill="#C72C41"/><path transform="translate(88.00 96.95) scale(11.18509)" d="M20.52 25.64C22.52 25.64 24.1067 24.8267 25.28 23.2C26.4533 21.5733 27.2133 19.6 27.56 17.28H30.04C29.6667 20.16 28.72 22.6133 27.2 24.64C26.3467 25.76 25.3733 26.6 24.28 27.16C23.2133 27.6933 22.0267 28.04 20.72 28.2C19.44 28.36 17.76 28.44 15.68 28.44C12.7467 28.44 10.36 28.16 8.52 27.6C6.70667 27.0133 5.14667 26.0667 3.84 24.76C1.28 22.2 0 18.68 0 14.2C0 9.48 1.14667 5.97333 3.44 3.68C4.93333 2.18667 6.6 1.2 8.44 0.720001C10.28 0.240001 12.6933 0 15.68 0C18.4267 0 20.6533 0.200001 22.36 0.6C24.0933 0.973334 25.5067 1.78667 26.6 3.04C27.5067 4.08 28.2133 5.33333 28.72 6.8C29.2267 8.26667 29.52 9.72 29.6 11.16H27.32C27.2133 9.96 26.92 8.73333 26.44 7.48C25.9867 6.2 25.2667 5.10667 24.28 4.2C23.2933 3.26667 22.04 2.8 20.52 2.8C19.08 2.8 17.92 3.42667 17.04 4.68C16.2667 5.66667 15.68 7.12 15.28 9.04C14.9867 10.5067 14.84 12.2267 14.84 14.2C14.84 17.32 15.2133 19.84 15.96 21.76C16.92 24.3467 18.44 25.64 20.52 25.64Z" fill="#FFFFFF"/></svg></span>
+      <span class="nm">Charter</span>
+    </div>
+    <div class="body">
+      <div><span class="ic"><svg viewBox="0 0 24 24"><path d="M10 17H7.5a5 5 0 0 1 0-10H10"/><path d="M14 7h2.5a5 5 0 0 1 0 10H14"/><path d="M8.5 12h7"/></svg></span><span class="b">Path() Query() Body()</span></div>
+      <div><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 8h15"/><path d="M15 5l3 3-3 3"/><path d="M21 16H6"/><path d="M9 13l-3 3 3 3"/></svg></span><span class="b">Format()</span></div>
+      <div><span class="ic"><svg viewBox="0 0 24 24"><path d="M2.5 12s3.6-6.3 9.5-6.3S21.5 12 21.5 12s-3.6 6.3-9.5 6.3S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.5"/><path d="M4.5 19.5L19.5 4.5"/></svg></span><span class="b">pin  Mode()</span></div>
+    </div>
+  </div></div>
+
+  <div class="arrow"><svg width="30" height="24" viewBox="0 0 30 24"><path d="M2.5 12h24"/><path d="M19 5l7 7-7 7"/></svg></div>
+
+  <div class="col c3"><div class="pane">
+    <div class="hd">
+      <span class="mk"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#f2f4f7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v5"/><path d="M15 2v5"/><path d="M6 7h12v4a6 6 0 0 1-12 0V7z"/><path d="M12 17v5"/></svg></span>
+      <span class="nm">The wire</span>
+    </div>
+    <div class="body">
+      <div><span class="fmt">base64 MIME</span><span class="frag cut">VG86IGFkYUBleGFtcGxlLmNvbQ0KU3ViamVjdDog</span></div>
+      <div><span class="fmt">GraphQL</span><span class="frag">mutation($input:IssueCreateInput!)</span></div>
+      <div><span class="fmt">form-encoded</span><span class="frag">items[0][amount]=2000&amp;currency=usd</span></div>
+    </div>
+  </div></div>
+
+</div>
+<div class="tag">Agent tools you declare instead of implement.</div>
+</body></html>

@@ -1,0 +1,507 @@
+---
+title: "Schema markers"
+description: "Path, Query, Body, Format, Mode, Case, ConflictsWith, WireName, Gloss, KeyCase and TransportOverride: what each takes and where it is legal."
+---
+
+Markers are `Annotated` metadata on the fields of an `args_schema`. They are
+read at construction, before any request is made: routing, encoding, visibility,
+key spelling and what the model is told about a field all come from the
+declaration.
+
+```python
+from typing import Annotated, Optional
+
+from pydantic import BaseModel
+from charter import Body, Case, Format, Mode, Path, Query
+
+
+class SendMessage(BaseModel):
+    user_id: Annotated[str, Path()]
+    notify: Annotated[Optional[bool], Query()] = None
+    raw: Annotated[str, Body(), Format("base64url")]
+    thread_id: Annotated[Optional[str], Body(), Case("snake")] = None
+    message_id: Annotated[Optional[str], Mode("response_only")] = None
+```
+
+Order does not matter, and several markers may sit on one field. A field with no
+`Path`, `Query` or `Body` marker goes to the body and raises a `UserWarning`
+naming it — declare the marker rather than relying on that.
+
+## `Path`
+
+```python
+class Path:
+    def __init__(self, allow_slash: bool = False) -> None: ...
+```
+
+Marks a path parameter. The field's key, after `path_case` is applied, must
+match a placeholder in the tool's `url_template` — a field marked
+`Path()` with a name the template does not mention is not sent anywhere.
+
+Legal on any scalar field.
+
+<ParamField path="allow_slash" type="bool" default="False">
+  Whether the value may span path segments. GitHub's file path is the case that
+  needs it: `"src/charter/tool.py"` is one value, not three.
+</ParamField>
+
+### What a path value cannot do
+
+The value is interpolated into the URL, so unescaped it is not a parameter at
+all — it is an edit to the endpoint. Path values arrive from a model that has
+usually just read untrusted text, so they are percent-encoded before they reach
+the URL:
+
+- **`..` is refused**, with a [`ToolValidationError`](/reference/errors#toolvalidationerror) raised before any request.
+  Without this, a path could walk up the template and reach a different
+  endpoint entirely — a *different repository's* file from a tool called with
+  the first repository's name.
+- **`?` and `#` are encoded**, so a value cannot start a query string or a
+  fragment and add parameters the schema never declared.
+- **`/` is encoded** unless the field declares `allow_slash=True`, which keeps
+  each value inside its own segment.
+
+Everything legal inside a segment stays literal — a Google Calendar id is an
+email address, a Sheets range is `Sheet1!A1:B2` — so this changes no request
+that was already correct.
+
+## `Query`
+
+```python
+class Query:
+    def __init__(self) -> None: ...
+```
+
+Marks a query-string parameter. Lists are serialised according to
+`query_format`: repeated keys by default, `expand[0]=x` under `"bracket"`.
+`None` is omitted rather than sent empty.
+
+## `Body`
+
+```python
+class Body:
+    def __init__(self, envelop: bool = False) -> None: ...
+```
+
+Marks a request-body field.
+
+<ParamField path="envelop" type="bool" default="False">
+  Keep the field *name* in the serialised body instead of unwrapping to its
+  value. Required for APIs such as Gmail's `drafts.insert`, which expect
+  `{"message": {...}}` rather than the bare object.
+</ParamField>
+
+A schema that declares exactly one `Body()` field unwraps: that field's value
+*is* the body. The count comes from the schema, not from which fields a
+particular call populated, so the wire shape does not depend on the arguments.
+
+A lone **scalar** does not unwrap. Unwrapping promotes a nested structure's own
+fields to the root of the request, and a scalar has none to promote, so it keeps
+its field name: `join(channel=Body())` sends `{"channel": "C1"}`. Lists still
+unwrap — a list, unlike a scalar, is a document.
+
+## `Format`
+
+```python
+class Format:
+    def __init__(self, transform: str) -> None: ...
+```
+
+Marks a field that is transformed on its way to the wire. The model fills in the
+semantic type; the named transform converts it.
+
+<ParamField path="transform" type="str" required>
+  A registered transform name — `"rfc822_base64"`, `"proto_json"`,
+  `"field_mask"`. Unknown names raise
+  [`TransformError`](/reference/errors#transformerror) at call time, listing
+  what is registered.
+</ParamField>
+
+The field's type in `llm_schema()` becomes the transform's `semantic_type`, so
+`Annotated[str, Format("rfc822_base64")]` is a string on the wire and an
+[`EmailContent`](/reference/semantic-types#emailcontent) to the model. The
+built-in names are listed under [transforms](/reference/transforms#built-in-transforms).
+
+Legal alongside `Body()`, `Query()` or `Path()`. A hand-written `build_request`
+replaces the generated one, and with it the automatic application of `Format`.
+
+## `Mode`
+
+```python
+class Mode:
+    def __init__(self, modes: str) -> None: ...
+```
+
+Marks when a field is visible to the model.
+
+<ParamField path="modes" type="str" required>
+  One mode, or several comma-separated — `Mode("create, update")`. Whitespace is
+  stripped; the parsed set is available as `.modes`.
+</ParamField>
+
+| Mode | Meaning |
+|---|---|
+| `"response_only"` | the API returns it, the model never sends it — always hidden |
+| `"request_only"` | input-only — always shown |
+| `"disabled"` | never exposed to the model |
+| any other string | visible only when the tool declares a matching `mode` |
+
+The three special modes are enforced whatever the tool's mode is. Child fields
+inherit their parent's modes unless they carry a `Mode` of their own.
+
+Filtering happens when the tool is constructed, not when the prompt is built: a
+hidden field is absent from the type the model is given.
+
+The label is arbitrary, so it need not be a verb: a plan tier, a region, a
+version and a scope all fit. Which means it is not only the pack author who picks
+one. [`Tool.with_mode`](/reference/tool#tool-with_mode) and
+[`ToolSession(tools, mode=...)`](/reference/tool-discovery#the-mode-a-session-resolves)
+resolve a tool that already ships at a label chosen per conversation, and the
+three special modes are refused at every one of them. See
+[egress control](/boundary/egress-control) and
+[the mode quick reference](/boundary/mode-quick-reference).
+
+## `partial_of`
+
+```python
+def partial_of(
+    model: type[BaseModel],
+    *,
+    name: str | None = None,
+    doc: str | None = None,
+) -> type[BaseModel]: ...
+```
+
+Derives a copy of `model` with every top-level field optional: the body of a
+`PATCH`.
+
+<ParamField path="model" type="type[BaseModel]" required>
+  The resource model to relax. It is not modified.
+</ParamField>
+
+<ParamField path="name" type="str | None">
+  Class name for the result, and the heading it gets in this reference.
+  Defaults to `Partial<model>`.
+</ParamField>
+
+<ParamField path="doc" type="str | None">
+  Docstring for the result, which is what the pack reference renders as its
+  description.
+</ParamField>
+
+One resource often serves create, update and patch, and the operations disagree
+about what is mandatory. Gmail's `Label` needs a `name` to be created or
+replaced and needs nothing to be patched, so the patch body is derived from the
+resource rather than written out beside it:
+
+```python
+from typing import Optional
+
+from pydantic import BaseModel, Field
+
+from charter import partial_of
+
+
+class Label(BaseModel):
+    name: str = Field(..., description="The display name of the label.")
+    color: Optional[str] = Field(None, description="Hex colour to assign.")
+
+
+PatchLabelRequest = partial_of(Label, name="PatchLabelRequest")
+
+assert not PatchLabelRequest.model_fields["name"].is_required()
+assert PatchLabelRequest.model_fields["name"].description == Label.model_fields["name"].description
+```
+
+Descriptions, constraints, and the [`Path`](#path) / [`Query`](#query) /
+[`Body`](#body) / [`Mode`](#mode) / [`Format`](#format) markers all come across,
+so the derived model routes and validates exactly as its source does. It only
+stops demanding.
+
+Nested models are left alone. Relaxing a whole tree would drop constraints the
+API still enforces further down, and the two patch conventions disagree about
+nesting anyway: [JSON Merge Patch](https://www.rfc-editor.org/rfc/rfc7396) merges
+a nested object where Google's replaces it. Call `partial_of` again on a nested
+model that really is partial too.
+
+<Note>
+Cross-field rules survive, by the same path
+[`Mode`](#mode) filtering uses, so partial does not mean unconstrained: a rule
+of the form "`a` is required when `b` is set" still applies. Bodies are dumped
+with `exclude_none=True`, so an unset field is omitted rather than sent as
+`null` — which matches Google-style patch, where absent means unchanged, and
+cannot express RFC 7396's `null`-means-delete.
+</Note>
+
+
+## `Case`
+
+```python
+class Case:
+    def __init__(self, case: KeyCase) -> None: ...
+```
+
+Field-level key-case override, and the highest priority in the cascade:
+field beats schema, schema beats endpoint, endpoint beats factory.
+
+<ParamField path="case" type='"camel" | "snake" | "pascal" | "kebab"' required>
+  How this one key is spelled on the wire.
+</ParamField>
+
+```python
+from typing import Annotated
+
+from pydantic import BaseModel
+from charter import Body, Case
+
+
+class Place(BaseModel):
+    display_name: Annotated[str, Case("pascal"), Body()]  # DisplayName
+```
+
+## `ConflictsWith`
+
+```python
+class ConflictsWith:
+    def __init__(self, *fields: str, reason: str = "") -> None: ...
+```
+
+This field cannot be sent alongside the named one(s). Enforced by the runtime,
+so a pack author declares the rule and does not also write it.
+
+<ParamField path="fields" type="str" required>
+  Names of the fields, as declared in Python, this one excludes.
+</ParamField>
+
+<ParamField path="reason" type="str">
+  A clause explaining why, appended to the message. Worth setting: "cannot be
+  combined" tells a model what to stop doing and not what to do instead.
+</ParamField>
+
+APIs state these rules in prose and answer them with a `400`. Written as a
+[validator](/tools/wire-contract), the rule needs a list of the fields it covers,
+which is a second place to keep in step: add a parameter and the list forgets it,
+delete one and the list keeps naming it. Declared on the field, the fact travels
+with the field.
+
+Google Calendar's `events.list` is the case this came from — `syncToken` is
+refused beside eight other parameters, because an incremental sync continues the
+query its token came from. Each of the eight says so itself:
+
+```python
+from typing import Annotated, Optional
+
+from pydantic import BaseModel, Field
+from charter import ConflictsWith, Query, WireName
+
+
+class ListEvents(BaseModel):
+    sync_token: Annotated[Optional[str], Field(None), Query()]
+    i_cal_uid: Annotated[
+        Optional[str],
+        Field(None),
+        Query(),
+        WireName("iCalUID"),
+        ConflictsWith("sync_token", reason="Drop syncToken to run a fresh query."),
+    ]
+```
+
+Every conflict is reported in one message rather than one per call, and each
+field is named the way the API names it — a [`WireName`](#wirename) if it has
+one, since the reader is a model holding the request it just sent:
+
+```text
+iCalUID, q, timeMin cannot be combined with syncToken. Drop syncToken to run a
+fresh query.
+```
+
+A schema where no field declares a conflict gains no validator.
+
+Declaring on the field is the right place to write a rule and the wrong place to
+read the set of them.
+[`format_conflicts`](/reference/observability#format_conflicts) prints every rule
+a pack declares, and flags one that names a field the schema does not have —
+which never fires and otherwise reads as enforced.
+
+## `WireName`
+
+```python
+class WireName:
+    def __init__(self, name: str) -> None: ...
+```
+
+The exact key this field takes on the wire. Wins over every convention in the
+cascade, because it is not a convention: it is the name the API documents.
+
+<ParamField path="name" type="str" required>
+  The key as the API's reference spells it.
+</ParamField>
+
+[`Case`](#case) covers an API that is consistent in a convention Charter knows.
+This covers the field that is not, and the commonest reason is an acronym.
+`snake_to_camel` capitalises each component, so `i_cal_uid` becomes `iCalUid`
+where Google Calendar documents `iCalUID` — and the same shape gives `htmlUrl`
+for `htmlURL`, `ipAddress` for `IPAddress`. No case convention reaches those
+names from a snake_case field, and `alias` does not either: the runtime dumps by
+field name and converts the keys afterwards, so an alias set for the wire never
+arrives.
+
+```python
+from typing import Annotated
+from typing import Optional
+
+from pydantic import BaseModel, Field
+from charter import Query, WireName
+
+
+class ListEvents(BaseModel):
+    i_cal_uid: Annotated[Optional[str], Field(None), Query(), WireName("iCalUID")]
+```
+
+It names the field for the model too, not just the wire — the description is the
+API's own text and refers to the field by the API's own name, so publishing a
+different one would ask the model to read `iCalUID` everywhere and send
+`iCalUid`. The conventional spellings stay accepted on input.
+
+<Warning>
+  This is worth a marker rather than a workaround because of how it fails. Many
+  APIs ignore a query parameter they do not recognise, so a misspelled filter is
+  dropped, the unfiltered result comes back, and the call answers `200`. Nothing
+  raises, and the pack looks correct until someone counts the rows. Charter's own
+  Calendar pack sent `iCalUid` for as long as it existed.
+</Warning>
+
+## `Gloss`
+
+```python
+class Gloss:
+    def __init__(self, text: str) -> None: ...
+```
+
+A sentence Charter adds for the model, kept out of the documented description.
+
+<ParamField path="text" type="str" required>
+  The sentence, as the model should read it. Appended to the field's description
+  in the schema the model receives.
+</ParamField>
+
+A gloss is a note written beside a text its writer may not alter, which is the
+position a pack is in. `description` carries the API's own words, and that is
+what makes a pack checkable: a description can be diffed against the reference
+page, so anything that does not match is either an API change or a mistake.
+Editing one to help a model ends that. The sentence the pack author wrote and the sentence the API
+publishes become indistinguishable, and the next person to regenerate the field
+from the docs takes the help away without knowing it was there.
+
+A `Gloss` is declared beside the description and appended to it in the
+LLM-facing schema only. The wire schema keeps the documented text exactly.
+
+```python
+from typing import Annotated, Optional
+
+from pydantic import BaseModel, Field
+from charter import Body, Gloss
+
+
+class CreateRefund(BaseModel):
+    amount: Annotated[
+        Optional[int],
+        Field(
+            None,
+            ge=1,
+            description=(
+                "A positive integer in the smallest currency unit representing "
+                "how much to refund."
+            ),
+        ),
+        Body(),
+        Gloss("Cents, not dollars: $15.00 is 1500. Multiply a decimal amount by 100."),
+    ]
+```
+
+The model reads both sentences, in `to_json_schema()` and in every adapter built
+on it:
+
+```text
+A positive integer in the smallest currency unit representing how much to
+refund. Cents, not dollars: $15.00 is 1500. Multiply a decimal amount by 100.
+```
+
+`CreateRefund.model_fields["amount"].description` is still Stripe's sentence on
+its own.
+
+Stripe's `POST /v1/refunds` is the case this came from. "A positive integer in
+the smallest currency unit" is Stripe's phrase and it is correct. A 3B model
+reading `15.00` off a spreadsheet sent `amount=15` and refunded fifteen cents.
+Nothing rejects that: units are the caller's to get right, the request is valid,
+and the API answers `200`.
+
+<Note>
+  Reach for a constraint first. `ge`, `le`, `pattern`, `min_length` and
+  [`ConflictsWith`](#conflictswith) are checked before the request leaves, and a
+  gloss is only read. Write one for what no constraint can express: the unit and
+  its conversion, the value a model reaches for that the API reads as something
+  else, the field that looks optional and is not.
+</Note>
+
+## `KeyCase`
+
+```python
+KeyCase = Literal["camel", "snake", "pascal", "kebab"]
+```
+
+The type of every casing setting — `body_case`, `query_case`, `path_case`,
+their `_override` forms, and `Case`.
+
+| Value | `date_time` becomes |
+|---|---|
+| `"camel"` | `dateTime` |
+| `"snake"` | `date_time` (sent as written) |
+| `"pascal"` | `DateTime` |
+| `"kebab"` | `date-time` |
+
+`static_query`, `static_headers` and `static_body` keys are exempt: they are
+sent verbatim. See [the key case cascade](/tools/key-case-cascade).
+
+## `TransportOverride`
+
+```python
+class TransportOverride(TypedDict, total=False):
+    path: Dict[str, Any]
+    query: Dict[str, Any]
+    body: Any
+    headers: Dict[str, str]
+```
+
+What a `build_request` callable returns. Every key is optional, and each one
+present replaces what the schema would have produced for that part of the
+request; the parts you omit are still derived from the schema.
+
+```python
+from pydantic import BaseModel
+from charter import TransportOverride
+
+
+class ForecastRequest(BaseModel):
+    metric: bool = True
+    language: str = "en"
+
+
+def build_forecast_request(tool_input: ForecastRequest) -> TransportOverride:
+    return {
+        "query": {
+            "metric": str(tool_input.metric).lower(),
+            "language": tool_input.language,
+            "details": "true",
+        }
+    }
+```
+
+A `headers` override is merged over the auth headers and `static_headers`, and
+is itself overridden by the per-call `headers` argument to `ainvoke`.
+
+## Related
+
+- [The wire contract](/tools/wire-contract) — how the parts are assembled
+- [Transforms](/tools/transforms) — writing the semantic-to-wire conversion
+- [The key case cascade](/tools/key-case-cascade)

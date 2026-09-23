@@ -1,0 +1,241 @@
+---
+title: "Google Docs"
+description: "Read a document, create one, and apply a batch of edits."
+sidebarTitle: "Overview"
+---
+
+{/* generated:summary start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="pack-summary">
+  <span><Visibility for="humans"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg></Visibility>3 tools</span>
+  <span><Visibility for="humans"><svg viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /></svg></Visibility>OAuth bearer</span>
+</div>
+{/* generated:summary end */}
+
+```python gdocs_example.py {7}
+from charter.auth import EnvTokenProvider
+from charter.packs import gdocs
+
+credentials = EnvTokenProvider("GOOGLE_ACCESS_TOKEN")
+gdocs.configure(credentials)
+
+doc = await gdocs.documents_get.ainvoke(document_id="1abc")
+```
+
+Read a document, create a blank one, and edit one. Three endpoints is the whole
+Docs API, and the third carries everything: a single update call taking a
+thirty-three member union.
+
+## Authenticating
+
+{/* generated:auth start — do not edit by hand; run scripts/generate_pack_docs.py */}
+This pack takes a Google OAuth bearer token, and [`configure()`](/reference/configuration#configure) is optional when `$GOOGLE_ACCESS_TOKEN` is set. Which credential provider you hand it depends on whose account the calls run as.
+
+<Note>
+Refer to [Google's provider page](/auth/providers/google) for the "GOOGLE" constant the snippets below name, the scopes these 3 tools ask for, and this server's refresh behaviour.
+</Note>
+
+### A token you hold
+
+For a script, or a notebook. [`EnvTokenProvider`](/reference/credentials#envtokenprovider) re-reads the variable on every call, so a token rotated beside the process is picked up without a restart; [`StaticTokenProvider`](/reference/credentials#statictokenprovider) takes one you already hold as a string. Neither renews anything, so the calls stop when the token expires.
+
+```python gdocs_script.py {4}
+from charter.auth import EnvTokenProvider
+from charter.packs import gdocs
+
+credentials = EnvTokenProvider("GOOGLE_ACCESS_TOKEN")
+gdocs.configure(credentials)
+```
+
+### One account, refreshed
+
+For an agent or a server acting as you. [`OAuth2Client`](/reference/oauth#oauth2client) turns a client registration and a stored refresh token into an access token, and [renews it](/auth/authorization-servers#what-the-cache-does-precisely) before it lapses.
+
+```python gdocs_agent.py {8}
+from charter.auth import OAuth2Client
+from charter.packs import gdocs
+
+credentials = OAuth2Client(
+    GOOGLE,
+    client_id=os.environ["GOOGLE_CLIENT_ID"],
+    client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
+    refresh_token=os.environ["GOOGLE_REFRESH_TOKEN"],
+)
+gdocs.configure(credentials)
+```
+
+<Note>
+No refresh token yet? [Your own account](/auth/your-own-account) is the one-time consent flow that hands you one.
+</Note>
+
+### Many end users
+
+For a product whose users each connect their own account. [`SubjectProvider`](/reference/credentials#subjectprovider) builds one credential per user through a factory you write, and [`use_subject`](/reference/credentials#use_subject) names the user a call acts for. [Your users' accounts](/auth/oauth-flow) is the consent route inside your app; [serving many users](/auth/authorization-servers#serving-many-users) is the per-subject cache and its eviction.
+
+```python gdocs_server.py {17,21}
+from functools import partial
+
+from charter.auth import OAuth2Client, SubjectProvider, use_subject
+from charter.packs import gdocs
+
+# Yours to write: a user id in, that user's credential out.
+async def for_user(user_id: str) -> OAuth2Client:
+    grant = await db.grants.get(user_id, "google")
+    return OAuth2Client(
+        GOOGLE,
+        client_id=os.environ["GOOGLE_CLIENT_ID"],
+        client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
+        refresh_token=grant.refresh_token,
+        on_refresh=partial(save_to_db, user_id),
+    )
+
+credentials = SubjectProvider(for_user)
+gdocs.configure(credentials)
+
+# Per request: whose grant the tools use.
+with use_subject(request.user_id):
+    ...  # your agent runs here
+```
+{/* generated:auth end */}
+
+`documents.readonly` is enough for `documents_get` alone, but the pack declares
+the write scope because two of its three tools need it.
+
+## The client
+
+{/* generated:wire start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<Note>
+[`oauth_tool_factory`](/reference/factories#oauth_tool_factory) is the whole client: a thin wrapper over `httpx` that attaches your token and these endpoint constants to each request. `google-api-python-client` and `google-auth` do not enter your dependency tree.
+</Note>
+
+<div className="named-tabs" data-files="gdocs_api_client.py|gdocs_pack_client.py">
+<CodeGroup>
+
+```python Without the pack
+from charter import oauth_tool_factory
+
+gdocs_api_client = oauth_tool_factory(
+    base_url="https://docs.googleapis.com/",
+    provider="google",
+    credential_provider=credentials,
+    pack="gdocs",
+    scopes=["https://www.googleapis.com/auth/documents"],
+    body_format="json",
+    query_format="repeat",
+    body_case="camel",
+    query_case="camel",
+    path_case="snake",
+    # this API reports failure with an HTTP status code
+    envelope=None,
+)
+```
+
+```python With the pack
+from charter.packs import gdocs
+
+gdocs.configure(credentials)
+
+# The base URL, the casing, the envelope and the pagination are
+# already declared. 3 tools, ready to hand to a model:
+tools = gdocs.TOOLS
+```
+
+</CodeGroup>
+</div>
+
+`credentials` is whichever of the three you built in [Authenticating](#authenticating). A pack takes it through [`configure()`](/reference/configuration#configure); a client you build takes the same object as `credential_provider`, and has no `configure()` of its own.
+{/* generated:wire end */}
+
+## Tools
+
+Each is a [`Tool`](/reference/tool), called with
+[`ainvoke`](/reference/tool#tool-ainvoke) as in the snippet above. The name
+links to its parameters, its response and what it costs.
+
+{/* generated:tools start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="tool-list">
+  <a className="tool-row" href="/packs/gdocs/documents_get">
+    <span className="tool-row-head"><span className="tool-row-name">documents_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Read a document's full structural content.</span>
+  </a>
+  <a className="tool-row" href="/packs/gdocs/documents_create">
+    <span className="tool-row-head"><span className="tool-row-name">documents_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a blank document with a title.</span>
+  </a>
+  <a className="tool-row" href="/packs/gdocs/documents_batch_update">
+    <span className="tool-row-head"><span className="tool-row-name">documents_batch_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Apply a list of edits to a document.</span>
+  </a>
+</div>
+{/* generated:tools end */}
+
+## batchUpdate is a union of thirty-three edits
+
+Every change you can make to a document — insert text, style a range, merge table
+cells, pin header rows — is one member of a `Request` `oneof`, and a batch is a
+list of them. All thirty-three are modelled, with the `oneof` declared as a
+`model_validator` on `Request` and on the eleven edits that carry a `oneof` of
+their own.
+
+```python gdocs_insert_text.py
+doc = await gdocs.documents_create.ainvoke(body={"title": "Q3 review"})
+await gdocs.documents_batch_update.ainvoke(
+    document_id=doc["documentId"],
+    body={"requests": [{"insert_text": {"text": "Hello", "location": {"index": 1}}}]},
+)
+```
+
+Those validators are the reason this pack matters. The LLM view of a schema is
+derived rather than reused, and it now carries the source schema's validators and
+its `extra="forbid"` across — so a request setting two members of the union is
+rejected against the model's input, not only against the wire. Before that, the
+one input that most needed checking was the one input never checked. See
+`tests/test_schema.py`, and [conformance](/guarantees/conformance) for the
+property that keeps it true.
+
+## Gotchas
+
+<AccordionGroup>
+  <Accordion title="Indices shift as edits apply — order the requests back-to-front">
+    `batchUpdate` applies its requests in order against a document that changes
+    under them. Insert text at index 1 and every later index moves; the API will
+    not warn you. When inserting at several positions, order the requests from
+    the highest index down. This is the single most common way a correct-looking
+    batch produces a scrambled document, and it is documented on the `requests`
+    field for the model's benefit as well as yours.
+  </Accordion>
+
+  <Accordion title="documents_batch_update is expensive in context">
+    Its JSON schema is roughly 29KB — about 7,300 tokens — before the model has
+    read a word of the actual task. That is what complete coverage of a union
+    this wide costs. `Mode` markers plus a tool-level `mode` narrow the union to
+    the edits one agent needs without giving up the schema; see
+    [the mode system](/boundary/mode-system).
+  </Accordion>
+
+  <Accordion title="Responses are not modelled">
+    A `Document` is a deeply nested structural document, and Charter models
+    requests. `documents_get` returns Google's payload as it arrived, with no
+    response handler. For long documents, write one that extracts the text — the
+    Gmail pack's `extract_thread_text` is the shape to copy.
+  </Accordion>
+
+  <Accordion title="The top-level body is only the first tab">
+    A document may have several tabs, and `body` reflects only the first. Pass
+    `include_tabs_content=true` to `documents_get` for the whole thing. The
+    argument is snake_case in the schema and reaches Google as
+    `includeTabsContent`, which is what the camel query casing on this factory is
+    for.
+  </Accordion>
+
+  <Accordion title="documents_create honours only the title">
+    The document is created empty whatever else you put in the body. Adding
+    content is a second call to `documents_batch_update` with the returned
+    `documentId`.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [Google](/auth/providers/google) — consent screen, scopes, refresh
+- [The mode system](/boundary/mode-system) — narrowing a union the model does not need
+- [Conformance](/guarantees/conformance) — the check that keeps validators from being dropped

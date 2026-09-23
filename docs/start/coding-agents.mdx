@@ -1,0 +1,130 @@
+---
+title: "Coding agents"
+description: "Set your coding agent up for Charter: the skill that teaches it to write packs, these docs as a source, and the server that hands it tools."
+---
+
+import AgentPrompt from '/snippets/agent-prompt.mdx';
+
+<AgentPrompt />
+
+The instructions live at that URL rather than in the prompt, so a prompt you pasted last month still does the current thing. They install a skill file and, only if you ask for one, an MCP server. Both are inspectable before you run anything: [the skill](#the-pack-writing-skill) and [the server](/using/mcp).
+
+## Three things that say "agent"
+
+| | What it is | Where it goes | When it matters |
+|---|---|---|---|
+| [The skill](#the-pack-writing-skill) | teaches an agent to write a Charter pack | your agent's skills directory | while you are authoring |
+| [These docs](#these-docs-as-a-source) | `llms.txt`, every page as markdown, a docs MCP server | your agent, per question | while you are reading |
+| [Charter's MCP server](/using/mcp) | serves Gmail, Slack and the rest as tools | an agent runtime | while your agent is running |
+
+The skill is the one to install first. It needs no server, no config file and no restart.
+
+## The pack-writing skill
+
+Fifteen packs will not cover the API you use. A pack is declarations, so an agent that knows the rules can write one for whatever you use, and the [conformance suite](/guarantees/conformance) gates the result. The skill is those rules, as one markdown file.
+
+<CodeGroup>
+
+```bash Claude Code
+mkdir -p ~/.claude/skills/writing-charter-packs
+curl -fsSL https://raw.githubusercontent.com/r28ai/charter/main/skills/writing-charter-packs/SKILL.md \
+  -o ~/.claude/skills/writing-charter-packs/SKILL.md
+```
+
+```bash Cursor
+mkdir -p ~/.cursor/skills/writing-charter-packs
+curl -fsSL https://raw.githubusercontent.com/r28ai/charter/main/skills/writing-charter-packs/SKILL.md \
+  -o ~/.cursor/skills/writing-charter-packs/SKILL.md
+```
+
+```bash Codex and others
+mkdir -p ~/.agents/skills/writing-charter-packs
+curl -fsSL https://raw.githubusercontent.com/r28ai/charter/main/skills/writing-charter-packs/SKILL.md \
+  -o ~/.agents/skills/writing-charter-packs/SKILL.md
+```
+
+</CodeGroup>
+
+For a project-scoped install, put it in `.claude/skills/` inside the repo, so it travels with the code and your teammates get it from a checkout. It is a document, not a package: you can also open [the file](https://github.com/r28ai/charter/blob/main/skills/writing-charter-packs/SKILL.md) and paste it into whatever your agent reads.
+
+<Note>
+The skill is deliberately not delivered through [Charter's MCP server](/using/mcp). The server serves tools at runtime; the skill is guidance at authoring time, often on a different machine and always at a different moment. Bundling them would put a server install, a config edit and a restart in front of a file you can `curl`.
+</Note>
+
+### What it makes the agent do
+
+The skill is a checklist, in order, and the order is the point.
+
+<AccordionGroup>
+  <Accordion title="Crawl every linked page before modelling anything">
+    One endpoint routinely spans ten documentation pages: the request body references a resource, the resource references an enum, the enum's values are documented somewhere else. Miss one enum value and the model will eventually emit it and earn a 400 you cannot reproduce.
+
+    This is the step an agent skips if you do not tell it not to, and it is the one that decides whether the pack is right.
+  </Accordion>
+
+  <Accordion title="Use the reference page's words, and put your own in a Gloss">
+    Each field's description is the vendor's own sentence, copied rather than summarised, so the declaration can be read against the page it came from.
+
+    Anything the agent wants to add, a unit, a conversion, a value the API reads as something else, goes in a [`Gloss`](/reference/markers#gloss). It is appended to the description the model reads and absent from the wire schema, so the vendor's text stays diffable against their page. Left in the description instead, the pack's sentence and the vendor's become one string, and the next regeneration from the docs deletes the help without anyone seeing it go.
+  </Accordion>
+
+  <Accordion title="Mark every field's place in the request">
+    [`Path()`](/reference/markers#path), [`Query()`](/reference/markers#query), [`Body()`](/reference/markers#body); see [the wire contract](/tools/wire-contract). An unmarked top-level field is refused rather than guessed, so a pack that skips this fails on its first call rather than silently sending a field to the wrong place.
+  </Accordion>
+
+  <Accordion title="Set the casing once, on the factory">
+    Not per field. The [key case cascade](/tools/key-case-cascade) has four levels, and picking the widest one that is true keeps the declaration honest as the pack grows.
+  </Accordion>
+
+  <Accordion title="Pick the transforms">
+    Where the API wants a wire format and the model should speak meaning: MIME, base64url, protobuf [`Value`](/reference/protobuf-types#value). See [transforms](/tools/transforms).
+  </Accordion>
+
+  <Accordion title="Declare failure that HTTP 200 hides">
+    An [`Envelope`](/tools/envelopes) on the factory, never logic inside a response handler. This is the rule with the sharpest consequence: a handler-level check is opt-in per tool, so the first tool somebody adds without one reports a failed write as a success.
+  </Accordion>
+
+  <Accordion title="Test it offline">
+    Every HTTP interaction mocked. A pack whose tests reach the network is a pack whose tests will fail for reasons that have nothing to do with the pack.
+  </Accordion>
+</AccordionGroup>
+
+### Then check it mechanically
+
+The skill gets the shape right. The [conformance suite](/guarantees/conformance) proves it: nineteen properties that must hold for every pack, checked without knowing anything about any particular API, and each one verified against a pack broken on purpose so the check cannot go vacuous.
+
+That pairing is the whole idea. Guidance makes a stranger's pack come out in the right shape, and a gate that does not care whether the stranger read the guidance holds it there.
+
+## These docs as a source
+
+Charter is new enough that a model's training data is unreliable about it. Pointing an agent at the live docs costs one fetch and removes a whole class of confident wrong answer.
+
+- `https://docs.r28.ai/charter/llms.txt` lists every page with its description. Fetch it first to discover what exists.
+- Append `.md` to any URL for the page as markdown, with no navigation to strip: `https://docs.r28.ai/charter/tools/wire-contract.md`.
+- The menu beside every page title opens the page in ChatGPT or Claude, or connects this site as an MCP server to Cursor or VS Code.
+
+Most questions are answered by one of these four:
+
+| Question | Page |
+|---|---|
+| How do I declare this endpoint? | `/tools/wire-contract.md` |
+| What does this symbol do? | `/reference/overview.md`, then the page it names |
+| Does a pack already cover this API? | `/packs/overview.md` |
+| Why is my call failing? | `/running/tool-validation-error-handling.md` |
+| This tool's schema is huge. What now? | `/tools/projections.md` |
+
+For authoring, the [skill](#the-pack-writing-skill) beats the docs. It is the rules in the order they have to be applied, rather than a reference an agent has to assemble an approach from.
+
+### A rule worth giving your agent
+
+Charter describes one request. It ships no agent loop, no pagination loop and no retry policy, and it never obtains an OAuth grant. An agent that assumes otherwise will write plausible code against an API that does not exist. [Limitations](/guarantees/limitations) is the page that prevents it, and it is worth putting in front of a model before it writes anything substantial.
+
+A second rule, for an agent assembling a tool surface rather than writing a pack: a pack tool models its whole endpoint, and a few of them are wide. `gsheets.spreadsheets_batch_update` is 44,934 tokens of schema, because Sheets puts 74 kinds of edit behind one method. Narrow it with [`Tool.derived`](/reference/tool#tool-derived) instead of dropping the tool or writing a thinner one by hand.
+
+## Related
+
+- [Writing packs, the source file](https://github.com/r28ai/charter/blob/main/skills/writing-charter-packs/SKILL.md)
+- [Packs](/packs/overview), the fifteen that ship, as worked examples
+- [Conformance](/guarantees/conformance), what your pack will be held to
+- [MCP server](/using/mcp), for an agent that needs the tools rather than the rules
+- [Projections](/tools/projections), for narrowing a wide tool to what one agent may do

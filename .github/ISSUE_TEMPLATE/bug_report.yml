@@ -1,0 +1,54 @@
+name: Bug report
+description: Something in the runtime or a pack behaves differently than it declares
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please do not report a security issue here — see
+        [SECURITY.md](https://github.com/r28ai/charter/blob/main/SECURITY.md).
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you expected the declaration to do, and what it did instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: |
+        The smallest schema and call that shows it. A `respx`-mocked test is
+        ideal, since that is how the suite runs — but a schema plus the request
+        that came out is plenty.
+
+        Redact tokens. If the report needs a real response body, redact that too.
+      render: python
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Charter version
+      placeholder: "0.1.0"
+    validations:
+      required: true
+
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      placeholder: "3.12"
+    validations:
+      required: true
+
+  - type: input
+    id: pack
+    attributes:
+      label: Pack
+      description: Which pack, or "none" if it is your own schema.
+      placeholder: "charter.packs.stripe"

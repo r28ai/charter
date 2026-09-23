@@ -1,0 +1,337 @@
+---
+title: "Google Drive"
+description: "List, create, copy and share files; comment; read revisions, shared drives and quota."
+sidebarTitle: "Overview"
+---
+
+{/* generated:summary start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="pack-summary">
+  <span><Visibility for="humans"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg></Visibility>25 tools</span>
+  <span><Visibility for="humans"><svg viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /></svg></Visibility>OAuth bearer</span>
+</div>
+{/* generated:summary end */}
+
+```python gdrive_example.py {7}
+from charter.auth import EnvTokenProvider
+from charter.packs import gdrive
+
+credentials = EnvTokenProvider("GOOGLE_ACCESS_TOKEN")
+gdrive.configure(credentials)
+
+files = await gdrive.files_list.ainvoke(q="trashed = false")
+```
+
+List files, create a folder or a Google Doc, copy, trash or permanently delete,
+share, comment, and read revisions, shared drives and quota. Search uses Drive's
+`q` grammar. `files.delete` is permanent — to trash, `files.update` with
+`trashed=true`.
+
+This pack sends metadata, not bytes. Media upload is not expressed;
+`files.create` makes a folder, a Workspace document, or an empty blob.
+`files.export` is the other direction.
+
+## Authenticating
+
+{/* generated:auth start — do not edit by hand; run scripts/generate_pack_docs.py */}
+This pack takes a Google OAuth bearer token, and [`configure()`](/reference/configuration#configure) is optional when `$GOOGLE_ACCESS_TOKEN` is set. Which credential provider you hand it depends on whose account the calls run as.
+
+<Note>
+Refer to [Google's provider page](/auth/providers/google) for the "GOOGLE" constant the snippets below name, the scopes these 25 tools ask for, and this server's refresh behaviour.
+</Note>
+
+### A token you hold
+
+For a script, or a notebook. [`EnvTokenProvider`](/reference/credentials#envtokenprovider) re-reads the variable on every call, so a token rotated beside the process is picked up without a restart; [`StaticTokenProvider`](/reference/credentials#statictokenprovider) takes one you already hold as a string. Neither renews anything, so the calls stop when the token expires.
+
+```python gdrive_script.py {4}
+from charter.auth import EnvTokenProvider
+from charter.packs import gdrive
+
+credentials = EnvTokenProvider("GOOGLE_ACCESS_TOKEN")
+gdrive.configure(credentials)
+```
+
+### One account, refreshed
+
+For an agent or a server acting as you. [`OAuth2Client`](/reference/oauth#oauth2client) turns a client registration and a stored refresh token into an access token, and [renews it](/auth/authorization-servers#what-the-cache-does-precisely) before it lapses.
+
+```python gdrive_agent.py {8}
+from charter.auth import OAuth2Client
+from charter.packs import gdrive
+
+credentials = OAuth2Client(
+    GOOGLE,
+    client_id=os.environ["GOOGLE_CLIENT_ID"],
+    client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
+    refresh_token=os.environ["GOOGLE_REFRESH_TOKEN"],
+)
+gdrive.configure(credentials)
+```
+
+<Note>
+No refresh token yet? [Your own account](/auth/your-own-account) is the one-time consent flow that hands you one.
+</Note>
+
+### Many end users
+
+For a product whose users each connect their own account. [`SubjectProvider`](/reference/credentials#subjectprovider) builds one credential per user through a factory you write, and [`use_subject`](/reference/credentials#use_subject) names the user a call acts for. [Your users' accounts](/auth/oauth-flow) is the consent route inside your app; [serving many users](/auth/authorization-servers#serving-many-users) is the per-subject cache and its eviction.
+
+```python gdrive_server.py {17,21}
+from functools import partial
+
+from charter.auth import OAuth2Client, SubjectProvider, use_subject
+from charter.packs import gdrive
+
+# Yours to write: a user id in, that user's credential out.
+async def for_user(user_id: str) -> OAuth2Client:
+    grant = await db.grants.get(user_id, "google")
+    return OAuth2Client(
+        GOOGLE,
+        client_id=os.environ["GOOGLE_CLIENT_ID"],
+        client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
+        refresh_token=grant.refresh_token,
+        on_refresh=partial(save_to_db, user_id),
+    )
+
+credentials = SubjectProvider(for_user)
+gdrive.configure(credentials)
+
+# Per request: whose grant the tools use.
+with use_subject(request.user_id):
+    ...  # your agent runs here
+```
+{/* generated:auth end */}
+
+The scope covers every file the account can open. Drive also offers
+`drive.file`, which only reaches files this app created; this pack lists and
+deletes across the drive, so it asks for full `drive`.
+
+## The client
+
+{/* generated:wire start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<Note>
+[`oauth_tool_factory`](/reference/factories#oauth_tool_factory) is the whole client: a thin wrapper over `httpx` that attaches your token and these endpoint constants to each request. `google-api-python-client` and `google-auth` do not enter your dependency tree.
+</Note>
+
+<div className="named-tabs" data-files="gdrive_api_client.py|gdrive_pack_client.py">
+<CodeGroup>
+
+```python Without the pack
+from charter import oauth_tool_factory
+
+gdrive_api_client = oauth_tool_factory(
+    base_url="https://www.googleapis.com/",
+    provider="google",
+    credential_provider=credentials,
+    pack="gdrive",
+    scopes=["https://www.googleapis.com/auth/drive"],
+    body_format="json",
+    query_format="repeat",
+    body_case="camel",
+    query_case="camel",
+    path_case="snake",
+    # this API reports failure with an HTTP status code
+    envelope=None,
+)
+```
+
+```python With the pack
+from charter.packs import gdrive
+
+gdrive.configure(credentials)
+
+# The base URL, the casing, the envelope and the pagination are
+# already declared. 25 tools, ready to hand to a model:
+tools = gdrive.TOOLS
+```
+
+</CodeGroup>
+</div>
+
+`credentials` is whichever of the three you built in [Authenticating](#authenticating). A pack takes it through [`configure()`](/reference/configuration#configure); a client you build takes the same object as `credential_provider`, and has no `configure()` of its own.
+
+### Paging through a list
+
+A cursor belongs to the tool that returns it, so it is declared on that tool's builder call:
+
+```python gdrive_pagination.py
+files_list = gdrive_api_client(
+    name="files_list",
+    args_schema=FilesListRequest,
+    method="GET",
+    url_template="drive/v3/files",
+    pagination=Pagination(
+        cursor_field="nextPageToken",
+        cursor_param="pageToken",
+    ),
+)
+```
+
+<Note>
+Pagination is declared on `files_list`, `permissions_list`, `comments_list`, `revisions_list` and `drives_list`. The other 20 take no cursor.
+</Note>
+{/* generated:wire end */}
+
+## Tools
+
+Each is a [`Tool`](/reference/tool), called with
+[`ainvoke`](/reference/tool#tool-ainvoke) as in the snippet above. The name
+links to its parameters, its response and what it costs.
+
+{/* generated:tools start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="tool-list">
+  <span className="tool-list-group">Files</span>
+  <a className="tool-row" href="/packs/gdrive/files/files_list">
+    <span className="tool-row-head"><span className="tool-row-name">files_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the user's files.</span>
+  </a>
+  <a className="tool-row" href="/packs/gdrive/files/files_get">
+    <span className="tool-row-head"><span className="tool-row-name">files_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get a file's metadata by ID.</span>
+  </a>
+  <a className="tool-row" href="/packs/gdrive/files/files_export">
+    <span className="tool-row-head"><span className="tool-row-name">files_export</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Export a Google Workspace document to the requested MIME type and return the exported content.</span>
+  </a>
+  <a className="tool-row" href="/packs/gdrive/files/files_create">
+    <span className="tool-row-head"><span className="tool-row-name">files_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a file's metadata: a folder (<code>mimeType</code> <code>application/vnd.google-apps.folder</code>), a Google Doc / Sheet / Slide, or an empty blob.</span>
+  </a>
+  <a className="tool-row" href="/packs/gdrive/files/files_update">
+    <span className="tool-row-head"><span className="tool-row-name">files_update</span><span className="tool-row-method" data-method="PATCH">PATCH</span></span>
+    <span className="tool-row-desc">Change part of a file's metadata.</span>
+  </a>
+  <a className="tool-row" href="/packs/gdrive/files/files_copy">
+    <span className="tool-row-head"><span className="tool-row-name">files_copy</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a copy of a file and apply any requested updates with patch semantics.</span>
+  </a>
+  <a className="tool-row" href="/packs/gdrive/files/files_delete">
+    <span className="tool-row-head"><span className="tool-row-name">files_delete</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Permanently delete a file owned by the user without moving it to the trash.</span>
+  </a>
+  <a className="tool-row" href="/packs/gdrive/files/files_empty_trash">
+    <span className="tool-row-head"><span className="tool-row-name">files_empty_trash</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Permanently delete all of the user's trashed files.</span>
+  </a>
+  <span className="tool-list-group">Permissions</span>
+  <a className="tool-row" href="/packs/gdrive/permissions/permissions_create">
+    <span className="tool-row-head"><span className="tool-row-name">permissions_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a permission for a file or shared drive.</span>
+  </a>
+  <a className="tool-row" href="/packs/gdrive/permissions/permissions_list">
+    <span className="tool-row-head"><span className="tool-row-name">permissions_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List a file's or shared drive's permissions.</span>
+  </a>
+  <a className="tool-row" href="/packs/gdrive/permissions/permissions_get">
+    <span className="tool-row-head"><span className="tool-row-name">permissions_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get a permission by ID.</span>
+  </a>
+  <a className="tool-row" href="/packs/gdrive/permissions/permissions_update">
+    <span className="tool-row-head"><span className="tool-row-name">permissions_update</span><span className="tool-row-method" data-method="PATCH">PATCH</span></span>
+    <span className="tool-row-desc">Update a permission with patch semantics.</span>
+  </a>
+  <a className="tool-row" href="/packs/gdrive/permissions/permissions_delete">
+    <span className="tool-row-head"><span className="tool-row-name">permissions_delete</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Delete a permission.</span>
+  </a>
+  <span className="tool-list-group">Comments</span>
+  <a className="tool-row" href="/packs/gdrive/comments/comments_list">
+    <span className="tool-row-head"><span className="tool-row-name">comments_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List a file's comments.</span>
+  </a>
+  <a className="tool-row" href="/packs/gdrive/comments/comments_create">
+    <span className="tool-row-head"><span className="tool-row-name">comments_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a comment on a file.</span>
+  </a>
+  <a className="tool-row" href="/packs/gdrive/comments/comments_update">
+    <span className="tool-row-head"><span className="tool-row-name">comments_update</span><span className="tool-row-method" data-method="PATCH">PATCH</span></span>
+    <span className="tool-row-desc">Update a comment with patch semantics.</span>
+  </a>
+  <a className="tool-row" href="/packs/gdrive/comments/comments_delete">
+    <span className="tool-row-head"><span className="tool-row-name">comments_delete</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Delete a comment.</span>
+  </a>
+  <span className="tool-list-group">Replies</span>
+  <a className="tool-row" href="/packs/gdrive/replies/replies_create">
+    <span className="tool-row-head"><span className="tool-row-name">replies_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a reply to a comment.</span>
+  </a>
+  <a className="tool-row" href="/packs/gdrive/replies/replies_update">
+    <span className="tool-row-head"><span className="tool-row-name">replies_update</span><span className="tool-row-method" data-method="PATCH">PATCH</span></span>
+    <span className="tool-row-desc">Update a reply with patch semantics.</span>
+  </a>
+  <a className="tool-row" href="/packs/gdrive/replies/replies_delete">
+    <span className="tool-row-head"><span className="tool-row-name">replies_delete</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Delete a reply.</span>
+  </a>
+  <span className="tool-list-group">Revisions</span>
+  <a className="tool-row" href="/packs/gdrive/revisions/revisions_list">
+    <span className="tool-row-head"><span className="tool-row-name">revisions_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List a file's revisions.</span>
+  </a>
+  <a className="tool-row" href="/packs/gdrive/revisions/revisions_get">
+    <span className="tool-row-head"><span className="tool-row-name">revisions_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get a revision's metadata by ID.</span>
+  </a>
+  <span className="tool-list-group">Shared drives</span>
+  <a className="tool-row" href="/packs/gdrive/drives/drives_list">
+    <span className="tool-row-head"><span className="tool-row-name">drives_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the user's shared drives.</span>
+  </a>
+  <a className="tool-row" href="/packs/gdrive/drives/drives_get">
+    <span className="tool-row-head"><span className="tool-row-name">drives_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get a shared drive's metadata by ID.</span>
+  </a>
+  <span className="tool-list-group">Account</span>
+  <a className="tool-row" href="/packs/gdrive/about/about_get">
+    <span className="tool-row-head"><span className="tool-row-name">about_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get information about the user, the user's Drive, and system capabilities.</span>
+  </a>
+</div>
+{/* generated:tools end */}
+
+Every tool declares `quota_cost` 1. Drive meters queries per 60 seconds per user
+rather than charging different amounts per call, so a uniform 1 is the honest
+number; the link in the wire table is where the real limits live.
+
+## Gotchas
+
+<AccordionGroup>
+  <Accordion title="files.list returns trashed files unless you filter them out">
+    The default list is every file the user can see, including trash. Add
+    `trashed = false` to `q` for the view a person sees in Drive. An unfiltered
+    first call looks like a successful search that included files the caller
+    thought were gone.
+  </Accordion>
+  <Accordion title="files.delete is permanent">
+    It does not move the file to the trash. To trash, `files.update` with
+    `trashed` set to `true`. Emptying trash is `files_empty_trash`, which is
+    also permanent.
+  </Accordion>
+  <Accordion title="Moving a file is addParents and removeParents, not parents">
+    `parents` on the file body is honoured on create and copy, and ignored on
+    update. Update requests must use the `addParents` and `removeParents` query
+    parameters. A file can only have one parent.
+  </Accordion>
+  <Accordion title="comments and about require fields">
+    Drive's comments and about resources do not return fields unless you name
+    them. `comments_list` and `about_get` take a required `fields` query
+    parameter — for example `comments(id,content,author,createdTime,resolved)`
+    or `user,storageQuota`. Omitting it is a 400, not an empty list.
+  </Accordion>
+  <Accordion title="This pack does not upload bytes">
+    `files.create` posts JSON metadata. Uploading a PDF or an image uses
+    Drive's `/upload` URI, which this pack does not declare. Create a Google
+    Doc or Sheet here and write into it with the Docs or Sheets pack.
+  </Accordion>
+  <Accordion title="If driveId is set, corpora must be drive">
+    Searching a shared drive without `corpora=drive` is a 400. The schema
+    refuses the combination rather than sending it.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [Google](/auth/providers/google) — consent screen, scopes, refresh
+- [Google Docs](/packs/gdocs) — write into a document this pack created
+- [Google Sheets](/packs/gsheets) — write into a spreadsheet this pack created

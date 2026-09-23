@@ -1,0 +1,303 @@
+---
+title: "Factories"
+description: "api_key_tool_factory and oauth_tool_factory: every parameter, its default, and what the returned builder takes."
+---
+
+A factory captures the constants every tool for one API shares — base URL, auth,
+casing, envelope — and returns a callable that turns a schema plus a URL
+template into a [`Tool`](/reference/tool). Defaults set on the factory can be
+overridden per tool.
+
+## `api_key_tool_factory`
+
+Tools for an API that authenticates with static headers: `x-api-key`, a bearer
+token you already hold, several headers at once.
+
+```python
+def api_key_tool_factory(
+    base_url: BaseUrl,
+    api_key_headers: Optional[ApiKeyHeaders] = None,
+    *,
+    pack: str,
+    body_case: KeyCase = "camel",
+    query_case: KeyCase = "snake",
+    path_case: KeyCase = "snake",
+    timeout: int = 20,
+    quota_doc_url: Optional[str] = None,
+    envelope: Optional[Envelope] = None,
+    pagination: Optional[Pagination] = None,
+    body_format: BodyFormat = "json",
+    query_format: QueryFormat = "repeat",
+    static_query: Optional[Dict[str, Any]] = None,
+    static_headers: Optional[Dict[str, str]] = None,
+    on_call: Optional[CallSink] = None,
+    credential_statuses: Optional[Iterable[int]] = None,
+) -> ToolBuilder: ...
+```
+
+<ParamField path="base_url" type="str | Callable[[], str]" required>
+  Base URL for the API, e.g. `"https://api.example.com/"`. A callable is
+  resolved on every request.
+</ParamField>
+
+<ParamField path="api_key_headers" type="Dict[str, str] | Callable[[], Dict[str, str]]" default="None">
+  Headers injected on every request. May be omitted here and supplied per tool
+  via `api_key_headers_override`; a tool with neither raises [`DeclarationError`](/reference/errors#declarationerror). An
+  empty value in a literal mapping is rejected at build time — on the factory
+  and on the tool.
+</ParamField>
+
+<ParamField path="body_case" type='"camel" | "snake" | "pascal" | "kebab"' default='"camel"'>
+  Case convention for body keys.
+</ParamField>
+
+<ParamField path="query_case" type='"camel" | "snake" | "pascal" | "kebab"' default='"snake"'>
+  Case convention for query keys.
+</ParamField>
+
+<ParamField path="path_case" type='"camel" | "snake" | "pascal" | "kebab"' default='"snake"'>
+  Case convention for path keys.
+</ParamField>
+
+<ParamField path="timeout" type="int" default="20">
+  Request timeout in seconds.
+</ParamField>
+
+<ParamField path="quota_doc_url" type="Optional[str]" default="None">
+  Link to the API's own rate-limit documentation. Carried onto every tool.
+</ParamField>
+
+<ParamField path="envelope" type="Optional[Envelope]" default="None">
+  How this API reports failure inside a 200 response. Declared once here,
+  enforced on every tool the factory builds.
+</ParamField>
+
+<ParamField path="pagination" type="Optional[Pagination]" default="None">
+  Where this API keeps its cursor. Declare it per tool instead when only some
+  endpoints are lists — a retrieve labelled with a cursor parameter it does not
+  accept is worse than no declaration.
+</ParamField>
+
+<ParamField path="body_format" type='"json" | "form"' default='"json"'>
+  `"form"` for form-encoded APIs such as Stripe and Twilio.
+</ParamField>
+
+<ParamField path="query_format" type='"repeat" | "bracket"' default='"repeat"'>
+  `"bracket"` for APIs expecting `expand[0]=x` in the query string.
+</ParamField>
+
+<ParamField path="static_query" type="Optional[Dict[str, Any]]" default="None">
+  Query parameters sent verbatim on every request.
+</ParamField>
+
+<ParamField path="static_headers" type="Optional[Dict[str, str]]" default="None">
+  Headers sent verbatim on every request — an Azure `api-version`, a
+  `Notion-Version`.
+</ParamField>
+
+<ParamField path="on_call" type="Optional[CallSink]" default="None">
+  Receives a [`ToolCall`](/reference/observability#toolcall) after every
+  invocation of every tool this factory builds. Declared here because
+  observability belongs to the deployment, not to one endpoint.
+</ParamField>
+
+<ParamField path="credential_statuses" type="Optional[Iterable[int]]" default="None">
+  Statuses that mean "your credential" rather than "not allowed". Defaults to
+  `{401}`.
+</ParamField>
+
+<ResponseField name="returns" type="ToolBuilder">
+  A callable that builds `Tool` instances with these defaults. Its parameters
+  are listed under [the builder](#the-builder).
+</ResponseField>
+
+```python
+from charter import api_key_tool_factory
+
+scraper = api_key_tool_factory(
+    pack="scraper",
+    base_url="https://api.example.com/",
+    api_key_headers={"x-api-key": "key-123"},
+)
+```
+
+## `oauth_tool_factory`
+
+Tools for an API that authenticates with a bearer token. The token is fetched
+from `credential_provider` on every call, so a provider that refreshes is picked
+up without rebuilding the tools. Charter never runs the OAuth flow itself: a
+missing, expired or rejected token raises [`CredentialError`](/reference/errors#credentialerror) for the host
+application.
+
+```python
+def oauth_tool_factory(
+    base_url: BaseUrl,
+    provider: str,
+    credential_provider: CredentialProvider,
+    scopes: Optional[Sequence[str]] = None,
+    *,
+    pack: str,
+    body_case: KeyCase = "camel",
+    query_case: KeyCase = "snake",
+    path_case: KeyCase = "snake",
+    timeout: int = 20,
+    quota_doc_url: Optional[str] = None,
+    envelope: Optional[Envelope] = None,
+    pagination: Optional[Pagination] = None,
+    body_format: BodyFormat = "json",
+    query_format: QueryFormat = "repeat",
+    static_query: Optional[Dict[str, Any]] = None,
+    static_headers: Optional[Dict[str, str]] = None,
+    on_call: Optional[CallSink] = None,
+    expiry_leeway_seconds: int = 10,
+    credential_statuses: Optional[Iterable[int]] = None,
+) -> ToolBuilder: ...
+```
+
+The keyword parameters it shares with `api_key_tool_factory` — `body_case`,
+`query_case`, `path_case`, `timeout`, `quota_doc_url`, `envelope`, `pagination`,
+`body_format`, `query_format`, `static_query`, `static_headers`, `on_call`,
+`credential_statuses` — behave identically. The four that differ:
+
+<ParamField path="provider" type="str" required>
+  Provider identifier passed to `get_credentials`, e.g. `"google"`. Also the
+  `peer.service` label on every record.
+</ParamField>
+
+<ParamField path="credential_provider" type="CredentialProvider" required>
+  Supplies the bearer token. See [Credentials](/reference/credentials).
+</ParamField>
+
+<ParamField path="scopes" type="Optional[Sequence[str]]" default="None">
+  The scopes these tools need, carried as metadata for consent screens and
+  approval UIs. Charter does not request them.
+</ParamField>
+
+<ParamField path="expiry_leeway_seconds" type="int" default="10">
+  How dead a token must be before the runtime refuses to send it. A guard
+  against sending something already expired, not a refresh policy.
+</ParamField>
+
+```python
+from charter import oauth_tool_factory
+from charter.auth import StaticTokenProvider
+
+gmail = oauth_tool_factory(
+    pack="mygmail",
+    base_url="https://gmail.googleapis.com/",
+    provider="google",
+    credential_provider=StaticTokenProvider("test-token"),
+    scopes=["https://www.googleapis.com/auth/gmail.modify"],
+)
+```
+
+## The builder
+
+Both factories return a callable with the same parameters, except that
+`api_key_headers_override` exists only on the API-key builder and
+`scopes_override` only on the OAuth one.
+
+```python
+def create_tool(
+    name: str,
+    args_schema: Type[BaseModel],
+    method: HTTPMethod,
+    url_template: str,
+    description: Optional[str] = None,
+    action_label: Optional[str] = None,
+    body_case_override: Optional[KeyCase] = None,
+    query_case_override: Optional[KeyCase] = None,
+    path_case_override: Optional[KeyCase] = None,
+    timeout_override: Optional[int] = None,
+    mode: Optional[str] = None,
+    response_handler: Optional[ResponseHandler] = None,
+    build_request: Optional[Callable[[BaseModel], TransportOverride]] = None,
+    quota_cost: Optional[int] = None,
+    envelope_override: Optional[Envelope] = None,
+    pagination_override: Optional[Pagination] = None,
+    body_format_override: Optional[BodyFormat] = None,
+    static_body: Optional[Dict[str, Any]] = None,
+    on_call_override: Optional[CallSink] = None,
+) -> Tool: ...
+```
+
+| Parameter | Purpose |
+|---|---|
+| `name` | Tool name |
+| `args_schema` | The schema — the contract |
+| `method` | `GET` / `POST` / `PATCH` / `PUT` / `DELETE` |
+| `url_template` | Path relative to the base URL, with a placeholder per [`Path()`](/reference/markers#path) field |
+| `description` | What the tool does, for the model |
+| `action_label` | Short user-facing phrase, for approval UIs |
+| `mode` | Which [`Mode`](/reference/markers#mode)-marked fields survive into the LLM schema |
+| `response_handler` | Async callable that reshapes the payload |
+| `build_request` | Escape hatch returning a [`TransportOverride`](/reference/markers#transportoverride) |
+| `quota_cost` | What one call costs against the provider's rate limit |
+| `static_body` | Constant body keys for this endpoint — the GraphQL document |
+| `*_override` | The factory default, replaced for this endpoint |
+
+Two details of how overrides resolve:
+
+- `body_case_override`, `query_case_override`, `path_case_override`,
+  `timeout_override`, `envelope_override`, `pagination_override`,
+  `on_call_override`, `api_key_headers_override` and `scopes_override` replace
+  the factory value when they are not `None`. Passing `None` keeps the
+  factory's.
+- `body_format_override` is applied with `or`, so `"json"` and `"form"` both
+  work but a falsy value falls back to the factory's.
+
+`static_body` is per tool rather than per factory because the constant belongs
+to the operation: every Linear tool POSTs to the same `graphql` URL, and the
+query document is what distinguishes one from another.
+
+```python
+from typing import Annotated
+
+from pydantic import BaseModel
+from charter import Path, api_key_tool_factory
+
+
+class TranscriptRequest(BaseModel):
+    video_id: Annotated[str, Path()]
+
+
+api = api_key_tool_factory(
+    pack="acme",
+    base_url="https://api.example.com/",
+    api_key_headers={"x-api-key": "default-key"},
+)
+
+fetch_transcript = api(
+    name="fetch_transcript",
+    args_schema=TranscriptRequest,
+    method="GET",
+    url_template="transcript/{video_id}",
+    description="Fetch the transcript of a video.",
+)
+
+admin_transcript = api(
+    name="fetch_transcript_admin",
+    args_schema=TranscriptRequest,
+    method="GET",
+    url_template="admin/transcript/{video_id}",
+    description="Fetch a transcript with the privileged key.",
+    api_key_headers_override={"x-api-key": "admin-key"},
+    timeout_override=60,
+)
+```
+
+## Errors
+
+| Condition | Result |
+|---|---|
+| An empty header value, on the factory or a tool | [`DeclarationError`](/reference/errors#declarationerror) at build time |
+| No headers on either the factory or the tool | [`DeclarationError`](/reference/errors#declarationerror) naming the tool |
+| A non-async `response_handler` | [`DeclarationError`](/reference/errors#declarationerror) at build time |
+| `401` from the API | `CredentialError` |
+| Any other status `>= 400` | [`APIError`](/reference/errors#apierror) carrying the status and a body excerpt |
+
+## Related
+
+- [`api_key_tool_factory`](/auth/api-key-tool-factory) — the narrative version, with more auth shapes
+- [Authorization servers](/auth/authorization-servers) — what to pass as `credential_provider`
+- [Packs](/packs/overview) — factories already declared against eleven APIs

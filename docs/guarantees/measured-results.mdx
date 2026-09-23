@@ -1,0 +1,231 @@
+---
+title: "Measured results"
+description: "534 runs against live APIs, what they show, what they do not, and the one scenario that goes the other way."
+---
+
+Everything else under Guarantees is something the library holds mechanically.
+This page is the other kind of claim: what happened when it was run, which is
+weaker, and is therefore reported with its failures and its discarded columns
+attached.
+
+Two campaigns, on 15 and 16 September 2026, against real accounts over real API
+calls.
+No mocks, no recorded fixtures. Every run seeds live state, lets an arm act on
+it, reads the resulting state back, and tears it down.
+
+## The two arms
+
+| | What the model is given |
+|---|---|
+| **Charter** | The pack's tools, every schema deferred behind [`ToolSession`](/reference/tool-discovery#toolsession) until the model asks for one by name |
+| **raw** | One generic HTTP tool per provider: base URL and credentials, and the model supplies method, path, query and body |
+
+The raw arm is the glue people write first, and it is a control rather than a
+straw man. The endpoint list in each of its tool descriptions is *derived* from
+the Charter pack's own tools, so nobody hand-picked what it could reach, and the
+same derivation compiles the guard that enforces it. Same model, same settings,
+same system prompt, same task text, same credentials, same endpoint set, same
+limits. Only the tool surface differs.
+
+Two deliberate concessions to the raw arm, both of which a careful engineer would
+also make: a response over 100,000 bytes is cut there rather than ending the run
+on a context error, and a non-2xx is raised so the model can read the status and
+body.
+
+## Task success
+
+A run is one scenario-epoch. Success means the scenario's judge accepted the
+state read back from the live accounts after the agent finished. **The transcript
+is never consulted for the verdict**: no LLM judge reads the reasoning, and no
+partial credit is given for a plausible-looking trajectory.
+
+| campaign | arm | runs | success | rate |
+|---|---|---:|---:|---:|
+| breadth, 16 templates over variants | Charter | 110 | 109 | 99.1% |
+| | raw | 110 | 105 | 95.5% |
+| depth, 16 templates over epochs | Charter | 157 | 153 | 97.5% |
+| | raw | 157 | 151 | 96.2% |
+| **combined** | **Charter** | **267** | **262** | **98.1%** |
+| | **raw** | **267** | **256** | **95.9%** |
+
+**On task success this is a wash, and it is reported first because it is the
+number most likely to be oversold.** Two-proportion z-test on the combined
+figures: z = 1.52, two-sided p = 0.13. Neither campaign reaches significance
+alone and nor do they pooled. Anyone citing a success-rate win from this page is
+citing noise.
+
+### The two scenarios that move, and one goes the wrong way
+
+Rolled up, almost every template ties. Three do not, and the same two appear in
+both campaigns.
+
+| template | breadth | depth |
+|---|---|---|
+| `doc_to_gmail_draft` | Charter 7/7, raw 2/7 | Charter 10/10, raw 6/10 |
+| `github_to_linear` | Charter 6/7, raw 7/7 | Charter 4/8, raw 7/8 |
+| `firecrawl_to_linear` | tie | Charter 9/9, raw 8/9 |
+
+`doc_to_gmail_draft` is the whole visible margin, and it replicates. It is also
+the scenario the thesis predicts: the agent must put an address it was handed
+into a MIME header it also has to build. Four of the five raw failures in breadth
+produced a draft, got HTTP 200, and addressed it to a corrupted version of the
+address, losing one character each time. Gmail accepted all four and the agent
+reported success.
+
+`github_to_linear` goes the other way in both campaigns, and worse in the larger
+one. That is not noise dressed up as candour: a 4/8 is a real regression against
+raw's 7/8, it is unexplained, and it is the first thing to investigate before
+this page is cited anywhere.
+
+## Failed calls, by cause
+
+Task success says whether the agent got there. This says what it cost to get
+there, and it is where the two surfaces actually separate.
+
+Every tool-error message in both campaigns was classified. Failures belonging to
+the environment rather than to either arm are listed separately: GitHub secondary
+rate limits and Firecrawl 429s land on whichever arm is running when the provider
+throttles, and they fall heavier on Charter simply because it finishes more runs.
+
+| attributable to the tool surface | breadth | | depth | |
+|---|---:|---:|---:|---:|
+| | Charter | raw | Charter | raw |
+| malformed GraphQL document | **0** | 11 | **0** | 21 |
+| invented an endpoint never declared | **0** | 4 | **0** | 6 |
+| MIME or base64 assembly | **0** | 3 | **0** | 1 |
+| label name sent where the API wants an id | 1 | 5 | 4 | 7 |
+| wrong field, enum or shape | 1 | 14 | 7 | 23 |
+| caught by schema validation, before any request | 2 | 0 | 0 | 0 |
+| **attributable total** | **4** | **37** | **11** | **58** |
+| environmental, not attributable | 30 | 21 | 62 | 25 |
+
+**The ratio is the weak claim and the zeros are the strong one.** Attributable
+failures run 9.3x in breadth and 5.3x in depth; a figure that moves that far
+between campaigns should not be quoted as a headline. What does hold is that
+three categories are zero on the Charter arm in both campaigns, across 534 runs.
+The model never wrote a malformed GraphQL document, never reached for an endpoint
+that was not declared to it, and never produced base64 the API rejected. Those
+are not averages. A Charter tool has nowhere to put a GraphQL document or an
+undeclared path, so the failure has no way to occur.
+
+Charter's own attributable count rose from 4 to 11 between campaigns, mostly
+wrong-field and label-id errors. The larger sample is the less flattering one,
+which is the direction that makes the three zeros worth something.
+
+## Context and tokens
+
+Bytes of tool output handed to the model, summed over a run, and what came off
+the wire to produce it:
+
+| campaign | arm | payload bytes | context bytes | |
+|---|---|---:|---:|---|
+| breadth | Charter | 35,523 | 7,382 | 4.9x |
+| | raw | 39,738 | 36,383 | 1.0x |
+| depth | Charter | 47,218 | 10,581 | 3.8x |
+| | raw | 42,054 | 39,785 | 1.0x |
+
+The payload column is the one that makes this a measurement rather than an
+anecdote, and in depth it goes the other way: Charter pulled 12% **more** off the
+wire than raw did. It was not fetching less and forwarding the same. It fetched
+more and forwarded a quarter of it, by the packs' own response handlers, with
+nothing configured. Part of raw's lower payload is an artifact of being cut off:
+it hit the 100,000-byte response cap 17 times in depth against Charter's zero.
+
+Total tokens per run, which earlier campaigns could not report:
+
+| campaign | Charter | raw | |
+|---|---:|---:|---|
+| breadth | 75,816 | 112,335 | 1.5x |
+| depth | 91,394 | 106,490 | 1.2x |
+
+Context bytes and total tokens measure different things and the gap between the
+ratios is the point. Context bytes are tool output, which is where trimming
+lands. Total tokens also carry the schemas and the model's own reasoning, which
+trimming does not touch. Quote them together or neither.
+
+## The rest of the record
+
+| | breadth | depth |
+|---|---|---|
+| tool errors / run, Charter vs raw | 0.29 vs 0.47 | 0.46 vs 0.47 |
+| guard rejections | 0 vs 4 | 0 vs 6 |
+| response truncations | 0 vs 3 | 0 vs 17 |
+| wall seconds / run | 46.3 vs 96.4 | 48.7 vs 96.3 |
+
+Tool errors per run understates the gap by roughly six times, which is why the
+[classified table](#failed-calls-by-cause) exists. Most of Charter's raw count is
+provider throttling rather than a malformed call, and Charter's figure also
+*includes* calls rejected locally by schema validation that never reached an API.
+
+Guard rejections are attempts to reach an endpoint outside the agreed set. Zero
+against ten across both campaigns is a property of the mechanism rather than of
+the model: a Charter tool has nowhere to put a path the pack does not declare.
+
+Wall time is [not a result](/optimization/latency#the-number-not-to-chase) and is
+listed so it is not omitted. Both campaigns put Charter at roughly half, on the
+same model and the same tasks.
+
+## What earlier campaigns could not report
+
+Every Charter-arm token figure taken before 15 September 2026 is void, and this
+page used to say so while reporting none.
+
+The arm flattened `$ref`/`$defs` before handing a tool to the eval framework,
+whose schema type has no reference fields. Real SDK users are handed the compact
+`$defs` form that `to_json_schema()` emits, so the arm was benchmarking a surface
+no consumer of the library ever sees. On a cyclic schema that expansion is
+multiplicative: `linear.teams_list` reached 3.8 KB at depth 2, 72 KB at 4, 1.9 MB
+at 6 and 115 MB at depth 12.
+
+It was broken from the harness's first commit on 7 September until 15 September.
+Both campaigns on this page ran after the fix, which is why tokens appear above.
+Context-byte figures were never affected, because they measure tool output rather
+than schemas. Any token number quoted from a campaign dated before 15 September,
+including ones this page previously carried, should be discarded rather than
+reconciled.
+
+## What this does not show
+
+- **One model.** Both campaigns ran on `glm-5p3-flash`. Earlier campaigns on
+  `nemotron-3-ultra` and `minimax-m3` point the same way on both success and
+  context, at smaller n and on an earlier scenario set, but no third model was
+  run to completion here.
+- **One scenario family.** Sixteen templates, all of them multi-step
+  cross-provider office automation. Nothing here says anything about code
+  execution, retrieval, or long-horizon planning.
+- **Not an ablation.** The Charter arm differs from raw in several ways at once:
+  declared schemas, deferral, response trimming, wire assembly. This compares two
+  whole surfaces. It does not apportion the credit between them.
+- **Harness errors excluded.** Six runs in depth, three per arm, never had a fair
+  task because a seed or a read-back failed. They are listed in the campaign
+  report and counted for no one. Breadth had none.
+- **Success is a wash and one template regresses.** The headline separation is in
+  failed calls, not in task completion, and `github_to_linear` goes against
+  Charter in both campaigns.
+
+## Reproducing it
+
+The campaigns live in `harness/`, run against your own accounts, and write their
+own report. Check the wiring first. It makes one cheap call per provider and
+creates nothing it does not also delete:
+
+```bash
+cd harness && .venv/bin/python scripts/check_auth.py
+```
+
+Then run a campaign in batches, so that a stall costs one batch rather than the
+run:
+
+```bash
+scripts/run_batched.sh --name mycampaign --size 8 --arms progressive,raw
+```
+
+Every figure on this page is in `harness/results/stage2-final/summary.json` and
+`harness/results/stage3-final-all/summary.json`, beside the per-scenario tables
+and the judge's stated reason for each failure.
+
+## Related
+
+- [Context window](/optimization/context-window): the mechanism behind the context ratio, in both directions
+- [Conformance](/guarantees/conformance): what every pack is held to mechanically
+- [What this can't express](/guarantees/limitations): the edges of the contract

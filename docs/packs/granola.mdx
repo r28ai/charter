@@ -1,0 +1,271 @@
+---
+title: "Granola"
+description: "Read meeting notes, transcripts, folders and the audit log, and subscribe to note events."
+sidebarTitle: "Overview"
+---
+
+{/* generated:summary start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="pack-summary">
+  <span><Visibility for="humans"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg></Visibility>9 tools</span>
+  <span><Visibility for="humans"><svg viewBox="0 0 24 24"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4" /><path d="m21 2-9.6 9.6" /><circle cx="7.5" cy="15.5" r="5.5" /></svg></Visibility>API key</span>
+</div>
+{/* generated:summary end */}
+
+```python granola_example.py {7}
+import os
+
+from charter.packs import granola
+
+granola.configure(api_key=os.environ["GRANOLA_API_KEY"])
+
+notes = await granola.notes_list.ainvoke(created_after="2026-01-27")
+```
+
+Granola takes notes during a meeting and writes the summary afterwards. This API
+is how a program reads those notes back: the summary, the transcript, who
+attended, and the calendar event the meeting came from.
+
+Seven of the nine tools are GETs. Notes and folders are created in the Granola
+app, and the API has no endpoint that writes either one, so the only things a
+program can create, change or delete here are webhook endpoints.
+
+## Authenticating
+
+{/* generated:auth start — do not edit by hand; run scripts/generate_pack_docs.py */}
+This pack takes an API key in `Authorization`, and [`configure()`](/reference/configuration#configure) is optional when `$GRANOLA_API_KEY` is set.
+
+There is no authorization server, no consent screen and no refresh — [API keys](/auth/api-key-tool-factory) is the whole story.
+{/* generated:auth end */}
+
+The key is prefixed `grn_…` and goes out as a bearer token. It is created in the
+desktop app, under **Settings → Connectors → API keys**, and the notes it can
+reach are chosen at that moment: a key carries **Personal notes**, **Public
+notes**, or both. No parameter on any tool widens that, so a listing that comes
+back short is usually a key question rather than a filter question.
+
+## The client
+
+{/* generated:wire start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<Note>
+[`api_key_tool_factory`](/reference/factories#api_key_tool_factory) is the whole client: a thin wrapper over `httpx` that attaches your key and these endpoint constants to each request. No vendor SDK enters your dependency tree.
+</Note>
+
+<div className="named-tabs" data-files="granola_api_client.py|granola_pack_client.py">
+<CodeGroup>
+
+```python Without the pack
+import os
+
+from charter import api_key_tool_factory
+
+api_key = os.environ["GRANOLA_API_KEY"]
+
+granola_api_client = api_key_tool_factory(
+    base_url="https://public-api.granola.ai/",
+    api_key_headers={"Authorization": f"Bearer {api_key}"},
+    pack="granola",
+    body_format="json",
+    query_format="repeat",
+    body_case="snake",
+    query_case="snake",
+    path_case="snake",
+    # this API reports failure with an HTTP status code
+    envelope=None,
+)
+```
+
+```python With the pack
+import os
+
+from charter.packs import granola
+
+granola.configure(api_key=os.environ["GRANOLA_API_KEY"])
+
+# The base URL, the casing, the envelope and the pagination are
+# already declared. 9 tools, ready to hand to a model:
+tools = granola.TOOLS
+```
+
+</CodeGroup>
+</div>
+
+### Paging through a list
+
+A cursor belongs to the tool that returns it, so it is declared on that tool's builder call:
+
+```python granola_pagination.py
+notes_list = granola_api_client(
+    name="notes_list",
+    args_schema=NotesListRequest,
+    method="GET",
+    url_template="v1/notes",
+    pagination=Pagination(
+        cursor_field="cursor",
+        cursor_param="cursor",
+        more_field="hasMore",
+    ),
+)
+```
+
+<Note>
+Pagination is declared on `notes_list`, `notes_transcript_get`, `folders_list` and `audit_list`. The other 5 take no cursor.
+</Note>
+{/* generated:wire end */}
+
+Granola versions in the path, not in a header. There is no `Granola-Version` to
+send, so `v1` is written into every `url_template` and moving to a later version
+is an edit to this pack.
+
+## Tools
+
+Each is a [`Tool`](/reference/tool), called with
+[`ainvoke`](/reference/tool#tool-ainvoke) as in the snippet above. The name
+links to its parameters, its response and what it costs.
+
+{/* generated:tools start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="tool-list">
+  <span className="tool-list-group">Notes</span>
+  <a className="tool-row" href="/packs/granola/notes/notes_list">
+    <span className="tool-row-head"><span className="tool-row-name">notes_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List meeting notes, filtered by when they were created or last updated and optionally narrowed to one folder and its subfolders.</span>
+  </a>
+  <a className="tool-row" href="/packs/granola/notes/notes_get">
+    <span className="tool-row-head"><span className="tool-row-name">notes_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Read one meeting note: its AI summary, the people who attended, the calendar event it was taken against, and the folders it belongs to.</span>
+  </a>
+  <a className="tool-row" href="/packs/granola/notes/notes_transcript_get">
+    <span className="tool-row-head"><span className="tool-row-name">notes_transcript_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Read a meeting transcript one page at a time.</span>
+  </a>
+  <span className="tool-list-group">Folders</span>
+  <a className="tool-row" href="/packs/granola/folders/folders_list">
+    <span className="tool-row-head"><span className="tool-row-name">folders_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the folders this key can reach, sorted alphabetically.</span>
+  </a>
+  <span className="tool-list-group">Audit</span>
+  <a className="tool-row" href="/packs/granola/audit/audit_list">
+    <span className="tool-row-head"><span className="tool-row-name">audit_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Read the workspace audit log: membership changes, note views, recordings and the rest, each with who did it and how the request reached Granola.</span>
+  </a>
+  <span className="tool-list-group">Webhooks</span>
+  <a className="tool-row" href="/packs/granola/webhooks/webhook_endpoints_create">
+    <span className="tool-row-head"><span className="tool-row-name">webhook_endpoints_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Register an HTTPS URL to receive note events, so a program does not have to poll.</span>
+  </a>
+  <a className="tool-row" href="/packs/granola/webhooks/webhook_endpoints_list">
+    <span className="tool-row-head"><span className="tool-row-name">webhook_endpoints_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the webhook endpoints this key can manage, with each one's URL, subscribed events, scopes and whether it is enabled.</span>
+  </a>
+  <a className="tool-row" href="/packs/granola/webhooks/webhook_endpoints_update">
+    <span className="tool-row-head"><span className="tool-row-name">webhook_endpoints_update</span><span className="tool-row-method" data-method="PATCH">PATCH</span></span>
+    <span className="tool-row-desc">Change a webhook endpoint, or pause it with enabled=false.</span>
+  </a>
+  <a className="tool-row" href="/packs/granola/webhooks/webhook_endpoints_delete">
+    <span className="tool-row-head"><span className="tool-row-name">webhook_endpoints_delete</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Delete a webhook endpoint and stop its deliveries immediately.</span>
+  </a>
+</div>
+{/* generated:tools end */}
+
+## What each tool is for
+
+`notes_list` finds notes by date, and optionally inside one folder and its
+subfolders. It returns each note's id, title, owner and timestamps, not its
+content.
+
+`notes_get` reads one note in full. `include="transcript"` adds the transcript
+inline.
+
+`notes_transcript_get` reads a transcript a page at a time. It is the right tool
+for a long meeting, and the only tool for a transcript `notes_get` refused to
+inline.
+
+`folders_list` returns a flat, alphabetical listing where each folder names its
+parent in `parent_folder_id`. Use it to find the `folder_id` that narrows a note
+listing, or the `folder_ids` that narrow a webhook endpoint.
+
+`audit_list` reads the workspace audit log. It is the one tool here that is not
+about a note: membership changes, note views and recordings, each with who did
+it and how the request reached Granola.
+
+The four `webhook_endpoints_*` tools register a delivery URL, list what is
+registered, change or pause one, and delete one.
+
+## Gotchas
+
+<AccordionGroup>
+  <Accordion title="The signing secret is returned once">
+    `webhook_endpoints_create` is the only response that carries
+    `signing_secret`. It is absent from every list and update response, and
+    Granola cannot reissue it. A caller that discards it has to delete the
+    endpoint and create another.
+  </Accordion>
+
+  <Accordion title="A transcript that will not inline answers 413">
+    `notes_get` with `include="transcript"` returns `413 TRANSCRIPT_TOO_LARGE`
+    rather than a truncated transcript. Charter raises that as an
+    [`APIError`](/reference/errors#apierror) with `status_code` 413. Read the
+    transcript with `notes_transcript_get` instead, which pages it.
+  </Accordion>
+
+  <Accordion title="Notes without a summary are invisible, not missing">
+    The API only returns notes that already have a generated AI summary and
+    transcript. One still processing is absent from `notes_list` and answers 404
+    from `notes_get`. That is a different thing from the note not existing, and
+    a retry later finds it.
+  </Accordion>
+
+  <Accordion title="hasMore is the only camelCase key in the API">
+    Parameters, bodies and response fields are snake_case throughout. The
+    boolean that ends a paginated response is not.
+    [`Pagination`](/reference/envelopes-and-pagination#pagination) reads it as
+    the authoritative end of the list, because `cursor` is null on the last page
+    and the boolean answers the question directly.
+  </Accordion>
+
+  <Accordion title="webhook_endpoints_list does not page">
+    It is the one list endpoint here with no cursor and no `hasMore`, so it
+    declares no [`Pagination`](/reference/envelopes-and-pagination#pagination).
+    The other four list endpoints all page the same way.
+  </Accordion>
+
+  <Accordion title="An audit page can be short without being the last one">
+    Granola says so outright: fewer events than `page_size` does not mean the
+    end. The declared pagination reads `hasMore`, so a walk built on
+    [`Pagination.next_page_args`](/reference/envelopes-and-pagination#pagination)
+    is correct. A walk that counts events is not.
+  </Accordion>
+
+  <Accordion title="An audit event's actor is one of four shapes">
+    `api_key`, `user`, `system` or `anonymous`, discriminated on `object`.
+    `system` means no person was involved. `anonymous` means a person acted
+    without signing in, and `context.ip_address` is then the only attribution
+    there is. The `data` object is open, and its keys are camelCase because they
+    are the names Granola records internally.
+  </Accordion>
+
+  <Accordion title="Two responses are trimmed">
+    A transcript repeats a four-key `speaker` object on every line, so the pack
+    collapses it to the one word it spells: the resolved name where there is
+    one, otherwise `me` or `them`, otherwise the `Speaker A` bucket, otherwise
+    the audio source. A note returns its summary twice, as `summary_text` and
+    `summary_markdown`, and its private notes twice the same way. The markdown
+    is kept and the plain-text twin dropped. Where the markdown is null, the
+    text survives, so no note comes back with no summary.
+  </Accordion>
+
+  <Accordion title="Verifying a delivery is not a tool">
+    Granola signs deliveries following the
+    [Standard Webhooks](https://www.standardwebhooks.com/) specification: an
+    HMAC-SHA256 over `{webhook-id}.{webhook-timestamp}.{body}`, keyed with the
+    base64-decoded signing secret. That is a computation your receiver runs on
+    an inbound request, not a call to an API, so no tool can express it.
+    [Granola's webhooks page](https://docs.granola.ai/webhooks) writes out the
+    algorithm.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [The API-key factory](/auth/api-key-tool-factory): what an API-key pack does not have
+- [Envelopes and pagination](/reference/envelopes-and-pagination): the cursor this pack declares

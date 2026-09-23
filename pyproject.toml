@@ -1,0 +1,151 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "charter-ai"
+version = "0.1.0"
+description = "Agent tools you declare instead of implement. Define a Pydantic schema; the runtime handles the request, the auth and the wire format."
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.10"
+authors = [{ name = "R28 AI, Inc.", email = "oss@r28.ai" }]
+keywords = [
+    "llm",
+    "agents",
+    "tools",
+    "pydantic",
+    "openapi",
+    "mcp",
+    "oauth",
+    "guardrails",
+    "tool-calling",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+]
+dependencies = [
+    # Capped at <3 deliberately. Pydantic is not a dependency here, it is the
+    # substrate the contract is made of, and `_carry_validators` reads one
+    # private attribute of it (see `_pydantic_decorators`). An unbounded pin
+    # means the day 3.0 ships, every `pip install charter` resolves to it and
+    # breaks for someone who did nothing. Lift the cap after the suite runs
+    # green against 3.0, not before.
+    "pydantic>=2.9,<3",
+    # Capped for the same reason on a smaller surface: Charter uses three public
+    # names here (AsyncClient, Response, HTTPError) and no private API, so the
+    # risk is lower than pydantic's — but respx, which every test asserts
+    # through, tracks httpx internals closely, and fastapi, langchain-core and
+    # langsmith all cap it at <1 as well. Same rule: lift it after a green run
+    # against 1.0, not in anticipation of one.
+    "httpx>=0.27,<1",
+]
+
+[project.urls]
+Homepage = "https://github.com/r28ai/charter"
+Documentation = "https://docs.r28.ai/charter"
+Repository = "https://github.com/r28ai/charter"
+Issues = "https://github.com/r28ai/charter/issues"
+Changelog = "https://github.com/r28ai/charter/blob/main/CHANGELOG.md"
+
+[project.optional-dependencies]
+langchain = ["langchain-core>=0.3"]
+# The adapter targets the mcp 2.x server API (MCPServer); 1.x had a
+# different low-level surface.
+mcp = ["mcp>=2.0"]
+# No `google` extra: OAuth refresh is a form POST (charter.auth), so google-auth
+# would buy nothing a token endpoint does not already give us. Keeping the core
+# at pydantic + httpx is worth more than any vendor client.
+dev = [
+    # The agent package, not just langchain-core: CharterMiddleware plugs into
+    # `create_agent`, and testing it against anything less than the real thing
+    # would be testing the mock.
+    "langchain>=1.0",
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "respx>=0.21",
+    "ruff>=0.6",
+    "pyright>=1.1.380",
+    # tests/test_landing_docs.py reads pyproject.toml; tomllib is 3.11+ and
+    # requires-python is >=3.10.
+    "tomli>=2.0; python_version < '3.11'",
+]
+
+[tool.hatch.build.targets.sdist]
+# The wheel target below decides what `pip install charter` puts in
+# site-packages; this decides what the .tar.gz carries. Without it hatchling
+# defaults to "everything git does not ignore", which swept docs/ (715 files,
+# ~1MB of brand images) and the eval harness into every sdist. Distro packagers
+# and `--no-binary` builds are the only consumers of this artifact, and what
+# they want is the source and a suite they can run against it. Same allowlist
+# shape as httpx and pydantic. Add a path here when a build needs it, not
+# because it happens to live in the repo.
+include = [
+    "/src",
+    "/tests",
+    "/examples",
+    "/README.md",
+    "/CHANGELOG.md",
+    "/LICENSE",
+    "/NOTICE",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/charter"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# tests/ is not a package, so pytest puts tests/ on sys.path rather than the
+# repo root — and test_conformance_is_not_vacuous imports tests.test_conformance
+# to mutate it. Putting the root on the path is what makes `pytest` and
+# `python -m pytest` agree.
+pythonpath = ["."]
+asyncio_mode = "auto"
+# A deprecation is a scheduled breakage, so it fails the build rather than
+# scrolling past in the summary. Adopted at zero warnings, which is the cheapest
+# this will ever be. When a dependency deprecates something you cannot fix, add
+# a targeted `ignore::...` line below rather than weakening this one.
+filterwarnings = ["error::DeprecationWarning"]
+markers = [
+    "live: hits a real provider API with hardcoded arguments. Needs credentials.",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = [
+    "E501",  # line length is formatter territory
+    "B008",  # function call in default arg — this is how pydantic Field() is used
+    # The typing.Dict/List/Optional spellings are kept as-is: these modules are
+    # verbatim ports and the floor is 3.10, where both spellings are valid.
+    "UP006",
+    "UP007",
+    "UP035",
+    "UP045",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Pack type modules are verbatim ports of API-shaped schemas. Their re-export
+# __init__ files use star imports on purpose, mirroring the upstream layout.
+"src/charter/packs/*/types/**" = ["F403", "F405"]
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+include = ["src"]
+exclude = ["**/__pycache__"]
+typeCheckingMode = "basic"
+pythonVersion = "3.10"
+reportMissingImports = true
+reportMissingTypeStubs = false

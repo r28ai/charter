@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install
+        run: |
+          uv venv --python ${{ matrix.python-version }}
+          uv pip install -e ".[dev,langchain,mcp]"
+
+      - name: Ruff
+        run: uv run ruff check src tests examples scripts harness
+
+      # E501 is ignored in pyproject because "line length is formatter
+      # territory" — which only holds if something runs the formatter. Nothing
+      # did, so 251 of 403 files had drifted by the time this was added.
+      - name: Ruff format
+        run: uv run ruff format --check src tests examples scripts harness
+
+      # --project . pins the config to this repository's pyproject.toml.
+      # Pyright searches parent directories for a config file, so without it a
+      # pyrightconfig.json above the checkout would silently replace these
+      # settings — which is exactly how reportArgumentType came to be off for
+      # every Charter run made inside the r28 monorepo.
+      - name: Pyright
+        run: uv run pyright --project . --pythonpath .venv/bin/python src
+
+      - name: Pytest
+        run: uv run pytest -q
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # The binary rather than gitleaks-action, which needs a GITLEAKS_LICENSE
+      # secret for every repository owned by an organization, and this one is
+      # owned by r28ai. The key is free, but a job that fails closed on a
+      # missing secret is a worse gate than one that needs no secret at all.
+      # Unpacked outside the checkout so the binary is not part of the tree it
+      # then scans.
+      - name: Install gitleaks
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C "$RUNNER_TEMP" gitleaks
+        env:
+          GITLEAKS_VERSION: 8.30.1
+
+      # Every credential in tests/ is invented, but that is a claim rather than a
+      # guarantee until something checks it. The allowlist in .gitleaks.toml names
+      # individual literals, so a real key pasted into a fixture still fails here.
+      # This scans history, which fetch-depth: 0 above is for.
+      - name: Gitleaks
+        run: |
+          "$RUNNER_TEMP/gitleaks" git . --config .gitleaks.toml --no-banner --redact

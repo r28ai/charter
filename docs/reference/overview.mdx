@@ -1,0 +1,139 @@
+---
+title: "Reference"
+sidebarTitle: "Overview"
+description: "Every public symbol, which namespace it is imported from, where it is documented, and what the reference section covers."
+---
+
+The look-it-up section: signatures, parameters, defaults, attributes and what
+raises what. The conceptual pages explain why a mechanism exists — this one says
+what it takes.
+
+The public surface is two namespaces. `charter` holds tools, markers, transforms
+and errors. `charter.auth` holds credentials and OAuth, all of it, with nothing
+re-exported from `charter`, so each name has exactly one import path and the
+inventory below says which. Everything outside those two is internal and free to
+move between releases: `charter.execution` in particular is the runtime, not an API.
+
+## The pages
+
+| Page | Covers |
+|---|---|
+| [Tool](/reference/tool) | the object one endpoint compiles to |
+| [Factories](/reference/factories) | `api_key_tool_factory`, `oauth_tool_factory`, and the builder they return |
+| [Schema markers](/reference/markers) | `Path`, `Query`, `Body`, `Format`, `Mode`, `Case`, `KeyCase`, `TransportOverride` |
+| [Semantic types](/reference/semantic-types) | the shapes a model fills in before a transform encodes them |
+| [Protobuf types](/reference/protobuf-types) | the `google.protobuf` well-known types as Pydantic models |
+| [Credentials](/reference/credentials) | providers, and the subject machinery for many end users |
+| [OAuth](/reference/oauth) | servers, clients, and the two steps of obtaining a grant |
+| [Envelopes and pagination](/reference/envelopes-and-pagination) | failure inside a 200, and where the cursor lives |
+| [Transforms](/reference/transforms) | the registry, and the ten built-in transforms |
+| [Response handling](/reference/response-handling) | trimming a payload before the model reads it |
+| [Observability and egress](/reference/observability) | what a call cost, and what the model can see |
+| [Errors](/reference/errors) | the exception hierarchy |
+| [Configuration](/reference/configuration) | `configure()`, the tuning settings, the environment |
+| [Command line](/reference/cli) | `python -m charter.mcp` |
+
+## `__version__`
+
+```python
+__version__: str
+```
+
+The installed version, as a string.
+
+```python
+import charter
+
+assert charter.__version__.count(".") == 2
+```
+
+## Every public symbol
+
+Generated from `charter.__all__` and `charter.auth.__all__` by
+`scripts/generate_reference_docs.py`, and checked by
+`tests/test_reference_docs.py`: a symbol added to the public surface
+without a reference entry turns the suite red.
+
+{/* generated:inventory start */}
+
+| Symbol | Import from | Page |
+|---|---|---|
+| `__version__` | `charter` | [overview](/reference/overview#__version__) |
+| `api_key_tool_factory` | `charter` | [factories](/reference/factories#api_key_tool_factory) |
+| `APIError` | `charter` | [errors](/reference/errors#apierror) |
+| `apply_transform` | `charter` | [transforms](/reference/transforms#apply_transform) |
+| `AuthorizationRequest` | `charter.auth` | [oauth](/reference/oauth#authorizationrequest) |
+| `Body` | `charter` | [markers](/reference/markers#body) |
+| `CalendarEvent` | `charter` | [semantic-types](/reference/semantic-types#calendarevent) |
+| `CallbackProvider` | `charter.auth` | [credentials](/reference/credentials#callbackprovider) |
+| `CallCollector` | `charter` | [observability](/reference/observability#callcollector) |
+| `CallSink` | `charter` | [observability](/reference/observability#callsink) |
+| `Case` | `charter` | [markers](/reference/markers#case) |
+| `CharterError` | `charter` | [errors](/reference/errors#chartererror) |
+| `collecting` | `charter` | [observability](/reference/observability#collecting) |
+| `conflict_map` | `charter` | [observability](/reference/observability#conflict_map) |
+| `ConflictsWith` | `charter` | [markers](/reference/markers#conflictswith) |
+| `CredentialError` | `charter` | [errors](/reference/errors#credentialerror) |
+| `CredentialProvider` | `charter.auth` | [credentials](/reference/credentials#credentialprovider) |
+| `Credentials` | `charter.auth` | [credentials](/reference/credentials#credentials) |
+| `current_subject` | `charter.auth` | [credentials](/reference/credentials#current_subject) |
+| `DeclarationError` | `charter` | [errors](/reference/errors#declarationerror) |
+| `decode_base64url` | `charter` | [response-handling](/reference/response-handling#decode_base64url) |
+| `DocumentContent` | `charter` | [semantic-types](/reference/semantic-types#documentcontent) |
+| `egress_map` | `charter` | [observability](/reference/observability#egress_map) |
+| `EmailContent` | `charter` | [semantic-types](/reference/semantic-types#emailcontent) |
+| `Envelope` | `charter` | [envelopes-and-pagination](/reference/envelopes-and-pagination#envelope) |
+| `EnvTokenProvider` | `charter.auth` | [credentials](/reference/credentials#envtokenprovider) |
+| `FieldMask` | `charter` | [protobuf-types](/reference/protobuf-types#fieldmask) |
+| `FileContent` | `charter` | [semantic-types](/reference/semantic-types#filecontent) |
+| `Format` | `charter` | [markers](/reference/markers#format) |
+| `format_call_line` | `charter` | [observability](/reference/observability#format_call_line) |
+| `format_call_summary` | `charter` | [observability](/reference/observability#format_call_summary) |
+| `format_conflicts` | `charter` | [observability](/reference/observability#format_conflicts) |
+| `format_egress_map` | `charter` | [observability](/reference/observability#format_egress_map) |
+| `get_transform` | `charter` | [transforms](/reference/transforms#get_transform) |
+| `Gloss` | `charter` | [markers](/reference/markers#gloss) |
+| `Grant` | `charter.auth` | [oauth](/reference/oauth#grant) |
+| `GRAPHQL_ENVELOPE` | `charter` | [envelopes-and-pagination](/reference/envelopes-and-pagination#graphql_envelope) |
+| `html_to_text` | `charter` | [response-handling](/reference/response-handling#html_to_text) |
+| `json_tokens` | `charter` | [tool-discovery](/reference/tool-discovery#json_tokens) |
+| `KeyCase` | `charter` | [markers](/reference/markers#keycase) |
+| `ListValue` | `charter` | [protobuf-types](/reference/protobuf-types#listvalue) |
+| `Mode` | `charter` | [markers](/reference/markers#mode) |
+| `NullValue` | `charter` | [protobuf-types](/reference/protobuf-types#nullvalue) |
+| `OAuth2Client` | `charter.auth` | [oauth](/reference/oauth#oauth2client) |
+| `OAuth2Flow` | `charter.auth` | [oauth](/reference/oauth#oauth2flow) |
+| `OAuth2Server` | `charter.auth` | [oauth](/reference/oauth#oauth2server) |
+| `oauth_tool_factory` | `charter` | [factories](/reference/factories#oauth_tool_factory) |
+| `OnRefresh` | `charter.auth` | [oauth](/reference/oauth#onrefresh) |
+| `Pagination` | `charter` | [envelopes-and-pagination](/reference/envelopes-and-pagination#pagination) |
+| `partial_of` | `charter` | [markers](/reference/markers#partial_of) |
+| `Path` | `charter` | [markers](/reference/markers#path) |
+| `PathCost` | `charter` | [tool](/reference/tool#pathcost) |
+| `qualified_name` | `charter` | [naming](/reference/naming#qualified_name) |
+| `qualified_names` | `charter` | [naming](/reference/naming#qualified_names) |
+| `Query` | `charter` | [markers](/reference/markers#query) |
+| `register_transform` | `charter` | [transforms](/reference/transforms#register_transform) |
+| `report_key` | `charter` | [naming](/reference/naming#report_key) |
+| `ResponseHandler` | `charter` | [response-handling](/reference/response-handling#responsehandler) |
+| `schema_tokens` | `charter` | [tool-discovery](/reference/tool-discovery#schema_tokens) |
+| `scopes_for` | `charter.auth` | [oauth](/reference/oauth#scopes_for) |
+| `states_match` | `charter.auth` | [oauth](/reference/oauth#states_match) |
+| `StaticTokenProvider` | `charter.auth` | [credentials](/reference/credentials#statictokenprovider) |
+| `Struct` | `charter` | [protobuf-types](/reference/protobuf-types#struct) |
+| `SubjectProvider` | `charter.auth` | [credentials](/reference/credentials#subjectprovider) |
+| `TokenEndpointAuthMethod` | `charter.auth` | [oauth](/reference/oauth#tokenendpointauthmethod) |
+| `TokenGrant` | `charter.auth` | [oauth](/reference/oauth#tokengrant) |
+| `Tool` | `charter` | [tool](/reference/tool#tool) |
+| `ToolCall` | `charter` | [observability](/reference/observability#toolcall) |
+| `ToolSession` | `charter` | [tool-discovery](/reference/tool-discovery#toolsession) |
+| `ToolValidationError` | `charter` | [errors](/reference/errors#toolvalidationerror) |
+| `TransformError` | `charter` | [errors](/reference/errors#transformerror) |
+| `TransformRegistry` | `charter` | [transforms](/reference/transforms#transformregistry) |
+| `TransformSpec` | `charter` | [transforms](/reference/transforms#transformspec) |
+| `TransportOverride` | `charter` | [markers](/reference/markers#transportoverride) |
+| `use_subject` | `charter.auth` | [credentials](/reference/credentials#use_subject) |
+| `Value` | `charter` | [protobuf-types](/reference/protobuf-types#value) |
+| `WireName` | `charter` | [markers](/reference/markers#wirename) |
+
+{/* generated:inventory end */}

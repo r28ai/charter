@@ -1,0 +1,304 @@
+---
+title: "Google Sheets"
+description: "Read, write, append and clear ranges, create a spreadsheet, and edit its structure."
+sidebarTitle: "Overview"
+---
+
+{/* generated:summary start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="pack-summary">
+  <span><Visibility for="humans"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg></Visibility>17 tools</span>
+  <span><Visibility for="humans"><svg viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /></svg></Visibility>OAuth bearer</span>
+</div>
+{/* generated:summary end */}
+
+```python gsheets_example.py {7}
+from charter.auth import EnvTokenProvider
+from charter.packs import gsheets
+
+credentials = EnvTokenProvider("GOOGLE_ACCESS_TOKEN")
+gsheets.configure(credentials)
+
+rows = await gsheets.spreadsheets_values_get.ainvoke(
+    spreadsheet_id="1abc", range="Sheet1!A1:D20"
+)
+```
+
+Read a range, write or append rows, clear cells, create a spreadsheet, read its
+structure, and apply structural or formatting edits in a batch. Ranges are A1
+notation — `Sheet1!A1:C10` — and on get, update, append and clear they travel in
+the URL path.
+
+Sheets speaks protobuf JSON, which is a poor thing to hand a model. Two `Format`
+markers absorb that: the model sends a plain 2-D array and a list of field paths,
+and the API receives the encodings it expects.
+
+## Authenticating
+
+{/* generated:auth start — do not edit by hand; run scripts/generate_pack_docs.py */}
+This pack takes a Google OAuth bearer token, and [`configure()`](/reference/configuration#configure) is optional when `$GOOGLE_ACCESS_TOKEN` is set. Which credential provider you hand it depends on whose account the calls run as.
+
+<Note>
+Refer to [Google's provider page](/auth/providers/google) for the "GOOGLE" constant the snippets below name, the scopes these 17 tools ask for, and this server's refresh behaviour.
+</Note>
+
+### A token you hold
+
+For a script, or a notebook. [`EnvTokenProvider`](/reference/credentials#envtokenprovider) re-reads the variable on every call, so a token rotated beside the process is picked up without a restart; [`StaticTokenProvider`](/reference/credentials#statictokenprovider) takes one you already hold as a string. Neither renews anything, so the calls stop when the token expires.
+
+```python gsheets_script.py {4}
+from charter.auth import EnvTokenProvider
+from charter.packs import gsheets
+
+credentials = EnvTokenProvider("GOOGLE_ACCESS_TOKEN")
+gsheets.configure(credentials)
+```
+
+### One account, refreshed
+
+For an agent or a server acting as you. [`OAuth2Client`](/reference/oauth#oauth2client) turns a client registration and a stored refresh token into an access token, and [renews it](/auth/authorization-servers#what-the-cache-does-precisely) before it lapses.
+
+```python gsheets_agent.py {8}
+from charter.auth import OAuth2Client
+from charter.packs import gsheets
+
+credentials = OAuth2Client(
+    GOOGLE,
+    client_id=os.environ["GOOGLE_CLIENT_ID"],
+    client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
+    refresh_token=os.environ["GOOGLE_REFRESH_TOKEN"],
+)
+gsheets.configure(credentials)
+```
+
+<Note>
+No refresh token yet? [Your own account](/auth/your-own-account) is the one-time consent flow that hands you one.
+</Note>
+
+### Many end users
+
+For a product whose users each connect their own account. [`SubjectProvider`](/reference/credentials#subjectprovider) builds one credential per user through a factory you write, and [`use_subject`](/reference/credentials#use_subject) names the user a call acts for. [Your users' accounts](/auth/oauth-flow) is the consent route inside your app; [serving many users](/auth/authorization-servers#serving-many-users) is the per-subject cache and its eviction.
+
+```python gsheets_server.py {17,21}
+from functools import partial
+
+from charter.auth import OAuth2Client, SubjectProvider, use_subject
+from charter.packs import gsheets
+
+# Yours to write: a user id in, that user's credential out.
+async def for_user(user_id: str) -> OAuth2Client:
+    grant = await db.grants.get(user_id, "google")
+    return OAuth2Client(
+        GOOGLE,
+        client_id=os.environ["GOOGLE_CLIENT_ID"],
+        client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
+        refresh_token=grant.refresh_token,
+        on_refresh=partial(save_to_db, user_id),
+    )
+
+credentials = SubjectProvider(for_user)
+gsheets.configure(credentials)
+
+# Per request: whose grant the tools use.
+with use_subject(request.user_id):
+    ...  # your agent runs here
+```
+{/* generated:auth end */}
+
+The scope covers every spreadsheet the account can open; Sheets has no
+per-file scope, so narrowing access is a matter of which account you delegate,
+not which scope you ask for.
+
+## The client
+
+{/* generated:wire start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<Note>
+[`oauth_tool_factory`](/reference/factories#oauth_tool_factory) is the whole client: a thin wrapper over `httpx` that attaches your token and these endpoint constants to each request. `google-api-python-client` and `google-auth` do not enter your dependency tree.
+</Note>
+
+<div className="named-tabs" data-files="gsheets_api_client.py|gsheets_pack_client.py">
+<CodeGroup>
+
+```python Without the pack
+from charter import oauth_tool_factory
+
+gsheets_api_client = oauth_tool_factory(
+    base_url="https://sheets.googleapis.com/",
+    provider="google",
+    credential_provider=credentials,
+    pack="gsheets",
+    scopes=["https://www.googleapis.com/auth/spreadsheets"],
+    body_format="json",
+    query_format="repeat",
+    body_case="camel",
+    query_case="camel",
+    path_case="snake",
+    # this API reports failure with an HTTP status code
+    envelope=None,
+)
+```
+
+```python With the pack
+from charter.packs import gsheets
+
+gsheets.configure(credentials)
+
+# The base URL, the casing, the envelope and the pagination are
+# already declared. 17 tools, ready to hand to a model:
+tools = gsheets.TOOLS
+```
+
+</CodeGroup>
+</div>
+
+`credentials` is whichever of the three you built in [Authenticating](#authenticating). A pack takes it through [`configure()`](/reference/configuration#configure); a client you build takes the same object as `credential_provider`, and has no `configure()` of its own.
+{/* generated:wire end */}
+
+## Tools
+
+Each is a [`Tool`](/reference/tool), called with
+[`ainvoke`](/reference/tool#tool-ainvoke) as in the snippet above. The name
+links to its parameters, its response and what it costs.
+
+{/* generated:tools start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="tool-list">
+  <span className="tool-list-group">Values</span>
+  <a className="tool-row" href="/packs/gsheets/values/spreadsheets_values_get">
+    <span className="tool-row-head"><span className="tool-row-name">spreadsheets_values_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Returns a range of values from a spreadsheet.</span>
+  </a>
+  <a className="tool-row" href="/packs/gsheets/values/spreadsheets_values_update">
+    <span className="tool-row-head"><span className="tool-row-name">spreadsheets_values_update</span><span className="tool-row-method" data-method="PUT">PUT</span></span>
+    <span className="tool-row-desc">Sets values in a range of a spreadsheet.</span>
+  </a>
+  <a className="tool-row" href="/packs/gsheets/values/spreadsheets_values_append">
+    <span className="tool-row-head"><span className="tool-row-name">spreadsheets_values_append</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Appends values to a spreadsheet.</span>
+  </a>
+  <a className="tool-row" href="/packs/gsheets/values/spreadsheets_values_clear">
+    <span className="tool-row-head"><span className="tool-row-name">spreadsheets_values_clear</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Clears values from a spreadsheet.</span>
+  </a>
+  <a className="tool-row" href="/packs/gsheets/values/spreadsheets_values_batch_get">
+    <span className="tool-row-head"><span className="tool-row-name">spreadsheets_values_batch_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Returns one or more ranges of values from a spreadsheet.</span>
+  </a>
+  <a className="tool-row" href="/packs/gsheets/values/spreadsheets_values_batch_update">
+    <span className="tool-row-head"><span className="tool-row-name">spreadsheets_values_batch_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Sets values in one or more ranges of a spreadsheet.</span>
+  </a>
+  <a className="tool-row" href="/packs/gsheets/values/spreadsheets_values_batch_clear">
+    <span className="tool-row-head"><span className="tool-row-name">spreadsheets_values_batch_clear</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Clears one or more ranges of values from a spreadsheet.</span>
+  </a>
+  <a className="tool-row" href="/packs/gsheets/values/values_batch_get_by_data_filter">
+    <span className="tool-row-head"><span className="tool-row-name">values_batch_get_by_data_filter</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Returns one or more ranges of values that match the specified data filters.</span>
+  </a>
+  <a className="tool-row" href="/packs/gsheets/values/values_batch_update_by_data_filter">
+    <span className="tool-row-head"><span className="tool-row-name">values_batch_update_by_data_filter</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Sets values in one or more ranges of a spreadsheet.</span>
+  </a>
+  <a className="tool-row" href="/packs/gsheets/values/values_batch_clear_by_data_filter">
+    <span className="tool-row-head"><span className="tool-row-name">values_batch_clear_by_data_filter</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Clears one or more ranges of values from a spreadsheet.</span>
+  </a>
+  <span className="tool-list-group">Spreadsheets</span>
+  <a className="tool-row" href="/packs/gsheets/spreadsheets/spreadsheets_create">
+    <span className="tool-row-head"><span className="tool-row-name">spreadsheets_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a new spreadsheet.</span>
+  </a>
+  <a className="tool-row" href="/packs/gsheets/spreadsheets/spreadsheets_get">
+    <span className="tool-row-head"><span className="tool-row-name">spreadsheets_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get spreadsheet metadata and structure.</span>
+  </a>
+  <a className="tool-row" href="/packs/gsheets/spreadsheets/spreadsheets_batch_update">
+    <span className="tool-row-head"><span className="tool-row-name">spreadsheets_batch_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Apply a list of updates to a spreadsheet.</span>
+  </a>
+  <a className="tool-row" href="/packs/gsheets/spreadsheets/spreadsheets_sheets_copy_to">
+    <span className="tool-row-head"><span className="tool-row-name">spreadsheets_sheets_copy_to</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Copy a single sheet from one spreadsheet to another.</span>
+  </a>
+  <a className="tool-row" href="/packs/gsheets/spreadsheets/spreadsheets_get_by_data_filter">
+    <span className="tool-row-head"><span className="tool-row-name">spreadsheets_get_by_data_filter</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Get a spreadsheet, selecting which ranges to return with DataFilters (an A1 range, a GridRange, or developer metadata).</span>
+  </a>
+  <span className="tool-list-group">Developer metadata</span>
+  <a className="tool-row" href="/packs/gsheets/developer_metadata/spreadsheets_developer_metadata_get">
+    <span className="tool-row-head"><span className="tool-row-name">spreadsheets_developer_metadata_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get one developer metadata entry by its spreadsheet-scoped ID.</span>
+  </a>
+  <a className="tool-row" href="/packs/gsheets/developer_metadata/spreadsheets_developer_metadata_search">
+    <span className="tool-row-head"><span className="tool-row-name">spreadsheets_developer_metadata_search</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Find developer metadata matching one or more DataFilters.</span>
+  </a>
+</div>
+{/* generated:tools end */}
+
+Every tool declares `quota_cost` 1. Sheets meters requests per minute per user
+rather than charging different amounts per call, so a uniform 1 is the honest
+number; the link in the wire table is where the real limits live.
+
+## The two transforms
+
+`ValueRange.values` is marked `Format("proto_json")`. The model sends what anyone
+would write by hand:
+
+```python gsheets_append_rows.py
+await gsheets.spreadsheets_values_append.ainvoke(
+    spreadsheet_id="1abc",
+    range="Sheet1!A1",
+    value_input_option="USER_ENTERED",
+    value_range={"values": [["Ada", 36], ["Grace", 45]]},
+)
+```
+
+and the transform produces the protobuf-JSON encoding Sheets requires on the way
+out, and reverses it on the way back.
+
+`fields` on the `batchUpdate` requests is marked `Format("field_mask")`. A
+`FieldMask` is a comma-joined string on the wire and a list of paths in the
+schema, so the model sends `["userEnteredValue", "userEnteredFormat"]` and Sheets
+receives `userEnteredValue,userEnteredFormat`. See [transforms](/tools/transforms).
+
+## Gotchas
+
+<AccordionGroup>
+  <Accordion title="value_input_option decides whether a formula is a formula">
+    `RAW` writes `=SUM(A1:A2)` as the literal nine characters. `USER_ENTERED`
+    parses it the way typing it into the cell would — which also means `1/2`
+    becomes a date and a leading `+` becomes a formula. The argument is required
+    on `spreadsheets_values_append`, `spreadsheets_values_update` and the batch
+    writes, deliberately: there is no safe default, and the wrong one is silent.
+  </Accordion>
+
+  <Accordion title="Append writes after the last row of a detected table, not at the range">
+    The `range` you pass to `spreadsheets_values_append` is a *search hint*:
+    Sheets finds the table that overlaps it and appends below that table's last
+    row. Passing `Sheet1!A1` does not mean "write at A1". To write at an exact
+    address, use `spreadsheets_values_update`.
+  </Accordion>
+
+  <Accordion title="Nothing in this pack pages">
+    Sheets has no cursor. A large sheet is read by asking for a narrower A1
+    range, which is why no tool here declares a `Pagination` — and why
+    `next_page_args` on these tools would have nothing to return.
+  </Accordion>
+
+  <Accordion title="Range is a path parameter, so it is URL-encoded">
+    `Sheet1!A1:C10` goes into the path, and a sheet name containing a space or an
+    apostrophe needs Sheets' own quoting — `'My Sheet'!A1:C10`. The escaping for
+    the URL is handled; the quoting for Sheets' grammar is yours.
+  </Accordion>
+
+  <Accordion title="spreadsheets_create takes the whole spreadsheet object">
+    Its one argument is `spreadsheet`, the same resource `spreadsheets_get`
+    returns. Titles, sheet tabs and initial data all go inside it; there is no
+    flat `title` shortcut.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [Google](/auth/providers/google) — consent screen, scopes, refresh
+- [Transforms](/tools/transforms) — `proto_json` and `field_mask` in detail

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 202" width="860" height="202" role="img" aria-label="The model fills in to, subject and body. Charter sends the base64url-encoded RFC 2822 message as a POST to Gmail.">
+<rect x="0.5" y="0.5" width="859" height="201" rx="12" fill="#ffffff" stroke="#d8dee4"/>
+
+<rect x="30" y="26" width="250" height="150" rx="8" fill="#f6f8fa" stroke="#d8dee4"/>
+<g font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12.5" fill="#1f2328">
+  <text x="46" y="58">{</text>
+  <text x="56" y="83"><tspan fill="#0550ae">"to"</tspan>: <tspan fill="#0a3069">"ada@example.com"</tspan>,</text>
+  <text x="56" y="108"><tspan fill="#0550ae">"subject"</tspan>: <tspan fill="#0a3069">"Hi"</tspan>,</text>
+  <text x="56" y="133"><tspan fill="#0550ae">"body"</tspan>: <tspan fill="#0a3069">"Hello"</tspan></text>
+  <text x="46" y="158">}</text>
+</g>
+
+<text x="396.0" y="98" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="13" font-weight="600" fill="#1f2328" text-anchor="middle">Charter</text>
+<g stroke="#afb8c1" stroke-width="1.5" fill="none">
+  <path d="M304 116 H482"/>
+  <path d="M474 110 l8 6 -8 6" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+
+<rect x="512" y="26" width="318" height="150" rx="8" fill="#f6f8fa" stroke="#d8dee4"/>
+<g font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11.5" fill="#1f2328">
+  <text x="528" y="58"><tspan font-weight="600">POST</tspan> gmail/v1/users/me/messages/send</text>
+  <text x="528" y="81" fill="#8c959f">Authorization: Bearer ya29.a0Af...</text>
+  <text x="528" y="120">{<tspan fill="#0550ae">"raw"</tspan>:<tspan fill="#0a3069">"VG86IGFkYUBleGFtcGxlLmNvbQ0K</tspan></text>
+  <text x="528" y="140"><tspan fill="#0a3069">U3ViamVjdDogSGkNCg0KSGVsbG8="</tspan>}</text>
+</g>
+</svg>

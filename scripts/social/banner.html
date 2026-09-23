@@ -1,0 +1,131 @@
+<!doctype html><html><head><meta charset="utf-8">
+<!--
+  X / Twitter profile banner, 1500x500.
+
+  The compiler picture: plain values on the left, the contract in the middle,
+  the mechanical shapes the world actually demands on the right. That is the
+  strategy's own argument for why this layer does not erode as models improve,
+  and it is the one sentence the README sets in bold.
+
+  No vendor logo. A row of marks is catalogue grammar, and the first thing
+  "What Charter is not" walks away from; a single mark would also read as
+  Gmail-only and sits badly under a neutrality claim. The right pane carries
+  wire formats instead, which signals breadth without naming anyone.
+
+  Each right-hand row is a format some shipped pack emits, sourced from the
+  Coverage table: base64url RFC 2822 (Gmail), GraphQL (Linear), form-encoded
+  with brackets (Stripe), protobuf JSON cells (Sheets). It is a repertoire,
+  not one call, and the header says "the wire" rather than implying otherwise.
+
+  The left pane is five separate argument sets rather than one object, because
+  one object fanning out to five formats is a call no API would accept. The
+  rows correspond: left row N becomes right row N, so a reader who aligns them
+  across the panes gets a true statement. page_size becomes pageSize inside an
+  envelope, to becomes the base64url of "To: ada@example.co...", amount becomes
+  a bracketed form field, cell becomes a userEnteredValue. Keep that pairing if
+  either pane is edited, or the alignment starts lying.
+
+  The middle pane carries what the contract carries, per the thesis: HTTP
+  mechanics, semantic-to-wire compilation, visibility policy, credential,
+  context economy. Because the pane is the vocabulary rather than one call's
+  trace, pin and Mode belong here where they did not in the Gmail version.
+
+  The avatar overlaps the bottom-left only, not the full width, so the panes
+  run to y=336. Its top arc clips ~11px of the first pane's bottom border and
+  no text. The gloss under each middle row was cut deliberately: a banner is
+  read cold in two seconds, where "wrapped under raw" teaches nobody and only
+  costs type size.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1500px;height:500px;overflow:hidden}
+  body{background:#141417;font-family:Inter,system-ui,-apple-system,sans-serif;
+       -webkit-font-smoothing:antialiased;position:relative;padding:40px 44px 0}
+  .glow{position:absolute;inset:0;
+        background:radial-gradient(1250px 760px at -2% 24%, rgba(199,44,65,.42), transparent 64%),
+                   radial-gradient(620px 420px at 6% 96%, rgba(199,44,65,.24), transparent 66%);}
+  .row{position:relative;display:flex;align-items:stretch;width:100%;height:279px}
+
+  .col{display:flex;flex-direction:column}
+  .c1{flex:0 0 400px}.c2{flex:0 0 410px}.c3{flex:0 0 498px}
+
+  .pane{flex:1;background:#23262e;border:1px solid #3b414e;border-radius:11px;
+        padding:24px 26px;display:flex;flex-direction:column}
+  .hd{display:flex;align-items:center;gap:13px;padding-bottom:15px;
+      border-bottom:1px solid #3b414e;margin-bottom:15px}
+  .hd .nm{font-size:20px;font-weight:600;color:#fff;letter-spacing:-.015em}
+  .hd .mk{flex:0 0 28px;height:28px;display:flex;align-items:center}
+  .hd .mk svg{display:block}
+  .body{flex:1;display:flex;flex-direction:column;justify-content:center}
+  .body div{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace;
+            color:#eaeaec;white-space:nowrap;line-height:34px}
+  .k{color:#9CDCFE}.s{color:#a5d6a7}.b{font-weight:600}
+
+  .c1 .body div{font-size:20px}
+  .c2 .body div{font-size:20px; display:flex;align-items:center;gap:16px}
+  .c3 .body div{font-size:15px;display:flex;align-items:baseline}
+  .c3 .fmt{flex:0 0 140px;font-weight:600}
+  .c3 .frag{color:#a5d6a7}
+
+  .ic{flex:0 0 28px;width:28px;height:28px;display:block;color:#f2f4f7}
+  .ic svg{width:28px;height:28px;display:block;fill:none;stroke:currentColor;
+          stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+
+  .arrow{flex:0 0 52px;display:flex;align-items:center;justify-content:center}
+  .arrow svg{display:block;fill:none;stroke:#C72C41;stroke-width:3.4;
+             stroke-linecap:round;stroke-linejoin:round}
+</style></head><body>
+<div class="glow"></div>
+<div class="row">
+
+  <div class="col c1"><div class="pane">
+    <div class="hd">
+      <span class="mk"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M12 2.6l2.3 6.1 6.1 2.3-6.1 2.3L12 19.4l-2.3-6.1L3.6 11l6.1-2.3z" fill="#f2f4f7"/><path d="M19 3.2l.85 2.25L22.1 6.3l-2.25.85L19 9.4l-.85-2.25L15.9 6.3l2.25-.85z" fill="#f2f4f7" opacity=".62"/></svg></span>
+      <span class="nm">Your agent</span>
+    </div>
+    <div class="body">
+      <div>{<span class="k">"page_size"</span>: <span class="s">20</span>}</div>
+      <div>{<span class="k">"to"</span>: <span class="s">"ada@example.com"</span>}</div>
+      <div>{<span class="k">"title"</span>: <span class="s">"Ship v2"</span>}</div>
+      <div>{<span class="k">"amount"</span>: <span class="s">2000</span>}</div>
+      <div>{<span class="k">"cell"</span>: <span class="s">42</span>}</div>
+    </div>
+  </div></div>
+
+  <div class="arrow"><svg width="30" height="24" viewBox="0 0 30 24"><path d="M2.5 12h24"/><path d="M19 5l7 7-7 7"/></svg></div>
+
+  <div class="col c2"><div class="pane">
+    <div class="hd">
+      <span class="mk"><svg width="28" height="28" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" ry="112" fill="#C72C41"/><path transform="translate(88.00 96.95) scale(11.18509)" d="M20.52 25.64C22.52 25.64 24.1067 24.8267 25.28 23.2C26.4533 21.5733 27.2133 19.6 27.56 17.28H30.04C29.6667 20.16 28.72 22.6133 27.2 24.64C26.3467 25.76 25.3733 26.6 24.28 27.16C23.2133 27.6933 22.0267 28.04 20.72 28.2C19.44 28.36 17.76 28.44 15.68 28.44C12.7467 28.44 10.36 28.16 8.52 27.6C6.70667 27.0133 5.14667 26.0667 3.84 24.76C1.28 22.2 0 18.68 0 14.2C0 9.48 1.14667 5.97333 3.44 3.68C4.93333 2.18667 6.6 1.2 8.44 0.720001C10.28 0.240001 12.6933 0 15.68 0C18.4267 0 20.6533 0.200001 22.36 0.6C24.0933 0.973334 25.5067 1.78667 26.6 3.04C27.5067 4.08 28.2133 5.33333 28.72 6.8C29.2267 8.26667 29.52 9.72 29.6 11.16H27.32C27.2133 9.96 26.92 8.73333 26.44 7.48C25.9867 6.2 25.2667 5.10667 24.28 4.2C23.2933 3.26667 22.04 2.8 20.52 2.8C19.08 2.8 17.92 3.42667 17.04 4.68C16.2667 5.66667 15.68 7.12 15.28 9.04C14.9867 10.5067 14.84 12.2267 14.84 14.2C14.84 17.32 15.2133 19.84 15.96 21.76C16.92 24.3467 18.44 25.64 20.52 25.64Z" fill="#FFFFFF"/></svg></span>
+      <span class="nm">Charter</span>
+    </div>
+    <div class="body">
+      <div><span class="ic"><svg viewBox="0 0 24 24"><path d="M10 17H7.5a5 5 0 0 1 0-10H10"/><path d="M14 7h2.5a5 5 0 0 1 0 10H14"/><path d="M8.5 12h7"/></svg></span><span class="b">Path() Query() Body()</span></div>
+      <div><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 8h15"/><path d="M15 5l3 3-3 3"/><path d="M21 16H6"/><path d="M9 13l-3 3 3 3"/></svg></span><span class="b">Format()</span></div>
+      <div><span class="ic"><svg viewBox="0 0 24 24"><path d="M2.5 12s3.6-6.3 9.5-6.3S21.5 12 21.5 12s-3.6 6.3-9.5 6.3S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.5"/><path d="M4.5 19.5L19.5 4.5"/></svg></span><span class="b">pin  Mode()</span></div>
+      <div><span class="ic"><svg viewBox="0 0 24 24"><circle cx="7" cy="12" r="4.1"/><path d="M11.1 12H21"/><path d="M17.5 12v3.6"/><path d="M20.4 12v2.6"/></svg></span><span class="b">oauth_tool_factory</span></div>
+      <div><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 4h18l-7 8.2V20l-4 2v-9.8z"/></svg></span><span class="b">response handler</span></div>
+    </div>
+  </div></div>
+
+  <div class="arrow"><svg width="30" height="24" viewBox="0 0 30 24"><path d="M2.5 12h24"/><path d="M19 5l7 7-7 7"/></svg></div>
+
+  <div class="col c3"><div class="pane">
+    <div class="hd">
+      <span class="mk"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#f2f4f7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v5"/><path d="M15 2v5"/><path d="M6 7h12v4a6 6 0 0 1-12 0V7z"/><path d="M12 17v5"/></svg></span>
+      <span class="nm">The wire</span>
+    </div>
+    <div class="body">
+      <div><span class="fmt">JSON</span><span class="frag">{"input":{"pageSize":20}}</span></div>
+      <div><span class="fmt">base64 MIME</span><span class="frag">VG86IGFkYUBleGFtcGxlLmNvbQ0KU3Via</span></div>
+      <div><span class="fmt">GraphQL</span><span class="frag">mutation($input:IssueCreateInpu</span></div>
+      <div><span class="fmt">form-encoded</span><span class="frag">items[0][amount]=2000&amp;currency=usd</span></div>
+      <div><span class="fmt">protobuf JSON</span><span class="frag">{"userEnteredValue":{"numberValu</span></div>
+    </div>
+  </div></div>
+
+</div>
+</body></html>

@@ -1,0 +1,116 @@
+---
+title: "Why Charter"
+sidebarTitle: "Why Charter"
+description: "The gap between what a model knows and what an API accepts, why it widens as models improve, and what a declared boundary buys that a classifier cannot."
+---
+
+A model knows what an email is. It does not know that Gmail wants one as an RFC 2822 document, base64url-encoded, under a `raw` key nested inside a `message` object, on a write endpoint that refuses the parsed form it returns on reads.
+
+That gap is where integration code lives, and it is the subject of this page.
+
+## What the hand-written tool carries
+
+The [introduction](/) shows Google's documented Python example for `users.messages.send` beside the same tool declared with Charter. Everything the hand-written one carries and the declaration does not is integration code:
+
+- **MIME assembly.** `EmailMessage`, the headers, the content type, and the `multipart/alternative` layout the moment a draft carries HTML alongside plain text.
+- **base64url.** Encoding the message bytes URL-safely, with the padding handled.
+- **The wrapper.** Gmail's write endpoints take a `raw` string nested under `message`. The same resource comes back on reads as a parsed `payload` the endpoint will not accept. One schema, two directions, declared once.
+- **The credential.** `configure` takes a provider: a static token for a script, [OAuth 2.0 refresh](/auth/authorization-servers) against Google's token endpoint for a product, a per-end-user lookup when one set of tools serves many people. The tool declaration does not change.
+- **Error handling.** A failed call raises `APIError` carrying the status code and the server's own `Retry-After`. The hand-written version catches it, prints it, and hands the string back to the model as a successful result.
+- **Field policy.** `drafts_create` offers the model sixteen fields and withholds nine. Eleven of the sixteen are the message itself, which the model writes as `to`, `subject` and `body` rather than as the base64 MIME string the API takes. `payload`, `snippet`, `labelIds` and the rest are absent from the type the model is handed, not filtered out afterwards. You can [print that map](/boundary/egress-control).
+
+## The semantic layer and the mechanical layer
+
+A model's native substrate is semantics. Recipient, subject, body — these are things it represents directly and fills in well. Wire syntax is not: a MIME boundary, a base64 alphabet, a casing convention are mechanical facts about a transport, and every token spent emitting them is sequential compute spent on work a deterministic machine does for free and gets right every time.
+
+The usual assumption is that this gap closes as models get better. It widens. A model optimising its internal representations moves *further* from wire syntax, not closer — the representation that makes it better at understanding what you meant to send is not the representation that emits a correctly padded base64url blob. The layer that translates between the two becomes more necessary as models improve, not less.
+
+That layer is a compiler: from the semantic layer, where the model works, to the mechanical layer, where the API waits. Compilers are not obsoleted by smarter programmers.
+
+## What it bridges
+
+| What the API expects | What the LLM sends | How Charter bridges it |
+|---|---|---|
+| `{"raw": "dG86IGFsaWNlQGV4YW1wbGUuY29tCk1JTUUtVmVyc2l..."}` | `EmailContent { to: "alice@example.com", subject: "Hello", body: "Hi Alice!" }` | `Format("rfc822_base64")` — builds the MIME message, encodes base64url, wraps in `{"raw": ...}` |
+| `{"values": [[{"stringValue":"Name"}],[{"stringValue":"Alice"}]]}` | `values: [["Name"], ["Alice"]]` | `Format("proto_json")` — converts plain JSON to the protobuf `Value` type, wrapping each cell |
+
+Neither transform is clever. Both are the kind of thing that is tedious to write once, wrong in a new way each time it is written again, and free once declared. See [transforms](/tools/transforms) for the full pipeline, and [the wire contract](/tools/wire-contract) for body format, static parameters, and pagination.
+
+## Why a boundary
+
+An agent is only as trustworthy as the layer between it and your real systems. That layer is the one place where a guarantee can be mechanical rather than a prompt, a score, or a policy someone wrote down — because it is the chokepoint every action crosses. Charter puts three things in the contract itself.
+
+**Egress — what the model can see.** The LLM's view of a schema is computed from declarations before any request is made. A field marked `Mode("response_only")` is not filtered out of a prompt after the fact; it is absent from the type the model is handed, so it cannot reach a context window at all. Field-level data minimisation toward your model vendor, by construction. It is also [printable](/boundary/egress-control).
+
+**Action — what the agent can send.** Path, query, and body routing, wire encoding, and key casing are all resolved from the schema by a deterministic runtime. The model supplies meaning; it never assembles a request. It cannot emit malformed base64 or a field the endpoint doesn't accept, because it never touches either.
+
+**Change — what stays true when the model changes.** Behaviour lives in types and tests rather than in accumulated prompt folklore, so the mechanics of a tool are identical across models, and every pack is held to that [mechanically](/guarantees/conformance). What remains model-dependent is whether a given model fills the schema well — which is a thing you [measure and re-run](/guarantees/measured-results) rather than rewrite.
+
+## The declaration mirrors the reference page
+
+A Charter schema is meant to be boring: every field the endpoint documents, the reference page's own sentence as each description, the documented bounds as constraints, and the name the API documents on the wire. Written that way, a declaration can be read side by side with the page it came from, which is what makes a pack reviewable by someone who did not write it.
+
+Everything you want to be true beyond what that page says is a separate declaration rather than an edit to its text. [`Mode`](/boundary/mode-system) decides who sees a field. [`Format`](/tools/transforms) decides how it is encoded. [`WireName`](/reference/markers#wirename) fixes a spelling no casing convention reaches. [`ConflictsWith`](/reference/markers#conflictswith) states a rule the prose states and the API answers with a `400`. [`Gloss`](/reference/markers#gloss) carries the sentence the reference page does not contain: "Cents, not dollars: $15.00 is 1500."
+
+So any knowledge of your own goes in a gloss. Not in the description, which is the vendor's text and has to stay diffable against their page. [Conformance](/guarantees/conformance) cannot compare a description to the vendor's live page, which is drift and needs their published spec. It does check that none of your own sentences have been mixed into one, which is what keeps that comparison possible at all.
+
+## Protocols churn; contracts compile
+
+An API's transport is not its meaning. That Gmail carries a message as base64url under `raw` is a fact about Gmail's HTTP surface today. That an email has a recipient, a subject and a body is a fact about email. The first moves on someone else's schedule; the second does not.
+
+A contract declares the second and derives the first. When a transport detail moves — a casing convention, a newly required header, an envelope wrapped around the response — the change is a line in a declaration. Written by hand, the same change is an edit spread across every tool function that assembled a request itself, and across whatever prompt text was teaching a model to compensate.
+
+This is also why Charter is not built on any vendor's SDK. [OAuth 2.0 refresh](/auth/authorization-servers) is a protocol with a specification, not eleven client libraries with eleven opinions; declaring the token endpoint and the grant is smaller than adopting the library, and it does not tie the boundary to one vendor's release cadence.
+
+## Determinism, not inference
+
+There are two ways to stop an agent from doing something. Detect it — score the output, run a classifier, ask a second model to judge. Or prevent it — make the thing unconstructible.
+
+The guardrails industry is built mostly on the first fork. A classifier has a false-negative rate. An LLM judge has a false-negative rate and a prompt, both of which move when the underlying model is updated. Both fail in the direction of permitting the thing they were installed to stop, and both fail quietly.
+
+Charter takes the second fork. There is no scoring step in the egress path, because there is nothing to score: a `response_only` field is absent from the type the model receives, at any nesting depth. No threshold to tune, no judge to keep aligned, no evaluation set that goes stale. The same declarations the runtime executes are what `egress_map` prints, so the audit artifact cannot drift from the behaviour.
+
+This covers less ground than a classifier and covers it differently. It reaches exactly as far as the contract can express — [and no further](/guarantees/limitations). Within that reach, the guarantee is structural rather than statistical.
+
+## Which layer owns which edge
+
+| | governed by |
+|---|---|
+| model → tool call | the protocol layer |
+| **tool call → HTTP request** | **Charter** |
+| **HTTP response → tool result** | **Charter** |
+| tool result → model | output compressors |
+
+A protocol decides what the model is shown and how a call is framed. A compressor
+decides what the result costs on the way back. Neither talks to the upstream API, so
+neither can decide what is sent to it. The two middle rows are the ones Charter is for,
+and they are the ones nothing else reaches.
+
+## Compared with the alternatives
+
+Three other ways to give an agent Gmail exist. The columns are categories rather than products, and every cell is something you can check against a pricing page, a config file, or a tool list.
+
+| | Hand-written tool code | Hosted tool gateway | The vendor's MCP server | Charter |
+|---|---|---|---|---|
+| Price per call | none | per call, per action, or per seat | none | none |
+| In the request path | your process | the gateway's servers, then the API | the server, local or remote, then the API | your process |
+| Rate limit | the API's | the gateway's plan, then the API's | the server's, then the API's | the API's |
+| What the model sees | whatever you wrote | the gateway's schema | the server's full tool list, and its responses whole | the LLM view: response-only fields absent, responses trimmed |
+| Who fixes a wrong field | you, in every tool that touches it | the gateway, on its schedule | the vendor, on its schedule | you, in one declaration |
+| Credential | you hold it | the gateway holds it | depends on the server | you hold it; the runtime refreshes it |
+
+A gateway also obtains the OAuth grant and stores the token. Charter does neither: [getting the grant](/auth/oauth-flow) is yours, and the runtime refreshes what you hold. If you want the grant handled for you, a gateway is the right tool, and this table is not an argument against it.
+
+## The covenant
+
+Charter runs where you run it. The library makes no network calls except the API calls you define: no telemetry, no phone-home, no traffic sampled for training. It does measure every call it makes — timings split by owner, payload against context — and hands the numbers to [your process](/running/observability), with nowhere else to send them.
+
+"We structurally cannot see your data" is a sentence anyone can write and few can keep. It is credible only from a design whose business model does not depend on seeing it. Charter is Apache 2.0 licensed and runs inside your process against your credentials. There is no hosted component in the path, so there is nothing to opt out of and no retention policy to read.
+
+## Related
+
+- [Measured results](/guarantees/measured-results): 534 runs against live APIs, including the template that goes the other way
+- [Quickstart](/start/quickstart) — a working tool in about twenty lines
+- [Egress control](/boundary/egress-control) — the boundary, and the artifact that prints it
+- [Conformance](/guarantees/conformance) — what every pack is mechanically held to
+- [What this can't express](/guarantees/limitations) — the edges, named

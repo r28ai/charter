@@ -1,0 +1,3590 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Charter Docs",
+  "description": "The schema is the contract. Define AI-agent tools as Pydantic schemas.",
+  "colors": {
+    "primary": "#C72C41",
+    "light": "#E8586B",
+    "dark": "#18181b"
+  },
+  "background": {
+    "color": {
+      "dark": "#000000"
+    }
+  },
+  "logo": {
+    "light": "/logo-light.svg",
+    "dark": "/logo-dark.svg",
+    "href": "/"
+  },
+  "favicon": "/favicon.ico",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get started",
+            "pages": [
+              "index",
+              "start/installation",
+              "start/quickstart",
+              "start/coding-agents",
+              "agent-setup/prompt",
+              "why-charter"
+            ]
+          },
+          {
+            "group": "Declaring a tool",
+            "pages": [
+              "tools/wire-contract",
+              "tools/transforms",
+              "tools/key-case-cascade",
+              "tools/envelopes",
+              "tools/naming"
+            ]
+          },
+          {
+            "group": "The boundary",
+            "pages": [
+              "boundary/egress-control",
+              "tools/projections",
+              "boundary/mode-system",
+              "boundary/mode-quick-reference"
+            ]
+          },
+          {
+            "group": "Authentication",
+            "pages": [
+              "auth/your-own-account",
+              "auth/oauth-flow",
+              "auth/authorization-servers",
+              "auth/api-key-tool-factory",
+              {
+                "group": "Providers",
+                "pages": [
+                  "auth/providers/google",
+                  "auth/providers/slack",
+                  "auth/providers/github"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Using your tools",
+            "pages": [
+              "using/mcp",
+              "using/adapters"
+            ]
+          },
+          {
+            "group": "Optimization",
+            "pages": [
+              "optimization/overview",
+              "optimization/context-window",
+              "optimization/latency",
+              "optimization/accuracy"
+            ]
+          },
+          {
+            "group": "Running it",
+            "pages": [
+              "running/observability",
+              "running/tool-validation-error-handling",
+              "running/llm-input-auto-corrections"
+            ]
+          },
+          {
+            "group": "Guarantees",
+            "pages": [
+              "guarantees/conformance",
+              "guarantees/measured-results",
+              "guarantees/limitations"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Packs",
+        "pages": [
+          "packs/overview",
+          {
+            "group": "OAuth packs",
+            "pages": [
+              {
+                "group": "Gmail",
+                "expanded": false,
+                "pages": [
+                  "packs/gmail",
+                  {
+                    "group": "Message",
+                    "pages": [
+                      "packs/gmail/message/messages_send",
+                      "packs/gmail/message/messages_list",
+                      "packs/gmail/message/messages_get",
+                      "packs/gmail/message/messages_modify",
+                      "packs/gmail/message/messages_batch_modify",
+                      "packs/gmail/message/objects"
+                    ]
+                  },
+                  {
+                    "group": "Thread",
+                    "pages": [
+                      "packs/gmail/thread/threads_list",
+                      "packs/gmail/thread/threads_get",
+                      "packs/gmail/thread/threads_modify",
+                      "packs/gmail/thread/threads_trash",
+                      "packs/gmail/thread/threads_untrash",
+                      "packs/gmail/thread/threads_delete",
+                      "packs/gmail/thread/objects"
+                    ]
+                  },
+                  {
+                    "group": "Draft",
+                    "pages": [
+                      "packs/gmail/draft/drafts_create",
+                      "packs/gmail/draft/drafts_get",
+                      "packs/gmail/draft/drafts_list",
+                      "packs/gmail/draft/drafts_update",
+                      "packs/gmail/draft/drafts_delete",
+                      "packs/gmail/draft/drafts_send",
+                      "packs/gmail/draft/objects"
+                    ]
+                  },
+                  {
+                    "group": "Label",
+                    "pages": [
+                      "packs/gmail/label/labels_list",
+                      "packs/gmail/label/labels_get",
+                      "packs/gmail/label/labels_create",
+                      "packs/gmail/label/labels_update",
+                      "packs/gmail/label/labels_patch",
+                      "packs/gmail/label/labels_delete",
+                      "packs/gmail/label/objects"
+                    ]
+                  }
+                ]
+              },
+              {
+                "group": "Google Calendar",
+                "expanded": false,
+                "pages": [
+                  "packs/gcalendar",
+                  {
+                    "group": "Events",
+                    "pages": [
+                      "packs/gcalendar/event/events_get",
+                      "packs/gcalendar/event/events_list",
+                      "packs/gcalendar/event/events_instances",
+                      "packs/gcalendar/event/events_insert",
+                      "packs/gcalendar/event/events_update",
+                      "packs/gcalendar/event/events_patch",
+                      "packs/gcalendar/event/events_move",
+                      "packs/gcalendar/event/events_quick_add",
+                      "packs/gcalendar/event/events_import",
+                      "packs/gcalendar/event/events_delete",
+                      "packs/gcalendar/event/objects"
+                    ]
+                  },
+                  {
+                    "group": "CalendarList",
+                    "pages": [
+                      "packs/gcalendar/calendar_list/calendar_list_list",
+                      "packs/gcalendar/calendar_list/calendar_list_get",
+                      "packs/gcalendar/calendar_list/objects"
+                    ]
+                  },
+                  {
+                    "group": "Calendar",
+                    "pages": [
+                      "packs/gcalendar/calendar/calendars_get"
+                    ]
+                  }
+                ]
+              },
+              {
+                "group": "Google Sheets",
+                "expanded": false,
+                "pages": [
+                  "packs/gsheets",
+                  {
+                    "group": "Values",
+                    "pages": [
+                      "packs/gsheets/values/spreadsheets_values_get",
+                      "packs/gsheets/values/spreadsheets_values_update",
+                      "packs/gsheets/values/spreadsheets_values_append",
+                      "packs/gsheets/values/spreadsheets_values_clear",
+                      "packs/gsheets/values/spreadsheets_values_batch_get",
+                      "packs/gsheets/values/spreadsheets_values_batch_update",
+                      "packs/gsheets/values/spreadsheets_values_batch_clear",
+                      "packs/gsheets/values/values_batch_get_by_data_filter",
+                      "packs/gsheets/values/values_batch_update_by_data_filter",
+                      "packs/gsheets/values/values_batch_clear_by_data_filter",
+                      "packs/gsheets/values/objects"
+                    ]
+                  },
+                  {
+                    "group": "Spreadsheets",
+                    "pages": [
+                      "packs/gsheets/spreadsheets/spreadsheets_create",
+                      "packs/gsheets/spreadsheets/spreadsheets_get",
+                      "packs/gsheets/spreadsheets/spreadsheets_batch_update",
+                      "packs/gsheets/spreadsheets/spreadsheets_sheets_copy_to",
+                      "packs/gsheets/spreadsheets/spreadsheets_get_by_data_filter",
+                      "packs/gsheets/spreadsheets/objects"
+                    ]
+                  },
+                  {
+                    "group": "Developer metadata",
+                    "pages": [
+                      "packs/gsheets/developer_metadata/spreadsheets_developer_metadata_get",
+                      "packs/gsheets/developer_metadata/spreadsheets_developer_metadata_search"
+                    ]
+                  }
+                ]
+              },
+              {
+                "group": "Google Docs",
+                "expanded": false,
+                "pages": [
+                  "packs/gdocs",
+                  "packs/gdocs/documents_get",
+                  "packs/gdocs/documents_create",
+                  "packs/gdocs/documents_batch_update",
+                  "packs/gdocs/objects"
+                ]
+              },
+              {
+                "group": "Google Drive",
+                "expanded": false,
+                "pages": [
+                  "packs/gdrive",
+                  {
+                    "group": "Files",
+                    "pages": [
+                      "packs/gdrive/files/files_list",
+                      "packs/gdrive/files/files_get",
+                      "packs/gdrive/files/files_export",
+                      "packs/gdrive/files/files_create",
+                      "packs/gdrive/files/files_update",
+                      "packs/gdrive/files/files_copy",
+                      "packs/gdrive/files/files_delete",
+                      "packs/gdrive/files/files_empty_trash",
+                      "packs/gdrive/files/objects"
+                    ]
+                  },
+                  {
+                    "group": "Permissions",
+                    "pages": [
+                      "packs/gdrive/permissions/permissions_create",
+                      "packs/gdrive/permissions/permissions_list",
+                      "packs/gdrive/permissions/permissions_get",
+                      "packs/gdrive/permissions/permissions_update",
+                      "packs/gdrive/permissions/permissions_delete",
+                      "packs/gdrive/permissions/objects"
+                    ]
+                  },
+                  {
+                    "group": "Comments",
+                    "pages": [
+                      "packs/gdrive/comments/comments_list",
+                      "packs/gdrive/comments/comments_create",
+                      "packs/gdrive/comments/comments_update",
+                      "packs/gdrive/comments/comments_delete",
+                      "packs/gdrive/comments/objects"
+                    ]
+                  },
+                  {
+                    "group": "Replies",
+                    "pages": [
+                      "packs/gdrive/replies/replies_create",
+                      "packs/gdrive/replies/replies_update",
+                      "packs/gdrive/replies/replies_delete",
+                      "packs/gdrive/replies/objects"
+                    ]
+                  },
+                  {
+                    "group": "Revisions",
+                    "pages": [
+                      "packs/gdrive/revisions/revisions_list",
+                      "packs/gdrive/revisions/revisions_get"
+                    ]
+                  },
+                  {
+                    "group": "Shared drives",
+                    "pages": [
+                      "packs/gdrive/drives/drives_list",
+                      "packs/gdrive/drives/drives_get"
+                    ]
+                  },
+                  {
+                    "group": "Account",
+                    "pages": [
+                      "packs/gdrive/about/about_get"
+                    ]
+                  }
+                ]
+              },
+              {
+                "group": "Google Forms",
+                "expanded": false,
+                "pages": [
+                  "packs/gforms",
+                  {
+                    "group": "Forms",
+                    "pages": [
+                      "packs/gforms/forms/forms_create",
+                      "packs/gforms/forms/forms_get",
+                      "packs/gforms/forms/forms_batch_update",
+                      "packs/gforms/forms/forms_set_publish_settings",
+                      "packs/gforms/forms/objects"
+                    ]
+                  },
+                  {
+                    "group": "Form responses",
+                    "pages": [
+                      "packs/gforms/form_responses/forms_responses_get",
+                      "packs/gforms/form_responses/forms_responses_list"
+                    ]
+                  }
+                ]
+              },
+              {
+                "group": "Slack",
+                "expanded": false,
+                "pages": [
+                  "packs/slack",
+                  {
+                    "group": "Chat",
+                    "pages": [
+                      "packs/slack/chat/chat_post_message",
+                      "packs/slack/chat/chat_update",
+                      "packs/slack/chat/chat_delete",
+                      "packs/slack/chat/chat_post_ephemeral",
+                      "packs/slack/chat/chat_schedule_message",
+                      "packs/slack/chat/objects"
+                    ]
+                  },
+                  {
+                    "group": "Conversations",
+                    "pages": [
+                      "packs/slack/conversations/conversations_list",
+                      "packs/slack/conversations/conversations_history",
+                      "packs/slack/conversations/conversations_replies",
+                      "packs/slack/conversations/conversations_open",
+                      "packs/slack/conversations/conversations_create",
+                      "packs/slack/conversations/conversations_invite",
+                      "packs/slack/conversations/conversations_join"
+                    ]
+                  },
+                  {
+                    "group": "Users",
+                    "pages": [
+                      "packs/slack/users/users_list",
+                      "packs/slack/users/users_info"
+                    ]
+                  },
+                  {
+                    "group": "Reactions",
+                    "pages": [
+                      "packs/slack/reactions/reactions_add",
+                      "packs/slack/reactions/reactions_remove",
+                      "packs/slack/reactions/reactions_get"
+                    ]
+                  },
+                  {
+                    "group": "Search",
+                    "pages": [
+                      "packs/slack/search/search_messages",
+                      "packs/slack/search/objects"
+                    ]
+                  }
+                ]
+              },
+              {
+                "group": "GitHub",
+                "expanded": false,
+                "pages": [
+                  "packs/github",
+                  {
+                    "group": "Issues",
+                    "pages": [
+                      "packs/github/issues/issues_list_for_repo",
+                      "packs/github/issues/issues_get",
+                      "packs/github/issues/issues_create",
+                      "packs/github/issues/issues_update",
+                      "packs/github/issues/issues_create_comment",
+                      "packs/github/issues/issues_list_comments",
+                      "packs/github/issues/issues_list_labels_for_repo",
+                      "packs/github/issues/issues_add_labels",
+                      "packs/github/issues/issues_set_labels",
+                      "packs/github/issues/issues_remove_label",
+                      "packs/github/issues/issues_create_label",
+                      "packs/github/issues/issues_update_label",
+                      "packs/github/issues/issues_delete_label",
+                      "packs/github/issues/issues_add_assignees",
+                      "packs/github/issues/issues_remove_assignees",
+                      "packs/github/issues/issues_list_milestones",
+                      "packs/github/issues/issues_create_milestone",
+                      "packs/github/issues/issues_update_milestone",
+                      "packs/github/issues/issues_get_comment",
+                      "packs/github/issues/issues_update_comment",
+                      "packs/github/issues/issues_delete_comment",
+                      "packs/github/issues/issues_list_timeline",
+                      "packs/github/issues/issues_list_events",
+                      "packs/github/issues/issues_lock",
+                      "packs/github/issues/issues_unlock",
+                      "packs/github/issues/issues_list_for_authenticated_user",
+                      "packs/github/issues/issues_list_sub_issues",
+                      "packs/github/issues/issues_add_sub_issue",
+                      "packs/github/issues/objects"
+                    ]
+                  },
+                  {
+                    "group": "Pulls",
+                    "pages": [
+                      "packs/github/pulls/pulls_list",
+                      "packs/github/pulls/pulls_get",
+                      "packs/github/pulls/pulls_create",
+                      "packs/github/pulls/pulls_list_files",
+                      "packs/github/pulls/pulls_update",
+                      "packs/github/pulls/pulls_merge",
+                      "packs/github/pulls/pulls_create_review",
+                      "packs/github/pulls/pulls_list_reviews",
+                      "packs/github/pulls/pulls_request_reviewers",
+                      "packs/github/pulls/pulls_create_review_comment",
+                      "packs/github/pulls/pulls_list_review_comments",
+                      "packs/github/pulls/pulls_reply_to_review_comment",
+                      "packs/github/pulls/pulls_update_review_comment",
+                      "packs/github/pulls/pulls_delete_review_comment",
+                      "packs/github/pulls/pulls_list_review_comments_for_repo",
+                      "packs/github/pulls/pulls_get_review",
+                      "packs/github/pulls/pulls_submit_review",
+                      "packs/github/pulls/pulls_update_review",
+                      "packs/github/pulls/pulls_dismiss_review",
+                      "packs/github/pulls/pulls_delete_pending_review",
+                      "packs/github/pulls/pulls_list_comments_for_review",
+                      "packs/github/pulls/pulls_get_diff",
+                      "packs/github/pulls/pulls_list_commits",
+                      "packs/github/pulls/pulls_update_branch",
+                      "packs/github/pulls/pulls_check_merged",
+                      "packs/github/pulls/pulls_list_requested_reviewers",
+                      "packs/github/pulls/pulls_remove_requested_reviewers",
+                      "packs/github/pulls/objects"
+                    ]
+                  },
+                  {
+                    "group": "Repos",
+                    "pages": [
+                      "packs/github/repos/repos_get",
+                      "packs/github/repos/repos_list_for_authenticated_user",
+                      "packs/github/repos/repos_get_content",
+                      "packs/github/repos/repos_list_commits",
+                      "packs/github/repos/repos_create_or_update_file",
+                      "packs/github/repos/branches_list",
+                      "packs/github/repos/git_refs_create",
+                      "packs/github/repos/repos_get_commit",
+                      "packs/github/repos/repos_compare_commits",
+                      "packs/github/repos/repos_delete_file",
+                      "packs/github/repos/repos_merge_branches",
+                      "packs/github/repos/repos_get_branch",
+                      "packs/github/repos/repos_rename_branch",
+                      "packs/github/repos/repos_get_branch_protection",
+                      "packs/github/repos/repos_list_branches_for_head_commit",
+                      "packs/github/repos/repos_get_readme",
+                      "packs/github/repos/repos_list_tags",
+                      "packs/github/repos/repos_create_fork",
+                      "packs/github/repos/repos_list_for_org",
+                      "packs/github/repos/repos_list_languages",
+                      "packs/github/repos/repos_list_contributors",
+                      "packs/github/repos/objects"
+                    ]
+                  },
+                  {
+                    "group": "Search",
+                    "pages": [
+                      "packs/github/search/search_issues",
+                      "packs/github/search/search_repositories",
+                      "packs/github/search/search_code",
+                      "packs/github/search/search_commits",
+                      "packs/github/search/search_users",
+                      "packs/github/search/objects"
+                    ]
+                  },
+                  {
+                    "group": "Users",
+                    "pages": [
+                      "packs/github/users/users_get_authenticated"
+                    ]
+                  },
+                  {
+                    "group": "Actions",
+                    "pages": [
+                      "packs/github/actions/actions_list_workflow_runs",
+                      "packs/github/actions/actions_rerun_workflow",
+                      "packs/github/actions/actions_cancel_workflow_run",
+                      "packs/github/actions/actions_get_workflow_run",
+                      "packs/github/actions/actions_list_jobs_for_run",
+                      "packs/github/actions/actions_get_job",
+                      "packs/github/actions/actions_download_job_logs",
+                      "packs/github/actions/actions_download_run_logs",
+                      "packs/github/actions/actions_rerun_failed_jobs",
+                      "packs/github/actions/actions_list_workflows",
+                      "packs/github/actions/actions_get_workflow",
+                      "packs/github/actions/actions_create_workflow_dispatch",
+                      "packs/github/actions/actions_list_runs_for_workflow",
+                      "packs/github/actions/actions_list_run_artifacts",
+                      "packs/github/actions/actions_get_artifact",
+                      "packs/github/actions/actions_download_artifact",
+                      "packs/github/actions/actions_get_run_usage",
+                      "packs/github/actions/actions_list_pending_deployments",
+                      "packs/github/actions/actions_review_pending_deployments",
+                      "packs/github/actions/actions_list_repo_secrets",
+                      "packs/github/actions/objects"
+                    ]
+                  },
+                  {
+                    "group": "Checks",
+                    "pages": [
+                      "packs/github/checks/checks_list_for_ref",
+                      "packs/github/checks/checks_get_run",
+                      "packs/github/checks/checks_list_annotations",
+                      "packs/github/checks/checks_list_suites_for_ref",
+                      "packs/github/checks/repos_get_combined_status",
+                      "packs/github/checks/objects"
+                    ]
+                  },
+                  {
+                    "group": "Git",
+                    "pages": [
+                      "packs/github/git/git_refs_get",
+                      "packs/github/git/git_refs_update",
+                      "packs/github/git/git_refs_delete",
+                      "packs/github/git/git_refs_list_matching",
+                      "packs/github/git/git_blobs_create",
+                      "packs/github/git/git_blobs_get",
+                      "packs/github/git/git_trees_create",
+                      "packs/github/git/git_trees_get",
+                      "packs/github/git/git_commits_create",
+                      "packs/github/git/git_commits_get",
+                      "packs/github/git/git_tags_create",
+                      "packs/github/git/objects"
+                    ]
+                  },
+                  {
+                    "group": "Releases",
+                    "pages": [
+                      "packs/github/releases/releases_list",
+                      "packs/github/releases/releases_get",
+                      "packs/github/releases/releases_get_latest",
+                      "packs/github/releases/releases_get_by_tag",
+                      "packs/github/releases/releases_create",
+                      "packs/github/releases/releases_update",
+                      "packs/github/releases/releases_delete",
+                      "packs/github/releases/releases_generate_notes",
+                      "packs/github/releases/releases_list_assets",
+                      "packs/github/releases/releases_upload_asset",
+                      "packs/github/releases/objects"
+                    ]
+                  },
+                  {
+                    "group": "Monitoring",
+                    "pages": [
+                      "packs/github/monitoring/notifications_list",
+                      "packs/github/monitoring/notifications_mark_read",
+                      "packs/github/monitoring/notifications_get_thread",
+                      "packs/github/monitoring/notifications_mark_thread_read",
+                      "packs/github/monitoring/dependabot_list_alerts",
+                      "packs/github/monitoring/dependabot_get_alert",
+                      "packs/github/monitoring/dependabot_update_alert",
+                      "packs/github/monitoring/code_scanning_list_alerts",
+                      "packs/github/monitoring/code_scanning_get_alert",
+                      "packs/github/monitoring/secret_scanning_list_alerts",
+                      "packs/github/monitoring/rate_limit_get",
+                      "packs/github/monitoring/objects"
+                    ]
+                  }
+                ]
+              },
+              {
+                "group": "Notion",
+                "expanded": false,
+                "pages": [
+                  "packs/notion",
+                  {
+                    "group": "Users",
+                    "pages": [
+                      "packs/notion/users/users_list",
+                      "packs/notion/users/users_retrieve",
+                      "packs/notion/users/users_retrieve_me"
+                    ]
+                  },
+                  {
+                    "group": "Search",
+                    "pages": [
+                      "packs/notion/search/search",
+                      "packs/notion/search/objects"
+                    ]
+                  },
+                  {
+                    "group": "Pages",
+                    "pages": [
+                      "packs/notion/pages/pages_create",
+                      "packs/notion/pages/pages_retrieve",
+                      "packs/notion/pages/pages_update",
+                      "packs/notion/pages/pages_move",
+                      "packs/notion/pages/pages_retrieve_property_item",
+                      "packs/notion/pages/pages_retrieve_markdown",
+                      "packs/notion/pages/pages_update_markdown",
+                      "packs/notion/pages/objects"
+                    ]
+                  },
+                  {
+                    "group": "Blocks",
+                    "pages": [
+                      "packs/notion/blocks/blocks_retrieve",
+                      "packs/notion/blocks/blocks_update",
+                      "packs/notion/blocks/blocks_delete",
+                      "packs/notion/blocks/blocks_children_list",
+                      "packs/notion/blocks/blocks_children_append",
+                      "packs/notion/blocks/objects"
+                    ]
+                  },
+                  {
+                    "group": "Databases",
+                    "pages": [
+                      "packs/notion/databases/databases_create",
+                      "packs/notion/databases/databases_retrieve",
+                      "packs/notion/databases/databases_update",
+                      "packs/notion/databases/objects"
+                    ]
+                  },
+                  {
+                    "group": "Data sources",
+                    "pages": [
+                      "packs/notion/data_sources/data_sources_create",
+                      "packs/notion/data_sources/data_sources_retrieve",
+                      "packs/notion/data_sources/data_sources_update",
+                      "packs/notion/data_sources/data_sources_query",
+                      "packs/notion/data_sources/data_sources_templates_list",
+                      "packs/notion/data_sources/objects"
+                    ]
+                  },
+                  {
+                    "group": "Comments",
+                    "pages": [
+                      "packs/notion/comments/comments_create",
+                      "packs/notion/comments/comments_list",
+                      "packs/notion/comments/comments_retrieve",
+                      "packs/notion/comments/comments_update",
+                      "packs/notion/comments/comments_delete",
+                      "packs/notion/comments/objects"
+                    ]
+                  },
+                  {
+                    "group": "File uploads",
+                    "pages": [
+                      "packs/notion/file_uploads/file_uploads_create",
+                      "packs/notion/file_uploads/file_uploads_complete",
+                      "packs/notion/file_uploads/file_uploads_retrieve",
+                      "packs/notion/file_uploads/file_uploads_list",
+                      "packs/notion/file_uploads/objects"
+                    ]
+                  },
+                  {
+                    "group": "Custom emojis",
+                    "pages": [
+                      "packs/notion/custom_emojis/custom_emojis_list"
+                    ]
+                  },
+                  {
+                    "group": "Async tasks",
+                    "pages": [
+                      "packs/notion/async_tasks/async_tasks_retrieve"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "group": "API-key packs",
+            "pages": [
+              {
+                "group": "Stripe",
+                "expanded": false,
+                "pages": [
+                  "packs/stripe",
+                  {
+                    "group": "Customers",
+                    "pages": [
+                      "packs/stripe/customers/customers_list",
+                      "packs/stripe/customers/customers_retrieve",
+                      "packs/stripe/customers/customers_create",
+                      "packs/stripe/customers/customers_update",
+                      "packs/stripe/customers/objects"
+                    ]
+                  },
+                  {
+                    "group": "Payments",
+                    "pages": [
+                      "packs/stripe/payments/payment_intents_list",
+                      "packs/stripe/payments/payment_intents_retrieve",
+                      "packs/stripe/payments/charges_list",
+                      "packs/stripe/payments/refunds_create",
+                      "packs/stripe/payments/refunds_list",
+                      "packs/stripe/payments/refunds_retrieve",
+                      "packs/stripe/payments/balance_retrieve",
+                      "packs/stripe/payments/objects"
+                    ]
+                  },
+                  {
+                    "group": "Catalog",
+                    "pages": [
+                      "packs/stripe/catalog/products_list",
+                      "packs/stripe/catalog/prices_list",
+                      "packs/stripe/catalog/subscriptions_list",
+                      "packs/stripe/catalog/objects"
+                    ]
+                  },
+                  {
+                    "group": "Subscriptions",
+                    "pages": [
+                      "packs/stripe/subscriptions/subscriptions_create",
+                      "packs/stripe/subscriptions/subscriptions_update",
+                      "packs/stripe/subscriptions/subscriptions_cancel",
+                      "packs/stripe/subscriptions/objects"
+                    ]
+                  },
+                  {
+                    "group": "Invoices",
+                    "pages": [
+                      "packs/stripe/invoices/invoices_list",
+                      "packs/stripe/invoices/invoices_retrieve",
+                      "packs/stripe/invoices/invoices_create",
+                      "packs/stripe/invoices/invoices_update",
+                      "packs/stripe/invoices/invoices_finalize",
+                      "packs/stripe/invoices/invoices_send",
+                      "packs/stripe/invoices/invoices_void",
+                      "packs/stripe/invoices/invoices_mark_uncollectible",
+                      "packs/stripe/invoices/objects"
+                    ]
+                  },
+                  {
+                    "group": "Invoiceitems",
+                    "pages": [
+                      "packs/stripe/invoiceitems/invoice_items_create",
+                      "packs/stripe/invoiceitems/invoice_items_list",
+                      "packs/stripe/invoiceitems/invoice_items_update",
+                      "packs/stripe/invoiceitems/invoice_items_delete",
+                      "packs/stripe/invoiceitems/objects"
+                    ]
+                  },
+                  {
+                    "group": "Catalog writes",
+                    "pages": [
+                      "packs/stripe/catalog_writes/checkout_sessions_retrieve",
+                      "packs/stripe/catalog_writes/checkout_sessions_list",
+                      "packs/stripe/catalog_writes/checkout_sessions_line_items",
+                      "packs/stripe/catalog_writes/products_create",
+                      "packs/stripe/catalog_writes/products_update",
+                      "packs/stripe/catalog_writes/prices_create",
+                      "packs/stripe/catalog_writes/prices_update",
+                      "packs/stripe/catalog_writes/objects"
+                    ]
+                  },
+                  {
+                    "group": "Payment intents",
+                    "pages": [
+                      "packs/stripe/payment_intents/payment_intents_create",
+                      "packs/stripe/payment_intents/payment_intents_capture",
+                      "packs/stripe/payment_intents/payment_intents_cancel",
+                      "packs/stripe/payment_intents/charges_retrieve",
+                      "packs/stripe/payment_intents/objects"
+                    ]
+                  },
+                  {
+                    "group": "Payment methods",
+                    "pages": [
+                      "packs/stripe/payment_methods/payment_methods_list",
+                      "packs/stripe/payment_methods/payment_methods_retrieve",
+                      "packs/stripe/payment_methods/payment_methods_attach",
+                      "packs/stripe/payment_methods/payment_methods_detach",
+                      "packs/stripe/payment_methods/customer_payment_methods_list",
+                      "packs/stripe/payment_methods/customer_payment_method_retrieve",
+                      "packs/stripe/payment_methods/objects"
+                    ]
+                  },
+                  {
+                    "group": "Disputes",
+                    "pages": [
+                      "packs/stripe/disputes/disputes_list",
+                      "packs/stripe/disputes/disputes_retrieve",
+                      "packs/stripe/disputes/disputes_update",
+                      "packs/stripe/disputes/disputes_close",
+                      "packs/stripe/disputes/objects"
+                    ]
+                  },
+                  {
+                    "group": "Connect",
+                    "pages": [
+                      "packs/stripe/connect/accounts_list",
+                      "packs/stripe/connect/accounts_retrieve",
+                      "packs/stripe/connect/transfers_list",
+                      "packs/stripe/connect/transfers_retrieve",
+                      "packs/stripe/connect/payouts_list",
+                      "packs/stripe/connect/payouts_retrieve",
+                      "packs/stripe/connect/application_fees_list",
+                      "packs/stripe/connect/balance_transactions_list",
+                      "packs/stripe/connect/objects"
+                    ]
+                  },
+                  {
+                    "group": "Checkout",
+                    "pages": [
+                      "packs/stripe/checkout/checkout_sessions_create",
+                      "packs/stripe/checkout/objects"
+                    ]
+                  }
+                ]
+              },
+              {
+                "group": "Linear",
+                "expanded": false,
+                "pages": [
+                  "packs/linear",
+                  {
+                    "group": "Workspace",
+                    "pages": [
+                      "packs/linear/workspace/viewer",
+                      "packs/linear/workspace/organization",
+                      "packs/linear/workspace/teams_list",
+                      "packs/linear/workspace/team_get",
+                      "packs/linear/workspace/users_list",
+                      "packs/linear/workspace/user_get",
+                      "packs/linear/workspace/workflow_states_list",
+                      "packs/linear/workspace/workflow_state_get",
+                      "packs/linear/workspace/workflow_state_create",
+                      "packs/linear/workspace/workflow_state_update",
+                      "packs/linear/workspace/workflow_state_archive",
+                      "packs/linear/workspace/team_memberships_list",
+                      "packs/linear/workspace/team_membership_get",
+                      "packs/linear/workspace/team_membership_create",
+                      "packs/linear/workspace/team_membership_update",
+                      "packs/linear/workspace/team_membership_delete",
+                      "packs/linear/workspace/objects"
+                    ]
+                  },
+                  {
+                    "group": "Issues",
+                    "pages": [
+                      "packs/linear/issues/issues_list",
+                      "packs/linear/issues/issue_get",
+                      "packs/linear/issues/issue_create",
+                      "packs/linear/issues/issue_update",
+                      "packs/linear/issues/issue_batch_update",
+                      "packs/linear/issues/issue_delete",
+                      "packs/linear/issues/issue_archive",
+                      "packs/linear/issues/issue_unarchive",
+                      "packs/linear/issues/issue_add_label",
+                      "packs/linear/issues/issue_remove_label",
+                      "packs/linear/issues/issue_subscribe",
+                      "packs/linear/issues/issue_unsubscribe",
+                      "packs/linear/issues/issue_relations_list",
+                      "packs/linear/issues/issue_relation_get",
+                      "packs/linear/issues/issue_relation_create",
+                      "packs/linear/issues/issue_relation_update",
+                      "packs/linear/issues/issue_relation_delete",
+                      "packs/linear/issues/objects"
+                    ]
+                  },
+                  {
+                    "group": "Comments",
+                    "pages": [
+                      "packs/linear/comments/comments_list",
+                      "packs/linear/comments/comment_get",
+                      "packs/linear/comments/comment_create",
+                      "packs/linear/comments/comment_update",
+                      "packs/linear/comments/comment_delete",
+                      "packs/linear/comments/comment_resolve",
+                      "packs/linear/comments/comment_unresolve",
+                      "packs/linear/comments/reaction_create",
+                      "packs/linear/comments/reaction_delete",
+                      "packs/linear/comments/objects"
+                    ]
+                  },
+                  {
+                    "group": "Labels",
+                    "pages": [
+                      "packs/linear/labels/issue_labels_list",
+                      "packs/linear/labels/issue_label_get",
+                      "packs/linear/labels/issue_label_create",
+                      "packs/linear/labels/issue_label_update",
+                      "packs/linear/labels/issue_label_delete",
+                      "packs/linear/labels/project_labels_list",
+                      "packs/linear/labels/objects"
+                    ]
+                  },
+                  {
+                    "group": "Projects",
+                    "pages": [
+                      "packs/linear/projects/projects_list",
+                      "packs/linear/projects/project_get",
+                      "packs/linear/projects/project_create",
+                      "packs/linear/projects/project_update",
+                      "packs/linear/projects/project_delete",
+                      "packs/linear/projects/project_unarchive",
+                      "packs/linear/projects/project_add_label",
+                      "packs/linear/projects/project_remove_label",
+                      "packs/linear/projects/project_statuses_list",
+                      "packs/linear/projects/project_milestones_list",
+                      "packs/linear/projects/project_milestone_get",
+                      "packs/linear/projects/project_milestone_create",
+                      "packs/linear/projects/project_milestone_update",
+                      "packs/linear/projects/project_milestone_delete",
+                      "packs/linear/projects/project_updates_list",
+                      "packs/linear/projects/project_update_get",
+                      "packs/linear/projects/project_update_create",
+                      "packs/linear/projects/project_update_update",
+                      "packs/linear/projects/project_update_archive",
+                      "packs/linear/projects/objects"
+                    ]
+                  },
+                  {
+                    "group": "Cycles",
+                    "pages": [
+                      "packs/linear/cycles/cycles_list",
+                      "packs/linear/cycles/cycle_get",
+                      "packs/linear/cycles/cycle_update",
+                      "packs/linear/cycles/cycle_archive",
+                      "packs/linear/cycles/cycle_start_upcoming_today",
+                      "packs/linear/cycles/objects"
+                    ]
+                  },
+                  {
+                    "group": "Initiatives",
+                    "pages": [
+                      "packs/linear/initiatives/initiatives_list",
+                      "packs/linear/initiatives/initiative_get",
+                      "packs/linear/initiatives/initiative_create",
+                      "packs/linear/initiatives/initiative_update",
+                      "packs/linear/initiatives/initiative_delete",
+                      "packs/linear/initiatives/initiative_archive",
+                      "packs/linear/initiatives/initiative_unarchive",
+                      "packs/linear/initiatives/initiative_to_project_create",
+                      "packs/linear/initiatives/initiative_to_project_delete",
+                      "packs/linear/initiatives/initiative_updates_list",
+                      "packs/linear/initiatives/initiative_update_create",
+                      "packs/linear/initiatives/objects"
+                    ]
+                  },
+                  {
+                    "group": "Documents",
+                    "pages": [
+                      "packs/linear/documents/documents_list",
+                      "packs/linear/documents/document_get",
+                      "packs/linear/documents/document_create",
+                      "packs/linear/documents/document_update",
+                      "packs/linear/documents/document_delete",
+                      "packs/linear/documents/document_unarchive",
+                      "packs/linear/documents/objects"
+                    ]
+                  },
+                  {
+                    "group": "Attachments",
+                    "pages": [
+                      "packs/linear/attachments/attachments_list",
+                      "packs/linear/attachments/attachment_get",
+                      "packs/linear/attachments/attachments_for_url",
+                      "packs/linear/attachments/attachment_create",
+                      "packs/linear/attachments/attachment_update",
+                      "packs/linear/attachments/attachment_delete",
+                      "packs/linear/attachments/objects"
+                    ]
+                  },
+                  {
+                    "group": "Customers",
+                    "pages": [
+                      "packs/linear/customers/customers_list",
+                      "packs/linear/customers/customer_get",
+                      "packs/linear/customers/customer_create",
+                      "packs/linear/customers/customer_update",
+                      "packs/linear/customers/customer_delete",
+                      "packs/linear/customers/customer_needs_list",
+                      "packs/linear/customers/customer_need_create",
+                      "packs/linear/customers/customer_need_update",
+                      "packs/linear/customers/customer_need_delete",
+                      "packs/linear/customers/customer_statuses_list",
+                      "packs/linear/customers/customer_tiers_list",
+                      "packs/linear/customers/objects"
+                    ]
+                  },
+                  {
+                    "group": "Inbox",
+                    "pages": [
+                      "packs/linear/inbox/notifications_list",
+                      "packs/linear/inbox/notification_get",
+                      "packs/linear/inbox/notification_update",
+                      "packs/linear/inbox/notification_archive",
+                      "packs/linear/inbox/notification_unarchive",
+                      "packs/linear/inbox/notification_mark_read_all",
+                      "packs/linear/inbox/favorites_list",
+                      "packs/linear/inbox/favorite_create",
+                      "packs/linear/inbox/favorite_update",
+                      "packs/linear/inbox/favorite_delete",
+                      "packs/linear/inbox/custom_views_list",
+                      "packs/linear/inbox/custom_view_get",
+                      "packs/linear/inbox/custom_view_create",
+                      "packs/linear/inbox/custom_view_delete",
+                      "packs/linear/inbox/objects"
+                    ]
+                  },
+                  {
+                    "group": "Search",
+                    "pages": [
+                      "packs/linear/search/search_issues",
+                      "packs/linear/search/search_projects",
+                      "packs/linear/search/search_documents",
+                      "packs/linear/search/objects"
+                    ]
+                  },
+                  {
+                    "group": "Webhooks",
+                    "pages": [
+                      "packs/linear/webhooks/webhooks_list",
+                      "packs/linear/webhooks/webhook_get",
+                      "packs/linear/webhooks/webhook_create",
+                      "packs/linear/webhooks/webhook_update",
+                      "packs/linear/webhooks/webhook_delete",
+                      "packs/linear/webhooks/objects"
+                    ]
+                  }
+                ]
+              },
+              {
+                "group": "Shopify",
+                "expanded": false,
+                "pages": [
+                  "packs/shopify",
+                  "packs/shopify/shop_get",
+                  "packs/shopify/products_list",
+                  "packs/shopify/product_get",
+                  "packs/shopify/product_create",
+                  "packs/shopify/product_update",
+                  "packs/shopify/orders_list",
+                  "packs/shopify/order_get",
+                  "packs/shopify/customers_list",
+                  "packs/shopify/customer_get",
+                  "packs/shopify/customer_create",
+                  "packs/shopify/customer_update",
+                  "packs/shopify/order_fulfillment_orders",
+                  "packs/shopify/fulfillment_create",
+                  "packs/shopify/inventory_adjust_quantities",
+                  "packs/shopify/variant_inventory_level",
+                  "packs/shopify/locations_list",
+                  "packs/shopify/order_close",
+                  "packs/shopify/order_open",
+                  "packs/shopify/order_cancel",
+                  "packs/shopify/draft_order_create",
+                  "packs/shopify/draft_order_complete",
+                  "packs/shopify/product_variants_bulk_create",
+                  "packs/shopify/objects"
+                ]
+              },
+              {
+                "group": "Firecrawl",
+                "expanded": false,
+                "pages": [
+                  "packs/firecrawl",
+                  {
+                    "group": "Search",
+                    "pages": [
+                      "packs/firecrawl/search/search",
+                      "packs/firecrawl/search/search_feedback",
+                      "packs/firecrawl/search/objects"
+                    ]
+                  },
+                  {
+                    "group": "Map",
+                    "pages": [
+                      "packs/firecrawl/map/map",
+                      "packs/firecrawl/map/objects"
+                    ]
+                  },
+                  {
+                    "group": "Scrape",
+                    "pages": [
+                      "packs/firecrawl/scrape/scrape",
+                      "packs/firecrawl/scrape/scrape_status",
+                      "packs/firecrawl/scrape/scrape_interact",
+                      "packs/firecrawl/scrape/scrape_interact_stop",
+                      "packs/firecrawl/scrape/objects"
+                    ]
+                  },
+                  {
+                    "group": "Batch",
+                    "pages": [
+                      "packs/firecrawl/batch/batch_scrape",
+                      "packs/firecrawl/batch/batch_scrape_status",
+                      "packs/firecrawl/batch/batch_scrape_cancel",
+                      "packs/firecrawl/batch/batch_scrape_errors",
+                      "packs/firecrawl/batch/objects"
+                    ]
+                  },
+                  {
+                    "group": "Interact",
+                    "pages": [
+                      "packs/firecrawl/interact/interact_create",
+                      "packs/firecrawl/interact/interact_execute",
+                      "packs/firecrawl/interact/interact_list",
+                      "packs/firecrawl/interact/interact_delete",
+                      "packs/firecrawl/interact/objects"
+                    ]
+                  },
+                  {
+                    "group": "Research",
+                    "pages": [
+                      "packs/firecrawl/research/research_papers_search",
+                      "packs/firecrawl/research/research_paper_get",
+                      "packs/firecrawl/research/research_similar_papers",
+                      "packs/firecrawl/research/objects"
+                    ]
+                  },
+                  {
+                    "group": "Developer",
+                    "pages": [
+                      "packs/firecrawl/developer/developer_search",
+                      "packs/firecrawl/developer/objects"
+                    ]
+                  },
+                  {
+                    "group": "Crawl",
+                    "pages": [
+                      "packs/firecrawl/crawl/crawl",
+                      "packs/firecrawl/crawl/crawl_status",
+                      "packs/firecrawl/crawl/crawl_params_preview",
+                      "packs/firecrawl/crawl/crawl_cancel",
+                      "packs/firecrawl/crawl/crawl_errors",
+                      "packs/firecrawl/crawl/crawl_active"
+                    ]
+                  },
+                  {
+                    "group": "Extract",
+                    "pages": [
+                      "packs/firecrawl/extract/extract",
+                      "packs/firecrawl/extract/extract_status"
+                    ]
+                  },
+                  {
+                    "group": "Monitor",
+                    "pages": [
+                      "packs/firecrawl/monitor/monitor_create",
+                      "packs/firecrawl/monitor/monitor_list",
+                      "packs/firecrawl/monitor/monitor_get",
+                      "packs/firecrawl/monitor/monitor_update",
+                      "packs/firecrawl/monitor/monitor_delete",
+                      "packs/firecrawl/monitor/monitor_run",
+                      "packs/firecrawl/monitor/monitor_checks_list",
+                      "packs/firecrawl/monitor/monitor_check_get",
+                      "packs/firecrawl/monitor/objects"
+                    ]
+                  },
+                  {
+                    "group": "Account",
+                    "pages": [
+                      "packs/firecrawl/account/activity",
+                      "packs/firecrawl/account/credit_usage",
+                      "packs/firecrawl/account/historical_credit_usage",
+                      "packs/firecrawl/account/token_usage",
+                      "packs/firecrawl/account/historical_token_usage",
+                      "packs/firecrawl/account/queue_status",
+                      "packs/firecrawl/account/threat_protection_get",
+                      "packs/firecrawl/account/threat_protection_update",
+                      "packs/firecrawl/account/objects"
+                    ]
+                  }
+                ]
+              },
+              {
+                "group": "Granola",
+                "expanded": false,
+                "pages": [
+                  "packs/granola",
+                  {
+                    "group": "Notes",
+                    "pages": [
+                      "packs/granola/notes/notes_list",
+                      "packs/granola/notes/notes_get",
+                      "packs/granola/notes/notes_transcript_get"
+                    ]
+                  },
+                  {
+                    "group": "Folders",
+                    "pages": [
+                      "packs/granola/folders/folders_list"
+                    ]
+                  },
+                  {
+                    "group": "Audit",
+                    "pages": [
+                      "packs/granola/audit/audit_list"
+                    ]
+                  },
+                  {
+                    "group": "Webhooks",
+                    "pages": [
+                      "packs/granola/webhooks/webhook_endpoints_create",
+                      "packs/granola/webhooks/webhook_endpoints_list",
+                      "packs/granola/webhooks/webhook_endpoints_update",
+                      "packs/granola/webhooks/webhook_endpoints_delete",
+                      "packs/granola/webhooks/objects"
+                    ]
+                  }
+                ]
+              },
+              {
+                "group": "Tavily",
+                "expanded": false,
+                "pages": [
+                  "packs/tavily",
+                  {
+                    "group": "Search",
+                    "pages": [
+                      "packs/tavily/search/search",
+                      "packs/tavily/search/objects"
+                    ]
+                  },
+                  {
+                    "group": "Extract",
+                    "pages": [
+                      "packs/tavily/extract/extract"
+                    ]
+                  },
+                  {
+                    "group": "Crawl",
+                    "pages": [
+                      "packs/tavily/crawl/crawl"
+                    ]
+                  },
+                  {
+                    "group": "Map",
+                    "pages": [
+                      "packs/tavily/map/map"
+                    ]
+                  },
+                  {
+                    "group": "Research",
+                    "pages": [
+                      "packs/tavily/research/research_create",
+                      "packs/tavily/research/research_get",
+                      "packs/tavily/research/objects"
+                    ]
+                  },
+                  {
+                    "group": "Usage",
+                    "pages": [
+                      "packs/tavily/usage/usage",
+                      "packs/tavily/usage/logs",
+                      "packs/tavily/usage/org_usage",
+                      "packs/tavily/usage/objects"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Reference",
+        "pages": [
+          "reference/overview",
+          {
+            "group": "Core",
+            "pages": [
+              "reference/tool",
+              "reference/factories",
+              "reference/naming",
+              "reference/tool-discovery",
+              "reference/response-handling"
+            ]
+          },
+          {
+            "group": "Schema",
+            "pages": [
+              "reference/markers",
+              "reference/semantic-types",
+              "reference/protobuf-types",
+              "reference/transforms"
+            ]
+          },
+          {
+            "group": "Authentication",
+            "pages": [
+              "reference/credentials",
+              "reference/oauth"
+            ]
+          },
+          {
+            "group": "Runtime",
+            "pages": [
+              "reference/envelopes-and-pagination",
+              "reference/observability",
+              "reference/errors"
+            ]
+          },
+          {
+            "group": "Operating",
+            "pages": [
+              "reference/configuration",
+              "reference/cli"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "contextual": {
+    "options": [
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "cursor",
+      "vscode",
+      "mcp"
+    ]
+  },
+  "navbar": {
+    "primary": {
+      "type": "button",
+      "label": "GitHub",
+      "href": "https://github.com/r28ai/charter"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/r28ai/charter"
+    }
+  },
+  "feedback": {
+    "thumbs": true,
+    "issues": true,
+    "edits": false
+  },
+  "redirects": [
+    {
+      "source": "/ai/overview",
+      "destination": "/start/coding-agents"
+    },
+    {
+      "source": "/ai/skill",
+      "destination": "/start/coding-agents"
+    },
+    {
+      "source": "/ai/docs-for-agents",
+      "destination": "/start/coding-agents"
+    },
+    {
+      "source": "/running/context-window",
+      "destination": "/optimization/context-window"
+    },
+    {
+      "source": "/packs/gmail/tools/messages_send",
+      "destination": "/packs/gmail/message/messages_send"
+    },
+    {
+      "source": "/packs/gmail/tools/messages_list",
+      "destination": "/packs/gmail/message/messages_list"
+    },
+    {
+      "source": "/packs/gmail/tools/messages_get",
+      "destination": "/packs/gmail/message/messages_get"
+    },
+    {
+      "source": "/packs/gmail/tools/messages_modify",
+      "destination": "/packs/gmail/message/messages_modify"
+    },
+    {
+      "source": "/packs/gmail/tools/messages_batch_modify",
+      "destination": "/packs/gmail/message/messages_batch_modify"
+    },
+    {
+      "source": "/packs/gmail/tools/threads_list",
+      "destination": "/packs/gmail/thread/threads_list"
+    },
+    {
+      "source": "/packs/gmail/tools/threads_get",
+      "destination": "/packs/gmail/thread/threads_get"
+    },
+    {
+      "source": "/packs/gmail/tools/threads_modify",
+      "destination": "/packs/gmail/thread/threads_modify"
+    },
+    {
+      "source": "/packs/gmail/tools/threads_trash",
+      "destination": "/packs/gmail/thread/threads_trash"
+    },
+    {
+      "source": "/packs/gmail/tools/threads_untrash",
+      "destination": "/packs/gmail/thread/threads_untrash"
+    },
+    {
+      "source": "/packs/gmail/tools/threads_delete",
+      "destination": "/packs/gmail/thread/threads_delete"
+    },
+    {
+      "source": "/packs/gmail/tools/drafts_create",
+      "destination": "/packs/gmail/draft/drafts_create"
+    },
+    {
+      "source": "/packs/gmail/tools/drafts_get",
+      "destination": "/packs/gmail/draft/drafts_get"
+    },
+    {
+      "source": "/packs/gmail/tools/drafts_list",
+      "destination": "/packs/gmail/draft/drafts_list"
+    },
+    {
+      "source": "/packs/gmail/tools/drafts_update",
+      "destination": "/packs/gmail/draft/drafts_update"
+    },
+    {
+      "source": "/packs/gmail/tools/drafts_delete",
+      "destination": "/packs/gmail/draft/drafts_delete"
+    },
+    {
+      "source": "/packs/gmail/tools/drafts_send",
+      "destination": "/packs/gmail/draft/drafts_send"
+    },
+    {
+      "source": "/packs/gmail/tools/labels_list",
+      "destination": "/packs/gmail/label/labels_list"
+    },
+    {
+      "source": "/packs/gmail/tools/labels_get",
+      "destination": "/packs/gmail/label/labels_get"
+    },
+    {
+      "source": "/packs/gmail/tools/labels_create",
+      "destination": "/packs/gmail/label/labels_create"
+    },
+    {
+      "source": "/packs/gmail/tools/labels_update",
+      "destination": "/packs/gmail/label/labels_update"
+    },
+    {
+      "source": "/packs/gmail/tools/labels_patch",
+      "destination": "/packs/gmail/label/labels_patch"
+    },
+    {
+      "source": "/packs/gmail/tools/labels_delete",
+      "destination": "/packs/gmail/label/labels_delete"
+    },
+    {
+      "source": "/packs/gcalendar/tools/events_get",
+      "destination": "/packs/gcalendar/event/events_get"
+    },
+    {
+      "source": "/packs/gcalendar/tools/events_list",
+      "destination": "/packs/gcalendar/event/events_list"
+    },
+    {
+      "source": "/packs/gcalendar/tools/events_instances",
+      "destination": "/packs/gcalendar/event/events_instances"
+    },
+    {
+      "source": "/packs/gcalendar/tools/events_insert",
+      "destination": "/packs/gcalendar/event/events_insert"
+    },
+    {
+      "source": "/packs/gcalendar/tools/events_update",
+      "destination": "/packs/gcalendar/event/events_update"
+    },
+    {
+      "source": "/packs/gcalendar/tools/events_patch",
+      "destination": "/packs/gcalendar/event/events_patch"
+    },
+    {
+      "source": "/packs/gcalendar/tools/events_move",
+      "destination": "/packs/gcalendar/event/events_move"
+    },
+    {
+      "source": "/packs/gcalendar/tools/events_quick_add",
+      "destination": "/packs/gcalendar/event/events_quick_add"
+    },
+    {
+      "source": "/packs/gcalendar/tools/events_import",
+      "destination": "/packs/gcalendar/event/events_import"
+    },
+    {
+      "source": "/packs/gcalendar/tools/events_delete",
+      "destination": "/packs/gcalendar/event/events_delete"
+    },
+    {
+      "source": "/packs/gcalendar/tools/calendar_list_list",
+      "destination": "/packs/gcalendar/calendar_list/calendar_list_list"
+    },
+    {
+      "source": "/packs/gcalendar/tools/calendar_list_get",
+      "destination": "/packs/gcalendar/calendar_list/calendar_list_get"
+    },
+    {
+      "source": "/packs/gcalendar/tools/calendars_get",
+      "destination": "/packs/gcalendar/calendar/calendars_get"
+    },
+    {
+      "source": "/packs/gsheets/tools/spreadsheets_values_get",
+      "destination": "/packs/gsheets/values/spreadsheets_values_get"
+    },
+    {
+      "source": "/packs/gsheets/tools/spreadsheets_values_update",
+      "destination": "/packs/gsheets/values/spreadsheets_values_update"
+    },
+    {
+      "source": "/packs/gsheets/tools/spreadsheets_values_append",
+      "destination": "/packs/gsheets/values/spreadsheets_values_append"
+    },
+    {
+      "source": "/packs/gsheets/tools/spreadsheets_values_clear",
+      "destination": "/packs/gsheets/values/spreadsheets_values_clear"
+    },
+    {
+      "source": "/packs/gsheets/tools/spreadsheets_values_batch_get",
+      "destination": "/packs/gsheets/values/spreadsheets_values_batch_get"
+    },
+    {
+      "source": "/packs/gsheets/tools/spreadsheets_values_batch_update",
+      "destination": "/packs/gsheets/values/spreadsheets_values_batch_update"
+    },
+    {
+      "source": "/packs/gsheets/tools/spreadsheets_values_batch_clear",
+      "destination": "/packs/gsheets/values/spreadsheets_values_batch_clear"
+    },
+    {
+      "source": "/packs/gsheets/tools/values_batch_get_by_data_filter",
+      "destination": "/packs/gsheets/values/values_batch_get_by_data_filter"
+    },
+    {
+      "source": "/packs/gsheets/tools/values_batch_update_by_data_filter",
+      "destination": "/packs/gsheets/values/values_batch_update_by_data_filter"
+    },
+    {
+      "source": "/packs/gsheets/tools/values_batch_clear_by_data_filter",
+      "destination": "/packs/gsheets/values/values_batch_clear_by_data_filter"
+    },
+    {
+      "source": "/packs/gsheets/tools/spreadsheets_create",
+      "destination": "/packs/gsheets/spreadsheets/spreadsheets_create"
+    },
+    {
+      "source": "/packs/gsheets/tools/spreadsheets_get",
+      "destination": "/packs/gsheets/spreadsheets/spreadsheets_get"
+    },
+    {
+      "source": "/packs/gsheets/tools/spreadsheets_batch_update",
+      "destination": "/packs/gsheets/spreadsheets/spreadsheets_batch_update"
+    },
+    {
+      "source": "/packs/gsheets/tools/spreadsheets_sheets_copy_to",
+      "destination": "/packs/gsheets/spreadsheets/spreadsheets_sheets_copy_to"
+    },
+    {
+      "source": "/packs/gsheets/tools/spreadsheets_get_by_data_filter",
+      "destination": "/packs/gsheets/spreadsheets/spreadsheets_get_by_data_filter"
+    },
+    {
+      "source": "/packs/gsheets/tools/spreadsheets_developer_metadata_get",
+      "destination": "/packs/gsheets/developer_metadata/spreadsheets_developer_metadata_get"
+    },
+    {
+      "source": "/packs/gsheets/tools/spreadsheets_developer_metadata_search",
+      "destination": "/packs/gsheets/developer_metadata/spreadsheets_developer_metadata_search"
+    },
+    {
+      "source": "/packs/gdocs/tools/documents_get",
+      "destination": "/packs/gdocs/documents_get"
+    },
+    {
+      "source": "/packs/gdocs/tools/documents_create",
+      "destination": "/packs/gdocs/documents_create"
+    },
+    {
+      "source": "/packs/gdocs/tools/documents_batch_update",
+      "destination": "/packs/gdocs/documents_batch_update"
+    },
+    {
+      "source": "/packs/gdrive/tools/files_list",
+      "destination": "/packs/gdrive/files/files_list"
+    },
+    {
+      "source": "/packs/gdrive/tools/files_get",
+      "destination": "/packs/gdrive/files/files_get"
+    },
+    {
+      "source": "/packs/gdrive/tools/files_export",
+      "destination": "/packs/gdrive/files/files_export"
+    },
+    {
+      "source": "/packs/gdrive/tools/files_create",
+      "destination": "/packs/gdrive/files/files_create"
+    },
+    {
+      "source": "/packs/gdrive/tools/files_update",
+      "destination": "/packs/gdrive/files/files_update"
+    },
+    {
+      "source": "/packs/gdrive/tools/files_copy",
+      "destination": "/packs/gdrive/files/files_copy"
+    },
+    {
+      "source": "/packs/gdrive/tools/files_delete",
+      "destination": "/packs/gdrive/files/files_delete"
+    },
+    {
+      "source": "/packs/gdrive/tools/files_empty_trash",
+      "destination": "/packs/gdrive/files/files_empty_trash"
+    },
+    {
+      "source": "/packs/gdrive/tools/permissions_create",
+      "destination": "/packs/gdrive/permissions/permissions_create"
+    },
+    {
+      "source": "/packs/gdrive/tools/permissions_list",
+      "destination": "/packs/gdrive/permissions/permissions_list"
+    },
+    {
+      "source": "/packs/gdrive/tools/permissions_get",
+      "destination": "/packs/gdrive/permissions/permissions_get"
+    },
+    {
+      "source": "/packs/gdrive/tools/permissions_update",
+      "destination": "/packs/gdrive/permissions/permissions_update"
+    },
+    {
+      "source": "/packs/gdrive/tools/permissions_delete",
+      "destination": "/packs/gdrive/permissions/permissions_delete"
+    },
+    {
+      "source": "/packs/gdrive/tools/comments_list",
+      "destination": "/packs/gdrive/comments/comments_list"
+    },
+    {
+      "source": "/packs/gdrive/tools/comments_create",
+      "destination": "/packs/gdrive/comments/comments_create"
+    },
+    {
+      "source": "/packs/gdrive/tools/comments_update",
+      "destination": "/packs/gdrive/comments/comments_update"
+    },
+    {
+      "source": "/packs/gdrive/tools/comments_delete",
+      "destination": "/packs/gdrive/comments/comments_delete"
+    },
+    {
+      "source": "/packs/gdrive/tools/replies_create",
+      "destination": "/packs/gdrive/replies/replies_create"
+    },
+    {
+      "source": "/packs/gdrive/tools/replies_update",
+      "destination": "/packs/gdrive/replies/replies_update"
+    },
+    {
+      "source": "/packs/gdrive/tools/replies_delete",
+      "destination": "/packs/gdrive/replies/replies_delete"
+    },
+    {
+      "source": "/packs/gdrive/tools/revisions_list",
+      "destination": "/packs/gdrive/revisions/revisions_list"
+    },
+    {
+      "source": "/packs/gdrive/tools/revisions_get",
+      "destination": "/packs/gdrive/revisions/revisions_get"
+    },
+    {
+      "source": "/packs/gdrive/tools/drives_list",
+      "destination": "/packs/gdrive/drives/drives_list"
+    },
+    {
+      "source": "/packs/gdrive/tools/drives_get",
+      "destination": "/packs/gdrive/drives/drives_get"
+    },
+    {
+      "source": "/packs/gdrive/tools/about_get",
+      "destination": "/packs/gdrive/about/about_get"
+    },
+    {
+      "source": "/packs/gforms/tools/forms_create",
+      "destination": "/packs/gforms/forms/forms_create"
+    },
+    {
+      "source": "/packs/gforms/tools/forms_get",
+      "destination": "/packs/gforms/forms/forms_get"
+    },
+    {
+      "source": "/packs/gforms/tools/forms_batch_update",
+      "destination": "/packs/gforms/forms/forms_batch_update"
+    },
+    {
+      "source": "/packs/gforms/tools/forms_set_publish_settings",
+      "destination": "/packs/gforms/forms/forms_set_publish_settings"
+    },
+    {
+      "source": "/packs/gforms/tools/forms_responses_get",
+      "destination": "/packs/gforms/form_responses/forms_responses_get"
+    },
+    {
+      "source": "/packs/gforms/tools/forms_responses_list",
+      "destination": "/packs/gforms/form_responses/forms_responses_list"
+    },
+    {
+      "source": "/packs/slack/tools/chat_post_message",
+      "destination": "/packs/slack/chat/chat_post_message"
+    },
+    {
+      "source": "/packs/slack/tools/chat_update",
+      "destination": "/packs/slack/chat/chat_update"
+    },
+    {
+      "source": "/packs/slack/tools/chat_delete",
+      "destination": "/packs/slack/chat/chat_delete"
+    },
+    {
+      "source": "/packs/slack/tools/conversations_list",
+      "destination": "/packs/slack/conversations/conversations_list"
+    },
+    {
+      "source": "/packs/slack/tools/conversations_history",
+      "destination": "/packs/slack/conversations/conversations_history"
+    },
+    {
+      "source": "/packs/slack/tools/conversations_replies",
+      "destination": "/packs/slack/conversations/conversations_replies"
+    },
+    {
+      "source": "/packs/slack/tools/users_list",
+      "destination": "/packs/slack/users/users_list"
+    },
+    {
+      "source": "/packs/slack/tools/users_info",
+      "destination": "/packs/slack/users/users_info"
+    },
+    {
+      "source": "/packs/slack/tools/reactions_add",
+      "destination": "/packs/slack/reactions/reactions_add"
+    },
+    {
+      "source": "/packs/slack/tools/reactions_remove",
+      "destination": "/packs/slack/reactions/reactions_remove"
+    },
+    {
+      "source": "/packs/slack/tools/reactions_get",
+      "destination": "/packs/slack/reactions/reactions_get"
+    },
+    {
+      "source": "/packs/slack/tools/conversations_open",
+      "destination": "/packs/slack/conversations/conversations_open"
+    },
+    {
+      "source": "/packs/slack/tools/conversations_create",
+      "destination": "/packs/slack/conversations/conversations_create"
+    },
+    {
+      "source": "/packs/slack/tools/conversations_invite",
+      "destination": "/packs/slack/conversations/conversations_invite"
+    },
+    {
+      "source": "/packs/slack/tools/conversations_join",
+      "destination": "/packs/slack/conversations/conversations_join"
+    },
+    {
+      "source": "/packs/slack/tools/chat_post_ephemeral",
+      "destination": "/packs/slack/chat/chat_post_ephemeral"
+    },
+    {
+      "source": "/packs/slack/tools/chat_schedule_message",
+      "destination": "/packs/slack/chat/chat_schedule_message"
+    },
+    {
+      "source": "/packs/slack/tools/search_messages",
+      "destination": "/packs/slack/search/search_messages"
+    },
+    {
+      "source": "/packs/github/tools/issues_list_for_repo",
+      "destination": "/packs/github/issues/issues_list_for_repo"
+    },
+    {
+      "source": "/packs/github/tools/issues_get",
+      "destination": "/packs/github/issues/issues_get"
+    },
+    {
+      "source": "/packs/github/tools/issues_create",
+      "destination": "/packs/github/issues/issues_create"
+    },
+    {
+      "source": "/packs/github/tools/issues_update",
+      "destination": "/packs/github/issues/issues_update"
+    },
+    {
+      "source": "/packs/github/tools/issues_create_comment",
+      "destination": "/packs/github/issues/issues_create_comment"
+    },
+    {
+      "source": "/packs/github/tools/issues_list_comments",
+      "destination": "/packs/github/issues/issues_list_comments"
+    },
+    {
+      "source": "/packs/github/tools/pulls_list",
+      "destination": "/packs/github/pulls/pulls_list"
+    },
+    {
+      "source": "/packs/github/tools/pulls_get",
+      "destination": "/packs/github/pulls/pulls_get"
+    },
+    {
+      "source": "/packs/github/tools/pulls_create",
+      "destination": "/packs/github/pulls/pulls_create"
+    },
+    {
+      "source": "/packs/github/tools/pulls_list_files",
+      "destination": "/packs/github/pulls/pulls_list_files"
+    },
+    {
+      "source": "/packs/github/tools/repos_get",
+      "destination": "/packs/github/repos/repos_get"
+    },
+    {
+      "source": "/packs/github/tools/repos_list_for_authenticated_user",
+      "destination": "/packs/github/repos/repos_list_for_authenticated_user"
+    },
+    {
+      "source": "/packs/github/tools/repos_get_content",
+      "destination": "/packs/github/repos/repos_get_content"
+    },
+    {
+      "source": "/packs/github/tools/repos_list_commits",
+      "destination": "/packs/github/repos/repos_list_commits"
+    },
+    {
+      "source": "/packs/github/tools/search_issues",
+      "destination": "/packs/github/search/search_issues"
+    },
+    {
+      "source": "/packs/github/tools/search_repositories",
+      "destination": "/packs/github/search/search_repositories"
+    },
+    {
+      "source": "/packs/github/tools/users_get_authenticated",
+      "destination": "/packs/github/users/users_get_authenticated"
+    },
+    {
+      "source": "/packs/github/tools/pulls_update",
+      "destination": "/packs/github/pulls/pulls_update"
+    },
+    {
+      "source": "/packs/github/tools/pulls_merge",
+      "destination": "/packs/github/pulls/pulls_merge"
+    },
+    {
+      "source": "/packs/github/tools/pulls_create_review",
+      "destination": "/packs/github/pulls/pulls_create_review"
+    },
+    {
+      "source": "/packs/github/tools/pulls_list_reviews",
+      "destination": "/packs/github/pulls/pulls_list_reviews"
+    },
+    {
+      "source": "/packs/github/tools/pulls_request_reviewers",
+      "destination": "/packs/github/pulls/pulls_request_reviewers"
+    },
+    {
+      "source": "/packs/github/tools/repos_create_or_update_file",
+      "destination": "/packs/github/repos/repos_create_or_update_file"
+    },
+    {
+      "source": "/packs/github/tools/branches_list",
+      "destination": "/packs/github/repos/branches_list"
+    },
+    {
+      "source": "/packs/github/tools/git_refs_create",
+      "destination": "/packs/github/repos/git_refs_create"
+    },
+    {
+      "source": "/packs/github/tools/actions_list_workflow_runs",
+      "destination": "/packs/github/actions/actions_list_workflow_runs"
+    },
+    {
+      "source": "/packs/github/tools/actions_rerun_workflow",
+      "destination": "/packs/github/actions/actions_rerun_workflow"
+    },
+    {
+      "source": "/packs/github/tools/actions_cancel_workflow_run",
+      "destination": "/packs/github/actions/actions_cancel_workflow_run"
+    },
+    {
+      "source": "/packs/github/tools/search_code",
+      "destination": "/packs/github/search/search_code"
+    },
+    {
+      "source": "/packs/github/tools/actions_get_workflow_run",
+      "destination": "/packs/github/actions/actions_get_workflow_run"
+    },
+    {
+      "source": "/packs/github/tools/actions_list_jobs_for_run",
+      "destination": "/packs/github/actions/actions_list_jobs_for_run"
+    },
+    {
+      "source": "/packs/github/tools/actions_get_job",
+      "destination": "/packs/github/actions/actions_get_job"
+    },
+    {
+      "source": "/packs/github/tools/actions_download_job_logs",
+      "destination": "/packs/github/actions/actions_download_job_logs"
+    },
+    {
+      "source": "/packs/github/tools/actions_download_run_logs",
+      "destination": "/packs/github/actions/actions_download_run_logs"
+    },
+    {
+      "source": "/packs/github/tools/actions_rerun_failed_jobs",
+      "destination": "/packs/github/actions/actions_rerun_failed_jobs"
+    },
+    {
+      "source": "/packs/github/tools/actions_list_workflows",
+      "destination": "/packs/github/actions/actions_list_workflows"
+    },
+    {
+      "source": "/packs/github/tools/actions_get_workflow",
+      "destination": "/packs/github/actions/actions_get_workflow"
+    },
+    {
+      "source": "/packs/github/tools/actions_create_workflow_dispatch",
+      "destination": "/packs/github/actions/actions_create_workflow_dispatch"
+    },
+    {
+      "source": "/packs/github/tools/actions_list_runs_for_workflow",
+      "destination": "/packs/github/actions/actions_list_runs_for_workflow"
+    },
+    {
+      "source": "/packs/github/tools/actions_list_run_artifacts",
+      "destination": "/packs/github/actions/actions_list_run_artifacts"
+    },
+    {
+      "source": "/packs/github/tools/actions_get_artifact",
+      "destination": "/packs/github/actions/actions_get_artifact"
+    },
+    {
+      "source": "/packs/github/tools/actions_download_artifact",
+      "destination": "/packs/github/actions/actions_download_artifact"
+    },
+    {
+      "source": "/packs/github/tools/actions_get_run_usage",
+      "destination": "/packs/github/actions/actions_get_run_usage"
+    },
+    {
+      "source": "/packs/github/tools/actions_list_pending_deployments",
+      "destination": "/packs/github/actions/actions_list_pending_deployments"
+    },
+    {
+      "source": "/packs/github/tools/actions_review_pending_deployments",
+      "destination": "/packs/github/actions/actions_review_pending_deployments"
+    },
+    {
+      "source": "/packs/github/tools/actions_list_repo_secrets",
+      "destination": "/packs/github/actions/actions_list_repo_secrets"
+    },
+    {
+      "source": "/packs/github/tools/checks_list_for_ref",
+      "destination": "/packs/github/checks/checks_list_for_ref"
+    },
+    {
+      "source": "/packs/github/tools/checks_get_run",
+      "destination": "/packs/github/checks/checks_get_run"
+    },
+    {
+      "source": "/packs/github/tools/checks_list_annotations",
+      "destination": "/packs/github/checks/checks_list_annotations"
+    },
+    {
+      "source": "/packs/github/tools/checks_list_suites_for_ref",
+      "destination": "/packs/github/checks/checks_list_suites_for_ref"
+    },
+    {
+      "source": "/packs/github/tools/repos_get_combined_status",
+      "destination": "/packs/github/checks/repos_get_combined_status"
+    },
+    {
+      "source": "/packs/github/tools/pulls_create_review_comment",
+      "destination": "/packs/github/pulls/pulls_create_review_comment"
+    },
+    {
+      "source": "/packs/github/tools/pulls_list_review_comments",
+      "destination": "/packs/github/pulls/pulls_list_review_comments"
+    },
+    {
+      "source": "/packs/github/tools/pulls_reply_to_review_comment",
+      "destination": "/packs/github/pulls/pulls_reply_to_review_comment"
+    },
+    {
+      "source": "/packs/github/tools/pulls_update_review_comment",
+      "destination": "/packs/github/pulls/pulls_update_review_comment"
+    },
+    {
+      "source": "/packs/github/tools/pulls_delete_review_comment",
+      "destination": "/packs/github/pulls/pulls_delete_review_comment"
+    },
+    {
+      "source": "/packs/github/tools/pulls_list_review_comments_for_repo",
+      "destination": "/packs/github/pulls/pulls_list_review_comments_for_repo"
+    },
+    {
+      "source": "/packs/github/tools/pulls_get_review",
+      "destination": "/packs/github/pulls/pulls_get_review"
+    },
+    {
+      "source": "/packs/github/tools/pulls_submit_review",
+      "destination": "/packs/github/pulls/pulls_submit_review"
+    },
+    {
+      "source": "/packs/github/tools/pulls_update_review",
+      "destination": "/packs/github/pulls/pulls_update_review"
+    },
+    {
+      "source": "/packs/github/tools/pulls_dismiss_review",
+      "destination": "/packs/github/pulls/pulls_dismiss_review"
+    },
+    {
+      "source": "/packs/github/tools/pulls_delete_pending_review",
+      "destination": "/packs/github/pulls/pulls_delete_pending_review"
+    },
+    {
+      "source": "/packs/github/tools/pulls_list_comments_for_review",
+      "destination": "/packs/github/pulls/pulls_list_comments_for_review"
+    },
+    {
+      "source": "/packs/github/tools/pulls_get_diff",
+      "destination": "/packs/github/pulls/pulls_get_diff"
+    },
+    {
+      "source": "/packs/github/tools/pulls_list_commits",
+      "destination": "/packs/github/pulls/pulls_list_commits"
+    },
+    {
+      "source": "/packs/github/tools/pulls_update_branch",
+      "destination": "/packs/github/pulls/pulls_update_branch"
+    },
+    {
+      "source": "/packs/github/tools/pulls_check_merged",
+      "destination": "/packs/github/pulls/pulls_check_merged"
+    },
+    {
+      "source": "/packs/github/tools/pulls_list_requested_reviewers",
+      "destination": "/packs/github/pulls/pulls_list_requested_reviewers"
+    },
+    {
+      "source": "/packs/github/tools/pulls_remove_requested_reviewers",
+      "destination": "/packs/github/pulls/pulls_remove_requested_reviewers"
+    },
+    {
+      "source": "/packs/github/tools/git_refs_get",
+      "destination": "/packs/github/git/git_refs_get"
+    },
+    {
+      "source": "/packs/github/tools/git_refs_update",
+      "destination": "/packs/github/git/git_refs_update"
+    },
+    {
+      "source": "/packs/github/tools/git_refs_delete",
+      "destination": "/packs/github/git/git_refs_delete"
+    },
+    {
+      "source": "/packs/github/tools/git_refs_list_matching",
+      "destination": "/packs/github/git/git_refs_list_matching"
+    },
+    {
+      "source": "/packs/github/tools/git_blobs_create",
+      "destination": "/packs/github/git/git_blobs_create"
+    },
+    {
+      "source": "/packs/github/tools/git_blobs_get",
+      "destination": "/packs/github/git/git_blobs_get"
+    },
+    {
+      "source": "/packs/github/tools/git_trees_create",
+      "destination": "/packs/github/git/git_trees_create"
+    },
+    {
+      "source": "/packs/github/tools/git_trees_get",
+      "destination": "/packs/github/git/git_trees_get"
+    },
+    {
+      "source": "/packs/github/tools/git_commits_create",
+      "destination": "/packs/github/git/git_commits_create"
+    },
+    {
+      "source": "/packs/github/tools/git_commits_get",
+      "destination": "/packs/github/git/git_commits_get"
+    },
+    {
+      "source": "/packs/github/tools/git_tags_create",
+      "destination": "/packs/github/git/git_tags_create"
+    },
+    {
+      "source": "/packs/github/tools/repos_get_commit",
+      "destination": "/packs/github/repos/repos_get_commit"
+    },
+    {
+      "source": "/packs/github/tools/repos_compare_commits",
+      "destination": "/packs/github/repos/repos_compare_commits"
+    },
+    {
+      "source": "/packs/github/tools/repos_delete_file",
+      "destination": "/packs/github/repos/repos_delete_file"
+    },
+    {
+      "source": "/packs/github/tools/repos_merge_branches",
+      "destination": "/packs/github/repos/repos_merge_branches"
+    },
+    {
+      "source": "/packs/github/tools/repos_get_branch",
+      "destination": "/packs/github/repos/repos_get_branch"
+    },
+    {
+      "source": "/packs/github/tools/repos_rename_branch",
+      "destination": "/packs/github/repos/repos_rename_branch"
+    },
+    {
+      "source": "/packs/github/tools/repos_get_branch_protection",
+      "destination": "/packs/github/repos/repos_get_branch_protection"
+    },
+    {
+      "source": "/packs/github/tools/repos_list_branches_for_head_commit",
+      "destination": "/packs/github/repos/repos_list_branches_for_head_commit"
+    },
+    {
+      "source": "/packs/github/tools/repos_get_readme",
+      "destination": "/packs/github/repos/repos_get_readme"
+    },
+    {
+      "source": "/packs/github/tools/repos_list_tags",
+      "destination": "/packs/github/repos/repos_list_tags"
+    },
+    {
+      "source": "/packs/github/tools/repos_create_fork",
+      "destination": "/packs/github/repos/repos_create_fork"
+    },
+    {
+      "source": "/packs/github/tools/issues_list_labels_for_repo",
+      "destination": "/packs/github/issues/issues_list_labels_for_repo"
+    },
+    {
+      "source": "/packs/github/tools/issues_add_labels",
+      "destination": "/packs/github/issues/issues_add_labels"
+    },
+    {
+      "source": "/packs/github/tools/issues_set_labels",
+      "destination": "/packs/github/issues/issues_set_labels"
+    },
+    {
+      "source": "/packs/github/tools/issues_remove_label",
+      "destination": "/packs/github/issues/issues_remove_label"
+    },
+    {
+      "source": "/packs/github/tools/issues_create_label",
+      "destination": "/packs/github/issues/issues_create_label"
+    },
+    {
+      "source": "/packs/github/tools/issues_update_label",
+      "destination": "/packs/github/issues/issues_update_label"
+    },
+    {
+      "source": "/packs/github/tools/issues_delete_label",
+      "destination": "/packs/github/issues/issues_delete_label"
+    },
+    {
+      "source": "/packs/github/tools/issues_add_assignees",
+      "destination": "/packs/github/issues/issues_add_assignees"
+    },
+    {
+      "source": "/packs/github/tools/issues_remove_assignees",
+      "destination": "/packs/github/issues/issues_remove_assignees"
+    },
+    {
+      "source": "/packs/github/tools/issues_list_milestones",
+      "destination": "/packs/github/issues/issues_list_milestones"
+    },
+    {
+      "source": "/packs/github/tools/issues_create_milestone",
+      "destination": "/packs/github/issues/issues_create_milestone"
+    },
+    {
+      "source": "/packs/github/tools/issues_update_milestone",
+      "destination": "/packs/github/issues/issues_update_milestone"
+    },
+    {
+      "source": "/packs/github/tools/issues_get_comment",
+      "destination": "/packs/github/issues/issues_get_comment"
+    },
+    {
+      "source": "/packs/github/tools/issues_update_comment",
+      "destination": "/packs/github/issues/issues_update_comment"
+    },
+    {
+      "source": "/packs/github/tools/issues_delete_comment",
+      "destination": "/packs/github/issues/issues_delete_comment"
+    },
+    {
+      "source": "/packs/github/tools/issues_list_timeline",
+      "destination": "/packs/github/issues/issues_list_timeline"
+    },
+    {
+      "source": "/packs/github/tools/issues_list_events",
+      "destination": "/packs/github/issues/issues_list_events"
+    },
+    {
+      "source": "/packs/github/tools/issues_lock",
+      "destination": "/packs/github/issues/issues_lock"
+    },
+    {
+      "source": "/packs/github/tools/issues_unlock",
+      "destination": "/packs/github/issues/issues_unlock"
+    },
+    {
+      "source": "/packs/github/tools/issues_list_for_authenticated_user",
+      "destination": "/packs/github/issues/issues_list_for_authenticated_user"
+    },
+    {
+      "source": "/packs/github/tools/issues_list_sub_issues",
+      "destination": "/packs/github/issues/issues_list_sub_issues"
+    },
+    {
+      "source": "/packs/github/tools/issues_add_sub_issue",
+      "destination": "/packs/github/issues/issues_add_sub_issue"
+    },
+    {
+      "source": "/packs/github/tools/releases_list",
+      "destination": "/packs/github/releases/releases_list"
+    },
+    {
+      "source": "/packs/github/tools/releases_get",
+      "destination": "/packs/github/releases/releases_get"
+    },
+    {
+      "source": "/packs/github/tools/releases_get_latest",
+      "destination": "/packs/github/releases/releases_get_latest"
+    },
+    {
+      "source": "/packs/github/tools/releases_get_by_tag",
+      "destination": "/packs/github/releases/releases_get_by_tag"
+    },
+    {
+      "source": "/packs/github/tools/releases_create",
+      "destination": "/packs/github/releases/releases_create"
+    },
+    {
+      "source": "/packs/github/tools/releases_update",
+      "destination": "/packs/github/releases/releases_update"
+    },
+    {
+      "source": "/packs/github/tools/releases_delete",
+      "destination": "/packs/github/releases/releases_delete"
+    },
+    {
+      "source": "/packs/github/tools/releases_generate_notes",
+      "destination": "/packs/github/releases/releases_generate_notes"
+    },
+    {
+      "source": "/packs/github/tools/releases_list_assets",
+      "destination": "/packs/github/releases/releases_list_assets"
+    },
+    {
+      "source": "/packs/github/tools/releases_upload_asset",
+      "destination": "/packs/github/releases/releases_upload_asset"
+    },
+    {
+      "source": "/packs/github/tools/notifications_list",
+      "destination": "/packs/github/monitoring/notifications_list"
+    },
+    {
+      "source": "/packs/github/tools/notifications_mark_read",
+      "destination": "/packs/github/monitoring/notifications_mark_read"
+    },
+    {
+      "source": "/packs/github/tools/notifications_get_thread",
+      "destination": "/packs/github/monitoring/notifications_get_thread"
+    },
+    {
+      "source": "/packs/github/tools/notifications_mark_thread_read",
+      "destination": "/packs/github/monitoring/notifications_mark_thread_read"
+    },
+    {
+      "source": "/packs/github/tools/dependabot_list_alerts",
+      "destination": "/packs/github/monitoring/dependabot_list_alerts"
+    },
+    {
+      "source": "/packs/github/tools/dependabot_get_alert",
+      "destination": "/packs/github/monitoring/dependabot_get_alert"
+    },
+    {
+      "source": "/packs/github/tools/dependabot_update_alert",
+      "destination": "/packs/github/monitoring/dependabot_update_alert"
+    },
+    {
+      "source": "/packs/github/tools/code_scanning_list_alerts",
+      "destination": "/packs/github/monitoring/code_scanning_list_alerts"
+    },
+    {
+      "source": "/packs/github/tools/code_scanning_get_alert",
+      "destination": "/packs/github/monitoring/code_scanning_get_alert"
+    },
+    {
+      "source": "/packs/github/tools/secret_scanning_list_alerts",
+      "destination": "/packs/github/monitoring/secret_scanning_list_alerts"
+    },
+    {
+      "source": "/packs/github/tools/search_commits",
+      "destination": "/packs/github/search/search_commits"
+    },
+    {
+      "source": "/packs/github/tools/search_users",
+      "destination": "/packs/github/search/search_users"
+    },
+    {
+      "source": "/packs/github/tools/repos_list_for_org",
+      "destination": "/packs/github/repos/repos_list_for_org"
+    },
+    {
+      "source": "/packs/github/tools/repos_list_languages",
+      "destination": "/packs/github/repos/repos_list_languages"
+    },
+    {
+      "source": "/packs/github/tools/repos_list_contributors",
+      "destination": "/packs/github/repos/repos_list_contributors"
+    },
+    {
+      "source": "/packs/github/tools/rate_limit_get",
+      "destination": "/packs/github/monitoring/rate_limit_get"
+    },
+    {
+      "source": "/packs/stripe/tools/customers_list",
+      "destination": "/packs/stripe/customers/customers_list"
+    },
+    {
+      "source": "/packs/stripe/tools/customers_retrieve",
+      "destination": "/packs/stripe/customers/customers_retrieve"
+    },
+    {
+      "source": "/packs/stripe/tools/customers_create",
+      "destination": "/packs/stripe/customers/customers_create"
+    },
+    {
+      "source": "/packs/stripe/tools/customers_update",
+      "destination": "/packs/stripe/customers/customers_update"
+    },
+    {
+      "source": "/packs/stripe/tools/payment_intents_list",
+      "destination": "/packs/stripe/payments/payment_intents_list"
+    },
+    {
+      "source": "/packs/stripe/tools/payment_intents_retrieve",
+      "destination": "/packs/stripe/payments/payment_intents_retrieve"
+    },
+    {
+      "source": "/packs/stripe/tools/charges_list",
+      "destination": "/packs/stripe/payments/charges_list"
+    },
+    {
+      "source": "/packs/stripe/tools/refunds_create",
+      "destination": "/packs/stripe/payments/refunds_create"
+    },
+    {
+      "source": "/packs/stripe/tools/refunds_list",
+      "destination": "/packs/stripe/payments/refunds_list"
+    },
+    {
+      "source": "/packs/stripe/tools/refunds_retrieve",
+      "destination": "/packs/stripe/payments/refunds_retrieve"
+    },
+    {
+      "source": "/packs/stripe/tools/products_list",
+      "destination": "/packs/stripe/catalog/products_list"
+    },
+    {
+      "source": "/packs/stripe/tools/prices_list",
+      "destination": "/packs/stripe/catalog/prices_list"
+    },
+    {
+      "source": "/packs/stripe/tools/subscriptions_list",
+      "destination": "/packs/stripe/catalog/subscriptions_list"
+    },
+    {
+      "source": "/packs/stripe/tools/subscriptions_create",
+      "destination": "/packs/stripe/subscriptions/subscriptions_create"
+    },
+    {
+      "source": "/packs/stripe/tools/subscriptions_update",
+      "destination": "/packs/stripe/subscriptions/subscriptions_update"
+    },
+    {
+      "source": "/packs/stripe/tools/subscriptions_cancel",
+      "destination": "/packs/stripe/subscriptions/subscriptions_cancel"
+    },
+    {
+      "source": "/packs/stripe/tools/invoices_list",
+      "destination": "/packs/stripe/invoices/invoices_list"
+    },
+    {
+      "source": "/packs/stripe/tools/invoices_retrieve",
+      "destination": "/packs/stripe/invoices/invoices_retrieve"
+    },
+    {
+      "source": "/packs/stripe/tools/invoices_create",
+      "destination": "/packs/stripe/invoices/invoices_create"
+    },
+    {
+      "source": "/packs/stripe/tools/invoices_update",
+      "destination": "/packs/stripe/invoices/invoices_update"
+    },
+    {
+      "source": "/packs/stripe/tools/invoices_finalize",
+      "destination": "/packs/stripe/invoices/invoices_finalize"
+    },
+    {
+      "source": "/packs/stripe/tools/invoices_send",
+      "destination": "/packs/stripe/invoices/invoices_send"
+    },
+    {
+      "source": "/packs/stripe/tools/invoices_void",
+      "destination": "/packs/stripe/invoices/invoices_void"
+    },
+    {
+      "source": "/packs/stripe/tools/invoices_mark_uncollectible",
+      "destination": "/packs/stripe/invoices/invoices_mark_uncollectible"
+    },
+    {
+      "source": "/packs/stripe/tools/invoice_items_create",
+      "destination": "/packs/stripe/invoiceitems/invoice_items_create"
+    },
+    {
+      "source": "/packs/stripe/tools/invoice_items_list",
+      "destination": "/packs/stripe/invoiceitems/invoice_items_list"
+    },
+    {
+      "source": "/packs/stripe/tools/invoice_items_update",
+      "destination": "/packs/stripe/invoiceitems/invoice_items_update"
+    },
+    {
+      "source": "/packs/stripe/tools/invoice_items_delete",
+      "destination": "/packs/stripe/invoiceitems/invoice_items_delete"
+    },
+    {
+      "source": "/packs/stripe/tools/checkout_sessions_retrieve",
+      "destination": "/packs/stripe/catalog_writes/checkout_sessions_retrieve"
+    },
+    {
+      "source": "/packs/stripe/tools/checkout_sessions_list",
+      "destination": "/packs/stripe/catalog_writes/checkout_sessions_list"
+    },
+    {
+      "source": "/packs/stripe/tools/checkout_sessions_line_items",
+      "destination": "/packs/stripe/catalog_writes/checkout_sessions_line_items"
+    },
+    {
+      "source": "/packs/stripe/tools/products_create",
+      "destination": "/packs/stripe/catalog_writes/products_create"
+    },
+    {
+      "source": "/packs/stripe/tools/products_update",
+      "destination": "/packs/stripe/catalog_writes/products_update"
+    },
+    {
+      "source": "/packs/stripe/tools/prices_create",
+      "destination": "/packs/stripe/catalog_writes/prices_create"
+    },
+    {
+      "source": "/packs/stripe/tools/prices_update",
+      "destination": "/packs/stripe/catalog_writes/prices_update"
+    },
+    {
+      "source": "/packs/stripe/tools/payment_intents_create",
+      "destination": "/packs/stripe/payment_intents/payment_intents_create"
+    },
+    {
+      "source": "/packs/stripe/tools/payment_intents_capture",
+      "destination": "/packs/stripe/payment_intents/payment_intents_capture"
+    },
+    {
+      "source": "/packs/stripe/tools/payment_intents_cancel",
+      "destination": "/packs/stripe/payment_intents/payment_intents_cancel"
+    },
+    {
+      "source": "/packs/stripe/tools/charges_retrieve",
+      "destination": "/packs/stripe/payment_intents/charges_retrieve"
+    },
+    {
+      "source": "/packs/stripe/tools/payment_methods_list",
+      "destination": "/packs/stripe/payment_methods/payment_methods_list"
+    },
+    {
+      "source": "/packs/stripe/tools/payment_methods_retrieve",
+      "destination": "/packs/stripe/payment_methods/payment_methods_retrieve"
+    },
+    {
+      "source": "/packs/stripe/tools/payment_methods_attach",
+      "destination": "/packs/stripe/payment_methods/payment_methods_attach"
+    },
+    {
+      "source": "/packs/stripe/tools/payment_methods_detach",
+      "destination": "/packs/stripe/payment_methods/payment_methods_detach"
+    },
+    {
+      "source": "/packs/stripe/tools/customer_payment_methods_list",
+      "destination": "/packs/stripe/payment_methods/customer_payment_methods_list"
+    },
+    {
+      "source": "/packs/stripe/tools/customer_payment_method_retrieve",
+      "destination": "/packs/stripe/payment_methods/customer_payment_method_retrieve"
+    },
+    {
+      "source": "/packs/stripe/tools/disputes_list",
+      "destination": "/packs/stripe/disputes/disputes_list"
+    },
+    {
+      "source": "/packs/stripe/tools/disputes_retrieve",
+      "destination": "/packs/stripe/disputes/disputes_retrieve"
+    },
+    {
+      "source": "/packs/stripe/tools/disputes_update",
+      "destination": "/packs/stripe/disputes/disputes_update"
+    },
+    {
+      "source": "/packs/stripe/tools/disputes_close",
+      "destination": "/packs/stripe/disputes/disputes_close"
+    },
+    {
+      "source": "/packs/stripe/tools/accounts_list",
+      "destination": "/packs/stripe/connect/accounts_list"
+    },
+    {
+      "source": "/packs/stripe/tools/accounts_retrieve",
+      "destination": "/packs/stripe/connect/accounts_retrieve"
+    },
+    {
+      "source": "/packs/stripe/tools/transfers_list",
+      "destination": "/packs/stripe/connect/transfers_list"
+    },
+    {
+      "source": "/packs/stripe/tools/transfers_retrieve",
+      "destination": "/packs/stripe/connect/transfers_retrieve"
+    },
+    {
+      "source": "/packs/stripe/tools/payouts_list",
+      "destination": "/packs/stripe/connect/payouts_list"
+    },
+    {
+      "source": "/packs/stripe/tools/payouts_retrieve",
+      "destination": "/packs/stripe/connect/payouts_retrieve"
+    },
+    {
+      "source": "/packs/stripe/tools/application_fees_list",
+      "destination": "/packs/stripe/connect/application_fees_list"
+    },
+    {
+      "source": "/packs/stripe/tools/balance_transactions_list",
+      "destination": "/packs/stripe/connect/balance_transactions_list"
+    },
+    {
+      "source": "/packs/stripe/tools/checkout_sessions_create",
+      "destination": "/packs/stripe/checkout/checkout_sessions_create"
+    },
+    {
+      "source": "/packs/stripe/tools/balance_retrieve",
+      "destination": "/packs/stripe/payments/balance_retrieve"
+    },
+    {
+      "source": "/packs/linear/tools/viewer",
+      "destination": "/packs/linear/workspace/viewer"
+    },
+    {
+      "source": "/packs/linear/tools/organization",
+      "destination": "/packs/linear/workspace/organization"
+    },
+    {
+      "source": "/packs/linear/tools/teams_list",
+      "destination": "/packs/linear/workspace/teams_list"
+    },
+    {
+      "source": "/packs/linear/tools/team_get",
+      "destination": "/packs/linear/workspace/team_get"
+    },
+    {
+      "source": "/packs/linear/tools/users_list",
+      "destination": "/packs/linear/workspace/users_list"
+    },
+    {
+      "source": "/packs/linear/tools/user_get",
+      "destination": "/packs/linear/workspace/user_get"
+    },
+    {
+      "source": "/packs/linear/tools/workflow_states_list",
+      "destination": "/packs/linear/workspace/workflow_states_list"
+    },
+    {
+      "source": "/packs/linear/tools/workflow_state_get",
+      "destination": "/packs/linear/workspace/workflow_state_get"
+    },
+    {
+      "source": "/packs/linear/tools/workflow_state_create",
+      "destination": "/packs/linear/workspace/workflow_state_create"
+    },
+    {
+      "source": "/packs/linear/tools/workflow_state_update",
+      "destination": "/packs/linear/workspace/workflow_state_update"
+    },
+    {
+      "source": "/packs/linear/tools/workflow_state_archive",
+      "destination": "/packs/linear/workspace/workflow_state_archive"
+    },
+    {
+      "source": "/packs/linear/tools/team_memberships_list",
+      "destination": "/packs/linear/workspace/team_memberships_list"
+    },
+    {
+      "source": "/packs/linear/tools/team_membership_get",
+      "destination": "/packs/linear/workspace/team_membership_get"
+    },
+    {
+      "source": "/packs/linear/tools/team_membership_create",
+      "destination": "/packs/linear/workspace/team_membership_create"
+    },
+    {
+      "source": "/packs/linear/tools/team_membership_update",
+      "destination": "/packs/linear/workspace/team_membership_update"
+    },
+    {
+      "source": "/packs/linear/tools/team_membership_delete",
+      "destination": "/packs/linear/workspace/team_membership_delete"
+    },
+    {
+      "source": "/packs/linear/tools/issues_list",
+      "destination": "/packs/linear/issues/issues_list"
+    },
+    {
+      "source": "/packs/linear/tools/issue_get",
+      "destination": "/packs/linear/issues/issue_get"
+    },
+    {
+      "source": "/packs/linear/tools/issue_create",
+      "destination": "/packs/linear/issues/issue_create"
+    },
+    {
+      "source": "/packs/linear/tools/issue_update",
+      "destination": "/packs/linear/issues/issue_update"
+    },
+    {
+      "source": "/packs/linear/tools/issue_batch_update",
+      "destination": "/packs/linear/issues/issue_batch_update"
+    },
+    {
+      "source": "/packs/linear/tools/issue_delete",
+      "destination": "/packs/linear/issues/issue_delete"
+    },
+    {
+      "source": "/packs/linear/tools/issue_archive",
+      "destination": "/packs/linear/issues/issue_archive"
+    },
+    {
+      "source": "/packs/linear/tools/issue_unarchive",
+      "destination": "/packs/linear/issues/issue_unarchive"
+    },
+    {
+      "source": "/packs/linear/tools/issue_add_label",
+      "destination": "/packs/linear/issues/issue_add_label"
+    },
+    {
+      "source": "/packs/linear/tools/issue_remove_label",
+      "destination": "/packs/linear/issues/issue_remove_label"
+    },
+    {
+      "source": "/packs/linear/tools/issue_subscribe",
+      "destination": "/packs/linear/issues/issue_subscribe"
+    },
+    {
+      "source": "/packs/linear/tools/issue_unsubscribe",
+      "destination": "/packs/linear/issues/issue_unsubscribe"
+    },
+    {
+      "source": "/packs/linear/tools/issue_relations_list",
+      "destination": "/packs/linear/issues/issue_relations_list"
+    },
+    {
+      "source": "/packs/linear/tools/issue_relation_get",
+      "destination": "/packs/linear/issues/issue_relation_get"
+    },
+    {
+      "source": "/packs/linear/tools/issue_relation_create",
+      "destination": "/packs/linear/issues/issue_relation_create"
+    },
+    {
+      "source": "/packs/linear/tools/issue_relation_update",
+      "destination": "/packs/linear/issues/issue_relation_update"
+    },
+    {
+      "source": "/packs/linear/tools/issue_relation_delete",
+      "destination": "/packs/linear/issues/issue_relation_delete"
+    },
+    {
+      "source": "/packs/linear/tools/comments_list",
+      "destination": "/packs/linear/comments/comments_list"
+    },
+    {
+      "source": "/packs/linear/tools/comment_get",
+      "destination": "/packs/linear/comments/comment_get"
+    },
+    {
+      "source": "/packs/linear/tools/comment_create",
+      "destination": "/packs/linear/comments/comment_create"
+    },
+    {
+      "source": "/packs/linear/tools/comment_update",
+      "destination": "/packs/linear/comments/comment_update"
+    },
+    {
+      "source": "/packs/linear/tools/comment_delete",
+      "destination": "/packs/linear/comments/comment_delete"
+    },
+    {
+      "source": "/packs/linear/tools/comment_resolve",
+      "destination": "/packs/linear/comments/comment_resolve"
+    },
+    {
+      "source": "/packs/linear/tools/comment_unresolve",
+      "destination": "/packs/linear/comments/comment_unresolve"
+    },
+    {
+      "source": "/packs/linear/tools/reaction_create",
+      "destination": "/packs/linear/comments/reaction_create"
+    },
+    {
+      "source": "/packs/linear/tools/reaction_delete",
+      "destination": "/packs/linear/comments/reaction_delete"
+    },
+    {
+      "source": "/packs/linear/tools/issue_labels_list",
+      "destination": "/packs/linear/labels/issue_labels_list"
+    },
+    {
+      "source": "/packs/linear/tools/issue_label_get",
+      "destination": "/packs/linear/labels/issue_label_get"
+    },
+    {
+      "source": "/packs/linear/tools/issue_label_create",
+      "destination": "/packs/linear/labels/issue_label_create"
+    },
+    {
+      "source": "/packs/linear/tools/issue_label_update",
+      "destination": "/packs/linear/labels/issue_label_update"
+    },
+    {
+      "source": "/packs/linear/tools/issue_label_delete",
+      "destination": "/packs/linear/labels/issue_label_delete"
+    },
+    {
+      "source": "/packs/linear/tools/project_labels_list",
+      "destination": "/packs/linear/labels/project_labels_list"
+    },
+    {
+      "source": "/packs/linear/tools/projects_list",
+      "destination": "/packs/linear/projects/projects_list"
+    },
+    {
+      "source": "/packs/linear/tools/project_get",
+      "destination": "/packs/linear/projects/project_get"
+    },
+    {
+      "source": "/packs/linear/tools/project_create",
+      "destination": "/packs/linear/projects/project_create"
+    },
+    {
+      "source": "/packs/linear/tools/project_update",
+      "destination": "/packs/linear/projects/project_update"
+    },
+    {
+      "source": "/packs/linear/tools/project_delete",
+      "destination": "/packs/linear/projects/project_delete"
+    },
+    {
+      "source": "/packs/linear/tools/project_unarchive",
+      "destination": "/packs/linear/projects/project_unarchive"
+    },
+    {
+      "source": "/packs/linear/tools/project_add_label",
+      "destination": "/packs/linear/projects/project_add_label"
+    },
+    {
+      "source": "/packs/linear/tools/project_remove_label",
+      "destination": "/packs/linear/projects/project_remove_label"
+    },
+    {
+      "source": "/packs/linear/tools/project_statuses_list",
+      "destination": "/packs/linear/projects/project_statuses_list"
+    },
+    {
+      "source": "/packs/linear/tools/project_milestones_list",
+      "destination": "/packs/linear/projects/project_milestones_list"
+    },
+    {
+      "source": "/packs/linear/tools/project_milestone_get",
+      "destination": "/packs/linear/projects/project_milestone_get"
+    },
+    {
+      "source": "/packs/linear/tools/project_milestone_create",
+      "destination": "/packs/linear/projects/project_milestone_create"
+    },
+    {
+      "source": "/packs/linear/tools/project_milestone_update",
+      "destination": "/packs/linear/projects/project_milestone_update"
+    },
+    {
+      "source": "/packs/linear/tools/project_milestone_delete",
+      "destination": "/packs/linear/projects/project_milestone_delete"
+    },
+    {
+      "source": "/packs/linear/tools/project_updates_list",
+      "destination": "/packs/linear/projects/project_updates_list"
+    },
+    {
+      "source": "/packs/linear/tools/project_update_get",
+      "destination": "/packs/linear/projects/project_update_get"
+    },
+    {
+      "source": "/packs/linear/tools/project_update_create",
+      "destination": "/packs/linear/projects/project_update_create"
+    },
+    {
+      "source": "/packs/linear/tools/project_update_update",
+      "destination": "/packs/linear/projects/project_update_update"
+    },
+    {
+      "source": "/packs/linear/tools/project_update_archive",
+      "destination": "/packs/linear/projects/project_update_archive"
+    },
+    {
+      "source": "/packs/linear/tools/cycles_list",
+      "destination": "/packs/linear/cycles/cycles_list"
+    },
+    {
+      "source": "/packs/linear/tools/cycle_get",
+      "destination": "/packs/linear/cycles/cycle_get"
+    },
+    {
+      "source": "/packs/linear/tools/cycle_update",
+      "destination": "/packs/linear/cycles/cycle_update"
+    },
+    {
+      "source": "/packs/linear/tools/cycle_archive",
+      "destination": "/packs/linear/cycles/cycle_archive"
+    },
+    {
+      "source": "/packs/linear/tools/cycle_start_upcoming_today",
+      "destination": "/packs/linear/cycles/cycle_start_upcoming_today"
+    },
+    {
+      "source": "/packs/linear/tools/initiatives_list",
+      "destination": "/packs/linear/initiatives/initiatives_list"
+    },
+    {
+      "source": "/packs/linear/tools/initiative_get",
+      "destination": "/packs/linear/initiatives/initiative_get"
+    },
+    {
+      "source": "/packs/linear/tools/initiative_create",
+      "destination": "/packs/linear/initiatives/initiative_create"
+    },
+    {
+      "source": "/packs/linear/tools/initiative_update",
+      "destination": "/packs/linear/initiatives/initiative_update"
+    },
+    {
+      "source": "/packs/linear/tools/initiative_delete",
+      "destination": "/packs/linear/initiatives/initiative_delete"
+    },
+    {
+      "source": "/packs/linear/tools/initiative_archive",
+      "destination": "/packs/linear/initiatives/initiative_archive"
+    },
+    {
+      "source": "/packs/linear/tools/initiative_unarchive",
+      "destination": "/packs/linear/initiatives/initiative_unarchive"
+    },
+    {
+      "source": "/packs/linear/tools/initiative_to_project_create",
+      "destination": "/packs/linear/initiatives/initiative_to_project_create"
+    },
+    {
+      "source": "/packs/linear/tools/initiative_to_project_delete",
+      "destination": "/packs/linear/initiatives/initiative_to_project_delete"
+    },
+    {
+      "source": "/packs/linear/tools/initiative_updates_list",
+      "destination": "/packs/linear/initiatives/initiative_updates_list"
+    },
+    {
+      "source": "/packs/linear/tools/initiative_update_create",
+      "destination": "/packs/linear/initiatives/initiative_update_create"
+    },
+    {
+      "source": "/packs/linear/tools/documents_list",
+      "destination": "/packs/linear/documents/documents_list"
+    },
+    {
+      "source": "/packs/linear/tools/document_get",
+      "destination": "/packs/linear/documents/document_get"
+    },
+    {
+      "source": "/packs/linear/tools/document_create",
+      "destination": "/packs/linear/documents/document_create"
+    },
+    {
+      "source": "/packs/linear/tools/document_update",
+      "destination": "/packs/linear/documents/document_update"
+    },
+    {
+      "source": "/packs/linear/tools/document_delete",
+      "destination": "/packs/linear/documents/document_delete"
+    },
+    {
+      "source": "/packs/linear/tools/document_unarchive",
+      "destination": "/packs/linear/documents/document_unarchive"
+    },
+    {
+      "source": "/packs/linear/tools/attachments_list",
+      "destination": "/packs/linear/attachments/attachments_list"
+    },
+    {
+      "source": "/packs/linear/tools/attachment_get",
+      "destination": "/packs/linear/attachments/attachment_get"
+    },
+    {
+      "source": "/packs/linear/tools/attachments_for_url",
+      "destination": "/packs/linear/attachments/attachments_for_url"
+    },
+    {
+      "source": "/packs/linear/tools/attachment_create",
+      "destination": "/packs/linear/attachments/attachment_create"
+    },
+    {
+      "source": "/packs/linear/tools/attachment_update",
+      "destination": "/packs/linear/attachments/attachment_update"
+    },
+    {
+      "source": "/packs/linear/tools/attachment_delete",
+      "destination": "/packs/linear/attachments/attachment_delete"
+    },
+    {
+      "source": "/packs/linear/tools/customers_list",
+      "destination": "/packs/linear/customers/customers_list"
+    },
+    {
+      "source": "/packs/linear/tools/customer_get",
+      "destination": "/packs/linear/customers/customer_get"
+    },
+    {
+      "source": "/packs/linear/tools/customer_create",
+      "destination": "/packs/linear/customers/customer_create"
+    },
+    {
+      "source": "/packs/linear/tools/customer_update",
+      "destination": "/packs/linear/customers/customer_update"
+    },
+    {
+      "source": "/packs/linear/tools/customer_delete",
+      "destination": "/packs/linear/customers/customer_delete"
+    },
+    {
+      "source": "/packs/linear/tools/customer_needs_list",
+      "destination": "/packs/linear/customers/customer_needs_list"
+    },
+    {
+      "source": "/packs/linear/tools/customer_need_create",
+      "destination": "/packs/linear/customers/customer_need_create"
+    },
+    {
+      "source": "/packs/linear/tools/customer_need_update",
+      "destination": "/packs/linear/customers/customer_need_update"
+    },
+    {
+      "source": "/packs/linear/tools/customer_need_delete",
+      "destination": "/packs/linear/customers/customer_need_delete"
+    },
+    {
+      "source": "/packs/linear/tools/customer_statuses_list",
+      "destination": "/packs/linear/customers/customer_statuses_list"
+    },
+    {
+      "source": "/packs/linear/tools/customer_tiers_list",
+      "destination": "/packs/linear/customers/customer_tiers_list"
+    },
+    {
+      "source": "/packs/linear/tools/notifications_list",
+      "destination": "/packs/linear/inbox/notifications_list"
+    },
+    {
+      "source": "/packs/linear/tools/notification_get",
+      "destination": "/packs/linear/inbox/notification_get"
+    },
+    {
+      "source": "/packs/linear/tools/notification_update",
+      "destination": "/packs/linear/inbox/notification_update"
+    },
+    {
+      "source": "/packs/linear/tools/notification_archive",
+      "destination": "/packs/linear/inbox/notification_archive"
+    },
+    {
+      "source": "/packs/linear/tools/notification_unarchive",
+      "destination": "/packs/linear/inbox/notification_unarchive"
+    },
+    {
+      "source": "/packs/linear/tools/notification_mark_read_all",
+      "destination": "/packs/linear/inbox/notification_mark_read_all"
+    },
+    {
+      "source": "/packs/linear/tools/favorites_list",
+      "destination": "/packs/linear/inbox/favorites_list"
+    },
+    {
+      "source": "/packs/linear/tools/favorite_create",
+      "destination": "/packs/linear/inbox/favorite_create"
+    },
+    {
+      "source": "/packs/linear/tools/favorite_update",
+      "destination": "/packs/linear/inbox/favorite_update"
+    },
+    {
+      "source": "/packs/linear/tools/favorite_delete",
+      "destination": "/packs/linear/inbox/favorite_delete"
+    },
+    {
+      "source": "/packs/linear/tools/custom_views_list",
+      "destination": "/packs/linear/inbox/custom_views_list"
+    },
+    {
+      "source": "/packs/linear/tools/custom_view_get",
+      "destination": "/packs/linear/inbox/custom_view_get"
+    },
+    {
+      "source": "/packs/linear/tools/custom_view_create",
+      "destination": "/packs/linear/inbox/custom_view_create"
+    },
+    {
+      "source": "/packs/linear/tools/custom_view_delete",
+      "destination": "/packs/linear/inbox/custom_view_delete"
+    },
+    {
+      "source": "/packs/linear/tools/search_issues",
+      "destination": "/packs/linear/search/search_issues"
+    },
+    {
+      "source": "/packs/linear/tools/search_projects",
+      "destination": "/packs/linear/search/search_projects"
+    },
+    {
+      "source": "/packs/linear/tools/search_documents",
+      "destination": "/packs/linear/search/search_documents"
+    },
+    {
+      "source": "/packs/linear/tools/webhooks_list",
+      "destination": "/packs/linear/webhooks/webhooks_list"
+    },
+    {
+      "source": "/packs/linear/tools/webhook_get",
+      "destination": "/packs/linear/webhooks/webhook_get"
+    },
+    {
+      "source": "/packs/linear/tools/webhook_create",
+      "destination": "/packs/linear/webhooks/webhook_create"
+    },
+    {
+      "source": "/packs/linear/tools/webhook_update",
+      "destination": "/packs/linear/webhooks/webhook_update"
+    },
+    {
+      "source": "/packs/linear/tools/webhook_delete",
+      "destination": "/packs/linear/webhooks/webhook_delete"
+    },
+    {
+      "source": "/packs/shopify/tools/shop_get",
+      "destination": "/packs/shopify/shop_get"
+    },
+    {
+      "source": "/packs/shopify/tools/products_list",
+      "destination": "/packs/shopify/products_list"
+    },
+    {
+      "source": "/packs/shopify/tools/product_get",
+      "destination": "/packs/shopify/product_get"
+    },
+    {
+      "source": "/packs/shopify/tools/product_create",
+      "destination": "/packs/shopify/product_create"
+    },
+    {
+      "source": "/packs/shopify/tools/product_update",
+      "destination": "/packs/shopify/product_update"
+    },
+    {
+      "source": "/packs/shopify/tools/orders_list",
+      "destination": "/packs/shopify/orders_list"
+    },
+    {
+      "source": "/packs/shopify/tools/order_get",
+      "destination": "/packs/shopify/order_get"
+    },
+    {
+      "source": "/packs/shopify/tools/customers_list",
+      "destination": "/packs/shopify/customers_list"
+    },
+    {
+      "source": "/packs/shopify/tools/customer_get",
+      "destination": "/packs/shopify/customer_get"
+    },
+    {
+      "source": "/packs/shopify/tools/customer_create",
+      "destination": "/packs/shopify/customer_create"
+    },
+    {
+      "source": "/packs/shopify/tools/customer_update",
+      "destination": "/packs/shopify/customer_update"
+    },
+    {
+      "source": "/packs/shopify/tools/order_fulfillment_orders",
+      "destination": "/packs/shopify/order_fulfillment_orders"
+    },
+    {
+      "source": "/packs/shopify/tools/fulfillment_create",
+      "destination": "/packs/shopify/fulfillment_create"
+    },
+    {
+      "source": "/packs/shopify/tools/inventory_adjust_quantities",
+      "destination": "/packs/shopify/inventory_adjust_quantities"
+    },
+    {
+      "source": "/packs/shopify/tools/variant_inventory_level",
+      "destination": "/packs/shopify/variant_inventory_level"
+    },
+    {
+      "source": "/packs/shopify/tools/locations_list",
+      "destination": "/packs/shopify/locations_list"
+    },
+    {
+      "source": "/packs/shopify/tools/order_close",
+      "destination": "/packs/shopify/order_close"
+    },
+    {
+      "source": "/packs/shopify/tools/order_open",
+      "destination": "/packs/shopify/order_open"
+    },
+    {
+      "source": "/packs/shopify/tools/order_cancel",
+      "destination": "/packs/shopify/order_cancel"
+    },
+    {
+      "source": "/packs/shopify/tools/draft_order_create",
+      "destination": "/packs/shopify/draft_order_create"
+    },
+    {
+      "source": "/packs/shopify/tools/draft_order_complete",
+      "destination": "/packs/shopify/draft_order_complete"
+    },
+    {
+      "source": "/packs/shopify/tools/product_variants_bulk_create",
+      "destination": "/packs/shopify/product_variants_bulk_create"
+    },
+    {
+      "source": "/packs/firecrawl/tools/search",
+      "destination": "/packs/firecrawl/search/search"
+    },
+    {
+      "source": "/packs/firecrawl/tools/search_feedback",
+      "destination": "/packs/firecrawl/search/search_feedback"
+    },
+    {
+      "source": "/packs/firecrawl/tools/map",
+      "destination": "/packs/firecrawl/map/map"
+    },
+    {
+      "source": "/packs/firecrawl/tools/scrape",
+      "destination": "/packs/firecrawl/scrape/scrape"
+    },
+    {
+      "source": "/packs/firecrawl/tools/scrape_status",
+      "destination": "/packs/firecrawl/scrape/scrape_status"
+    },
+    {
+      "source": "/packs/firecrawl/tools/batch_scrape",
+      "destination": "/packs/firecrawl/batch/batch_scrape"
+    },
+    {
+      "source": "/packs/firecrawl/tools/batch_scrape_status",
+      "destination": "/packs/firecrawl/batch/batch_scrape_status"
+    },
+    {
+      "source": "/packs/firecrawl/tools/batch_scrape_cancel",
+      "destination": "/packs/firecrawl/batch/batch_scrape_cancel"
+    },
+    {
+      "source": "/packs/firecrawl/tools/batch_scrape_errors",
+      "destination": "/packs/firecrawl/batch/batch_scrape_errors"
+    },
+    {
+      "source": "/packs/firecrawl/tools/scrape_interact",
+      "destination": "/packs/firecrawl/scrape/scrape_interact"
+    },
+    {
+      "source": "/packs/firecrawl/tools/scrape_interact_stop",
+      "destination": "/packs/firecrawl/scrape/scrape_interact_stop"
+    },
+    {
+      "source": "/packs/firecrawl/tools/interact_create",
+      "destination": "/packs/firecrawl/interact/interact_create"
+    },
+    {
+      "source": "/packs/firecrawl/tools/interact_execute",
+      "destination": "/packs/firecrawl/interact/interact_execute"
+    },
+    {
+      "source": "/packs/firecrawl/tools/interact_list",
+      "destination": "/packs/firecrawl/interact/interact_list"
+    },
+    {
+      "source": "/packs/firecrawl/tools/interact_delete",
+      "destination": "/packs/firecrawl/interact/interact_delete"
+    },
+    {
+      "source": "/packs/firecrawl/tools/research_papers_search",
+      "destination": "/packs/firecrawl/research/research_papers_search"
+    },
+    {
+      "source": "/packs/firecrawl/tools/research_paper_get",
+      "destination": "/packs/firecrawl/research/research_paper_get"
+    },
+    {
+      "source": "/packs/firecrawl/tools/research_similar_papers",
+      "destination": "/packs/firecrawl/research/research_similar_papers"
+    },
+    {
+      "source": "/packs/firecrawl/tools/developer_search",
+      "destination": "/packs/firecrawl/developer/developer_search"
+    },
+    {
+      "source": "/packs/firecrawl/tools/crawl",
+      "destination": "/packs/firecrawl/crawl/crawl"
+    },
+    {
+      "source": "/packs/firecrawl/tools/crawl_status",
+      "destination": "/packs/firecrawl/crawl/crawl_status"
+    },
+    {
+      "source": "/packs/firecrawl/tools/crawl_params_preview",
+      "destination": "/packs/firecrawl/crawl/crawl_params_preview"
+    },
+    {
+      "source": "/packs/firecrawl/tools/crawl_cancel",
+      "destination": "/packs/firecrawl/crawl/crawl_cancel"
+    },
+    {
+      "source": "/packs/firecrawl/tools/crawl_errors",
+      "destination": "/packs/firecrawl/crawl/crawl_errors"
+    },
+    {
+      "source": "/packs/firecrawl/tools/crawl_active",
+      "destination": "/packs/firecrawl/crawl/crawl_active"
+    },
+    {
+      "source": "/packs/firecrawl/tools/extract",
+      "destination": "/packs/firecrawl/extract/extract"
+    },
+    {
+      "source": "/packs/firecrawl/tools/extract_status",
+      "destination": "/packs/firecrawl/extract/extract_status"
+    },
+    {
+      "source": "/packs/firecrawl/tools/monitor_create",
+      "destination": "/packs/firecrawl/monitor/monitor_create"
+    },
+    {
+      "source": "/packs/firecrawl/tools/monitor_list",
+      "destination": "/packs/firecrawl/monitor/monitor_list"
+    },
+    {
+      "source": "/packs/firecrawl/tools/monitor_get",
+      "destination": "/packs/firecrawl/monitor/monitor_get"
+    },
+    {
+      "source": "/packs/firecrawl/tools/monitor_update",
+      "destination": "/packs/firecrawl/monitor/monitor_update"
+    },
+    {
+      "source": "/packs/firecrawl/tools/monitor_delete",
+      "destination": "/packs/firecrawl/monitor/monitor_delete"
+    },
+    {
+      "source": "/packs/firecrawl/tools/monitor_run",
+      "destination": "/packs/firecrawl/monitor/monitor_run"
+    },
+    {
+      "source": "/packs/firecrawl/tools/monitor_checks_list",
+      "destination": "/packs/firecrawl/monitor/monitor_checks_list"
+    },
+    {
+      "source": "/packs/firecrawl/tools/monitor_check_get",
+      "destination": "/packs/firecrawl/monitor/monitor_check_get"
+    },
+    {
+      "source": "/packs/firecrawl/tools/activity",
+      "destination": "/packs/firecrawl/account/activity"
+    },
+    {
+      "source": "/packs/firecrawl/tools/credit_usage",
+      "destination": "/packs/firecrawl/account/credit_usage"
+    },
+    {
+      "source": "/packs/firecrawl/tools/historical_credit_usage",
+      "destination": "/packs/firecrawl/account/historical_credit_usage"
+    },
+    {
+      "source": "/packs/firecrawl/tools/token_usage",
+      "destination": "/packs/firecrawl/account/token_usage"
+    },
+    {
+      "source": "/packs/firecrawl/tools/historical_token_usage",
+      "destination": "/packs/firecrawl/account/historical_token_usage"
+    },
+    {
+      "source": "/packs/firecrawl/tools/queue_status",
+      "destination": "/packs/firecrawl/account/queue_status"
+    },
+    {
+      "source": "/packs/firecrawl/tools/threat_protection_get",
+      "destination": "/packs/firecrawl/account/threat_protection_get"
+    },
+    {
+      "source": "/packs/firecrawl/tools/threat_protection_update",
+      "destination": "/packs/firecrawl/account/threat_protection_update"
+    },
+    {
+      "source": "/packs/notion/tools/users_list",
+      "destination": "/packs/notion/users/users_list"
+    },
+    {
+      "source": "/packs/notion/tools/users_retrieve",
+      "destination": "/packs/notion/users/users_retrieve"
+    },
+    {
+      "source": "/packs/notion/tools/users_retrieve_me",
+      "destination": "/packs/notion/users/users_retrieve_me"
+    },
+    {
+      "source": "/packs/notion/tools/search",
+      "destination": "/packs/notion/search/search"
+    },
+    {
+      "source": "/packs/notion/tools/pages_create",
+      "destination": "/packs/notion/pages/pages_create"
+    },
+    {
+      "source": "/packs/notion/tools/pages_retrieve",
+      "destination": "/packs/notion/pages/pages_retrieve"
+    },
+    {
+      "source": "/packs/notion/tools/pages_update",
+      "destination": "/packs/notion/pages/pages_update"
+    },
+    {
+      "source": "/packs/notion/tools/pages_move",
+      "destination": "/packs/notion/pages/pages_move"
+    },
+    {
+      "source": "/packs/notion/tools/pages_retrieve_property_item",
+      "destination": "/packs/notion/pages/pages_retrieve_property_item"
+    },
+    {
+      "source": "/packs/notion/tools/pages_retrieve_markdown",
+      "destination": "/packs/notion/pages/pages_retrieve_markdown"
+    },
+    {
+      "source": "/packs/notion/tools/pages_update_markdown",
+      "destination": "/packs/notion/pages/pages_update_markdown"
+    },
+    {
+      "source": "/packs/notion/tools/blocks_retrieve",
+      "destination": "/packs/notion/blocks/blocks_retrieve"
+    },
+    {
+      "source": "/packs/notion/tools/blocks_update",
+      "destination": "/packs/notion/blocks/blocks_update"
+    },
+    {
+      "source": "/packs/notion/tools/blocks_delete",
+      "destination": "/packs/notion/blocks/blocks_delete"
+    },
+    {
+      "source": "/packs/notion/tools/blocks_children_list",
+      "destination": "/packs/notion/blocks/blocks_children_list"
+    },
+    {
+      "source": "/packs/notion/tools/blocks_children_append",
+      "destination": "/packs/notion/blocks/blocks_children_append"
+    },
+    {
+      "source": "/packs/notion/tools/databases_create",
+      "destination": "/packs/notion/databases/databases_create"
+    },
+    {
+      "source": "/packs/notion/tools/databases_retrieve",
+      "destination": "/packs/notion/databases/databases_retrieve"
+    },
+    {
+      "source": "/packs/notion/tools/databases_update",
+      "destination": "/packs/notion/databases/databases_update"
+    },
+    {
+      "source": "/packs/notion/tools/data_sources_create",
+      "destination": "/packs/notion/data_sources/data_sources_create"
+    },
+    {
+      "source": "/packs/notion/tools/data_sources_retrieve",
+      "destination": "/packs/notion/data_sources/data_sources_retrieve"
+    },
+    {
+      "source": "/packs/notion/tools/data_sources_update",
+      "destination": "/packs/notion/data_sources/data_sources_update"
+    },
+    {
+      "source": "/packs/notion/tools/data_sources_query",
+      "destination": "/packs/notion/data_sources/data_sources_query"
+    },
+    {
+      "source": "/packs/notion/tools/data_sources_templates_list",
+      "destination": "/packs/notion/data_sources/data_sources_templates_list"
+    },
+    {
+      "source": "/packs/notion/tools/comments_create",
+      "destination": "/packs/notion/comments/comments_create"
+    },
+    {
+      "source": "/packs/notion/tools/comments_list",
+      "destination": "/packs/notion/comments/comments_list"
+    },
+    {
+      "source": "/packs/notion/tools/comments_retrieve",
+      "destination": "/packs/notion/comments/comments_retrieve"
+    },
+    {
+      "source": "/packs/notion/tools/comments_update",
+      "destination": "/packs/notion/comments/comments_update"
+    },
+    {
+      "source": "/packs/notion/tools/comments_delete",
+      "destination": "/packs/notion/comments/comments_delete"
+    },
+    {
+      "source": "/packs/notion/tools/file_uploads_create",
+      "destination": "/packs/notion/file_uploads/file_uploads_create"
+    },
+    {
+      "source": "/packs/notion/tools/file_uploads_complete",
+      "destination": "/packs/notion/file_uploads/file_uploads_complete"
+    },
+    {
+      "source": "/packs/notion/tools/file_uploads_retrieve",
+      "destination": "/packs/notion/file_uploads/file_uploads_retrieve"
+    },
+    {
+      "source": "/packs/notion/tools/file_uploads_list",
+      "destination": "/packs/notion/file_uploads/file_uploads_list"
+    },
+    {
+      "source": "/packs/notion/tools/custom_emojis_list",
+      "destination": "/packs/notion/custom_emojis/custom_emojis_list"
+    },
+    {
+      "source": "/packs/notion/tools/async_tasks_retrieve",
+      "destination": "/packs/notion/async_tasks/async_tasks_retrieve"
+    },
+    {
+      "source": "/packs/granola/tools/notes_list",
+      "destination": "/packs/granola/notes/notes_list"
+    },
+    {
+      "source": "/packs/granola/tools/notes_get",
+      "destination": "/packs/granola/notes/notes_get"
+    },
+    {
+      "source": "/packs/granola/tools/notes_transcript_get",
+      "destination": "/packs/granola/notes/notes_transcript_get"
+    },
+    {
+      "source": "/packs/granola/tools/folders_list",
+      "destination": "/packs/granola/folders/folders_list"
+    },
+    {
+      "source": "/packs/granola/tools/audit_list",
+      "destination": "/packs/granola/audit/audit_list"
+    },
+    {
+      "source": "/packs/granola/tools/webhook_endpoints_create",
+      "destination": "/packs/granola/webhooks/webhook_endpoints_create"
+    },
+    {
+      "source": "/packs/granola/tools/webhook_endpoints_list",
+      "destination": "/packs/granola/webhooks/webhook_endpoints_list"
+    },
+    {
+      "source": "/packs/granola/tools/webhook_endpoints_update",
+      "destination": "/packs/granola/webhooks/webhook_endpoints_update"
+    },
+    {
+      "source": "/packs/granola/tools/webhook_endpoints_delete",
+      "destination": "/packs/granola/webhooks/webhook_endpoints_delete"
+    },
+    {
+      "source": "/packs/tavily/tools/search",
+      "destination": "/packs/tavily/search/search"
+    },
+    {
+      "source": "/packs/tavily/tools/extract",
+      "destination": "/packs/tavily/extract/extract"
+    },
+    {
+      "source": "/packs/tavily/tools/crawl",
+      "destination": "/packs/tavily/crawl/crawl"
+    },
+    {
+      "source": "/packs/tavily/tools/map",
+      "destination": "/packs/tavily/map/map"
+    },
+    {
+      "source": "/packs/tavily/tools/research_create",
+      "destination": "/packs/tavily/research/research_create"
+    },
+    {
+      "source": "/packs/tavily/tools/research_get",
+      "destination": "/packs/tavily/research/research_get"
+    },
+    {
+      "source": "/packs/tavily/tools/usage",
+      "destination": "/packs/tavily/usage/usage"
+    },
+    {
+      "source": "/packs/tavily/tools/logs",
+      "destination": "/packs/tavily/usage/logs"
+    },
+    {
+      "source": "/packs/tavily/tools/org_usage",
+      "destination": "/packs/tavily/usage/org_usage"
+    }
+  ]
+}

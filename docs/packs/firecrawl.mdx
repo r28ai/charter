@@ -1,0 +1,361 @@
+---
+title: "Firecrawl"
+description: "Search the web, map a site's URLs, and read a page as markdown."
+sidebarTitle: "Overview"
+---
+
+{/* generated:summary start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="pack-summary">
+  <span><Visibility for="humans"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg></Visibility>43 tools</span>
+  <span><Visibility for="humans"><svg viewBox="0 0 24 24"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4" /><path d="m21 2-9.6 9.6" /><circle cx="7.5" cy="15.5" r="5.5" /></svg></Visibility>API key</span>
+</div>
+{/* generated:summary end */}
+
+```python firecrawl_example.py {7}
+import os
+
+from charter.packs import firecrawl
+
+firecrawl.configure(api_key=os.environ["FIRECRAWL_API_KEY"])
+
+page = await firecrawl.scrape.ainvoke(url="https://example.com")
+```
+
+Search the web, discover a site's URLs, and read one page. Firecrawl returns
+markdown rather than HTML, which is why it appears in an agent stack at all — the
+work of turning a rendered page into something a model can read happens on
+Firecrawl's side.
+
+All three tools are POST. There is no GET in this pack: the option surface is
+large enough that Firecrawl takes it in a body even for what reads like a query.
+
+## Authenticating
+
+{/* generated:auth start — do not edit by hand; run scripts/generate_pack_docs.py */}
+This pack takes an API key in `Authorization`, and [`configure()`](/reference/configuration#configure) is optional when `$FIRECRAWL_API_KEY` is set.
+
+There is no authorization server, no consent screen and no refresh — [API keys](/auth/api-key-tool-factory) is the whole story.
+{/* generated:auth end */}
+
+The key is prefixed `fc-…` and goes out as a bearer token.
+
+## The client
+
+{/* generated:wire start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<Note>
+[`api_key_tool_factory`](/reference/factories#api_key_tool_factory) is the whole client: a thin wrapper over `httpx` that attaches your key and these endpoint constants to each request. `firecrawl-py` does not enter your dependency tree.
+</Note>
+
+<div className="named-tabs" data-files="firecrawl_api_client.py|firecrawl_pack_client.py">
+<CodeGroup>
+
+```python Without the pack
+import os
+
+from charter import Envelope, api_key_tool_factory
+
+api_key = os.environ["FIRECRAWL_API_KEY"]
+
+firecrawl_api_client = api_key_tool_factory(
+    base_url="https://api.firecrawl.dev/v2/",
+    api_key_headers={"Authorization": f"Bearer {api_key}"},
+    pack="firecrawl",
+    body_format="json",
+    query_format="repeat",
+    body_case="camel",
+    query_case="camel",
+    path_case="snake",
+    envelope=Envelope(ok_field="success", error_field="error"),
+)
+```
+
+```python With the pack
+import os
+
+from charter.packs import firecrawl
+
+firecrawl.configure(api_key=os.environ["FIRECRAWL_API_KEY"])
+
+# The base URL, the casing, the envelope and the pagination are
+# already declared. 43 tools, ready to hand to a model:
+tools = firecrawl.TOOLS
+```
+
+</CodeGroup>
+</div>
+
+### Paging through a list
+
+A cursor belongs to the tool that returns it, so it is declared on that tool's builder call:
+
+```python firecrawl_pagination.py
+activity = firecrawl_api_client(
+    name="activity",
+    args_schema=ActivityListRequest,
+    method="GET",
+    url_template="team/activity",
+    pagination=Pagination(
+        cursor_field="cursor",
+        cursor_param="cursor",
+        more_field="has_more",
+    ),
+)
+```
+
+<Note>
+Pagination is declared on `activity`. The other 42 take no cursor.
+</Note>
+{/* generated:wire end */}
+
+The base URL pins `/v2/`. Firecrawl versions its API in the path, so moving to a
+later version is a deliberate edit to `firecrawl.BASE_URL` rather than something
+that happens to you.
+
+## Tools
+
+Each is a [`Tool`](/reference/tool), called with
+[`ainvoke`](/reference/tool#tool-ainvoke) as in the snippet above. The name
+links to its parameters, its response and what it costs.
+
+{/* generated:tools start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="tool-list">
+  <span className="tool-list-group">Search</span>
+  <a className="tool-row" href="/packs/firecrawl/search/search">
+    <span className="tool-row-head"><span className="tool-row-name">search</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Search and optionally scrape web results.</span>
+  </a>
+  <a className="tool-row" href="/packs/firecrawl/search/search_feedback">
+    <span className="tool-row-head"><span className="tool-row-name">search_feedback</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Submit feedback for a prior search job to improve future results.</span>
+  </a>
+  <span className="tool-list-group">Map</span>
+  <a className="tool-row" href="/packs/firecrawl/map/map">
+    <span className="tool-row-head"><span className="tool-row-name">map</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Discover and list all URLs of a website starting from a base URL.</span>
+  </a>
+  <span className="tool-list-group">Scrape</span>
+  <a className="tool-row" href="/packs/firecrawl/scrape/scrape">
+    <span className="tool-row-head"><span className="tool-row-name">scrape</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Scrape a single URL and optionally extract information.</span>
+  </a>
+  <a className="tool-row" href="/packs/firecrawl/scrape/scrape_status">
+    <span className="tool-row-head"><span className="tool-row-name">scrape_status</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get the status of a scrape job by job ID.</span>
+  </a>
+  <a className="tool-row" href="/packs/firecrawl/scrape/scrape_interact">
+    <span className="tool-row-head"><span className="tool-row-name">scrape_interact</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Execute code in the browser sandbox associated with a scrape job.</span>
+  </a>
+  <a className="tool-row" href="/packs/firecrawl/scrape/scrape_interact_stop">
+    <span className="tool-row-head"><span className="tool-row-name">scrape_interact_stop</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Stop the interactive browser session associated with a scrape job.</span>
+  </a>
+  <span className="tool-list-group">Batch</span>
+  <a className="tool-row" href="/packs/firecrawl/batch/batch_scrape">
+    <span className="tool-row-head"><span className="tool-row-name">batch_scrape</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Scrape multiple URLs in one batch job.</span>
+  </a>
+  <a className="tool-row" href="/packs/firecrawl/batch/batch_scrape_status">
+    <span className="tool-row-head"><span className="tool-row-name">batch_scrape_status</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get the status and results of a batch scrape job.</span>
+  </a>
+  <a className="tool-row" href="/packs/firecrawl/batch/batch_scrape_cancel">
+    <span className="tool-row-head"><span className="tool-row-name">batch_scrape_cancel</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Cancel a running batch scrape job.</span>
+  </a>
+  <a className="tool-row" href="/packs/firecrawl/batch/batch_scrape_errors">
+    <span className="tool-row-head"><span className="tool-row-name">batch_scrape_errors</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get per-URL errors from a batch scrape job.</span>
+  </a>
+  <span className="tool-list-group">Interact</span>
+  <a className="tool-row" href="/packs/firecrawl/interact/interact_create">
+    <span className="tool-row-head"><span className="tool-row-name">interact_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a browser sandbox interact session for code execution.</span>
+  </a>
+  <a className="tool-row" href="/packs/firecrawl/interact/interact_execute">
+    <span className="tool-row-head"><span className="tool-row-name">interact_execute</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Execute Python, Node, or bash code in an interact session.</span>
+  </a>
+  <a className="tool-row" href="/packs/firecrawl/interact/interact_list">
+    <span className="tool-row-head"><span className="tool-row-name">interact_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List browser sandbox interact sessions for the authenticated team.</span>
+  </a>
+  <a className="tool-row" href="/packs/firecrawl/interact/interact_delete">
+    <span className="tool-row-head"><span className="tool-row-name">interact_delete</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Delete an interact session and stop billing for it.</span>
+  </a>
+  <span className="tool-list-group">Research</span>
+  <a className="tool-row" href="/packs/firecrawl/research/research_papers_search">
+    <span className="tool-row-head"><span className="tool-row-name">research_papers_search</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Search the research paper index with natural-language queries.</span>
+  </a>
+  <a className="tool-row" href="/packs/firecrawl/research/research_paper_get">
+    <span className="tool-row-head"><span className="tool-row-name">research_paper_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Inspect metadata or read passages from a research paper.</span>
+  </a>
+  <a className="tool-row" href="/packs/firecrawl/research/research_similar_papers">
+    <span className="tool-row-head"><span className="tool-row-name">research_similar_papers</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Find related papers by semantic intent and structural mode.</span>
+  </a>
+  <span className="tool-list-group">Developer</span>
+  <a className="tool-row" href="/packs/firecrawl/developer/developer_search">
+    <span className="tool-row-head"><span className="tool-row-name">developer_search</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Search Firecrawl docs, issues, pull requests, and repository readmes.</span>
+  </a>
+  <span className="tool-list-group">Crawl</span>
+  <a className="tool-row" href="/packs/firecrawl/crawl/crawl">
+    <span className="tool-row-head"><span className="tool-row-name">crawl</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Recursively crawl a website and scrape each discovered page.</span>
+  </a>
+  <a className="tool-row" href="/packs/firecrawl/crawl/crawl_status">
+    <span className="tool-row-head"><span className="tool-row-name">crawl_status</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get the status and results of a crawl job.</span>
+  </a>
+  <a className="tool-row" href="/packs/firecrawl/crawl/crawl_params_preview">
+    <span className="tool-row-head"><span className="tool-row-name">crawl_params_preview</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Preview crawl parameters generated from a natural language prompt.</span>
+  </a>
+  <a className="tool-row" href="/packs/firecrawl/crawl/crawl_cancel">
+    <span className="tool-row-head"><span className="tool-row-name">crawl_cancel</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Cancel a running crawl job.</span>
+  </a>
+  <a className="tool-row" href="/packs/firecrawl/crawl/crawl_errors">
+    <span className="tool-row-head"><span className="tool-row-name">crawl_errors</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get per-URL errors from a crawl job.</span>
+  </a>
+  <a className="tool-row" href="/packs/firecrawl/crawl/crawl_active">
+    <span className="tool-row-head"><span className="tool-row-name">crawl_active</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List all active crawl jobs for the authenticated team.</span>
+  </a>
+  <span className="tool-list-group">Extract</span>
+  <a className="tool-row" href="/packs/firecrawl/extract/extract">
+    <span className="tool-row-head"><span className="tool-row-name">extract</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Extract structured data from one or more URLs using an LLM.</span>
+  </a>
+  <a className="tool-row" href="/packs/firecrawl/extract/extract_status">
+    <span className="tool-row-head"><span className="tool-row-name">extract_status</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get the status and results of an extract job.</span>
+  </a>
+  <span className="tool-list-group">Monitor</span>
+  <a className="tool-row" href="/packs/firecrawl/monitor/monitor_create">
+    <span className="tool-row-head"><span className="tool-row-name">monitor_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a scheduled monitor for scrape, crawl, or search targets.</span>
+  </a>
+  <a className="tool-row" href="/packs/firecrawl/monitor/monitor_list">
+    <span className="tool-row-head"><span className="tool-row-name">monitor_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List monitors for the authenticated team.</span>
+  </a>
+  <a className="tool-row" href="/packs/firecrawl/monitor/monitor_get">
+    <span className="tool-row-head"><span className="tool-row-name">monitor_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get a monitor by ID.</span>
+  </a>
+  <a className="tool-row" href="/packs/firecrawl/monitor/monitor_update">
+    <span className="tool-row-head"><span className="tool-row-name">monitor_update</span><span className="tool-row-method" data-method="PATCH">PATCH</span></span>
+    <span className="tool-row-desc">Update a monitor's schedule, targets, or status.</span>
+  </a>
+  <a className="tool-row" href="/packs/firecrawl/monitor/monitor_delete">
+    <span className="tool-row-head"><span className="tool-row-name">monitor_delete</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Delete a monitor.</span>
+  </a>
+  <a className="tool-row" href="/packs/firecrawl/monitor/monitor_run">
+    <span className="tool-row-head"><span className="tool-row-name">monitor_run</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Queue an immediate monitor check outside the schedule.</span>
+  </a>
+  <a className="tool-row" href="/packs/firecrawl/monitor/monitor_checks_list">
+    <span className="tool-row-head"><span className="tool-row-name">monitor_checks_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List checks for a monitor.</span>
+  </a>
+  <a className="tool-row" href="/packs/firecrawl/monitor/monitor_check_get">
+    <span className="tool-row-head"><span className="tool-row-name">monitor_check_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get a monitor check with optional page-level results.</span>
+  </a>
+  <span className="tool-list-group">Account</span>
+  <a className="tool-row" href="/packs/firecrawl/account/activity">
+    <span className="tool-row-head"><span className="tool-row-name">activity</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List recent API activity for the authenticated team.</span>
+  </a>
+  <a className="tool-row" href="/packs/firecrawl/account/credit_usage">
+    <span className="tool-row-head"><span className="tool-row-name">credit_usage</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get remaining credits and billing period for the authenticated team.</span>
+  </a>
+  <a className="tool-row" href="/packs/firecrawl/account/historical_credit_usage">
+    <span className="tool-row-head"><span className="tool-row-name">historical_credit_usage</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get historical credit usage by billing period.</span>
+  </a>
+  <a className="tool-row" href="/packs/firecrawl/account/token_usage">
+    <span className="tool-row-head"><span className="tool-row-name">token_usage</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get remaining extract tokens for the authenticated team.</span>
+  </a>
+  <a className="tool-row" href="/packs/firecrawl/account/historical_token_usage">
+    <span className="tool-row-head"><span className="tool-row-name">historical_token_usage</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get historical extract token usage by billing period.</span>
+  </a>
+  <a className="tool-row" href="/packs/firecrawl/account/queue_status">
+    <span className="tool-row-head"><span className="tool-row-name">queue_status</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get metrics about the team's scrape queue.</span>
+  </a>
+  <a className="tool-row" href="/packs/firecrawl/account/threat_protection_get">
+    <span className="tool-row-head"><span className="tool-row-name">threat_protection_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get the team's threat protection policy.</span>
+  </a>
+  <a className="tool-row" href="/packs/firecrawl/account/threat_protection_update">
+    <span className="tool-row-head"><span className="tool-row-name">threat_protection_update</span><span className="tool-row-method" data-method="PUT">PUT</span></span>
+    <span className="tool-row-desc">Update the team's threat protection policy.</span>
+  </a>
+</div>
+{/* generated:tools end */}
+
+## What each tool is for
+
+`search` is the one to reach for on a factual question, a current event, or
+anything that benefits from real-time results. It searches web, image and news
+sources, and `scrape_options` makes it return page content rather than links
+alone — one call instead of a search followed by a scrape per result.
+
+`map` discovers a site's URLs from a base URL, optionally filtered by a search
+term. It is how an agent finds the right page before reading it.
+
+`scrape` reads one URL. `formats` decides what comes back — markdown, HTML, a
+screenshot, or structured JSON extracted against a schema you supply.
+
+## Gotchas
+
+<AccordionGroup>
+  <Accordion title="scrape has thirty-odd options, and they cost context">
+    `formats`, `only_main_content`, `include_tags`, `exclude_tags`, `actions`,
+    `proxy`, `location`, `wait_for` and the rest are all on the schema the model
+    fills in. If your agent only ever wants markdown of the main content, narrow
+    the tool with [`Mode`](/boundary/mode-system) rather than trusting a prompt
+    to leave the others alone.
+  </Accordion>
+
+  <Accordion title="timeout is Firecrawl's, not Charter's">
+    Every tool here has a `timeout` field in its schema, which is how long
+    Firecrawl will spend on the job. Charter's own client timeout is `tool.timeout`
+    — 20 seconds by default — and it is the smaller of the two that decides when
+    a call gives up. Raise both, or neither.
+  </Accordion>
+
+  <Accordion title="Nothing here pages">
+    `search` and `map` cap results with `limit` rather than handing back a
+    cursor, so no tool declares a `Pagination`. Ask for more, not for the next
+    page.
+  </Accordion>
+
+  <Accordion title="No rate-limit documentation is declared">
+    `quota_doc_url` is unset on this pack, so the wire table has no rate-limit
+    row. Firecrawl's limits are a property of your plan; the account dashboard is
+    where they are stated.
+  </Accordion>
+
+  <Accordion title="Responses come back untrimmed">
+    No tool here has a response handler, deliberately: the payload *is* the page
+    content, and there is nothing infrastructural to project away. A scrape of a
+    long page is a long response, and `only_main_content` is the lever.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [The API-key factory](/auth/api-key-tool-factory) — what an API-key pack does not have
+- [The mode system](/boundary/mode-system) — narrowing a wide option surface

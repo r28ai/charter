@@ -1,0 +1,184 @@
+<!doctype html><html><head><meta charset="utf-8">
+<!--
+  X / Twitter profile banner, 1500x500 — the safe-area cut.
+
+  WHY THIS EXISTS. banner.html and banner-3row.html both assume the whole
+  1500x500 is visible. It is not. All the geometry below is measured off an
+  iPhone 16 screenshot of the live profile in the iOS app, calibrated on the
+  headline: it is centred on source x=750 and 527px wide, and it spanned
+  x 265..660 of a 922px-wide screenshot, so the scale is 395/527 = 0.750 and
+  the offset is -99.6. (An earlier calibration off a pane edge gave 0.80 and
+  produced numbers that were wrong by up to 90px. Calibrate on something whose
+  source extent you can measure in the PNG, not on something you eyeball.)
+
+  WHAT THE PHONE ACTUALLY SHOWS:
+
+      visible       x 133 .. 1363      y 5 .. 492
+
+  So the vertical crop is negligible and the horizontal loss is ~135px a side,
+  near enough symmetric. What removes the top of the banner is not a crop:
+
+      status bar    y 5 .. 125         full width, opaque
+      back button   y 219 .. 339       x 186 .. 304
+      search        y 219 .. 339       x 1040 .. 1160
+      overflow      y 219 .. 339       x 1194 .. 1307
+
+  In the five-row and three-row layouts every pane header lands under the status
+  bar, and the panes lose an edge to the horizontal crop.
+
+  THE AVATAR is the desktop obstruction, measured off a 1208px-wide screenshot
+  of the same profile (the web banner is not cropped, so the scale is a clean
+  1208/1500 = 0.805; the circle spans x 28..312 with its top edge at y 272):
+
+      avatar        x 35 .. 388        y 338 .. 500      opaque, on top
+
+  The mechanism strip was full width and below the headline in the first cut of
+  this file and ran straight through it: the left segment rendered as
+  `da@example.com"}` under a label clipped to `T`, which reads as text
+  overflowing a box rather than a designed overlap, and loses the one segment a
+  left-to-right strip cannot lose.
+
+  SO THE LAYOUT IS: headline on top, in the band between the status bar and the
+  buttons, centred so it clears the back button on the left and the search
+  button on the right. Strip below the buttons, and starting right of the
+  avatar. Measured on the current render:
+
+      headline      x 477 .. 1023      y 177 .. 286
+      strip         x 416 .. 1236      y 363 .. 409
+
+  which clears the status bar by 52px, the search button by 17px horizontally,
+  the buttons by 24px vertically, and the avatar by 28px horizontally. The
+  headline is centred on x=750, which is also the centre of the visible window
+  (748), so it is the search button at x=1040 and not the crop that caps its
+  size — 51px puts its half-width at 273 against the 290 available. Moving the
+  strip above the headline does not work: that band is the buttons'.
+
+  The right-shifted strip is not a compromise on desktop: the avatar is
+  bottom-left, so a strip weighted right is what balances it.
+
+  RE-MEASURE, do not re-eyeball, after any edit. The check is: render, then
+  compare the pixel extents of the headline and the strip against the four
+  obstruction rectangles above.
+
+  WHAT THAT COSTS, and why this layout is not the three-pane picture shrunk.
+  The safe box is 1040px wide and the banner renders at ~380px on a phone, a
+  0.365 scale. Monospace at 18px arrives as 6.6px. Fitting the three panes into
+  the smaller box makes the phone case worse, not better, because the type has
+  to shrink to fit. So the diagram is accepted as a desktop-only affordance and
+  the headline is what carries the phone. That is the whole trade this file
+  makes: one sentence everyone can read, one line of mechanism for whoever is
+  on a laptop and looks twice.
+
+  THE MECHANISM LINE is one true compile, not a repertoire: `to` becomes the
+  base64url of the RFC 2822 document, and `Format()` is the declaration that
+  does it. banner-3row.html is where the repertoire argument lives, across three
+  wire families. This file trades that breadth for legibility on purpose — if
+  you want the breadth back, it belongs in a post, not a banner.
+
+  The base64 is real: it decodes to "To: ada@example.com\r\nSubject: Ship v2".
+  Regenerate it rather than editing a character if the sample message changes.
+
+  No vendor logo. A row of marks is catalogue grammar and the first thing "What
+  Charter is not" walks away from; a single mark would read as Gmail-only and
+  sits badly under a neutrality claim.
+
+  Add class="debug" to <body> to draw all of it: the visible window in blue, the
+  status bar and the three buttons in yellow, the avatar in red, the safe box in
+  green.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1500px;height:500px;overflow:hidden}
+  body{background:#141417;font-family:Inter,system-ui,-apple-system,sans-serif;
+       -webkit-font-smoothing:antialiased;position:relative}
+  .glow{position:absolute;inset:0;
+        background:radial-gradient(1250px 760px at -2% 24%, rgba(199,44,65,.42), transparent 64%),
+                   radial-gradient(620px 420px at 6% 96%, rgba(199,44,65,.24), transparent 66%);}
+
+  /* The safe box. Nothing that must be read may leave it. */
+  /* Absolute inside the safe box: the headline and the strip answer to
+     different obstructions and cannot share one flow. */
+  .safe{position:absolute;left:230px;top:150px;width:1040px;height:280px}
+
+  h1{position:absolute;top:15px;left:0;width:100%;font-size:51px;line-height:1.22;font-weight:600;color:#f4f5f7;
+     letter-spacing:-.028em;text-align:center}
+  h1 .q{color:#e8637a}
+
+  /* left:185 -> x=415, clear of the avatar's x=388. top:210 -> y=360, below
+     the phone's floating buttons, which end at y=339. */
+  .strip{position:absolute;left:185px;top:210px;display:flex;align-items:flex-end}
+  .seg{display:flex;flex-direction:column;gap:9px}
+  .lb{font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+      color:#868c98}
+  /* NOT display:flex here — a flex container collapses the whitespace between
+     inline runs, which silently eats the space after the colon in {"to": ...}. */
+  .mono{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace;font-size:20px;
+        line-height:30px;height:30px;white-space:nowrap;color:#eaeaec;display:block}
+  .k{color:#9CDCFE}.s{color:#a5d6a7}
+
+  .seg.mid .lb{text-align:center}
+  .seg.mid .mono{font-weight:600}
+  /* inline-block, not flex — .mono is a block now, see the note above */
+  .seg.mid .mk{display:inline-block;vertical-align:-4px;margin-right:10px}
+  .seg.mid .mk svg{display:block}
+
+  .frag{color:#a5d6a7;display:inline-block;vertical-align:bottom;
+        overflow:hidden;max-width:300px;
+        -webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 56px),transparent)}
+
+  .arrow{flex:0 0 60px;height:30px;display:flex;align-items:center;
+         justify-content:center}
+  .arrow svg{display:block;fill:none;stroke:#C72C41;stroke-width:3.2;
+             stroke-linecap:round;stroke-linejoin:round}
+
+  /* Diagnostics: every measured obstruction, drawn where it actually falls.
+     Add class="debug" to <body>. Keep these in sync with the table above. */
+  .ob{position:absolute;display:none;background:rgba(255,190,0,.22);
+      outline:1px dashed rgba(255,210,60,.8)}
+  .debug .ob{display:block}
+  .debug .safe{outline:1px dashed rgba(90,200,130,.8)}
+  .ob.win{left:133px;top:5px;width:1230px;height:487px;
+          background:none;outline:1px dashed rgba(90,170,255,.8)}
+  .ob.bar{left:133px;top:5px;width:1230px;height:120px}
+  .ob.b1{left:186px;top:219px;width:118px;height:120px;border-radius:60px}
+  .ob.b2{left:1040px;top:219px;width:120px;height:120px;border-radius:60px}
+  .ob.b3{left:1194px;top:219px;width:113px;height:120px;border-radius:60px}
+  .ob.av{left:35px;top:338px;width:353px;height:353px;border-radius:50%;
+         background:rgba(255,80,110,.26)}
+</style></head><body>
+<div class="glow"></div>
+<div class="ob win"></div><div class="ob bar"></div><div class="ob b1"></div>
+<div class="ob b2"></div><div class="ob b3"></div><div class="ob av"></div>
+
+<div class="safe">
+
+  <h1>Agent tools you <span class="q">declare</span><br>instead of implement.</h1>
+
+  <div class="strip">
+
+    <div class="seg">
+      <div class="lb">your agent</div>
+      <div class="mono">{<span class="k">"to"</span>: <span class="s">"ada@example.com"</span>}</div>
+    </div>
+
+    <div class="arrow"><svg width="30" height="24" viewBox="0 0 30 24"><path d="M2.5 12h24"/><path d="M19 5l7 7-7 7"/></svg></div>
+
+    <div class="seg mid">
+      <div class="lb">the contract</div>
+      <div class="mono"><span class="mk"><svg width="22" height="22" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" ry="112" fill="#C72C41"/><path transform="translate(88.00 96.95) scale(11.18509)" d="M20.52 25.64C22.52 25.64 24.1067 24.8267 25.28 23.2C26.4533 21.5733 27.2133 19.6 27.56 17.28H30.04C29.6667 20.16 28.72 22.6133 27.2 24.64C26.3467 25.76 25.3733 26.6 24.28 27.16C23.2133 27.6933 22.0267 28.04 20.72 28.2C19.44 28.36 17.76 28.44 15.68 28.44C12.7467 28.44 10.36 28.16 8.52 27.6C6.70667 27.0133 5.14667 26.0667 3.84 24.76C1.28 22.2 0 18.68 0 14.2C0 9.48 1.14667 5.97333 3.44 3.68C4.93333 2.18667 6.6 1.2 8.44 0.720001C10.28 0.240001 12.6933 0 15.68 0C18.4267 0 20.6533 0.200001 22.36 0.6C24.0933 0.973334 25.5067 1.78667 26.6 3.04C27.5067 4.08 28.2133 5.33333 28.72 6.8C29.2267 8.26667 29.52 9.72 29.6 11.16H27.32C27.2133 9.96 26.92 8.73333 26.44 7.48C25.9867 6.2 25.2667 5.10667 24.28 4.2C23.2933 3.26667 22.04 2.8 20.52 2.8C19.08 2.8 17.92 3.42667 17.04 4.68C16.2667 5.66667 15.68 7.12 15.28 9.04C14.9867 10.5067 14.84 12.2267 14.84 14.2C14.84 17.32 15.2133 19.84 15.96 21.76C16.92 24.3467 18.44 25.64 20.52 25.64Z" fill="#FFFFFF"/></svg></span>Format()</div>
+    </div>
+
+    <div class="arrow"><svg width="30" height="24" viewBox="0 0 30 24"><path d="M2.5 12h24"/><path d="M19 5l7 7-7 7"/></svg></div>
+
+    <div class="seg">
+      <div class="lb">the wire</div>
+      <div class="mono"><span class="frag">VG86IGFkYUBleGFtcGxlLmNvbQ0KU3ViamVjdDog</span></div>
+    </div>
+
+  </div>
+
+</div>
+</body></html>

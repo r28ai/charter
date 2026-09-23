@@ -1,0 +1,248 @@
+---
+title: "Envelopes and pagination"
+description: "Envelope, GRAPHQL_ENVELOPE and Pagination: declaring how an API reports failure inside a 200, and where it keeps its cursor."
+---
+
+Two properties of an API that the HTTP layer does not carry: whether a 200 was
+really a success, and where the marker for the next page lives. Both are
+declared on a factory or a tool and read by the runtime on every call.
+
+## `Envelope`
+
+```python
+@dataclass(frozen=True)
+class Envelope:
+    ok_field: Optional[str] = None
+    ok_value: Any = None
+    error_field: Optional[str] = None
+    errors_field: Optional[str | Sequence[str]] = None
+    credential_errors: FrozenSet[str] = frozenset()
+    detail_fields: Tuple[str, ...] = ()
+    retry_after: Optional[Callable[[Any], Optional[int]]] = None
+```
+
+How to tell success from failure when the status line will not.
+
+<ParamField path="ok_field" type="Optional[str]" default="None">
+  Path to a value that must indicate success. Falsy means failure, unless
+  `ok_value` is set.
+</ParamField>
+
+<ParamField path="ok_value" type="Any" default="None">
+  Required value of `ok_field`, for APIs that report `"status": "ok"` rather
+  than a bool.
+</ParamField>
+
+<ParamField path="error_field" type="Optional[str]" default="None">
+  Path to the machine-readable error code. Used for the message, and matched
+  against `credential_errors`.
+</ParamField>
+
+<ParamField path="errors_field" type="Optional[str | Sequence[str]]" default="None">
+  Path — or several — to a list of errors. Non-empty means failure. This is the
+  GraphQL convention.
+</ParamField>
+
+<ParamField path="credential_errors" type="FrozenSet[str]" default="frozenset()">
+  Error codes that mean the credential is the problem. These raise
+  [`CredentialError`](/reference/errors#credentialerror) with `status_code=401` so a host can refresh and retry;
+  everything else raises [`APIError`](/reference/errors#apierror).
+</ParamField>
+
+<ParamField path="detail_fields" type="Tuple[str, ...]" default="()">
+  Extra top-level keys worth appending to the message — Slack's `needed` names
+  the missing scope. Read from the root of the payload, not as paths.
+</ParamField>
+
+<ParamField path="retry_after" type="Optional[Callable[[Any], Optional[int]]]" default="None">
+  Given the failing payload, returns the seconds to wait, and lands on
+  [`APIError.retry_after`](/reference/errors#apierror). For an API that reports
+  a rate limit inside a `200` rather than in a header. A cost-budgeted API is
+  the case this exists for: Shopify prices each query and refuses one that will
+  not fit, and the refusing response carries the cost, the balance and the
+  refill rate — so the wait is arithmetic on the payload rather than a field to
+  read. A resolver that raises is ignored rather than replacing the error the
+  caller needs to see.
+</ParamField>
+
+An `Envelope` with neither `ok_field` nor `errors_field` raises [`DeclarationError`](/reference/errors#declarationerror): it
+could never detect a failure.
+
+### Paths
+
+Every field name is a path: dotted for nesting, with `*` standing for any key at
+that level. `"ok"` is a path of one segment, so the simple case reads as a plain
+key. `"data.*.userErrors"` reaches a GraphQL mutation payload without naming the
+operation — which is what covers the mutation somebody adds next year.
+
+Error collections are checked before the success flag, because a
+document-level problem is more fundamental than a flag and a response can carry
+both.
+
+### Methods
+
+<ResponseField name="failed(payload)" type="bool">
+  Whether this payload represents a failure.
+</ResponseField>
+
+<ResponseField name="describe(payload)" type="Tuple[str, str]">
+  `(code, message)` for a failed payload. The code comes from `error_field`,
+  else from the first entries of the error list, else from the flag that said no
+  when its path is nested — `"data.issueCreate.success is false"` — else
+  `"unknown_error"`.
+</ResponseField>
+
+<ResponseField name="raise_for_payload(payload, *, url=None, provider=None, bearer=True)" type="None">
+  Raise `CredentialError` when the code is in `credential_errors`, `APIError`
+  otherwise. The `APIError` carries `status_code=200` on purpose: that really
+  was the status, and it is the fact that surprises whoever reads the log.
+
+  `bearer` says which kind of credential was rejected, and only picks which page
+  the `CredentialError` links to when the provider has no page of its own: an
+  API-key pack is sent to [API keys](/auth/api-key-tool-factory) rather than to
+  the OAuth walkthrough. The runtime passes it; you only need it if you call this
+  yourself.
+</ResponseField>
+
+```python
+from charter import APIError, Envelope
+
+SLACK = Envelope(
+    ok_field="ok",
+    error_field="error",
+    credential_errors={"invalid_auth", "token_revoked"},
+    detail_fields=("needed",),
+)
+
+assert SLACK.failed({"ok": False, "error": "channel_not_found"}) is True
+assert SLACK.failed({"ok": True, "channel": "C1"}) is False
+
+try:
+    SLACK.raise_for_payload({"ok": False, "error": "missing_scope", "needed": "chat:write"})
+except APIError as exc:
+    assert exc.status_code == 200
+    assert "missing_scope" in str(exc)
+```
+
+## `GRAPHQL_ENVELOPE`
+
+```python
+GRAPHQL_ENVELOPE = Envelope(errors_field="errors")
+```
+
+The GraphQL convention: HTTP 200 always, failures in an `errors` array.
+
+It catches a document the server would not run. It does *not* catch a mutation
+the server ran and then declined — that failure sits inside the payload, and
+needs a path that reaches it:
+
+```python
+from charter import Envelope
+
+LINEAR = Envelope(errors_field=("errors", "data.*.userErrors"))
+assert LINEAR.failed({"data": {"issueCreate": {"userErrors": [{"message": "no"}]}}}) is True
+```
+
+## `Pagination`
+
+```python
+@dataclass(frozen=True)
+class Pagination:
+    cursor_field: Optional[str] = None
+    cursor_param: Optional[str] = None
+    more_field: Optional[str] = None
+    page_param: Optional[str] = None
+    per_page_param: Optional[str] = None
+    items_field: Optional[str] = None
+    max_items: Optional[int] = None
+```
+
+Where one API keeps its place in a list. Declare either the cursor fields or the
+page-number fields, never both — mixing them, or declaring half of either,
+raises [`DeclarationError`](/reference/errors#declarationerror).
+
+<ParamField path="cursor_field" type="Optional[str]" default="None">
+  Path to the next cursor in the response. Dotted for nesting, with optional
+  list indices: `"response_metadata.next_cursor"`, `"nextPageToken"`, or
+  `"data[-1].id"` for an API whose cursor is the last returned object's id.
+</ParamField>
+
+<ParamField path="cursor_param" type="Optional[str]" default="None">
+  The request field that carries the cursor back — `"cursor"`, `"pageToken"`.
+  Must be a field on the tool's schema; may be dotted to reach a nested
+  argument, as a GraphQL tool's `"variables.after"` does.
+</ParamField>
+
+<ParamField path="more_field" type="Optional[str]" default="None">
+  Boolean field saying another page exists — `"has_more"`, or a Relay
+  connection's `"pageInfo.hasNextPage"`. Declare it whenever the API offers one:
+  without it a non-empty cursor is the signal, which never terminates against an
+  API that returns a cursor on its last page.
+</ParamField>
+
+<ParamField path="page_param" type="Optional[str]" default="None">
+  Page-number style: the request field holding the 1-based page number.
+</ParamField>
+
+<ParamField path="per_page_param" type="Optional[str]" default="None">
+  Page-number style: the request field holding the page size. Required with
+  `page_param`, since a short page is the only end signal there is.
+</ParamField>
+
+<ParamField path="items_field" type="Optional[str]" default="None">
+  Page-number style: where the returned array lives. `None` means the response
+  body *is* the array, which is how GitHub's plain list endpoints answer.
+</ParamField>
+
+<ParamField path="max_items" type="Optional[int]" default="None">
+  The most results the API will serve for one query, when it serves fewer than
+  it will count. GitHub's search reports `total_count` in the tens of thousands
+  and then refuses anything past the first 1,000 matches. Without it `has_more`
+  stays `True` right up to the wall and the *next* call is the one that fails,
+  so the walk below ends by raising rather than by finishing.
+</ParamField>
+
+### Methods
+
+<ResponseField name="style" type='"cursor" | "page"'>
+  Which of the two styles this declaration uses.
+</ResponseField>
+
+<ResponseField name="next_cursor(response)" type="Optional[str]">
+  The cursor for the next page. An empty string counts as absent — Slack returns
+  `""` on the last page. Always `None` in page-number style.
+</ResponseField>
+
+<ResponseField name="has_more(response, previous=None)" type="bool">
+  Whether another page exists. Cursor style prefers `more_field` and falls back
+  to the cursor. Page-number style compares the page length against the size in
+  `previous`; without `previous`, only an empty page reads as the end.
+</ResponseField>
+
+<ResponseField name="next_page_args(response, previous=None)" type="Optional[Dict[str, Any]]">
+  Arguments for the next call, or `None` when the last page is in hand.
+  Intermediate dicts are copied, so the previous page's arguments are left
+  untouched.
+</ResponseField>
+
+```python
+from charter import Pagination
+
+SLACK = Pagination(
+    cursor_field="response_metadata.next_cursor",
+    cursor_param="cursor",
+    more_field="has_more",
+)
+
+page = {"has_more": True, "response_metadata": {"next_cursor": "c2"}}
+assert SLACK.next_page_args(page, {"channel": "C1"}) == {"channel": "C1", "cursor": "c2"}
+assert SLACK.next_page_args({"has_more": False}, {"channel": "C1"}) is None
+```
+
+The declaration says where the marker is. It does not loop: following pages is
+orchestration, and orchestration stays in your agent.
+
+## Related
+
+- [Envelopes](/tools/envelopes) — why the success predicate is part of the contract
+- [The wire contract](/tools/wire-contract) — the paging loop, and the rest of the per-API constants

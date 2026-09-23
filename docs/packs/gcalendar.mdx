@@ -1,0 +1,302 @@
+---
+title: "Google Calendar"
+description: "Create, list and delete events, and list the calendars a user has."
+sidebarTitle: "Overview"
+---
+
+{/* generated:summary start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="pack-summary">
+  <span><Visibility for="humans"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg></Visibility>13 tools</span>
+  <span><Visibility for="humans"><svg viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /></svg></Visibility>OAuth bearer</span>
+</div>
+{/* generated:summary end */}
+
+```python gcalendar_example.py {7}
+from charter.auth import EnvTokenProvider
+from charter.packs import gcalendar
+
+credentials = EnvTokenProvider("GOOGLE_ACCESS_TOKEN")
+gcalendar.configure(credentials)
+
+events = await gcalendar.events_list.ainvoke(calendar_id="primary", max_results=10)
+```
+
+Create, list and delete events on one calendar. Pass `"primary"` as `calendar_id`
+for the authenticated account's own calendar, or the calendar's address for a
+shared one. `calendar_list_list` is where an address comes from when you do not
+already hold one.
+
+Four tools is the whole pack, and the interesting part is not the surface. It is
+that `events_list` takes seventeen filter parameters beside the calendar id, and
+every one of them fails silently if it goes out under the wrong name.
+
+## Authenticating
+
+{/* generated:auth start — do not edit by hand; run scripts/generate_pack_docs.py */}
+This pack takes a Google OAuth bearer token, and [`configure()`](/reference/configuration#configure) is optional when `$GOOGLE_ACCESS_TOKEN` is set. Which credential provider you hand it depends on whose account the calls run as.
+
+<Note>
+Refer to [Google's provider page](/auth/providers/google) for the "GOOGLE" constant the snippets below name, the scopes these 13 tools ask for, and this server's refresh behaviour.
+</Note>
+
+### A token you hold
+
+For a script, or a notebook. [`EnvTokenProvider`](/reference/credentials#envtokenprovider) re-reads the variable on every call, so a token rotated beside the process is picked up without a restart; [`StaticTokenProvider`](/reference/credentials#statictokenprovider) takes one you already hold as a string. Neither renews anything, so the calls stop when the token expires.
+
+```python gcalendar_script.py {4}
+from charter.auth import EnvTokenProvider
+from charter.packs import gcalendar
+
+credentials = EnvTokenProvider("GOOGLE_ACCESS_TOKEN")
+gcalendar.configure(credentials)
+```
+
+### One account, refreshed
+
+For an agent or a server acting as you. [`OAuth2Client`](/reference/oauth#oauth2client) turns a client registration and a stored refresh token into an access token, and [renews it](/auth/authorization-servers#what-the-cache-does-precisely) before it lapses.
+
+```python gcalendar_agent.py {8}
+from charter.auth import OAuth2Client
+from charter.packs import gcalendar
+
+credentials = OAuth2Client(
+    GOOGLE,
+    client_id=os.environ["GOOGLE_CLIENT_ID"],
+    client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
+    refresh_token=os.environ["GOOGLE_REFRESH_TOKEN"],
+)
+gcalendar.configure(credentials)
+```
+
+<Note>
+No refresh token yet? [Your own account](/auth/your-own-account) is the one-time consent flow that hands you one.
+</Note>
+
+### Many end users
+
+For a product whose users each connect their own account. [`SubjectProvider`](/reference/credentials#subjectprovider) builds one credential per user through a factory you write, and [`use_subject`](/reference/credentials#use_subject) names the user a call acts for. [Your users' accounts](/auth/oauth-flow) is the consent route inside your app; [serving many users](/auth/authorization-servers#serving-many-users) is the per-subject cache and its eviction.
+
+```python gcalendar_server.py {17,21}
+from functools import partial
+
+from charter.auth import OAuth2Client, SubjectProvider, use_subject
+from charter.packs import gcalendar
+
+# Yours to write: a user id in, that user's credential out.
+async def for_user(user_id: str) -> OAuth2Client:
+    grant = await db.grants.get(user_id, "google")
+    return OAuth2Client(
+        GOOGLE,
+        client_id=os.environ["GOOGLE_CLIENT_ID"],
+        client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
+        refresh_token=grant.refresh_token,
+        on_refresh=partial(save_to_db, user_id),
+    )
+
+credentials = SubjectProvider(for_user)
+gcalendar.configure(credentials)
+
+# Per request: whose grant the tools use.
+with use_subject(request.user_id):
+    ...  # your agent runs here
+```
+{/* generated:auth end */}
+
+`calendar.events` covers events on calendars the account can already reach. It
+does not cover reading which calendars those are, so `calendar_list_list` asks
+for `calendar.readonly` instead and consent has to name both.
+
+## The client
+
+{/* generated:wire start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<Note>
+[`oauth_tool_factory`](/reference/factories#oauth_tool_factory) is the whole client: a thin wrapper over `httpx` that attaches your token and these endpoint constants to each request. `google-api-python-client` and `google-auth` do not enter your dependency tree.
+</Note>
+
+<div className="named-tabs" data-files="gcalendar_api_client.py|gcalendar_pack_client.py">
+<CodeGroup>
+
+```python Without the pack
+from charter import oauth_tool_factory
+
+gcalendar_api_client = oauth_tool_factory(
+    base_url="https://www.googleapis.com/",
+    provider="google",
+    credential_provider=credentials,
+    pack="gcalendar",
+    body_format="json",
+    query_format="repeat",
+    body_case="camel",
+    query_case="camel",
+    path_case="snake",
+    # this API reports failure with an HTTP status code
+    envelope=None,
+)
+```
+
+```python With the pack
+from charter.packs import gcalendar
+
+gcalendar.configure(credentials)
+
+# The base URL, the casing, the envelope and the pagination are
+# already declared. 13 tools, ready to hand to a model:
+tools = gcalendar.TOOLS
+```
+
+</CodeGroup>
+</div>
+
+`credentials` is whichever of the three you built in [Authenticating](#authenticating). A pack takes it through [`configure()`](/reference/configuration#configure); a client you build takes the same object as `credential_provider`, and has no `configure()` of its own.
+
+### Paging through a list
+
+A cursor belongs to the tool that returns it, so it is declared on that tool's builder call:
+
+```python gcalendar_pagination.py
+events_list = gcalendar_api_client(
+    name="events_list",
+    args_schema=EventsListRequest,
+    method="GET",
+    url_template="calendar/v3/calendars/{calendar_id}/events",
+    pagination=Pagination(
+        cursor_field="nextPageToken",
+        cursor_param="pageToken",
+    ),
+)
+```
+
+<Note>
+Pagination is declared on `events_list`, `events_instances` and `calendar_list_list`. The other 10 take no cursor.
+</Note>
+{/* generated:wire end */}
+
+## Tools
+
+Each is a [`Tool`](/reference/tool), called with
+[`ainvoke`](/reference/tool#tool-ainvoke) as in the snippet above. The name
+links to its parameters, its response and what it costs.
+
+{/* generated:tools start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="tool-list">
+  <span className="tool-list-group">Events</span>
+  <a className="tool-row" href="/packs/gcalendar/event/events_get">
+    <span className="tool-row-head"><span className="tool-row-name">events_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get one event by its ID.</span>
+  </a>
+  <a className="tool-row" href="/packs/gcalendar/event/events_list">
+    <span className="tool-row-head"><span className="tool-row-name">events_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List events matching a given search filter.</span>
+  </a>
+  <a className="tool-row" href="/packs/gcalendar/event/events_instances">
+    <span className="tool-row-head"><span className="tool-row-name">events_instances</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the individual occurrences of a recurring event, each with its own event ID that can be updated or deleted on its own.</span>
+  </a>
+  <a className="tool-row" href="/packs/gcalendar/event/events_insert">
+    <span className="tool-row-head"><span className="tool-row-name">events_insert</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a calendar event; returns details of the event.</span>
+  </a>
+  <a className="tool-row" href="/packs/gcalendar/event/events_update">
+    <span className="tool-row-head"><span className="tool-row-name">events_update</span><span className="tool-row-method" data-method="PUT">PUT</span></span>
+    <span className="tool-row-desc">Replace an event in full.</span>
+  </a>
+  <a className="tool-row" href="/packs/gcalendar/event/events_patch">
+    <span className="tool-row-head"><span className="tool-row-name">events_patch</span><span className="tool-row-method" data-method="PATCH">PATCH</span></span>
+    <span className="tool-row-desc">Change part of an event.</span>
+  </a>
+  <a className="tool-row" href="/packs/gcalendar/event/events_move">
+    <span className="tool-row-head"><span className="tool-row-name">events_move</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Move an event to another calendar, changing its organizer.</span>
+  </a>
+  <a className="tool-row" href="/packs/gcalendar/event/events_quick_add">
+    <span className="tool-row-head"><span className="tool-row-name">events_quick_add</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create an event from a plain-text description such as 'Appointment at Somewhere on June 3rd 10am-10:25am'.</span>
+  </a>
+  <a className="tool-row" href="/packs/gcalendar/event/events_import">
+    <span className="tool-row-head"><span className="tool-row-name">events_import</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Import an event that already exists elsewhere, keeping its iCalUID so the two copies stay identifiable as the same event.</span>
+  </a>
+  <a className="tool-row" href="/packs/gcalendar/event/events_delete">
+    <span className="tool-row-head"><span className="tool-row-name">events_delete</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Delete an event from the calendar.</span>
+  </a>
+  <span className="tool-list-group">CalendarList</span>
+  <a className="tool-row" href="/packs/gcalendar/calendar_list/calendar_list_list">
+    <span className="tool-row-head"><span className="tool-row-name">calendar_list_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the calendars on the user's calendar list.</span>
+  </a>
+  <a className="tool-row" href="/packs/gcalendar/calendar_list/calendar_list_get">
+    <span className="tool-row-head"><span className="tool-row-name">calendar_list_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get one calendar from the user's calendar list, with their access role for it.</span>
+  </a>
+  <span className="tool-list-group">Calendar</span>
+  <a className="tool-row" href="/packs/gcalendar/calendar/calendars_get">
+    <span className="tool-row-head"><span className="tool-row-name">calendars_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get a calendar's own metadata, including the time zone its events are read against.</span>
+  </a>
+</div>
+{/* generated:tools end */}
+
+## Why query casing is the load-bearing line
+
+Charter's default query casing is snake, because most REST APIs are snake. Google
+is not: it wants `singleEvents`, `maxResults`, `timeMin`, `orderBy`.
+
+Send `single_events=true` and Google does not complain. It returns 200 with a
+correct-looking list of events — recurring ones unexpanded, because the parameter
+that asked for expansion was a name it did not recognise and dropped. The agent
+then reasons over a wrong answer that arrived with every sign of being right.
+
+So the factory declares `query_case="camel"`, and the
+[key case cascade](/tools/key-case-cascade) converts every parameter on its way
+out. The schema stays snake, which is what a Python caller expects; the wire gets
+camel, which is what Google requires. The
+[conformance suite](/guarantees/conformance) checks this for every Google pack,
+because it is the kind of mistake that never surfaces as an error.
+
+## Gotchas
+
+<AccordionGroup>
+  <Accordion title="The event body is one field, named `event`">
+    `events_insert` takes the event as a single `event` argument, with the query
+    parameters (`send_updates`, `conference_data_version`, `max_attendees`)
+    beside it rather than inside it.
+
+    ```python
+    await gcalendar.events_insert.ainvoke(
+        calendar_id="primary",
+        event={
+            "summary": "Design review",
+            "start": {"dateTime": "2026-09-02T10:00:00+02:00"},
+            "end": {"dateTime": "2026-09-02T11:00:00+02:00"},
+        },
+    )
+    ```
+  </Accordion>
+
+  <Accordion title="Times are RFC 3339, and the offset is not optional">
+    `time_min`, `time_max` and an event's `start.dateTime` are RFC 3339
+    timestamps *with* a UTC offset — `2026-09-02T10:00:00+02:00` or
+    `...Z`. Google rejects a naive timestamp. An all-day event uses `date`
+    instead of `dateTime`, and the two are mutually exclusive.
+  </Accordion>
+
+  <Accordion title="Recurring events need single_events">
+    Without `single_events=true`, a weekly standup is one event with a
+    recurrence rule, not the instances an agent is usually asking about. With it,
+    Google expands the series and `order_by="startTime"` becomes legal — it is
+    rejected otherwise.
+  </Accordion>
+
+  <Accordion title="events_delete has no counterpart here">
+    There is no restore tool in this pack: once an agent calls `events_delete`,
+    undoing it is a job for the Calendar UI. `send_updates` decides whether
+    attendees are notified of the cancellation, and it is a query parameter on
+    the delete call rather than a property of the event.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [Google](/auth/providers/google) — consent screen, scopes, refresh
+- [Key case cascade](/tools/key-case-cascade) — where `single_events` becomes `singleEvents`

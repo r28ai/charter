@@ -1,0 +1,303 @@
+---
+title: "Errors"
+description: "CharterError and its five subclasses: what raises each, what each carries, and which of them link to a page."
+---
+
+Every error the library raises derives from `CharterError`, so a host
+application can catch the whole surface with one `except`. The runtime decides
+nothing about what happens next: it raises a typed exception and hands the
+decision back.
+
+```text
+CharterError
+├── DeclarationError     a schema or pack is declared in an unusable shape
+├── CredentialError      credentials missing, expired, or rejected
+├── ToolValidationError  the arguments did not satisfy the schema
+├── TransformError       a Format transform could not resolve or run
+└── APIError             the upstream API returned a non-success
+```
+
+## `CharterError`
+
+```python
+class CharterError(Exception):
+    docs: Optional[str]
+
+    @property
+    def docs_url(self) -> Optional[str]: ...
+```
+
+The base class.
+
+```python
+from charter import CharterError
+
+try:
+    ...
+except CharterError as exc:
+    ...
+```
+
+<ResponseField name="docs" type="Optional[str]">
+  A documentation slug, such as `"auth/oauth-flow"`, or `None`. Set on errors
+  whose fix is a procedure rather than an edit: registering an OAuth app,
+  choosing scopes, standing up a callback route. Errors whose message already
+  states the fix carry none, and neither does `ToolValidationError`, whose
+  message is written to be handed back to a model that cannot follow a link.
+</ResponseField>
+
+<ResponseField name="docs_url" type="Optional[str]">
+  The slug rendered against the documentation site, or `None`. Appended to the
+  message by `str(exc)`, and readable on its own for a host that formats errors
+  itself. Appending `.md` to it returns the page as markdown, which is what an
+  agent debugging a pack should fetch.
+</ResponseField>
+
+Errors carry a slug rather than a URL so that moving a page is one edit rather
+than a change at every raise site, and so `tests/test_error_docs.py` can resolve
+every slug the library can print against the pages that ship beside it. A link
+inside an exception reaches someone who is already stuck; a dead one is worse
+than none.
+
+## `DeclarationError`
+
+```python
+class DeclarationError(CharterError, ValueError): ...
+```
+
+A schema, marker or pack was declared in a shape the runtime cannot use: a
+field with no `Path()`, `Query()` or `Body()` marker, a `Pagination` naming
+half a style, an `Envelope` that could never detect a failure, a `Format`
+naming a transform nobody registered.
+
+It names whose mistake this is, not when it surfaced. Most are raised while a
+tool is built or a declaration validated. Some cannot be detected until a request
+is assembled, and come out of `ainvoke` instead — an unmarked field, a body that
+will not form-encode, a pack whose host was never configured. Either way the fix
+is in the declaration and the reader is its author, which is why these carry a
+`docs` link where an error written for a model does not.
+
+<Warning>
+  Guarding only the declaration is not enough. A tool with an unmarked field
+  builds without complaint and raises on the first call, so a host catching
+  `ToolValidationError`, `CredentialError` and `APIError` around `ainvoke` and
+  nothing else will let this one escape. `except CharterError` catches it.
+</Warning>
+
+Also a `ValueError`, deliberately. Several are raised inside a pydantic
+validator, which converts `ValueError` and nothing else, and a host that already
+catches `ValueError` around a declaration keeps working unchanged. `except
+CharterError` catches them too.
+
+```python
+from charter import DeclarationError, Pagination
+
+try:
+    Pagination(cursor_field="next_page_token", page_param="page")
+except DeclarationError as exc:
+    print(exc)
+    # A Pagination declares one style, not both: cursor (cursor_field/
+    # cursor_param) or page number (page_param/per_page_param).
+    # See https://docs.r28.ai/charter/reference/envelopes-and-pagination#pagination
+```
+
+## `CredentialError`
+
+```python
+class CredentialError(CharterError):
+    def __init__(
+        self,
+        message: str,
+        *,
+        provider: Optional[str] = None,
+        status_code: Optional[int] = None,
+    ) -> None: ...
+```
+
+<ResponseField name="message" type="str">
+  What went wrong.
+</ResponseField>
+
+<ResponseField name="provider" type="Optional[str]">
+  Whose credentials failed — `"google"` — or `None` when the failure is not
+  attributable to one provider.
+</ResponseField>
+
+<ResponseField name="status_code" type="Optional[int]">
+  The HTTP status that triggered it, when it came from a response — `401` by
+  default, or whatever `credential_statuses` declared. `None` when the
+  credentials were missing locally or a refresh failed.
+</ResponseField>
+
+`str(exc)` prefixes the provider in brackets when there is one.
+
+Raised by: a provider with nothing to hand back ([`EnvTokenProvider`](/reference/credentials#envtokenprovider) on an unset
+variable, an unconfigured pack, a [`SubjectProvider`](/reference/credentials#subjectprovider) with no subject set); a
+token endpoint refusing a refresh or an exchange; a response whose status is in
+`credential_statuses`; an envelope failure whose code is in
+`credential_errors`; and the constructor guards on [`StaticTokenProvider`](/reference/credentials#statictokenprovider),
+[`CallbackProvider`](/reference/credentials#callbackprovider), [`OAuth2Client`](/reference/oauth#oauth2client) and [`OAuth2Flow`](/reference/oauth#oauth2flow).
+
+The library never re-authenticates on its own. This is the signal to run
+whatever flow you own and retry — see
+[the OAuth flow](/auth/oauth-flow).
+
+## `ToolValidationError`
+
+```python
+class ToolValidationError(CharterError):
+    def __init__(
+        self,
+        message: str,
+        *,
+        tool_name: Optional[str] = None,
+        errors: Optional[list[dict[str, Any]]] = None,
+    ) -> None: ...
+```
+
+<ResponseField name="message" type="str">
+  Written to be handed straight back to a model as the tool result: it names the
+  offending fields and how to fix them.
+</ResponseField>
+
+<ResponseField name="tool_name" type="Optional[str]">
+  Which tool's input failed, when known.
+</ResponseField>
+
+<ResponseField name="errors" type="list[dict[str, Any]]">
+  The structured per-field errors. `[]` when none were supplied — never `None`,
+  so iterating is always safe.
+</ResponseField>
+
+Raised before the network, by `ainvoke` validating arguments against
+`llm_schema()`. A call that fails here cost no request, no rate-limit budget and
+no money.
+
+See [handling it](/running/tool-validation-error-handling) for the retry loop
+this is designed for, and
+[the auto-corrections](/running/llm-input-auto-corrections) applied before it
+raises.
+
+## `TransformError`
+
+```python
+class TransformError(CharterError):
+    def __init__(
+        self,
+        message: str,
+        *,
+        transform: Optional[str] = None,
+        field: Optional[str] = None,
+    ) -> None: ...
+```
+
+<ResponseField name="message" type="str">
+  What failed.
+</ResponseField>
+
+<ResponseField name="transform" type="Optional[str]">
+  The transform name, as written in the [`Format`](/reference/markers#format) marker.
+</ResponseField>
+
+<ResponseField name="field" type="Optional[str]">
+  The field it was applied to, when known. Appended to `str(exc)`.
+</ResponseField>
+
+Raised by [`apply_transform`](/reference/transforms) when the name is not
+registered (the message lists what is), when the value does not validate as the
+transform's semantic type, or when the transform function itself raises. Also
+before the network.
+
+## `APIError`
+
+```python
+class APIError(CharterError):
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int,
+        body: str = "",
+        url: Optional[str] = None,
+        retry_after: Optional[int] = None,
+    ) -> None: ...
+```
+
+<ResponseField name="status_code" type="int">
+  The status the API returned. `200` when a declared
+  [envelope](/reference/envelopes-and-pagination) found the failure inside a
+  success — that really was the status.
+</ResponseField>
+
+<ResponseField name="body" type="str">
+  An excerpt of the response body, truncated to 500 characters so it stays safe
+  to pass into a context window.
+</ResponseField>
+
+<ResponseField name="url" type="Optional[str]">
+  The request URL, when known.
+</ResponseField>
+
+<ResponseField name="retry_after" type="Optional[int]">
+  Seconds the server asked the caller to wait, parsed from `Retry-After` —
+  usual on 429, common on 503. Only the delta-seconds form is parsed; the
+  HTTP-date form is legal but rare in JSON APIs, and guessing at clock skew is
+  worse than reporting nothing.
+
+  Two fallbacks, for APIs that answer the same question elsewhere. When there is
+  no `Retry-After`, `X-RateLimit-Reset` is read — but only when
+  `X-RateLimit-Remaining` is `0`, so an ordinary response carrying its quota
+  headers is not reported as a wait. GitHub needs this: it sends no
+  `Retry-After` and answers **403** rather than 429. And an
+  [`Envelope`](/reference/envelopes-and-pagination#envelope) with a `retry_after`
+  resolver fills this in for an API that refuses inside a `200`, which is how a
+  cost-budgeted API like Shopify reports a throttle.
+</ResponseField>
+
+`str(exc)` joins the status, URL, message, retry hint and body excerpt with em
+dashes.
+
+Charter never retries, and `retry_after` is why: it refuses to discard the
+server's own answer to "when?", and leaves the policy to you.
+
+```python
+import asyncio
+
+from charter import APIError
+
+try:
+    ...
+except APIError as exc:
+    if exc.retry_after:
+        await asyncio.sleep(exc.retry_after)
+```
+
+## Catching the surface
+
+```python
+from charter import APIError, CredentialError, ToolValidationError
+
+try:
+    ...
+except ToolValidationError as exc:
+    handled = f"tell the model: {exc}"
+except CredentialError as exc:
+    handled = f"re-authorize {exc.provider}"
+except APIError as exc:
+    handled = f"upstream said {exc.status_code}"
+```
+
+Order matters only in that the five subclasses are siblings; catching
+`CharterError` first would swallow them all.
+
+`DeclarationError` is not in that block, and the trailing `except CharterError`
+is what catches it: most of them are raised while a tool is built, but the ones
+that need a request to be detected arrive here instead. Because it is also a
+`ValueError`, code that already guards a declaration with `except ValueError`
+keeps catching the build-time ones.
+
+## Related
+
+- [Handling a validation error](/running/tool-validation-error-handling)
+- [Envelopes](/tools/envelopes) — the failures that arrive inside a 200
+- [Limitations](/guarantees/limitations) — what the runtime declines to decide for you
