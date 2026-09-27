@@ -7,7 +7,45 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Pre-1.0, minor versions may break the public API. Anything that does will say so
 here, with the migration in the same entry.
 
-## [Unreleased]
+## [0.2.1] — 2026-09-28
+
+### Fixed
+
+- **`pip install 'charter-ai[mcp]'` now installs from wheels on every supported
+  platform.** The extra reaches `cryptography` three levels down — `mcp` →
+  `pyjwt[crypto]` → `cryptography` — and upstream has retired that wheel platform
+  by platform: macOS Intel after 48.0.1 (49.0.0 is arm64-only), Windows ARM64 after
+  46.0.3, Windows 32-bit after 48.0.1. With no wheel, pip and uv fall through to a
+  source build and the install ends in `cargo metadata`, naming maturin and
+  `Cargo.lock` — an error that does not read as anything to do with an MCP server.
+
+  The extra now caps `cryptography` on exactly those three platforms, at the newest
+  release each can still install, and leaves Apple Silicon, Linux and Windows x64
+  on the current version. Nothing on the served path imports `cryptography` — it
+  reaches `mcp` only for OAuth verification on HTTP transports, and Charter serves
+  stdio — so the cap costs those platforms no behaviour.
+
+## [0.2.0] — 2026-09-27
+
+### Added
+
+- `format_path_costs` renders `paths(by_cost=True)` as a column, so the branch that
+  dominates a schema is visible without reading every label.
+- `pass_through`, and `response_handler` on `Tool.derived`. A pack's handler was
+  previously take-it-or-leave-it: the only way to change what a tool handed back was
+  to rebuild it, restating the URL, credentials, casing and envelope the pack carries.
+
+### Fixed
+
+- Reference pages for `format_path_costs` and `pass_through`, and the `derived`
+  signature, which omitted the new argument.
+- Live provider tests no longer assert a third party's page content, and a provider
+  that will not serve us — expired key, exhausted quota, rate limit — skips instead
+  of failing. CI excludes them outright.
+
+## [0.1.0] — 2026-09-25
+
+First release.
 
 ### Changed
 
@@ -112,20 +150,6 @@ here, with the migration in the same entry.
   a client reporting a misbehaving server can name a release.
 
 ### Fixed
-
-- **`pip install 'charter-ai[mcp]'` now installs from wheels on every supported
-  platform.** The extra reaches `cryptography` three levels down — `mcp` →
-  `pyjwt[crypto]` → `cryptography` — and upstream has retired that wheel platform
-  by platform: macOS Intel after 48.0.1 (49.0.0 is arm64-only), Windows ARM64 after
-  46.0.3, Windows 32-bit after 48.0.1. With no wheel, pip and uv fall through to a
-  source build and the install ends in `cargo metadata`, naming maturin and
-  `Cargo.lock` — an error that does not read as anything to do with an MCP server.
-
-  The extra now caps `cryptography` on exactly those three platforms, at the newest
-  release each can still install, and leaves Apple Silicon, Linux and Windows x64
-  on the current version. Nothing on the served path imports `cryptography` — it
-  reaches `mcp` only for OAuth verification on HTTP transports, and Charter serves
-  stdio — so the cap costs those platforms no behaviour.
 
 - **Two pages drew opposite conclusions from the same two campaigns.**
   [Latency](https://docs.r28.ai/charter/optimization/latency) reported breadth
@@ -1517,28 +1541,6 @@ here, with the migration in the same entry.
   `charter.auth.oauth` and `charter.auth.flow`, which are where the code lives
   rather than what you import: import from `charter.auth`.
 
-## [0.2.0] — 2026-09-27
-
-### Added
-
-- `format_path_costs` renders `paths(by_cost=True)` as a column, so the branch that
-  dominates a schema is visible without reading every label.
-- `pass_through`, and `response_handler` on `Tool.derived`. A pack's handler was
-  previously take-it-or-leave-it: the only way to change what a tool handed back was
-  to rebuild it, restating the URL, credentials, casing and envelope the pack carries.
-
-### Fixed
-
-- Reference pages for `format_path_costs` and `pass_through`, and the `derived`
-  signature, which omitted the new argument.
-- Live provider tests no longer assert a third party's page content, and a provider
-  that will not serve us — expired key, exhausted quota, rate limit — skips instead
-  of failing. CI excludes them outright.
-
-## [0.1.0] — 2026-08-30
-
-First release.
-
 ### Added
 
 - **The contract layer.** `Tool` binds a Pydantic schema to an HTTP endpoint and
@@ -1584,5 +1586,7 @@ First release.
   pagination loops, no multi-call orchestration, no streaming. See *What this
   can't express* in the README.
 
-[Unreleased]: https://github.com/r28ai/charter/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/r28ai/charter/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/r28ai/charter/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/r28ai/charter/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/r28ai/charter/releases/tag/v0.1.0

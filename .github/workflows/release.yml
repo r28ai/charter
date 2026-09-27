@@ -33,8 +33,14 @@ jobs:
           uv venv --python ${{ matrix.python-version }}
           uv pip install -e ".[dev,langchain,mcp]"
 
+      # Identical to ci.yml's, paths included. They had drifted: this job checked
+      # four paths and not `harness`, and had no format gate at all — so a commit
+      # CI rejected could still pass `verify` on all four versions and ship.
       - name: Ruff
-        run: uv run ruff check src tests examples scripts
+        run: uv run ruff check src tests examples scripts harness
+
+      - name: Ruff format
+        run: uv run ruff format --check src tests examples scripts harness
 
       # --project . pins the config to this repository's pyproject.toml.
       # Pyright searches parent directories for a config file, so without it a
@@ -44,8 +50,12 @@ jobs:
       - name: Pyright
         run: uv run pyright --project . --pythonpath .venv/bin/python src
 
+      # Same exclusion as ci.yml. Without it a release depends on Firecrawl and
+      # Tavily being up and not rate-limiting, on four Python versions at once —
+      # and it would fail after the GitHub Release is already published, leaving
+      # a tag with no artifact on PyPI. Run them deliberately: `pytest -m live`.
       - name: Pytest
-        run: uv run pytest -q
+        run: uv run pytest -q -m "not live"
 
   build:
     needs: verify
@@ -62,13 +72,21 @@ jobs:
       - name: Check metadata
         run: uvx twine check dist/*
 
+      # Read off the artifact rather than pyproject: the version is derived from
+      # `src/charter/__init__.py` by `[tool.hatch.version]`, so pyproject has no
+      # literal to read, and the wheel's name is what actually gets uploaded.
       - name: The tag must match the version being published
         run: |
-          version=$(uvx --from tomli python -c \
-            "import tomli;print(tomli.load(open('pyproject.toml','rb'))['project']['version'])")
+          shopt -s nullglob
+          wheels=(dist/*.whl)
+          if [ ${#wheels[@]} -ne 1 ]; then
+            echo "::error::expected exactly one wheel in dist/, found ${#wheels[@]}"
+            exit 1
+          fi
+          version=$(basename "${wheels[0]}" | cut -d- -f2)
           tag="${GITHUB_REF_NAME#v}"
           if [ "$version" != "$tag" ]; then
-            echo "::error::tag $GITHUB_REF_NAME does not match version $version"
+            echo "::error::tag $GITHUB_REF_NAME does not match built version $version"
             exit 1
           fi
 

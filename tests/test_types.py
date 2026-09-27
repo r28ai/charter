@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Annotated, List, Optional, get_args, get_type_hints
 
 import pytest
@@ -308,4 +309,11 @@ def test_top_level_package_reexports_the_type_system():
 
 
 def test_package_has_a_version():
-    assert charter.__version__ == "0.2.0"
+    """A release edits one line, so this asserts the shape and not the number.
+
+    It used to assert the literal, which made it a third place to bump beside
+    the module and pyproject. `pyproject.toml` now derives the version from
+    `charter.__version__`, so a wrong number cannot reach a wheel, and pinning
+    it here again would only mean a failing test on every bump.
+    """
+    assert re.fullmatch(r"\d+\.\d+\.\d+[0-9a-z.]*", charter.__version__), charter.__version__
