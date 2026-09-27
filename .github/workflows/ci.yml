@@ -44,7 +44,11 @@ jobs:
         run: uv run pyright --project . --pythonpath .venv/bin/python src
 
       - name: Pytest
-        run: uv run pytest -q
+        # `-m "not live"` rather than relying on the credential being absent.
+        # Live tests assert a third party's behaviour, so a key reaching this
+        # runner would make the pipeline fail on someone else's deploy. Run
+        # them deliberately instead: `pytest -m live`.
+        run: uv run pytest -q -m "not live"
 
   secrets:
     runs-on: ubuntu-latest

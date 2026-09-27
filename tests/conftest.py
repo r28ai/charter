@@ -13,6 +13,8 @@ present, nothing is ignored, and the full suite runs as before.
 
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parent.parent
 
 # Each module against the trees it reads from outside tests/ and src/.
@@ -33,3 +35,63 @@ collect_ignore = [
     for module, required in _READS.items()
     if not all((ROOT / path).exists() for path in required)
 ]
+
+
+# A live test asserts a pack against a real provider. When the provider will not
+# serve us — the key expired, the plan ran out, the rate limit hit — the test has
+# learned nothing about the pack, and failing says something untrue about this
+# checkout. Contributors run these on their own free-tier keys, which run dry
+# sooner than ours; CI already excludes `-m live`, and this is the second guard.
+
+_UNAVAILABLE_STATUSES = frozenset(
+    {
+        401,  # key rejected or expired
+        402,  # payment required
+        403,  # key lacks the plan or scope
+        429,  # rate limited
+        432,  # Tavily: "exceeds your plan's set usage limit"
+    }
+)
+
+_UNAVAILABLE_PHRASES = (
+    "usage limit",
+    "quota",
+    "rate limit",
+    "too many requests",
+    "expired",
+    "invalid api key",
+    "insufficient credits",
+)
+
+
+def _provider_unavailable(exc: BaseException) -> str | None:
+    """Why this is the provider's state rather than the pack's behaviour."""
+    from charter.types.errors import APIError, CredentialError
+
+    if not isinstance(exc, (APIError, CredentialError)):
+        return None
+
+    status = getattr(exc, "status_code", None)
+    first_line = str(exc).splitlines()[0] if str(exc) else ""
+    lowered = first_line.lower()
+
+    if status in _UNAVAILABLE_STATUSES or any(p in lowered for p in _UNAVAILABLE_PHRASES):
+        return f"provider unavailable (status {status}): {first_line[:120]}"
+    return None
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_call(item):
+    """Turn "the provider said no" into a skip, for live tests only.
+
+    Scoped to the marker deliberately. Offline tests that raise a credential
+    error have found a real bug, and swallowing that would hide it.
+    """
+    try:
+        return (yield)
+    except Exception as exc:
+        if item.get_closest_marker("live") is not None:
+            reason = _provider_unavailable(exc)
+            if reason:
+                pytest.skip(reason)
+        raise
