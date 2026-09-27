@@ -113,6 +113,20 @@ here, with the migration in the same entry.
 
 ### Fixed
 
+- **`pip install 'charter-ai[mcp]'` now installs from wheels on every supported
+  platform.** The extra reaches `cryptography` three levels down — `mcp` →
+  `pyjwt[crypto]` → `cryptography` — and upstream has retired that wheel platform
+  by platform: macOS Intel after 48.0.1 (49.0.0 is arm64-only), Windows ARM64 after
+  46.0.3, Windows 32-bit after 48.0.1. With no wheel, pip and uv fall through to a
+  source build and the install ends in `cargo metadata`, naming maturin and
+  `Cargo.lock` — an error that does not read as anything to do with an MCP server.
+
+  The extra now caps `cryptography` on exactly those three platforms, at the newest
+  release each can still install, and leaves Apple Silicon, Linux and Windows x64
+  on the current version. Nothing on the served path imports `cryptography` — it
+  reaches `mcp` only for OAuth verification on HTTP transports, and Charter serves
+  stdio — so the cap costs those platforms no behaviour.
+
 - **Two pages drew opposite conclusions from the same two campaigns.**
   [Latency](https://docs.r28.ai/charter/optimization/latency) reported breadth
   as "71.2s vs 64.6s, Charter 10% slower" and built its argument on the
@@ -174,12 +188,6 @@ here, with the migration in the same entry.
   always resolved the repository root; only the prose lied.
 
 ### Documentation
-
-- **`pip install 'charter-ai[mcp]'` fails on an Intel Mac**, three levels below
-  Charter: `mcp` → `pyjwt[crypto]` → `cryptography`, whose current releases ship
-  macOS wheels for Apple Silicon only, so x86_64 falls through to a source build
-  needing Rust. [The MCP page](https://docs.r28.ai/charter/using/mcp) now carries
-  the one line that avoids it.
 
 - **`body_case` defaults to `"camel"`,** which is right for Google and wrong for
   Stripe, Slack, OpenAI and most other APIs. Leaving it unset against one of those

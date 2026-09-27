@@ -13,14 +13,20 @@ python -m charter.mcp --pack gmail
 `--pack` takes one pack name or several, repeated or comma-separated; `--name` overrides the server name, which defaults to `charter` and [not to the pack](/reference/naming), so the name a host composes reads `mcp__charter__gmail__messages_send` rather than spelling the pack twice. Every flag is listed under [`python -m charter.mcp`](/reference/cli#python-m-charter-mcp).
 
 <Note>
-**On an Intel Mac, install `cryptography` first.** The extra reaches `cryptography` three levels down — `mcp` → `pyjwt[crypto]` → `cryptography` — and its current releases ship macOS wheels for Apple Silicon only. On x86_64 both pip and uv fall through to a source build that needs a Rust toolchain, and the install fails before Charter is reached. Pinning to the last release that carries an Intel wheel avoids the build:
+**One command, every platform** — including the three where it used to need a second one. The extra reaches `cryptography` three levels down, `mcp` → `pyjwt[crypto]` → `cryptography`, and that is a Rust extension whose wheels have been retired platform by platform. Where a wheel is missing, pip and uv fall through to a source build that needs a Rust toolchain, and the install fails in `cargo metadata` before Charter is reached — with an error that names maturin and `Cargo.lock` and reads like nothing to do with an MCP server.
 
-```bash
-pip install 'cryptography<47'
-pip install 'charter-ai[mcp]'
-```
+So the extra caps `cryptography` on exactly the platforms that need it, at the newest release upstream still publishes a wheel for:
 
-Nothing in Charter uses `cryptography`; the core install and every pack are unaffected, and no other extra pulls it.
+| Platform | Resolves to | Why |
+|---|---|---|
+| macOS Apple Silicon | latest | wheels current |
+| Linux x86_64 / aarch64 | latest | wheels current |
+| Windows x64 | latest | wheels current |
+| macOS Intel | `<49` | 49.0.0 went arm64-only, dropping `universal2` |
+| Windows ARM64 | `<46.0.4` | 46.0.4 dropped `win_arm64` |
+| Windows 32-bit | `<49` | 49.0.0 dropped `win32` |
+
+Nothing in Charter imports `cryptography` — it reaches `mcp` only for OAuth verification on HTTP transports, and Charter serves stdio — so the older version costs those platforms no behaviour. The core install and every pack are unaffected, and no other extra pulls it.
 </Note>
 
 Schemas are sent on demand. MCP is the surface where that costs nothing: the server holds a [`ToolSession`](/reference/tool-discovery#toolsession), `tools/list` reports what is currently loaded, and a load emits `notifications/tools/list_changed` so your client re-lists on its own. Gmail's 23 tools arrive as a single `ToolSearch` whose description lists them by name; each one appears as it is used. Pass [`--no-progressive`](/reference/cli#python-m-charter-mcp) for a client that ignores the notification.

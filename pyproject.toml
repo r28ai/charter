@@ -59,7 +59,35 @@ Changelog = "https://github.com/r28ai/charter/blob/main/CHANGELOG.md"
 langchain = ["langchain-core>=0.3"]
 # The adapter targets the mcp 2.x server API (MCPServer); 1.x had a
 # different low-level surface.
-mcp = ["mcp>=2.0"]
+mcp = [
+    "mcp>=2.0",
+    # The three caps below are on a package Charter never imports. `mcp` depends
+    # on `pyjwt[crypto]`, which depends on `cryptography`, which is a Rust
+    # extension — and which has quietly stopped publishing wheels for three
+    # platforms people still develop on:
+    #
+    #   macOS Intel      universal2 dropped after 48.0.1 (49.0.0 is arm64-only)
+    #   Windows ARM64    win_arm64 dropped after 46.0.3
+    #   Windows 32-bit   win32 dropped after 48.0.1
+    #
+    # With no wheel, pip falls back to the sdist and the install dies in
+    # `cargo metadata` unless the reader happens to have a Rust toolchain. The
+    # error names maturin and Cargo.lock, so it does not look like it has
+    # anything to do with installing an MCP server, and the fix is not
+    # guessable. A cap is not how you would choose to fix someone else's
+    # transitive dependency, but `pip install 'charter-ai[mcp]'` failing on an
+    # Intel MacBook is worse, and the versions below are the newest that
+    # actually install there.
+    #
+    # `cryptography` reaches the stdio server Charter serves only through
+    # `mcp`'s OAuth verification for HTTP transports — nothing on this path
+    # imports it — so an older one costs these platforms no Charter behaviour.
+    # Revisit when upstream ships wheels again, or when mcp stops requiring the
+    # `crypto` extra.
+    "cryptography<49; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "cryptography<49; sys_platform == 'win32' and platform_machine == 'x86'",
+    "cryptography<46.0.4; sys_platform == 'win32' and platform_machine == 'ARM64'",
+]
 # No `google` extra: OAuth refresh is a form POST (charter.auth), so google-auth
 # would buy nothing a token endpoint does not already give us. Keeping the core
 # at pydantic + httpx is worth more than any vendor client.
