@@ -41,10 +41,10 @@ path for the whole of authentication. Errors stay here, the whole hierarchy, so
 import logging
 
 from charter.conflicts import conflict_map, format_conflicts
-from charter.derive import PathCost
+from charter.derive import PathCost, format_path_costs
 from charter.discovery import json_tokens, schema_tokens
 from charter.egress import egress_map, format_egress_map
-from charter.execution.executor import ResponseHandler
+from charter.execution.executor import ResponseHandler, pass_through
 from charter.execution.schema import partial_of
 from charter.factories import api_key_tool_factory, oauth_tool_factory
 from charter.naming import qualified_name, qualified_names, report_key
@@ -98,7 +98,7 @@ from charter.types import (
     WireName,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 # The public surface, deliberately.
 #
@@ -148,6 +148,7 @@ __all__ = [
     "api_key_tool_factory",
     "oauth_tool_factory",
     "ResponseHandler",
+    "pass_through",
     # deriving one operation's view of a resource
     "partial_of",
     "PathCost",
@@ -157,6 +158,7 @@ __all__ = [
     # egress control
     "egress_map",
     "format_egress_map",
+    "format_path_costs",
     # the rules a pack declares between its parameters
     "conflict_map",
     "format_conflicts",

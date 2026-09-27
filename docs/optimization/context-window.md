@@ -99,10 +99,10 @@ level instead of naming it:
 from charter.packs import linear
 
 linear.search_issues_full.paths(by_cost=True)
-# [PathCost(path='variables', tokens=47001)]
+# [PathCost(path='variables', tokens=45056)]
 
 linear.search_issues_full.paths("variables", by_cost=True)
-# [PathCost(path='filter', tokens=46630), PathCost(path='first', tokens=50), ...]
+# [PathCost(path='filter', tokens=44828), PathCost(path='first', tokens=45), ...]
 ```
 
 `filter` is 46,630 of the tool's 47,026. `term`, `first` and `team_id` are the rest.
@@ -298,7 +298,28 @@ because `messages.attachments.get` is the call the model makes next; dropping
 them would save bytes and cost a turn.
 
 Across the shipped packs, 286 tool definitions in 14 packs name a handler. None
-of that is configuration you write.
+of that is configuration you write — and none of it is fixed. A projection takes
+a `response_handler` of its own:
+
+```python own_shape.py
+from charter import pass_through
+from charter.packs import stripe
+
+
+async def ids_only(response):
+    return [customer["id"] for customer in response["data"]]
+
+
+# your own shape
+ids = stripe.customers_list.derived(name="customer_ids", response_handler=ids_only)
+
+# or the trimming turned off entirely
+whole = stripe.customers_create.derived(name="whole", response_handler=pass_through)
+```
+
+Left unset the projection inherits the pack's, which is the right default and the
+reason you rarely think about it. `pass_through` is there for the day a field the
+handler drops is the field your agent needs.
 
 ### What it is worth
 

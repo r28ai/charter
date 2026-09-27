@@ -82,6 +82,25 @@ request and returns whatever the model should actually see.
 """
 
 
+async def pass_through(response: Any) -> Any:
+    """A response handler that hands the whole response on, unchanged.
+
+    Packs ship a handler per endpoint, and a projection inherits it — which is
+    right nearly always and wrong the day your agent needs a field the handler
+    drops. ``derived(response_handler=pass_through)`` is how you say "all of
+    it" without rebuilding the tool.
+
+    Named rather than expressed as ``None`` because ``None`` already means "not
+    supplied", and one value cannot mean both *inherit* and *remove*.
+
+    The call log still reports a difference between ``payload_bytes`` and
+    ``context_bytes`` under this handler. Nothing was trimmed: the response is
+    re-serialised compactly, and the wire bytes carried whitespace the object
+    does not.
+    """
+    return response
+
+
 # -----------------------------------------------------
 # Transform Helpers
 # -----------------------------------------------------

@@ -16,7 +16,7 @@ import pytest
 import respx
 from pydantic import BaseModel, Field
 
-from charter import PathCost, Tool, report_key
+from charter import PathCost, Tool, format_path_costs, pass_through, report_key
 from charter.discovery import schema_tokens
 from charter.egress import egress_map
 from charter.packs import gcalendar, gdocs, gdrive
@@ -782,3 +782,106 @@ def test_a_mode_variant_prepares_and_prices_on_its_own():
     assert second._llm_schema_built is None, "one variant's build published to another"
     second.prepare()
     assert second._llm_schema is not variant._llm_schema
+
+
+def test_format_path_costs_lines_the_counts_up():
+    """The bill is read by comparing magnitudes, so the counts share a column.
+
+    `by_cost=True` is asked in order to find the branch that dominates. A repr
+    per line answers that only after every label has been read; a column
+    answers it at a glance, which is the whole reason this formatter exists.
+    """
+    rows = [PathCost("filter", 44828), PathCost("order_by", 52), PathCost("first", 45)]
+    lines = format_path_costs(rows).splitlines()
+
+    assert len(lines) == 3
+    # every count ends at the same column, and thousands are grouped
+    assert lines[0].endswith("44,828")
+    ends = {len(line) for line in lines}
+    assert len(ends) == 1, f"counts are not aligned: {lines}"
+    # order is preserved — path_costs already sorted by cost
+    assert lines[0].startswith("filter") and lines[2].startswith("first")
+
+
+def test_format_path_costs_says_so_when_there_is_nothing_to_bill():
+    """An empty list is a real answer — the branch has no cost to report."""
+    assert format_path_costs([]) == "(no paths)"
+
+
+def test_path_cost_is_still_a_plain_tuple():
+    """The formatter is a view, not a replacement: the data stays a tuple."""
+    cost = PathCost("filter", 44828)
+    assert tuple(cost) == ("filter", 44828)
+    assert cost.path == "filter" and cost.tokens == 44828
+
+
+# -----------------------------------------------------
+# Replacing what the model is handed back
+# -----------------------------------------------------
+
+
+def test_a_projection_inherits_the_packs_response_handler():
+    """The pack's handler is the default, and a projection is still that tool."""
+    source = gdrive.files_list
+    assert source._response_handler is not None, "fixture needs a tool that ships one"
+    assert source.derived(name="narrowed")._response_handler is source._response_handler
+
+
+def test_a_projection_can_replace_the_response_handler():
+    """The one axis a pack was previously take-it-or-leave-it on.
+
+    Rebuilding the tool to change what comes back would mean restating the URL,
+    the credential, the casing and the envelope — everything the pack exists to
+    carry.
+    """
+    source = gdrive.files_list
+
+    async def only_ids(response):
+        return [f["id"] for f in response.get("files", [])]
+
+    assert source.derived(name="ids", response_handler=only_ids)._response_handler is only_ids
+    # and the tool it was derived from is untouched
+    assert source._response_handler is not only_ids
+
+
+def test_the_replacement_survives_a_second_projection():
+    """`derived` composes, so a variant of a variant keeps the replacement."""
+    source = gdrive.files_list
+    wide = source.derived(name="wide", response_handler=pass_through)
+    assert wide.derived(name="wider")._response_handler is pass_through
+
+
+def test_a_mode_variant_keeps_the_response_handler():
+    """`with_mode` varies visibility, never what comes back."""
+    source = gdrive.files_list
+    assert source.with_mode("audit")._response_handler is source._response_handler
+
+
+@respx.mock
+async def test_pass_through_hands_back_everything_the_api_sent():
+    """The point of naming it: `None` already means "not supplied"."""
+    body = {"id": "f1", "name": "q.txt", "mimeType": "text/plain", "size": "12"}
+    respx.get(f"{BASE}v1/acct_1/search").mock(return_value=httpx.Response(200, json=body))
+
+    async def only_id(response):
+        return {"id": response["id"]}
+
+    source = _tool(response_handler=only_id)
+    assert await source.ainvoke({"account": "acct_1"}) == {"id": "f1"}
+
+    whole = source.derived(name="whole", response_handler=pass_through)
+    assert await whole.ainvoke({"account": "acct_1"}) == body
+
+
+def test_a_handler_that_is_not_async_is_refused_by_a_projection():
+    """The constructor's guarantee has to hold on the projection path too.
+
+    A sync handler would be awaited at call time and fail inside the request,
+    which is the worst place to find out.
+    """
+
+    def sync_handler(response):
+        return response
+
+    with pytest.raises(DeclarationError, match="async"):
+        _tool().derived(name="bad", response_handler=sync_handler)

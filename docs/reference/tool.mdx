@@ -323,6 +323,7 @@ def derived(
     drop: Optional[Iterable[Any]] = None,
     pin: Optional[Dict[str, Any]] = None,
     action_label: Optional[str] = None,
+    response_handler: Optional[ResponseHandler] = None,
 ) -> Tool: ...
 ```
 
@@ -336,6 +337,14 @@ alone. `drop` removes a path. `pin` removes a path from the view the model fills
 in and keeps it in the one the runtime executes, so the field is neither visible
 to the model nor reachable by it, and its value takes the same `Format`
 transform, body unwrapping, key casing and escaping a supplied one would.
+
+`response_handler` is the one argument here that narrows nothing: it replaces what
+the model is handed back. Left unset, the projection inherits this tool's — for a
+pack tool, the handler written for that endpoint. Pass
+[`pass_through`](/reference/response-handling#pass_through) to turn the trimming off
+and receive the response whole, or your own `async` callable to reshape it. A
+non-async one raises [`DeclarationError`](/reference/errors#declarationerror) here,
+not mid-request.
 
 Selectors are dotted paths, unambiguous field names, or the model class a field
 is annotated with. Raises [`DeclarationError`](/reference/errors#declarationerror)
@@ -513,6 +522,35 @@ class PathCost(NamedTuple):
 
 One entry from `paths(by_cost=True)`. A `NamedTuple`, so it unpacks as a pair and
 reads as one.
+
+### `format_path_costs`
+
+```python
+def format_path_costs(costs: Iterable[PathCost]) -> str: ...
+```
+
+A list of costs as a bill: one path per line, counts right-aligned into a column.
+`by_cost=True` is asked in order to find the branch that dominates, and that is a
+comparison of magnitudes — a column answers it before any path name has been read.
+
+```python
+from charter import format_path_costs
+from charter.packs import linear
+
+print(format_path_costs(
+    linear.issues_list_full.paths(under="variables", by_cost=True)))
+```
+
+```text
+filter            44,828
+order_by              52
+first                 45
+after                 43
+include_archived      36
+```
+
+Order is preserved, so the dominant branch is the first line. An empty list returns
+`(no paths)`.
 
 ### `Tool.ainvoke`
 

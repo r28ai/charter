@@ -889,6 +889,7 @@ class Tool:
         drop: Optional[Iterable[Any]] = None,
         pin: Optional[Dict[str, Any]] = None,
         action_label: Optional[str] = None,
+        response_handler: Optional[ResponseHandler] = None,
     ) -> Tool:
         """This tool, narrowed — a projection of the same contract.
 
@@ -912,6 +913,14 @@ class Tool:
                 name="documents_edit_text",
                 keep={"insert_text", "delete_content_range", "replace_all_text"},
             )
+
+        ``response_handler`` replaces what the model is handed back. Left unset
+        the projection inherits this tool's, which for a pack tool is the one
+        written for that endpoint;
+        :func:`~charter.execution.executor.pass_through` asks for the whole
+        response instead. It is the one argument here that does not narrow
+        anything, and the only way to vary a pack's response without rebuilding
+        the tool.
 
         ``drop`` removes a path outright. ``pin`` removes it from the view the
         model fills in and keeps it in the one the runtime executes, so the field
@@ -949,6 +958,7 @@ class Tool:
             session_mode=self.session_mode,
             prune=self._prune | prune,
             pins={**self._pins, **pins},
+            response_handler=response_handler,
         )
 
     def with_mode(self, mode: Optional[str]) -> Tool:
@@ -1039,8 +1049,9 @@ class Tool:
         session_mode: Optional[str],
         prune: frozenset,
         pins: Dict[str, Any],
+        response_handler: Optional[ResponseHandler] = None,
     ) -> Tool:
-        """This tool again, with the six things a variant is allowed to change.
+        """This tool again, with the seven things a variant is allowed to change.
 
         ``mode`` is not among them. It is the author's statement of which
         operation this tool is, and a variant of a create is still a create — a
@@ -1073,7 +1084,9 @@ class Tool:
             api_key_headers=self.api_key_headers,
             credential_provider=self.credential_provider,
             build_request=self._build_request,
-            response_handler=self._response_handler,
+            response_handler=(
+                self._response_handler if response_handler is None else response_handler
+            ),
             envelope=self.envelope,
             pagination=self.pagination,
             body_format=self.body_format,

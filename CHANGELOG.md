@@ -1509,6 +1509,24 @@ here, with the migration in the same entry.
   `charter.auth.oauth` and `charter.auth.flow`, which are where the code lives
   rather than what you import: import from `charter.auth`.
 
+## [0.2.0] — 2026-09-27
+
+### Added
+
+- `format_path_costs` renders `paths(by_cost=True)` as a column, so the branch that
+  dominates a schema is visible without reading every label.
+- `pass_through`, and `response_handler` on `Tool.derived`. A pack's handler was
+  previously take-it-or-leave-it: the only way to change what a tool handed back was
+  to rebuild it, restating the URL, credentials, casing and envelope the pack carries.
+
+### Fixed
+
+- Reference pages for `format_path_costs` and `pass_through`, and the `derived`
+  signature, which omitted the new argument.
+- Live provider tests no longer assert a third party's page content, and a provider
+  that will not serve us — expired key, exhausted quota, rate limit — skips instead
+  of failing. CI excludes them outright.
+
 ## [0.1.0] — 2026-08-30
 
 First release.
@@ -1528,8 +1546,9 @@ First release.
   `{"ok": false}`, every GraphQL `errors` array, a mutation's `userErrors` —
   declared once per API and enforced on every call, including calls by tools
   added later.
-- **Eleven packs, 86 tools.** Gmail, Google Calendar, Google Sheets, Google Docs,
-  Slack, GitHub, Stripe, Linear, Shopify, Firecrawl, and AccuWeather.
+- **Fifteen packs, 549 tools.** Gmail, Google Calendar, Google Sheets, Google Docs,
+  Google Drive, Google Forms, Slack, GitHub, Notion, Linear, Stripe, Shopify,
+  Granola, Firecrawl, and Tavily.
 - **OAuth 2.0 without a vendor SDK.** `OAuth2Server` declares a token endpoint in
   RFC 8414's vocabulary; `OAuth2Server.discover()` reads it from any server that
   publishes metadata. `OAuth2Client` refreshes the `refresh_token` and

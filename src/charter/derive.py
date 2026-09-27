@@ -76,6 +76,7 @@ from charter.types.markers import Body, Path, Query
 __all__ = [
     "PathCost",
     "check_pin_routing",
+    "format_path_costs",
     "find_paths",
     "path_costs",
     "plan_projection",
@@ -244,13 +245,36 @@ def schema_paths(
 class PathCost(NamedTuple):
     """One path, and what the schema loses when it goes.
 
-    Prints as a pair, so a sorted list of these reads as a bill::
-
-        [PathCost(path='filter', tokens=46630), PathCost(path='first', tokens=50)]
+    A tuple, so ``tuple(cost)`` is ``('filter', 44828)``. Its own repr names
+    the fields and is what you want in a traceback; for reading a list of them
+    use :func:`format_path_costs`, which lines the counts up in a column.
     """
 
     path: str
     tokens: int
+
+
+def format_path_costs(costs: Iterable[PathCost]) -> str:
+    """A list of costs as a bill: one path per line, counts in a column.
+
+    ``by_cost=True`` is asked in order to find the branch that dominates, and
+    that question is answered by comparing magnitudes rather than by reading
+    labels. Right-aligning the counts puts them in one column, so the answer
+    is visible before any path name has been read::
+
+        filter            44,828
+        order_by              52
+        first                 45
+
+    Order is preserved — :func:`path_costs` already sorts by cost — so the
+    dominant branch is the first line.
+    """
+    rows = list(costs)
+    if not rows:
+        return "(no paths)"
+    width = max(len(row.path) for row in rows)
+    digits = max(len(f"{row.tokens:,}") for row in rows)
+    return "\n".join(f"{row.path:<{width}}  {row.tokens:>{digits},}" for row in rows)
 
 
 def path_costs(

@@ -138,10 +138,10 @@ first:
 from charter.packs import linear
 
 linear.search_issues_full.paths(by_cost=True)
-# [PathCost(path='variables', tokens=47001)]
+# [PathCost(path='variables', tokens=45056)]
 
 linear.search_issues_full.paths("variables", by_cost=True)
-# [PathCost(path='filter', tokens=46630), PathCost(path='first', tokens=50), ...]
+# [PathCost(path='filter', tokens=44828), PathCost(path='first', tokens=45), ...]
 ```
 
 One recursive filter is nearly the whole of a 47,026 token tool. Dropping it
@@ -212,6 +212,24 @@ Deriving from a projection narrows what is left:
 ```python compose.py
 insert_only = edit_text.derived(name="documents_insert_text", keep={"insert_text"})
 ```
+
+## Changing what comes back
+
+Every argument above narrows the schema the model fills in. `response_handler` is
+the exception: it replaces what the model is handed back, and a projection that
+leaves it unset inherits the one the pack wrote for that endpoint.
+
+```python response_shape.py
+from charter import pass_through
+from charter.packs import stripe
+
+whole = stripe.customers_create.derived(name="whole", response_handler=pass_through)
+```
+
+[`pass_through`](/reference/response-handling#pass_through) turns the trimming off
+and hands back the response as the API sent it. Your own `async` callable reshapes
+it instead; a non-async one raises
+[`DeclarationError`](/reference/errors#declarationerror) here rather than mid-call.
 
 ## A projection or a mode
 

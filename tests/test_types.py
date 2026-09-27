@@ -308,4 +308,4 @@ def test_top_level_package_reexports_the_type_system():
 
 
 def test_package_has_a_version():
-    assert charter.__version__ == "0.1.0"
+    assert charter.__version__ == "0.2.0"

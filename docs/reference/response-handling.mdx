@@ -19,7 +19,9 @@ ResponseHandler = Callable[[Any], Awaitable[Any]]
 ```
 
 An async callable taking the decoded payload and returning the result of the
-tool call. Passed to [`Tool(response_handler=...)`](/reference/tool#tool) or to a factory's builder.
+tool call. Passed to [`Tool(response_handler=...)`](/reference/tool#tool), to a
+factory's builder, or to [`derived()`](/reference/tool#derived) on a tool that
+already has one.
 
 Four properties of when it runs:
 
@@ -58,6 +60,32 @@ Two cautions when trimming a list endpoint: keep whatever a
 object `id` behind a derived cursor, and `has_more` even when it is `False` —
 and keep whatever the model needs to make the *next* call, which is usually an
 id it would otherwise have to guess.
+
+## `pass_through`
+
+```python
+async def pass_through(response: Any) -> Any: ...
+```
+
+A handler that returns the response unchanged. Every pack tool ships a handler
+written for its endpoint, and a projection inherits it — right nearly always,
+and wrong the day your agent needs a field that handler drops.
+
+```python
+from charter import pass_through
+from charter.packs import stripe
+
+whole = stripe.customers_create.derived(name="whole", response_handler=pass_through)
+```
+
+Named rather than expressed as `None`, because `None` already means "not
+supplied" on `derived()` and one value cannot mean both *inherit* and *remove*.
+
+<Note>
+The call log still shows `payload_bytes` above `context_bytes` under this
+handler. Nothing was trimmed — the response is re-serialised compactly and the
+wire bytes carried whitespace the object does not.
+</Note>
 
 ## `decode_base64url`
 
