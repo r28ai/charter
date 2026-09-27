@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import ast
 import importlib.util
-import inspect
 import logging
 import re
 from pathlib import Path as FsPath
@@ -29,6 +28,7 @@ from pathlib import Path as FsPath
 import httpx
 import pytest
 import respx
+from tests._doc_blocks import run_doc_block
 
 import charter
 
@@ -232,13 +232,4 @@ async def test_every_worked_example_runs(source, pack_state_restored):
         # dont_inherit, or this module's `from __future__ import annotations`
         # would follow the snippet in and turn every annotation into a string —
         # which a reader pasting the block into their own file would not get.
-        code = compile(
-            source,
-            "<reference>",
-            "exec",
-            flags=ast.PyCF_ALLOW_TOP_LEVEL_AWAIT,
-            dont_inherit=True,
-        )
-        result = eval(code, namespace)  # noqa: S307 — the input is this repo's own docs
-        if inspect.iscoroutine(result):
-            await result
+        await run_doc_block(source, namespace, "<reference>")

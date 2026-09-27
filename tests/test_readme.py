@@ -15,6 +15,7 @@ from pathlib import Path as FsPath
 import httpx
 import pytest
 import respx
+from tests._doc_blocks import drives_itself, run_doc_block
 
 ROOT = FsPath(__file__).resolve().parent.parent
 README = ROOT / "README.md"
@@ -80,7 +81,10 @@ async def test_readme_python_block_runs(source, monkeypatch):
         # giving pydantic a parent namespace to resolve from. That is luck, not
         # design, and it runs out the day a marker-carrying schema lands on the
         # non-wrapped path.
-        if re.search(r"^\s*await ", source, re.M):
+        if drives_itself(source):
+            # The block runs its own loop, as the reader's file does.
+            await run_doc_block(source, namespace, "<readme>")
+        elif re.search(r"^\s*await ", source, re.M):
             # Top-level await: wrap the block in a coroutine and run it.
             indented = "\n".join("    " + line for line in source.splitlines())
             wrapper = f"async def __readme_main__():\n{indented}\n"

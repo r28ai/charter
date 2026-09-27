@@ -94,6 +94,32 @@ def _parse(source: str):
     )
 
 
+def _final_statement(body: str):
+    """The statement a block ends on, looked up through its own driver.
+
+    A block that is meant to be pasted into the file its title names drives
+    itself — ``asyncio.run(main())`` — so its last *top-level* statement is the
+    driver, and the call the page is about is the last one inside ``main``. The
+    async side of a comparison needs that driver and the sync side does not,
+    which is a real difference between the two and not a reason to stop
+    checking either. Blocks without a driver are unaffected.
+    """
+    top = _parse(body).body
+    last = top[-1]
+    driven = (
+        isinstance(last, ast.Expr)
+        and isinstance(last.value, ast.Call)
+        and ast.unparse(last.value.func) == "asyncio.run"
+    )
+    if not driven:
+        return last
+    name = ast.unparse(last.value.args[0]).removesuffix("()")
+    for node in top:
+        if isinstance(node, (ast.AsyncFunctionDef, ast.FunctionDef)) and node.name == name:
+            return node.body[-1]
+    return last
+
+
 def _steps(body: str) -> dict[int, int]:
     """{step number: line number} for the numbered comments in a block."""
     out = {}
@@ -355,7 +381,7 @@ def test_both_tabs_end_by_passing_the_same_dict_to_the_tool():
     payloads = {}
     for title in (WITH, WITHOUT):
         body = _tab(INDEX, title)[1]
-        last = _parse(body).body[-1]
+        last = _final_statement(body)
 
         assert isinstance(last, ast.Expr), (
             f"the {title} block ends on a {type(last).__name__}, not a call"

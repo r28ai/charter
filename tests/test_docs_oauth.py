@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import ast
 import importlib.util
-import inspect
 import os
 import re
 import sys
@@ -28,6 +27,7 @@ from types import SimpleNamespace
 import httpx
 import pytest
 import respx
+from tests._doc_blocks import run_doc_block
 
 import charter
 import charter.auth
@@ -185,10 +185,7 @@ async def _run_block(source: str, namespace: dict, origin: str) -> None:
     # reader's handler does and a syntax error at module level. The redirect
     # stays — it is the line being tested — and the `return` goes.
     source = re.sub(r"^return (\S)", r"\1", source, flags=re.M)
-    code = compile(source, origin, "exec", flags=ast.PyCF_ALLOW_TOP_LEVEL_AWAIT, dont_inherit=True)
-    result = eval(code, namespace)  # noqa: S307 — the input is this repo's own docs
-    if inspect.iscoroutine(result):
-        await result
+    await run_doc_block(source, namespace, origin)
 
 
 def _credentials_in_the_environment(monkeypatch) -> None:
