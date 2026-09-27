@@ -114,12 +114,13 @@ Slack-specific is reading the response, because the token you want may not be
 the one at the top level:
 
 ```python slack_callback.py
-grant = await flow.exchange(code, code_verifier=verifier)
+async def callback():
+    grant = await flow.exchange(code, code_verifier=verifier)
 
-bot_token = grant.access_token                          # xoxb-…
-user_token = grant.raw["authed_user"]["access_token"]   # xoxp-…, if user_scope was asked for
+    bot_token = grant.access_token                          # xoxb-…
+    user_token = grant.raw["authed_user"]["access_token"]   # xoxp-…, if user_scope was asked for
 
-await db.grants.put(user.id, "slack", grant.refresh_token)
+    await db.grants.put(user.id, "slack", grant.refresh_token)
 ```
 
 `grant.access_token` is the bot token. The user token — the one

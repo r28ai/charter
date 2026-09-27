@@ -9,9 +9,11 @@ tag: "PUT"
 <div className="tool-route"><span className="tool-row-method" data-method="PUT">PUT</span><code>{"https://api.github.com/repos/{owner}/{repo}/contents/{path}"}</code></div>
 
 ```python github_repos_create_or_update_file.py
+import asyncio
+
 from charter.packs import github
 
-result = await github.repos_create_or_update_file.ainvoke({"owner": ..., "repo": ..., "path": ..., "message": ..., "content": ...})
+result = asyncio.run(github.repos_create_or_update_file.ainvoke({"owner": ..., "repo": ..., "path": ..., "message": ..., "content": ...}))
 ```
 
 <Note>

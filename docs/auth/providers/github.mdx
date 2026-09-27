@@ -118,10 +118,11 @@ request = flow.authorize(REPO_SCOPES)
 At the callback:
 
 ```python github_callback.py
-grant = await flow.exchange(code, code_verifier=verifier)
+async def callback():
+    grant = await flow.exchange(code, code_verifier=verifier)
 
-granted = set(",".join(grant.scopes).split(","))   # GitHub delimits with commas
-await db.grants.put(user.id, "github", grant.refresh_token)
+    granted = set(",".join(grant.scopes).split(","))   # GitHub delimits with commas
+    await db.grants.put(user.id, "github", grant.refresh_token)
 ```
 
 That `split` is not decoration. RFC 6749 says the `scope` field is

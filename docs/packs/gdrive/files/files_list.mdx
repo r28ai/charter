@@ -9,9 +9,11 @@ tag: "GET"
 <div className="tool-route"><span className="tool-row-method" data-method="GET">GET</span><code>{"https://www.googleapis.com/drive/v3/files"}</code></div>
 
 ```python gdrive_files_list.py
+import asyncio
+
 from charter.packs import gdrive
 
-result = await gdrive.files_list.ainvoke({})
+result = asyncio.run(gdrive.files_list.ainvoke({}))
 ```
 
 <Note>

@@ -9,9 +9,11 @@ tag: "POST"
 <div className="tool-route"><span className="tool-row-method" data-method="POST">POST</span><code>{"https://api.tavily.com/map"}</code></div>
 
 ```python tavily_map.py
+import asyncio
+
 from charter.packs import tavily
 
-result = await tavily.map.ainvoke({"url": ...})
+result = asyncio.run(tavily.map.ainvoke({"url": ...}))
 ```
 
 ## Body

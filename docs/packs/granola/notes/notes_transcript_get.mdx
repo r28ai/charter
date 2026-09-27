@@ -9,9 +9,11 @@ tag: "GET"
 <div className="tool-route"><span className="tool-row-method" data-method="GET">GET</span><code>{"https://public-api.granola.ai/v1/notes/{noteId}/transcript"}</code></div>
 
 ```python granola_notes_transcript_get.py
+import asyncio
+
 from charter.packs import granola
 
-result = await granola.notes_transcript_get.ainvoke({"noteId": ...})
+result = asyncio.run(granola.notes_transcript_get.ainvoke({"noteId": ...}))
 ```
 
 <Note>

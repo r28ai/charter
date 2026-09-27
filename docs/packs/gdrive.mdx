@@ -11,14 +11,21 @@ sidebarTitle: "Overview"
 </div>
 {/* generated:summary end */}
 
-```python gdrive_example.py {7}
+```python gdrive_example.py {11}
+import asyncio
+
 from charter.auth import EnvTokenProvider
 from charter.packs import gdrive
 
 credentials = EnvTokenProvider("GOOGLE_ACCESS_TOKEN")
 gdrive.configure(credentials)
 
-files = await gdrive.files_list.ainvoke(q="trashed = false")
+
+async def main():
+    files = await gdrive.files_list.ainvoke(q="trashed = false")
+
+
+asyncio.run(main())
 ```
 
 List files, create a folder or a Google Doc, copy, trash or permanently delete,

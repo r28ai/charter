@@ -9,9 +9,11 @@ tag: "POST"
 <div className="tool-route"><span className="tool-row-method" data-method="POST">POST</span><code>{"https://api.stripe.com/v1/products"}</code></div>
 
 ```python stripe_products_create.py
+import asyncio
+
 from charter.packs import stripe
 
-result = await stripe.products_create.ainvoke({"name": ...})
+result = asyncio.run(stripe.products_create.ainvoke({"name": ...}))
 ```
 
 ## Body

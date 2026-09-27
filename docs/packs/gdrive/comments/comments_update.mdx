@@ -9,9 +9,11 @@ tag: "PATCH"
 <div className="tool-route"><span className="tool-row-method" data-method="PATCH">PATCH</span><code>{"https://www.googleapis.com/drive/v3/files/{fileId}/comments/{commentId}"}</code></div>
 
 ```python gdrive_comments_update.py
+import asyncio
+
 from charter.packs import gdrive
 
-result = await gdrive.comments_update.ainvoke({"fileId": ..., "commentId": ..., "comment": ..., "fields": ...})
+result = asyncio.run(gdrive.comments_update.ainvoke({"fileId": ..., "commentId": ..., "comment": ..., "fields": ...}))
 ```
 
 <Note>

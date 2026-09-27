@@ -46,13 +46,20 @@ median request on a reused one         28.3 ms
 In a loop you drive yourself, pass one and it is reused:
 
 ```python client.py
+import asyncio
+
 import httpx
 
 from charter.packs import gmail
 
-async with httpx.AsyncClient(timeout=30) as http:
-    for message_id in message_ids:
-        await gmail.messages_get.ainvoke({"id": message_id}, client=http)
+
+async def main():
+    async with httpx.AsyncClient(timeout=30) as http:
+        for message_id in message_ids:
+            await gmail.messages_get.ainvoke({"id": message_id}, client=http)
+
+
+asyncio.run(main())
 ```
 
 One handshake for the loop instead of one per iteration. Routing through a
@@ -60,8 +67,15 @@ session, [`dispatch`](/reference/tool-discovery#toolsession) takes the same
 argument and hands it through:
 
 ```python dispatch.py
-async with httpx.AsyncClient(timeout=30) as http:
-    result = await session.dispatch(name, arguments, client=http)
+import asyncio
+
+
+async def main():
+    async with httpx.AsyncClient(timeout=30) as http:
+        result = await session.dispatch(name, arguments, client=http)
+
+
+asyncio.run(main())
 ```
 
 The client is yours: its timeout, its limits, its proxy settings, and its

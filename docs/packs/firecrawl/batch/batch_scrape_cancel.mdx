@@ -9,9 +9,11 @@ tag: "DELETE"
 <div className="tool-route"><span className="tool-row-method" data-method="DELETE">DELETE</span><code>{"https://api.firecrawl.dev/v2/batch/scrape/{id}"}</code></div>
 
 ```python firecrawl_batch_scrape_cancel.py
+import asyncio
+
 from charter.packs import firecrawl
 
-result = await firecrawl.batch_scrape_cancel.ainvoke({"id": ...})
+result = asyncio.run(firecrawl.batch_scrape_cancel.ainvoke({"id": ...}))
 ```
 
 ## Path parameters

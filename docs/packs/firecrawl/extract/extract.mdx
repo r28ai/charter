@@ -9,9 +9,11 @@ tag: "POST"
 <div className="tool-route"><span className="tool-row-method" data-method="POST">POST</span><code>{"https://api.firecrawl.dev/v2/extract"}</code></div>
 
 ```python firecrawl_extract.py
+import asyncio
+
 from charter.packs import firecrawl
 
-result = await firecrawl.extract.ainvoke({"urls": ...})
+result = asyncio.run(firecrawl.extract.ainvoke({"urls": ...}))
 ```
 
 ## Body

@@ -24,8 +24,16 @@ The runtime emits one INFO record per call, whose message is the rendered line:
 ```python enable_call_log.py
 import logging
 
-logging.basicConfig(level=logging.INFO, format="%(message)s")
+logging.basicConfig(format="%(message)s")
+logging.getLogger("charter").setLevel(logging.INFO)
 ```
+
+```
+
+Scoped to the `charter` logger rather than set on the root, because `basicConfig`
+with a level turns every library's INFO records on as well — httpx logs one
+`HTTP Request: ...` line per call, which lands directly above Charter's and says
+the same thing twice.
 
 ```
 stripe.list_charges    GET  v1/charges                 200     18ms  ↑     12 B  ↓    38.4 KB →     412 B  (99%)

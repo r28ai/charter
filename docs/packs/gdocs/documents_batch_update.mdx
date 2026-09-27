@@ -9,9 +9,11 @@ tag: "POST"
 <div className="tool-route"><span className="tool-row-method" data-method="POST">POST</span><code>{"https://docs.googleapis.com/v1/documents/{documentId}:batchUpdate"}</code></div>
 
 ```python gdocs_documents_batch_update.py
+import asyncio
+
 from charter.packs import gdocs
 
-result = await gdocs.documents_batch_update.ainvoke({"documentId": ..., "body": ...})
+result = asyncio.run(gdocs.documents_batch_update.ainvoke({"documentId": ..., "body": ...}))
 ```
 
 <Note>

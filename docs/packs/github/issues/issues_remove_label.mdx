@@ -9,9 +9,11 @@ tag: "DELETE"
 <div className="tool-route"><span className="tool-row-method" data-method="DELETE">DELETE</span><code>{"https://api.github.com/repos/{owner}/{repo}/issues/{issueNumber}/labels/{name}"}</code></div>
 
 ```python github_issues_remove_label.py
+import asyncio
+
 from charter.packs import github
 
-result = await github.issues_remove_label.ainvoke({"owner": ..., "repo": ..., "issueNumber": ..., "name": ...})
+result = asyncio.run(github.issues_remove_label.ainvoke({"owner": ..., "repo": ..., "issueNumber": ..., "name": ...}))
 ```
 
 <Note>

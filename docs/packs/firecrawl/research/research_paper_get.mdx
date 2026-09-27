@@ -9,9 +9,11 @@ tag: "GET"
 <div className="tool-route"><span className="tool-row-method" data-method="GET">GET</span><code>{"https://api.firecrawl.dev/v2/search/research/papers/{id}"}</code></div>
 
 ```python firecrawl_research_paper_get.py
+import asyncio
+
 from charter.packs import firecrawl
 
-result = await firecrawl.research_paper_get.ainvoke({"id": ...})
+result = asyncio.run(firecrawl.research_paper_get.ainvoke({"id": ...}))
 ```
 
 ## Path parameters

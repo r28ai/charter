@@ -9,9 +9,11 @@ tag: "POST"
 <div className="tool-route"><span className="tool-row-method" data-method="POST">POST</span><code>{"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheetId}/values/{range}:clear"}</code></div>
 
 ```python gsheets_spreadsheets_values_clear.py
+import asyncio
+
 from charter.packs import gsheets
 
-result = await gsheets.spreadsheets_values_clear.ainvoke({"spreadsheetId": ..., "range": ...})
+result = asyncio.run(gsheets.spreadsheets_values_clear.ainvoke({"spreadsheetId": ..., "range": ...}))
 ```
 
 <Note>

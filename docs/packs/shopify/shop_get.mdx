@@ -9,9 +9,11 @@ tag: "POST"
 <div className="tool-route"><span className="tool-row-method" data-method="POST">POST</span><code>{"/admin/api/2026-07/graphql.json"}</code></div>
 
 ```python shopify_shop_get.py
+import asyncio
+
 from charter.packs import shopify
 
-result = await shopify.shop_get.ainvoke({})
+result = asyncio.run(shopify.shop_get.ainvoke({}))
 ```
 
 <Note>

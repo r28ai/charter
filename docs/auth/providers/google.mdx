@@ -129,13 +129,14 @@ request = flow.authorize(scopes=CONNECT_SCOPES, login_hint=user.email)
 At the callback, check what Google actually granted before you store it:
 
 ```python google_callback.py
-grant = await flow.exchange(code, code_verifier=verifier)
+async def callback():
+    grant = await flow.exchange(code, code_verifier=verifier)
 
-missing = set(scopes_for(gmail.TOOLS)) - set(grant.scopes)
-if missing:
-    abort(400)  # the user unticked a permission on the consent screen
+    missing = set(scopes_for(gmail.TOOLS)) - set(grant.scopes)
+    if missing:
+        abort(400)  # the user unticked a permission on the consent screen
 
-await db.grants.put(user.id, "google", grant.refresh_token)
+    await db.grants.put(user.id, "google", grant.refresh_token)
 ```
 
 Google's consent screen lets a user approve some scopes and refuse others, and

@@ -9,9 +9,11 @@ tag: "POST"
 <div className="tool-route"><span className="tool-row-method" data-method="POST">POST</span><code>{"https://api.stripe.com/v1/invoices/{invoice}/void"}</code></div>
 
 ```python stripe_invoices_void.py
+import asyncio
+
 from charter.packs import stripe
 
-result = await stripe.invoices_void.ainvoke({"invoice": ...})
+result = asyncio.run(stripe.invoices_void.ainvoke({"invoice": ...}))
 ```
 
 ## Path parameters

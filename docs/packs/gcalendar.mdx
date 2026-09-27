@@ -11,14 +11,21 @@ sidebarTitle: "Overview"
 </div>
 {/* generated:summary end */}
 
-```python gcalendar_example.py {7}
+```python gcalendar_example.py {11}
+import asyncio
+
 from charter.auth import EnvTokenProvider
 from charter.packs import gcalendar
 
 credentials = EnvTokenProvider("GOOGLE_ACCESS_TOKEN")
 gcalendar.configure(credentials)
 
-events = await gcalendar.events_list.ainvoke(calendar_id="primary", max_results=10)
+
+async def main():
+    events = await gcalendar.events_list.ainvoke(calendar_id="primary", max_results=10)
+
+
+asyncio.run(main())
 ```
 
 Create, list and delete events on one calendar. Pass `"primary"` as `calendar_id`

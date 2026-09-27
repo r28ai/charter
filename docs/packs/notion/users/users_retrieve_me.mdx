@@ -9,9 +9,11 @@ tag: "GET"
 <div className="tool-route"><span className="tool-row-method" data-method="GET">GET</span><code>{"https://api.notion.com/v1/users/me"}</code></div>
 
 ```python notion_users_retrieve_me.py
+import asyncio
+
 from charter.packs import notion
 
-result = await notion.users_retrieve_me.ainvoke({})
+result = asyncio.run(notion.users_retrieve_me.ainvoke({}))
 ```
 
 <Note>

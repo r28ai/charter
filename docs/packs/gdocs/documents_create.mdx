@@ -9,9 +9,11 @@ tag: "POST"
 <div className="tool-route"><span className="tool-row-method" data-method="POST">POST</span><code>{"https://docs.googleapis.com/v1/documents"}</code></div>
 
 ```python gdocs_documents_create.py
+import asyncio
+
 from charter.packs import gdocs
 
-result = await gdocs.documents_create.ainvoke({})
+result = asyncio.run(gdocs.documents_create.ainvoke({}))
 ```
 
 <Note>

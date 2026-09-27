@@ -11,14 +11,20 @@ sidebarTitle: "Overview"
 </div>
 {/* generated:summary end */}
 
-```python granola_example.py {7}
+```python granola_example.py {10}
+import asyncio
 import os
 
 from charter.packs import granola
 
 granola.configure(api_key=os.environ["GRANOLA_API_KEY"])
 
-notes = await granola.notes_list.ainvoke(created_after="2026-01-27")
+
+async def main():
+    notes = await granola.notes_list.ainvoke(created_after="2026-01-27")
+
+
+asyncio.run(main())
 ```
 
 Granola takes notes during a meeting and writes the summary afterwards. This API

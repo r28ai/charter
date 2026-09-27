@@ -9,9 +9,11 @@ tag: "GET"
 <div className="tool-route"><span className="tool-row-method" data-method="GET">GET</span><code>{"https://gmail.googleapis.com/gmail/v1/users/{userId}/threads/{id}"}</code></div>
 
 ```python gmail_threads_get.py
+import asyncio
+
 from charter.packs import gmail
 
-result = await gmail.threads_get.ainvoke({"id": ...})
+result = asyncio.run(gmail.threads_get.ainvoke({"id": ...}))
 ```
 
 <Note>

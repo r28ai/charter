@@ -11,14 +11,20 @@ sidebarTitle: "Overview"
 </div>
 {/* generated:summary end */}
 
-```python firecrawl_example.py {7}
+```python firecrawl_example.py {10}
+import asyncio
 import os
 
 from charter.packs import firecrawl
 
 firecrawl.configure(api_key=os.environ["FIRECRAWL_API_KEY"])
 
-page = await firecrawl.scrape.ainvoke(url="https://example.com")
+
+async def main():
+    page = await firecrawl.scrape.ainvoke(url="https://example.com")
+
+
+asyncio.run(main())
 ```
 
 Search the web, discover a site's URLs, and read one page. Firecrawl returns

@@ -49,13 +49,14 @@ session = ToolSession([*gmail.TOOLS, *stripe.TOOLS])
 </Note>
 
 ```python
-result = await run(
-    client,                                        # openai.AsyncOpenAI
-    model="gpt-4o",
-    messages=[{"role": "user", "content": "..."}],
-    session=session,
-)
-print(result.content)
+async def main():
+    result = await run(
+        client,                                        # openai.AsyncOpenAI
+        model="gpt-4o",
+        messages=[{"role": "user", "content": "..."}],
+        session=session,
+    )
+    print(result.content)
 ```
 
 The loop has one requirement that is invisible when you get it wrong: the tool

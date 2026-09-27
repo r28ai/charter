@@ -9,9 +9,11 @@ tag: "GET"
 <div className="tool-route"><span className="tool-row-method" data-method="GET">GET</span><code>{"https://api.github.com/notifications/threads/{threadId}"}</code></div>
 
 ```python github_notifications_get_thread.py
+import asyncio
+
 from charter.packs import github
 
-result = await github.notifications_get_thread.ainvoke({"threadId": ...})
+result = asyncio.run(github.notifications_get_thread.ainvoke({"threadId": ...}))
 ```
 
 <Note>

@@ -60,25 +60,32 @@ Every pack is already declared. Point one at a credential and invoke it. Stripe 
 an [API key](https://docs.stripe.com/keys):
 
 ```python
+import asyncio
 import logging
 
 from charter.packs import stripe
 
-logging.basicConfig(level=logging.INFO, format="%(message)s")
+logging.basicConfig(format="%(message)s")
+logging.getLogger("charter").setLevel(logging.INFO)
 
 stripe.configure("sk_test_...")
 
-await stripe.customers_create.ainvoke({"email": "ada@example.com", "name": "Ada Lovelace"})
+
+async def main():
+    await stripe.customers_create.ainvoke({"email": "ada@example.com", "name": "Ada Lovelace"})
+
+
+asyncio.run(main())
 ```
 
 ```
 customers_create       POST v1/customers               200    782ms  ↑     33 B  ↓     661 B →     111 B  (83%)
 ```
 
-**`↓ 661 B → 111 B` is the part to look at.** Stripe answered with forty-odd fields and
+**`↓ 661 B → 111 B` is the part to look at.** Stripe answered with twenty-three fields and
 the model read six. The rest never entered the context window. Every pack trims by
-default, and `derived(response_handler=...)` changes that on any tool. `pass_through`
-hands back the whole response.
+default, and `tool.derived(name=..., response_handler=...)` changes that on any tool.
+`pass_through` hands back the whole response.
 [Response handling](https://docs.r28.ai/charter/reference/response-handling). The line
 itself is one INFO record per call, with no sink to configure.
 
@@ -96,7 +103,8 @@ HTTP → POST https://api.stripe.com/v1/customers
 in the code above.** [Seeing the wire](https://docs.r28.ai/charter/running/observability#seeing-the-wire)
 has the ten-line formatter that renders it.
 
-An OAuth pack is the same call with a credential provider instead of a key:
+An OAuth pack is the same call with a credential provider instead of a key.
+`EnvTokenProvider` comes from `charter.auth`:
 `gmail.configure(EnvTokenProvider("GOOGLE_ACCESS_TOKEN"))`, then
 `await gmail.messages_list.ainvoke({"q": "is:unread", "maxResults": 5})`.
 
@@ -107,6 +115,7 @@ underneath it. You read the API's reference page and write down what it says, fi
 field, in the dumbest possible way, on a pydantic model of your own:
 
 ```python
+import asyncio
 from typing import Annotated
 
 from pydantic import BaseModel
@@ -131,7 +140,12 @@ list_line_items = stripe(
     args_schema=ListLineItems,
 )
 
-await list_line_items.ainvoke({"session": "cs_test_123", "limit": 5})
+
+async def main():
+    await list_line_items.ainvoke({"session": "cs_test_123", "limit": 5})
+
+
+asyncio.run(main())
 ```
 
 Ordinary pydantic, ordinary types. `Path()` interpolates into the URL template and
@@ -193,7 +207,8 @@ same seam either way, and **no OAuth library**. You never install `google-auth` 
 vendor SDK. Single-flighted refresh, rotation and renewal timing are handled, and you
 will not think about them again.
 
-`gmail.configure(EnvTokenProvider(...))` above was the simplest of those. The hardest is
+`gmail.configure(EnvTokenProvider(...))` above — `charter.auth.EnvTokenProvider` —
+was the simplest of those. The hardest is
 the same one line: `SubjectProvider` resolves a different credential per end user, per
 call, through an authorization-code client you configure once, with refresh and rotation
 handled.

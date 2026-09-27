@@ -9,9 +9,11 @@ tag: "PATCH"
 <div className="tool-route"><span className="tool-row-method" data-method="PATCH">PATCH</span><code>{"https://public-api.granola.ai/v1/webhook-endpoints/{webhookEndpointId}"}</code></div>
 
 ```python granola_webhook_endpoints_update.py
+import asyncio
+
 from charter.packs import granola
 
-result = await granola.webhook_endpoints_update.ainvoke({"webhookEndpointId": ...})
+result = asyncio.run(granola.webhook_endpoints_update.ainvoke({"webhookEndpointId": ...}))
 ```
 
 ## Path parameters

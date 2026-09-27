@@ -9,9 +9,11 @@ tag: "POST"
 <div className="tool-route"><span className="tool-row-method" data-method="POST">POST</span><code>{"https://api.firecrawl.dev/v2/monitor"}</code></div>
 
 ```python firecrawl_monitor_create.py
+import asyncio
+
 from charter.packs import firecrawl
 
-result = await firecrawl.monitor_create.ainvoke({"name": ..., "schedule": ..., "targets": ...})
+result = asyncio.run(firecrawl.monitor_create.ainvoke({"name": ..., "schedule": ..., "targets": ...}))
 ```
 
 <Warning>

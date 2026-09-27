@@ -9,9 +9,11 @@ tag: "GET"
 <div className="tool-route"><span className="tool-row-method" data-method="GET">GET</span><code>{"https://api.github.com/repos/{owner}/{repo}/git/commits/{commitSha}"}</code></div>
 
 ```python github_git_commits_get.py
+import asyncio
+
 from charter.packs import github
 
-result = await github.git_commits_get.ainvoke({"owner": ..., "repo": ..., "commitSha": ...})
+result = asyncio.run(github.git_commits_get.ainvoke({"owner": ..., "repo": ..., "commitSha": ...}))
 ```
 
 <Note>

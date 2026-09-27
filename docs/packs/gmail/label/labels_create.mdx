@@ -9,9 +9,11 @@ tag: "POST"
 <div className="tool-route"><span className="tool-row-method" data-method="POST">POST</span><code>{"https://gmail.googleapis.com/gmail/v1/users/{userId}/labels"}</code></div>
 
 ```python gmail_labels_create.py
+import asyncio
+
 from charter.packs import gmail
 
-result = await gmail.labels_create.ainvoke({"body": ...})
+result = asyncio.run(gmail.labels_create.ainvoke({"body": ...}))
 ```
 
 <Note>

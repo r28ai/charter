@@ -9,9 +9,11 @@ tag: "POST"
 <div className="tool-route"><span className="tool-row-method" data-method="POST">POST</span><code>{"https://public-api.granola.ai/v1/webhook-endpoints"}</code></div>
 
 ```python granola_webhook_endpoints_create.py
+import asyncio
+
 from charter.packs import granola
 
-result = await granola.webhook_endpoints_create.ainvoke({"url": ..., "scopes": ...})
+result = asyncio.run(granola.webhook_endpoints_create.ainvoke({"url": ..., "scopes": ...}))
 ```
 
 ## Body

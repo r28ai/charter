@@ -9,9 +9,11 @@ tag: "PATCH"
 <div className="tool-route"><span className="tool-row-method" data-method="PATCH">PATCH</span><code>{"https://api.github.com/repos/{owner}/{repo}/dependabot/alerts/{alertNumber}"}</code></div>
 
 ```python github_dependabot_update_alert.py
+import asyncio
+
 from charter.packs import github
 
-result = await github.dependabot_update_alert.ainvoke({"owner": ..., "repo": ..., "alertNumber": ...})
+result = asyncio.run(github.dependabot_update_alert.ainvoke({"owner": ..., "repo": ..., "alertNumber": ...}))
 ```
 
 <Note>

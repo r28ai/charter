@@ -11,14 +11,21 @@ sidebarTitle: "Overview"
 </div>
 {/* generated:summary end */}
 
-```python github_example.py {7}
+```python github_example.py {11}
+import asyncio
+
 from charter.auth import EnvTokenProvider
 from charter.packs import github
 
 credentials = EnvTokenProvider("GITHUB_TOKEN")
 github.configure(credentials)
 
-issues = await github.issues_list_for_repo.ainvoke(owner="octocat", repo="hello-world")
+
+async def main():
+    issues = await github.issues_list_for_repo.ainvoke(owner="octocat", repo="hello-world")
+
+
+asyncio.run(main())
 ```
 
 Most of the REST API an agent working in a repository reaches for: issues and
@@ -818,11 +825,19 @@ page-number `Pagination` — without the page size there is no way to tell a ful
 page from the last one. Both are real fields on the schemas that declare it.
 
 ```python github_page_through_issues.py
+import asyncio
+
 args = {"owner": "octocat", "repo": "hello-world", "per_page": 30}
-while args is not None:
-    page = await github.issues_list_for_repo.ainvoke(args)
-    handle(page)
-    args = github.issues_list_for_repo.pagination.next_page_args(page, args)
+
+
+async def main():
+    while args is not None:
+        page = await github.issues_list_for_repo.ainvoke(args)
+        handle(page)
+        args = github.issues_list_for_repo.pagination.next_page_args(page, args)
+
+
+asyncio.run(main())
 ```
 
 The search endpoints wrap their results in `items` rather than returning a bare

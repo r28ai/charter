@@ -9,9 +9,11 @@ tag: "PATCH"
 <div className="tool-route"><span className="tool-row-method" data-method="PATCH">PATCH</span><code>{"https://api.notion.com/v1/blocks/{blockId}/children"}</code></div>
 
 ```python notion_blocks_children_append.py
+import asyncio
+
 from charter.packs import notion
 
-result = await notion.blocks_children_append.ainvoke({"blockId": ..., "body": ...})
+result = asyncio.run(notion.blocks_children_append.ainvoke({"blockId": ..., "body": ...}))
 ```
 
 <Note>

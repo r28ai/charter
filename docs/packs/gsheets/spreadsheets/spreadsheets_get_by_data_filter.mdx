@@ -9,9 +9,11 @@ tag: "POST"
 <div className="tool-route"><span className="tool-row-method" data-method="POST">POST</span><code>{"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheetId}:getByDataFilter"}</code></div>
 
 ```python gsheets_spreadsheets_get_by_data_filter.py
+import asyncio
+
 from charter.packs import gsheets
 
-result = await gsheets.spreadsheets_get_by_data_filter.ainvoke({"spreadsheetId": ...})
+result = asyncio.run(gsheets.spreadsheets_get_by_data_filter.ainvoke({"spreadsheetId": ...}))
 ```
 
 <Note>

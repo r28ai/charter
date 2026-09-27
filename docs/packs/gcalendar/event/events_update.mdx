@@ -9,9 +9,11 @@ tag: "PUT"
 <div className="tool-route"><span className="tool-row-method" data-method="PUT">PUT</span><code>{"https://www.googleapis.com/calendar/v3/calendars/{calendarId}/events/{eventId}"}</code></div>
 
 ```python gcalendar_events_update.py
+import asyncio
+
 from charter.packs import gcalendar
 
-result = await gcalendar.events_update.ainvoke({"calendarId": ..., "eventId": ..., "event": ...})
+result = asyncio.run(gcalendar.events_update.ainvoke({"calendarId": ..., "eventId": ..., "event": ...}))
 ```
 
 <Note>

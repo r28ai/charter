@@ -11,14 +11,21 @@ sidebarTitle: "Overview"
 </div>
 {/* generated:summary end */}
 
-```python gmail_example.py {7}
+```python gmail_example.py {11}
+import asyncio
+
 from charter.auth import EnvTokenProvider
 from charter.packs import gmail
 
 credentials = EnvTokenProvider("GOOGLE_ACCESS_TOKEN")
 gmail.configure(credentials)
 
-unread = await gmail.messages_list.ainvoke(q="is:unread")
+
+async def main():
+    unread = await gmail.messages_list.ainvoke(q="is:unread")
+
+
+asyncio.run(main())
 ```
 
 Twenty-three tools over one mailbox, against Gmail's own REST API. Sending takes a

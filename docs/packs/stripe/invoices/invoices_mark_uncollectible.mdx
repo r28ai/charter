@@ -9,9 +9,11 @@ tag: "POST"
 <div className="tool-route"><span className="tool-row-method" data-method="POST">POST</span><code>{"https://api.stripe.com/v1/invoices/{invoice}/mark_uncollectible"}</code></div>
 
 ```python stripe_invoices_mark_uncollectible.py
+import asyncio
+
 from charter.packs import stripe
 
-result = await stripe.invoices_mark_uncollectible.ainvoke({"invoice": ...})
+result = asyncio.run(stripe.invoices_mark_uncollectible.ainvoke({"invoice": ...}))
 ```
 
 ## Path parameters

@@ -11,14 +11,20 @@ sidebarTitle: "Overview"
 </div>
 {/* generated:summary end */}
 
-```python linear_example.py {7}
+```python linear_example.py {10}
+import asyncio
 import os
 
 from charter.packs import linear
 
 linear.configure(api_key=os.environ["LINEAR_API_KEY"])
 
-issues = await linear.issues_list.ainvoke(variables={"first": 50})
+
+async def main():
+    issues = await linear.issues_list.ainvoke(variables={"first": 50})
+
+
+asyncio.run(main())
 ```
 
 Issues and their relations, comments and reactions, labels, teams, members,
@@ -715,11 +721,19 @@ out at `variables.after` — *inside* the variables object, not beside it.
 `cursor_param` takes a dotted path for exactly this.
 
 ```python linear_page_through_issues.py
+import asyncio
+
 args = {"variables": {"first": 50}}
-while args is not None:
-    page = await linear.issues_list.ainvoke(args)
-    handle(page)
-    args = linear.issues_list.pagination.next_page_args(page, args)
+
+
+async def main():
+    while args is not None:
+        page = await linear.issues_list.ainvoke(args)
+        handle(page)
+        args = linear.issues_list.pagination.next_page_args(page, args)
+
+
+asyncio.run(main())
 ```
 
 `pageInfo.hasNextPage` is declared because Linear keeps sending an `endCursor` on

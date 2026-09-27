@@ -9,9 +9,11 @@ tag: "PATCH"
 <div className="tool-route"><span className="tool-row-method" data-method="PATCH">PATCH</span><code>{"https://api.github.com/repos/{owner}/{repo}/releases/{releaseId}"}</code></div>
 
 ```python github_releases_update.py
+import asyncio
+
 from charter.packs import github
 
-result = await github.releases_update.ainvoke({"owner": ..., "repo": ..., "releaseId": ...})
+result = asyncio.run(github.releases_update.ainvoke({"owner": ..., "repo": ..., "releaseId": ...}))
 ```
 
 <Note>

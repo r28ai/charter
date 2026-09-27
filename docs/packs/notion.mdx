@@ -11,19 +11,26 @@ sidebarTitle: "Overview"
 </div>
 {/* generated:summary end */}
 
-```python notion_example.py {7}
+```python notion_example.py {11}
+import asyncio
+
 from charter.auth import EnvTokenProvider
 from charter.packs import notion
 
 credentials = EnvTokenProvider("NOTION_API_KEY")
 notion.configure(credentials)
 
-page = await notion.pages_create.ainvoke(
-    body={
-        "parent": {"data_source_id": DATA_SOURCE_ID},
-        "properties": {"Name": {"title": [{"text": {"content": "Ship it"}}]}},
-    },
-)
+
+async def main():
+    page = await notion.pages_create.ainvoke(
+        body={
+            "parent": {"data_source_id": DATA_SOURCE_ID},
+            "properties": {"Name": {"title": [{"text": {"content": "Ship it"}}]}},
+        },
+    )
+
+
+asyncio.run(main())
 ```
 
 Notion is two APIs wearing one coat. There is a document API, where a page is a
@@ -412,18 +419,25 @@ composed with `and` and `or`. Both are Python keywords, so the fields are spelle
 `and_` and `or_` in Python and go out under Notion's own names:
 
 ```python
-rows = await notion.data_sources_query.ainvoke(
-    data_source_id=DATA_SOURCE_ID,
-    body={
-        "filter": {
-            "and": [
-                {"property": "Status", "status": {"equals": "Done"}},
-                {"property": "Cost", "number": {"greater_than": 100}},
-            ]
+import asyncio
+
+
+async def main():
+    rows = await notion.data_sources_query.ainvoke(
+        data_source_id=DATA_SOURCE_ID,
+        body={
+            "filter": {
+                "and": [
+                    {"property": "Status", "status": {"equals": "Done"}},
+                    {"property": "Cost", "number": {"greater_than": 100}},
+                ]
+            },
+            "sorts": [{"property": "Cost", "direction": "descending"}],
         },
-        "sorts": [{"property": "Cost", "direction": "descending"}],
-    },
-)
+    )
+
+
+asyncio.run(main())
 ```
 
 A filter naming a column that does not exist is a 400, so read the schema with

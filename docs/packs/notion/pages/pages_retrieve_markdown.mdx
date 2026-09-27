@@ -9,9 +9,11 @@ tag: "GET"
 <div className="tool-route"><span className="tool-row-method" data-method="GET">GET</span><code>{"https://api.notion.com/v1/pages/{pageId}/markdown"}</code></div>
 
 ```python notion_pages_retrieve_markdown.py
+import asyncio
+
 from charter.packs import notion
 
-result = await notion.pages_retrieve_markdown.ainvoke({"pageId": ...})
+result = asyncio.run(notion.pages_retrieve_markdown.ainvoke({"pageId": ...}))
 ```
 
 <Note>

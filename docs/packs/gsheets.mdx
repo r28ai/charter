@@ -11,16 +11,23 @@ sidebarTitle: "Overview"
 </div>
 {/* generated:summary end */}
 
-```python gsheets_example.py {7}
+```python gsheets_example.py {11}
+import asyncio
+
 from charter.auth import EnvTokenProvider
 from charter.packs import gsheets
 
 credentials = EnvTokenProvider("GOOGLE_ACCESS_TOKEN")
 gsheets.configure(credentials)
 
-rows = await gsheets.spreadsheets_values_get.ainvoke(
-    spreadsheet_id="1abc", range="Sheet1!A1:D20"
-)
+
+async def main():
+    rows = await gsheets.spreadsheets_values_get.ainvoke(
+        spreadsheet_id="1abc", range="Sheet1!A1:D20"
+    )
+
+
+asyncio.run(main())
 ```
 
 Read a range, write or append rows, clear cells, create a spreadsheet, read its
@@ -245,12 +252,19 @@ number; the link in the wire table is where the real limits live.
 would write by hand:
 
 ```python gsheets_append_rows.py
-await gsheets.spreadsheets_values_append.ainvoke(
-    spreadsheet_id="1abc",
-    range="Sheet1!A1",
-    value_input_option="USER_ENTERED",
-    value_range={"values": [["Ada", 36], ["Grace", 45]]},
-)
+import asyncio
+
+
+async def main():
+    await gsheets.spreadsheets_values_append.ainvoke(
+        spreadsheet_id="1abc",
+        range="Sheet1!A1",
+        value_input_option="USER_ENTERED",
+        value_range={"values": [["Ada", 36], ["Grace", 45]]},
+    )
+
+
+asyncio.run(main())
 ```
 
 and the transform produces the protobuf-JSON encoding Sheets requires on the way

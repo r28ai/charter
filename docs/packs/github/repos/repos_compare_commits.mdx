@@ -9,9 +9,11 @@ tag: "GET"
 <div className="tool-route"><span className="tool-row-method" data-method="GET">GET</span><code>{"https://api.github.com/repos/{owner}/{repo}/compare/{basehead}"}</code></div>
 
 ```python github_repos_compare_commits.py
+import asyncio
+
 from charter.packs import github
 
-result = await github.repos_compare_commits.ainvoke({"owner": ..., "repo": ..., "basehead": ...})
+result = asyncio.run(github.repos_compare_commits.ainvoke({"owner": ..., "repo": ..., "basehead": ...}))
 ```
 
 <Note>

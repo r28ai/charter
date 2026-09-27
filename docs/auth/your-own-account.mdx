@@ -151,9 +151,16 @@ A refresh token is not proof that the scopes are right — that failure surfaces
 as a `403` from the API, hours later, inside an agent. One call settles it now:
 
 ```python verify_scopes.py
-labels = await gmail.labels_list.ainvoke(userId="me")
+import asyncio
 
-print([label["name"] for label in labels["labels"]])
+
+async def main():
+    labels = await gmail.labels_list.ainvoke(userId="me")
+
+    print([label["name"] for label in labels["labels"]])
+
+
+asyncio.run(main())
 ```
 
 `INBOX`, `SENT`, and whatever else you have made. It costs 1 unit of Gmail's

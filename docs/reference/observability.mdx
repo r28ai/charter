@@ -197,6 +197,8 @@ for the whole process, so assigning `on_call` to one of them reaches every other
 caller in that process. `collecting` attaches a sink to a scope instead.
 
 ```python
+import asyncio
+
 from charter import CallCollector, collecting, format_call_summary
 from charter.auth import StaticTokenProvider
 from charter.packs import gmail
@@ -204,10 +206,16 @@ from charter.packs import gmail
 gmail.configure(StaticTokenProvider("ya29..."))
 
 calls = CallCollector()
-with collecting(calls):
-    await gmail.labels_list.ainvoke({"userId": "me"})
 
-print(format_call_summary(calls))
+
+async def main():
+    with collecting(calls):
+        await gmail.labels_list.ainvoke({"userId": "me"})
+
+    print(format_call_summary(calls))
+
+
+asyncio.run(main())
 ```
 
 The scope is a context, not a process. A context is copied whenever a task is

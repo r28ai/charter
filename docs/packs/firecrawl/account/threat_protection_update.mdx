@@ -9,9 +9,11 @@ tag: "PUT"
 <div className="tool-route"><span className="tool-row-method" data-method="PUT">PUT</span><code>{"https://api.firecrawl.dev/v2/team/threat-protection"}</code></div>
 
 ```python firecrawl_threat_protection_update.py
+import asyncio
+
 from charter.packs import firecrawl
 
-result = await firecrawl.threat_protection_update.ainvoke({"mode": ...})
+result = asyncio.run(firecrawl.threat_protection_update.ainvoke({"mode": ...}))
 ```
 
 ## Body

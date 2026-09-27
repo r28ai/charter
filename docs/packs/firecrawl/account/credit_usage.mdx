@@ -9,9 +9,11 @@ tag: "GET"
 <div className="tool-route"><span className="tool-row-method" data-method="GET">GET</span><code>{"https://api.firecrawl.dev/v2/team/credit-usage"}</code></div>
 
 ```python firecrawl_credit_usage.py
+import asyncio
+
 from charter.packs import firecrawl
 
-result = await firecrawl.credit_usage.ainvoke({})
+result = asyncio.run(firecrawl.credit_usage.ainvoke({}))
 ```
 
 This tool takes no arguments.

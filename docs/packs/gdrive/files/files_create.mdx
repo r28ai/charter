@@ -9,9 +9,11 @@ tag: "POST"
 <div className="tool-route"><span className="tool-row-method" data-method="POST">POST</span><code>{"https://www.googleapis.com/drive/v3/files"}</code></div>
 
 ```python gdrive_files_create.py
+import asyncio
+
 from charter.packs import gdrive
 
-result = await gdrive.files_create.ainvoke({"file": ...})
+result = asyncio.run(gdrive.files_create.ainvoke({"file": ...}))
 ```
 
 <Note>

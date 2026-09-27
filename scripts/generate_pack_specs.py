@@ -606,13 +606,21 @@ def code_sample(pack: str, tool: Tool) -> str:
     Titled with a filename, as every block on the pack pages is. Mintlify falls
     back to the language when there is no title, and a header reading "Python"
     on a page inside a Python SDK's reference spends a line saying nothing.
+
+    Driven by ``asyncio.run`` rather than a bare ``await``, because the title
+    says ``.py`` and a bare ``await`` at module level is a ``SyntaxError``
+    there — runnable only in ``python -m asyncio`` or a notebook. A reference
+    page whose block cannot be pasted into the file it is named after is a
+    page that has to be read twice. One call is one ``asyncio.run``; inside an
+    agent the call sits in an ``async def`` you already have.
     """
     required = tool.to_json_schema()["parameters"].get("required", [])
     args = ", ".join(f'"{name}": ...' for name in required)
     return (
         f"```python {pack}_{tool.name}.py\n"
+        "import asyncio\n\n"
         f"from charter.packs import {pack}\n\n"
-        f"result = await {pack}.{tool.name}.ainvoke({{{args}}})\n"
+        f"result = asyncio.run({pack}.{tool.name}.ainvoke({{{args}}}))\n"
         "```"
     )
 

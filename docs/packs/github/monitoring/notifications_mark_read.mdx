@@ -9,9 +9,11 @@ tag: "PUT"
 <div className="tool-route"><span className="tool-row-method" data-method="PUT">PUT</span><code>{"https://api.github.com/notifications"}</code></div>
 
 ```python github_notifications_mark_read.py
+import asyncio
+
 from charter.packs import github
 
-result = await github.notifications_mark_read.ainvoke({})
+result = asyncio.run(github.notifications_mark_read.ainvoke({}))
 ```
 
 <Note>

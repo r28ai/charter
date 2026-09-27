@@ -9,9 +9,11 @@ tag: "POST"
 <div className="tool-route"><span className="tool-row-method" data-method="POST">POST</span><code>{"https://api.linear.app/graphql"}</code></div>
 
 ```python linear_workflow_state_get.py
+import asyncio
+
 from charter.packs import linear
 
-result = await linear.workflow_state_get.ainvoke({"variables": ...})
+result = asyncio.run(linear.workflow_state_get.ainvoke({"variables": ...}))
 ```
 
 <Note>

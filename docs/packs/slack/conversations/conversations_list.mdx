@@ -9,9 +9,11 @@ tag: "GET"
 <div className="tool-route"><span className="tool-row-method" data-method="GET">GET</span><code>{"https://slack.com/api/conversations.list"}</code></div>
 
 ```python slack_conversations_list.py
+import asyncio
+
 from charter.packs import slack
 
-result = await slack.conversations_list.ainvoke({})
+result = asyncio.run(slack.conversations_list.ainvoke({}))
 ```
 
 <Note>

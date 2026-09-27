@@ -9,9 +9,11 @@ tag: "POST"
 <div className="tool-route"><span className="tool-row-method" data-method="POST">POST</span><code>{"https://api.stripe.com/v1/payment_intents/{intent}/cancel"}</code></div>
 
 ```python stripe_payment_intents_cancel.py
+import asyncio
+
 from charter.packs import stripe
 
-result = await stripe.payment_intents_cancel.ainvoke({"intent": ...})
+result = asyncio.run(stripe.payment_intents_cancel.ainvoke({"intent": ...}))
 ```
 
 ## Path parameters

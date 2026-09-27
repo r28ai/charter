@@ -9,9 +9,11 @@ tag: "DELETE"
 <div className="tool-route"><span className="tool-row-method" data-method="DELETE">DELETE</span><code>{"https://api.stripe.com/v1/subscriptions/{subscription}"}</code></div>
 
 ```python stripe_subscriptions_cancel.py
+import asyncio
+
 from charter.packs import stripe
 
-result = await stripe.subscriptions_cancel.ainvoke({"subscription": ...})
+result = asyncio.run(stripe.subscriptions_cancel.ainvoke({"subscription": ...}))
 ```
 
 ## Path parameters

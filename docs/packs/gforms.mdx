@@ -11,14 +11,21 @@ sidebarTitle: "Overview"
 </div>
 {/* generated:summary end */}
 
-```python gforms_example.py {7}
+```python gforms_example.py {11}
+import asyncio
+
 from charter.auth import EnvTokenProvider
 from charter.packs import gforms
 
 credentials = EnvTokenProvider("GOOGLE_ACCESS_TOKEN")
 gforms.configure(credentials)
 
-form = await gforms.forms_create.ainvoke(body={"info": {"title": "Q3 survey"}})
+
+async def main():
+    form = await gforms.forms_create.ainvoke(body={"info": {"title": "Q3 survey"}})
+
+
+asyncio.run(main())
 ```
 
 Six endpoints over two collections. Four of them change or read the form, two
@@ -210,26 +217,33 @@ Google's own reference calls the description, the items and the settings
 disallowed there. Questions arrive in a second call:
 
 ```python gforms_two_calls.py
-form = await gforms.forms_create.ainvoke(body={"info": {"title": "Q3 survey"}})
+import asyncio
 
-await gforms.forms_batch_update.ainvoke(
-    form_id=form["formId"],
-    body={"requests": [{
-        "create_item": {
-            "item": {
-                "title": "How did the release go?",
-                "question_item": {"question": {
-                    "required": True,
-                    "choice_question": {
-                        "type": "RADIO",
-                        "options": [{"value": "Smoothly"}, {"value": "Badly"}],
-                    },
-                }},
-            },
-            "location": {"index": 0},
-        }
-    }]},
-)
+
+async def main():
+    form = await gforms.forms_create.ainvoke(body={"info": {"title": "Q3 survey"}})
+
+    await gforms.forms_batch_update.ainvoke(
+        form_id=form["formId"],
+        body={"requests": [{
+            "create_item": {
+                "item": {
+                    "title": "How did the release go?",
+                    "question_item": {"question": {
+                        "required": True,
+                        "choice_question": {
+                            "type": "RADIO",
+                            "options": [{"value": "Smoothly"}, {"value": "Badly"}],
+                        },
+                    }},
+                },
+                "location": {"index": 0},
+            }
+        }]},
+    )
+
+
+asyncio.run(main())
 ```
 
 The create body models the two fields that are honoured rather than the whole

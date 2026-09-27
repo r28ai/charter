@@ -11,14 +11,21 @@ sidebarTitle: "Overview"
 </div>
 {/* generated:summary end */}
 
-```python gdocs_example.py {7}
+```python gdocs_example.py {11}
+import asyncio
+
 from charter.auth import EnvTokenProvider
 from charter.packs import gdocs
 
 credentials = EnvTokenProvider("GOOGLE_ACCESS_TOKEN")
 gdocs.configure(credentials)
 
-doc = await gdocs.documents_get.ainvoke(document_id="1abc")
+
+async def main():
+    doc = await gdocs.documents_get.ainvoke(document_id="1abc")
+
+
+asyncio.run(main())
 ```
 
 Read a document, create a blank one, and edit one. Three endpoints is the whole
@@ -177,11 +184,18 @@ list of them. All thirty-three are modelled, with the `oneof` declared as a
 their own.
 
 ```python gdocs_insert_text.py
-doc = await gdocs.documents_create.ainvoke(body={"title": "Q3 review"})
-await gdocs.documents_batch_update.ainvoke(
-    document_id=doc["documentId"],
-    body={"requests": [{"insert_text": {"text": "Hello", "location": {"index": 1}}}]},
-)
+import asyncio
+
+
+async def main():
+    doc = await gdocs.documents_create.ainvoke(body={"title": "Q3 review"})
+    await gdocs.documents_batch_update.ainvoke(
+        document_id=doc["documentId"],
+        body={"requests": [{"insert_text": {"text": "Hello", "location": {"index": 1}}}]},
+    )
+
+
+asyncio.run(main())
 ```
 
 Those validators are the reason this pack matters. The LLM view of a schema is

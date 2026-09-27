@@ -9,9 +9,11 @@ tag: "GET"
 <div className="tool-route"><span className="tool-row-method" data-method="GET">GET</span><code>{"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheetId}/values/{range}"}</code></div>
 
 ```python gsheets_spreadsheets_values_get.py
+import asyncio
+
 from charter.packs import gsheets
 
-result = await gsheets.spreadsheets_values_get.ainvoke({"spreadsheetId": ..., "range": ...})
+result = asyncio.run(gsheets.spreadsheets_values_get.ainvoke({"spreadsheetId": ..., "range": ...}))
 ```
 
 <Note>

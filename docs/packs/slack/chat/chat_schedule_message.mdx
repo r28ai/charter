@@ -9,9 +9,11 @@ tag: "POST"
 <div className="tool-route"><span className="tool-row-method" data-method="POST">POST</span><code>{"https://slack.com/api/chat.scheduleMessage"}</code></div>
 
 ```python slack_chat_schedule_message.py
+import asyncio
+
 from charter.packs import slack
 
-result = await slack.chat_schedule_message.ainvoke({"channel": ..., "postAt": ..., "text": ...})
+result = asyncio.run(slack.chat_schedule_message.ainvoke({"channel": ..., "postAt": ..., "text": ...}))
 ```
 
 <Note>

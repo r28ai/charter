@@ -9,9 +9,11 @@ tag: "GET"
 <div className="tool-route"><span className="tool-row-method" data-method="GET">GET</span><code>{"https://api.firecrawl.dev/v2/interact"}</code></div>
 
 ```python firecrawl_interact_list.py
+import asyncio
+
 from charter.packs import firecrawl
 
-result = await firecrawl.interact_list.ainvoke({})
+result = asyncio.run(firecrawl.interact_list.ainvoke({}))
 ```
 
 ## Query parameters

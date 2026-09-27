@@ -9,9 +9,11 @@ tag: "POST"
 <div className="tool-route"><span className="tool-row-method" data-method="POST">POST</span><code>{"https://www.googleapis.com/calendar/v3/calendars/{calendarId}/events/quickAdd"}</code></div>
 
 ```python gcalendar_events_quick_add.py
+import asyncio
+
 from charter.packs import gcalendar
 
-result = await gcalendar.events_quick_add.ainvoke({"calendarId": ..., "text": ...})
+result = asyncio.run(gcalendar.events_quick_add.ainvoke({"calendarId": ..., "text": ...}))
 ```
 
 <Note>

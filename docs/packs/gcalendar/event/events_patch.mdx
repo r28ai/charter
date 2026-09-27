@@ -9,9 +9,11 @@ tag: "PATCH"
 <div className="tool-route"><span className="tool-row-method" data-method="PATCH">PATCH</span><code>{"https://www.googleapis.com/calendar/v3/calendars/{calendarId}/events/{eventId}"}</code></div>
 
 ```python gcalendar_events_patch.py
+import asyncio
+
 from charter.packs import gcalendar
 
-result = await gcalendar.events_patch.ainvoke({"calendarId": ..., "eventId": ..., "event": ...})
+result = asyncio.run(gcalendar.events_patch.ainvoke({"calendarId": ..., "eventId": ..., "event": ...}))
 ```
 
 <Note>

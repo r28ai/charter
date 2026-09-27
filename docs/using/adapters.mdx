@@ -63,12 +63,20 @@ Its tool list grows, which means the loop has to rebuild that list every turn. C
 <CodeGroup>
 
 ```python OpenAI
+import asyncio
+
 from charter import ToolSession
 from charter.adapters.openai import run
 from charter.packs import gmail, stripe
 
 session = ToolSession([*gmail.TOOLS, *stripe.TOOLS])
-result = await run(client, model="gpt-4o", messages=messages, session=session)
+
+
+async def main():
+    result = await run(client, model="gpt-4o", messages=messages, session=session)
+
+
+asyncio.run(main())
 ```
 
 ```python LangChain

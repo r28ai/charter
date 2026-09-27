@@ -9,9 +9,11 @@ tag: "POST"
 <div className="tool-route"><span className="tool-row-method" data-method="POST">POST</span><code>{"https://api.notion.com/v1/databases"}</code></div>
 
 ```python notion_databases_create.py
+import asyncio
+
 from charter.packs import notion
 
-result = await notion.databases_create.ainvoke({"body": ...})
+result = asyncio.run(notion.databases_create.ainvoke({"body": ...}))
 ```
 
 <Note>

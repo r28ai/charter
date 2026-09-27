@@ -9,9 +9,11 @@ tag: "DELETE"
 <div className="tool-route"><span className="tool-row-method" data-method="DELETE">DELETE</span><code>{"https://api.github.com/repos/{owner}/{repo}/contents/{path}"}</code></div>
 
 ```python github_repos_delete_file.py
+import asyncio
+
 from charter.packs import github
 
-result = await github.repos_delete_file.ainvoke({"owner": ..., "repo": ..., "path": ..., "message": ..., "sha": ...})
+result = asyncio.run(github.repos_delete_file.ainvoke({"owner": ..., "repo": ..., "path": ..., "message": ..., "sha": ...}))
 ```
 
 <Note>

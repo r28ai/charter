@@ -9,9 +9,11 @@ tag: "POST"
 <div className="tool-route"><span className="tool-row-method" data-method="POST">POST</span><code>{"https://api.linear.app/graphql"}</code></div>
 
 ```python linear_comment_delete.py
+import asyncio
+
 from charter.packs import linear
 
-result = await linear.comment_delete.ainvoke({"variables": ...})
+result = asyncio.run(linear.comment_delete.ainvoke({"variables": ...}))
 ```
 
 <Note>

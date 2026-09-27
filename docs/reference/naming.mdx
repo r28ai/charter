@@ -108,6 +108,7 @@ back to you to execute, so you need the same mapping you published with —
 `qualified_names` is it.
 
 ```python
+import asyncio
 import json
 
 from charter import qualified_names
@@ -123,7 +124,12 @@ definitions = to_openai_tools(tools)      # published under the same names
 # what the model sends back, as OpenAI shapes it
 name, arguments = "stripe__customers_list", '{"limit": 3}'
 
-result = await by_name[name].ainvoke(json.loads(arguments))
+
+async def main():
+    result = await by_name[name].ainvoke(json.loads(arguments))
+
+
+asyncio.run(main())
 ```
 
 Calling a `Tool` directly in Python never involves a name at all — `tool.name`

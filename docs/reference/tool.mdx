@@ -587,9 +587,10 @@ Validate the arguments, build the request, send it, return the result.
 Three call shapes are accepted:
 
 ```python
-await tool.ainvoke({"city": "Tokyo", "units": "metric"})
-await tool.ainvoke(city="Tokyo", units="metric")
-await tool.ainvoke({"city": "Tokyo"}, units="metric")
+async def main():
+    await tool.ainvoke({"city": "Tokyo", "units": "metric"})
+    await tool.ainvoke(city="Tokyo", units="metric")
+    await tool.ainvoke({"city": "Tokyo"}, units="metric")
 ```
 
 `headers` and `client` shadow schema fields of those names. Pass such a field in
@@ -628,6 +629,7 @@ would own one does not outlive the call.
 ## Example
 
 ```python
+import asyncio
 from typing import Annotated, Optional
 
 from pydantic import BaseModel
@@ -649,7 +651,12 @@ tool = Tool(
     api_key_headers={"x-api-key": "test-key"},
 )
 
-await tool.ainvoke(city="Tokyo")
+
+async def main():
+    await tool.ainvoke(city="Tokyo")
+
+
+asyncio.run(main())
 ```
 
 ## Related

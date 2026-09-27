@@ -9,9 +9,11 @@ tag: "POST"
 <div className="tool-route"><span className="tool-row-method" data-method="POST">POST</span><code>{"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheetId}/sheets/{sheetId}:copyTo"}</code></div>
 
 ```python gsheets_spreadsheets_sheets_copy_to.py
+import asyncio
+
 from charter.packs import gsheets
 
-result = await gsheets.spreadsheets_sheets_copy_to.ainvoke({"spreadsheetId": ..., "sheetId": ..., "body": ...})
+result = asyncio.run(gsheets.spreadsheets_sheets_copy_to.ainvoke({"spreadsheetId": ..., "sheetId": ..., "body": ...}))
 ```
 
 <Note>

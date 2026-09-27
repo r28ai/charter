@@ -11,7 +11,8 @@ sidebarTitle: "Overview"
 </div>
 {/* generated:summary end */}
 
-```python shopify_example.py {10}
+```python shopify_example.py {13}
+import asyncio
 import os
 
 from charter.packs import shopify
@@ -21,7 +22,12 @@ shopify.configure(
     access_token=os.environ["SHOPIFY_ACCESS_TOKEN"],
 )
 
-products = await shopify.products_list.ainvoke(variables={"first": 20})
+
+async def main():
+    products = await shopify.products_list.ainvoke(variables={"first": 20})
+
+
+asyncio.run(main())
 ```
 
 Products, orders, customers and the shop itself — the read-and-triage core of the

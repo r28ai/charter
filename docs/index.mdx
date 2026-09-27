@@ -15,7 +15,8 @@ The schema is the contract. Charter turns a Pydantic schema into an agent tool. 
 
 <CodeGroup>
 
-```python title="With Charter · 2 steps" highlight={8,15}
+```python title="With Charter · 2 steps" highlight={9,16}
+import asyncio
 from typing import Annotated
 
 from pydantic import BaseModel
@@ -46,8 +47,8 @@ send_email = gmail(
     args_schema=SendEmail,
 )
 
-await send_email.ainvoke(
-    raw={"to": "ada@example.com", "subject": "Hi", "body": "Hello"}
+asyncio.run(
+    send_email.ainvoke(raw={"to": "ada@example.com", "subject": "Hi", "body": "Hello"})
 )
 ```
 

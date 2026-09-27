@@ -11,14 +11,20 @@ sidebarTitle: "Overview"
 </div>
 {/* generated:summary end */}
 
-```python tavily_example.py {7}
+```python tavily_example.py {10}
+import asyncio
 import os
 
 from charter.packs import tavily
 
 tavily.configure(api_key=os.environ["TAVILY_API_KEY"])
 
-results = await tavily.search.ainvoke(query="latest AI news", search_depth="advanced")
+
+async def main():
+    results = await tavily.search.ainvoke(query="latest AI news", search_depth="advanced")
+
+
+asyncio.run(main())
 ```
 
 Tavily is the web layer for AI agents: search when sources are unknown, extract

@@ -9,9 +9,11 @@ tag: "GET"
 <div className="tool-route"><span className="tool-row-method" data-method="GET">GET</span><code>{"https://api.github.com/rate_limit"}</code></div>
 
 ```python github_rate_limit_get.py
+import asyncio
+
 from charter.packs import github
 
-result = await github.rate_limit_get.ainvoke({})
+result = asyncio.run(github.rate_limit_get.ainvoke({}))
 ```
 
 <Note>

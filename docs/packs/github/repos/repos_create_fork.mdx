@@ -9,9 +9,11 @@ tag: "POST"
 <div className="tool-route"><span className="tool-row-method" data-method="POST">POST</span><code>{"https://api.github.com/repos/{owner}/{repo}/forks"}</code></div>
 
 ```python github_repos_create_fork.py
+import asyncio
+
 from charter.packs import github
 
-result = await github.repos_create_fork.ainvoke({"owner": ..., "repo": ...})
+result = asyncio.run(github.repos_create_fork.ainvoke({"owner": ..., "repo": ...}))
 ```
 
 <Note>

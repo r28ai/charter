@@ -9,9 +9,11 @@ tag: "GET"
 <div className="tool-route"><span className="tool-row-method" data-method="GET">GET</span><code>{"https://api.stripe.com/v1/payment_methods/{paymentMethod}"}</code></div>
 
 ```python stripe_payment_methods_retrieve.py
+import asyncio
+
 from charter.packs import stripe
 
-result = await stripe.payment_methods_retrieve.ainvoke({"paymentMethod": ...})
+result = asyncio.run(stripe.payment_methods_retrieve.ainvoke({"paymentMethod": ...}))
 ```
 
 ## Path parameters

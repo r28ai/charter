@@ -9,9 +9,11 @@ tag: "GET"
 <div className="tool-route"><span className="tool-row-method" data-method="GET">GET</span><code>{"https://api.tavily.com/research/{requestId}"}</code></div>
 
 ```python tavily_research_get.py
+import asyncio
+
 from charter.packs import tavily
 
-result = await tavily.research_get.ainvoke({"requestId": ...})
+result = asyncio.run(tavily.research_get.ainvoke({"requestId": ...}))
 ```
 
 ## Path parameters

@@ -11,14 +11,20 @@ sidebarTitle: "Overview"
 </div>
 {/* generated:summary end */}
 
-```python stripe_example.py {7}
+```python stripe_example.py {10}
+import asyncio
 import os
 
 from charter.packs import stripe
 
 stripe.configure(api_key=os.environ["STRIPE_API_KEY"])
 
-customers = await stripe.customers_list.ainvoke(limit=10)
+
+async def main():
+    customers = await stripe.customers_list.ainvoke(limit=10)
+
+
+asyncio.run(main())
 ```
 
 Customers, payments, charges, refunds, the product catalogue, subscriptions,
@@ -439,14 +445,22 @@ through the [per-call header channel](/tools/wire-contract) rather than onto the
 tool:
 
 ```python stripe_idempotent_refund.py
-key = f"refund-{order_id}"          # yours, and stable across your retries
-await stripe.refunds_create.ainvoke(
-    {"charge": charge_id}, headers={"Idempotency-Key": key}
-)
+import asyncio
 
-await stripe.balance_retrieve.ainvoke(
-    headers={"Stripe-Account": "acct_1032D82eZvKYlo2C"}
-)
+key = f"refund-{order_id}"          # yours, and stable across your retries
+
+
+async def main():
+    await stripe.refunds_create.ainvoke(
+        {"charge": charge_id}, headers={"Idempotency-Key": key}
+    )
+
+    await stripe.balance_retrieve.ainvoke(
+        headers={"Stripe-Account": "acct_1032D82eZvKYlo2C"}
+    )
+
+
+asyncio.run(main())
 ```
 
 Charter never mints the idempotency key. A key generated per call defeats the

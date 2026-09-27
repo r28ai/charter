@@ -9,9 +9,11 @@ tag: "POST"
 <div className="tool-route"><span className="tool-row-method" data-method="POST">POST</span><code>{"https://slack.com/api/chat.postEphemeral"}</code></div>
 
 ```python slack_chat_post_ephemeral.py
+import asyncio
+
 from charter.packs import slack
 
-result = await slack.chat_post_ephemeral.ainvoke({"channel": ..., "user": ..., "text": ...})
+result = asyncio.run(slack.chat_post_ephemeral.ainvoke({"channel": ..., "user": ..., "text": ...}))
 ```
 
 <Note>

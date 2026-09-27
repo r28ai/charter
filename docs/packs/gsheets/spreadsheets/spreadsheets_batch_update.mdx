@@ -9,9 +9,11 @@ tag: "POST"
 <div className="tool-route"><span className="tool-row-method" data-method="POST">POST</span><code>{"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheetId}:batchUpdate"}</code></div>
 
 ```python gsheets_spreadsheets_batch_update.py
+import asyncio
+
 from charter.packs import gsheets
 
-result = await gsheets.spreadsheets_batch_update.ainvoke({"spreadsheetId": ..., "requests": ...})
+result = asyncio.run(gsheets.spreadsheets_batch_update.ainvoke({"spreadsheetId": ..., "requests": ...}))
 ```
 
 <Note>

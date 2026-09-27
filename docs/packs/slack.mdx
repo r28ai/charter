@@ -11,14 +11,21 @@ sidebarTitle: "Overview"
 </div>
 {/* generated:summary end */}
 
-```python slack_example.py {7}
+```python slack_example.py {11}
+import asyncio
+
 from charter.auth import EnvTokenProvider
 from charter.packs import slack
 
 credentials = EnvTokenProvider("SLACK_BOT_TOKEN")
 slack.configure(credentials)
 
-await slack.chat_post_message.ainvoke(channel="C0123456789", text="Deploy finished.")
+
+async def main():
+    await slack.chat_post_message.ainvoke(channel="C0123456789", text="Deploy finished.")
+
+
+asyncio.run(main())
 ```
 
 Post, edit and delete messages; list channels and members; read a channel or a

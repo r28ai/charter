@@ -265,11 +265,16 @@ import asyncio
 
 from charter import APIError
 
-try:
-    ...
-except APIError as exc:
-    if exc.retry_after:
-        await asyncio.sleep(exc.retry_after)
+
+async def main():
+    try:
+        ...
+    except APIError as exc:
+        if exc.retry_after:
+            await asyncio.sleep(exc.retry_after)
+
+
+asyncio.run(main())
 ```
 
 ## Catching the surface

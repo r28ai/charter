@@ -9,9 +9,11 @@ tag: "GET"
 <div className="tool-route"><span className="tool-row-method" data-method="GET">GET</span><code>{"https://api.stripe.com/v1/invoices"}</code></div>
 
 ```python stripe_invoices_list.py
+import asyncio
+
 from charter.packs import stripe
 
-result = await stripe.invoices_list.ainvoke({})
+result = asyncio.run(stripe.invoices_list.ainvoke({}))
 ```
 
 <Note>

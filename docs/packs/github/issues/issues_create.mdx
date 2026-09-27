@@ -9,9 +9,11 @@ tag: "POST"
 <div className="tool-route"><span className="tool-row-method" data-method="POST">POST</span><code>{"https://api.github.com/repos/{owner}/{repo}/issues"}</code></div>
 
 ```python github_issues_create.py
+import asyncio
+
 from charter.packs import github
 
-result = await github.issues_create.ainvoke({"owner": ..., "repo": ..., "body": ...})
+result = asyncio.run(github.issues_create.ainvoke({"owner": ..., "repo": ..., "body": ...}))
 ```
 
 <Note>

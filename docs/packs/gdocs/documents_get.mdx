@@ -9,9 +9,11 @@ tag: "GET"
 <div className="tool-route"><span className="tool-row-method" data-method="GET">GET</span><code>{"https://docs.googleapis.com/v1/documents/{documentId}"}</code></div>
 
 ```python gdocs_documents_get.py
+import asyncio
+
 from charter.packs import gdocs
 
-result = await gdocs.documents_get.ainvoke({"documentId": ...})
+result = asyncio.run(gdocs.documents_get.ainvoke({"documentId": ...}))
 ```
 
 <Note>

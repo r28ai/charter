@@ -9,9 +9,11 @@ tag: "GET"
 <div className="tool-route"><span className="tool-row-method" data-method="GET">GET</span><code>{"https://www.googleapis.com/calendar/v3/calendars/{calendarId}/events/{eventId}/instances"}</code></div>
 
 ```python gcalendar_events_instances.py
+import asyncio
+
 from charter.packs import gcalendar
 
-result = await gcalendar.events_instances.ainvoke({"calendarId": ..., "eventId": ...})
+result = asyncio.run(gcalendar.events_instances.ainvoke({"calendarId": ..., "eventId": ...}))
 ```
 
 <Note>

@@ -9,9 +9,11 @@ tag: "GET"
 <div className="tool-route"><span className="tool-row-method" data-method="GET">GET</span><code>{"https://api.github.com/repos/{owner}/{repo}/dependabot/alerts/{alertNumber}"}</code></div>
 
 ```python github_dependabot_get_alert.py
+import asyncio
+
 from charter.packs import github
 
-result = await github.dependabot_get_alert.ainvoke({"owner": ..., "repo": ..., "alertNumber": ...})
+result = asyncio.run(github.dependabot_get_alert.ainvoke({"owner": ..., "repo": ..., "alertNumber": ...}))
 ```
 
 <Note>

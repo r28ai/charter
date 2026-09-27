@@ -9,9 +9,11 @@ tag: "POST"
 <div className="tool-route"><span className="tool-row-method" data-method="POST">POST</span><code>{"https://www.googleapis.com/drive/v3/files/{fileId}/comments/{commentId}/replies"}</code></div>
 
 ```python gdrive_replies_create.py
+import asyncio
+
 from charter.packs import gdrive
 
-result = await gdrive.replies_create.ainvoke({"fileId": ..., "commentId": ..., "reply": ...})
+result = asyncio.run(gdrive.replies_create.ainvoke({"fileId": ..., "commentId": ..., "reply": ...}))
 ```
 
 <Note>

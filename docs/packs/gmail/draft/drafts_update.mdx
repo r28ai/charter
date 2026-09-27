@@ -9,9 +9,11 @@ tag: "PUT"
 <div className="tool-route"><span className="tool-row-method" data-method="PUT">PUT</span><code>{"https://gmail.googleapis.com/gmail/v1/users/{userId}/drafts/{id}"}</code></div>
 
 ```python gmail_drafts_update.py
+import asyncio
+
 from charter.packs import gmail
 
-result = await gmail.drafts_update.ainvoke({"id": ..., "body": ...})
+result = asyncio.run(gmail.drafts_update.ainvoke({"id": ..., "body": ...}))
 ```
 
 <Note>
