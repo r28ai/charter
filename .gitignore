@@ -34,3 +34,9 @@ uv.lock
 
 # Mintlify writes a Next.js build cache here when `mint dev` runs in docs/.
 docs/.next/
+
+# Rendered demo. The video is hosted on GitHub's user-attachments CDN and the
+# GIF is 2.1MB for content H.264 does in 842KB, so neither belongs in history:
+# demo/ regenerates both, and only the single still is committed as the fallback.
+docs/images/charter-demo.gif
+docs/images/charter-demo.mp4

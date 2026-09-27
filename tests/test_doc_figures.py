@@ -154,7 +154,9 @@ def test_the_readme_projection_produces_the_number_it_prints():
     }
     # fmt: on
     tokens = schema_tokens(linear.issues_list_full.derived(name="issues_list_triage", keep=keep))
-    assert f"# {tokens}, i.e. {tokens * 4:,} bytes" in README.read_text(), (
+    # Anchored on the call rather than the prose beside it: the figure is the
+    # claim under test, and the sentence around it is the README's to reword.
+    assert re.search(rf"schema_tokens\(issues_list_triage\)\s+# {tokens}\b", README.read_text()), (
         f"the README prints a figure this projection no longer produces (now {tokens})"
     )
 

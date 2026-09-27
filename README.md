@@ -20,6 +20,14 @@
 <a href="https://docs.r28.ai/charter"><img src="https://img.shields.io/badge/docs-docs.r28.ai-blue" alt="Docs"></a>
 </p>
 
+<video src="https://github.com/user-attachments/assets/0fca6e12-ba3d-4a5c-9db3-75a76f373eca"
+       poster="https://raw.githubusercontent.com/r28ai/charter/main/docs/images/charter-demo-still.webp"
+       controls autoplay loop muted playsinline width="860">
+  <img src="https://raw.githubusercontent.com/r28ai/charter/main/docs/images/charter-demo-still.webp"
+       alt="Declaring a Gmail tool, the request Charter puts on the wire, and Gmail's 200 OK. Then pricing a Linear tool's schema and pinning a value out of the model's reach."
+       width="860">
+</video>
+
 </div>
 
 # Charter
@@ -48,16 +56,49 @@ it ships.
 
 ## Call a tool that ships
 
-Every pack is already declared. Point one at a credential and invoke it:
+Every pack is already declared. Point one at a credential and invoke it. Stripe takes
+an [API key](https://docs.stripe.com/keys):
 
 ```python
-from charter.auth import EnvTokenProvider
-from charter.packs import gmail
+import logging
 
-gmail.configure(EnvTokenProvider("GOOGLE_ACCESS_TOKEN"))
+from charter.packs import stripe
 
-await gmail.messages_list.ainvoke({"q": "is:unread", "maxResults": 5})
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+stripe.configure("sk_test_...")
+
+await stripe.customers_create.ainvoke({"email": "ada@example.com", "name": "Ada Lovelace"})
 ```
+
+```
+customers_create       POST v1/customers               200    782ms  ↑     33 B  ↓     661 B →     111 B  (83%)
+```
+
+**`↓ 661 B → 111 B` is the part to look at.** Stripe answered with forty-odd fields and
+the model read six. The rest never entered the context window. Every pack trims by
+default, and `derived(response_handler=...)` changes that on any tool. `pass_through`
+hands back the whole response.
+[Response handling](https://docs.r28.ai/charter/reference/response-handling). The line
+itself is one INFO record per call, with no sink to configure.
+
+Turn the level up to DEBUG and the record carries the URL, the headers and the body as
+sent. Credentials are masked and base64 truncated before they reach the record, so a
+log you paste into a bug report cannot leak a key:
+
+```
+HTTP → POST https://api.stripe.com/v1/customers
+      headers: {"stripe-version": "2026-08-26.dahlia", "authorization": "Bearer sk_***"}
+      body: {"email": "ada@example.com"}
+```
+
+**The pinned API version, the injected credential and the assembled body appear nowhere
+in the code above.** [Seeing the wire](https://docs.r28.ai/charter/running/observability#seeing-the-wire)
+has the ten-line formatter that renders it.
+
+An OAuth pack is the same call with a credential provider instead of a key:
+`gmail.configure(EnvTokenProvider("GOOGLE_ACCESS_TOKEN"))`, then
+`await gmail.messages_list.ainvoke({"q": "is:unread", "maxResults": 5})`.
 
 ## A tool is four markers and a URL
 
@@ -70,39 +111,34 @@ from typing import Annotated
 
 from pydantic import BaseModel
 
-from charter import Path, Query, oauth_tool_factory
-from charter.auth import EnvTokenProvider
+from charter import Path, Query, api_key_tool_factory
 
-class ListMessages(BaseModel):
-    user_id: Annotated[str, Path()] = "me"
-    q: Annotated[str, Query()]
-    max_results: Annotated[int, Query()] = 10
+class ListLineItems(BaseModel):
+    session: Annotated[str, Path()]
+    limit: Annotated[int, Query()] = 10
 
-gmail = oauth_tool_factory(
-    pack="mygmail",
-    base_url="https://gmail.googleapis.com/",
-    provider="google",
-    credential_provider=EnvTokenProvider("GOOGLE_ACCESS_TOKEN"),
-    query_case="camel",
+stripe = api_key_tool_factory(
+    pack="mystripe",
+    base_url="https://api.stripe.com/",
+    api_key_headers={"Authorization": "Bearer sk_test_..."},
 )
 
-list_messages = gmail(
-    name="list_messages",
-    description="Search the mailbox and return matching messages.",
+list_line_items = stripe(
+    name="list_line_items",
+    description="List the line items on a checkout session.",
     method="GET",
-    url_template="gmail/v1/users/{user_id}/messages",
-    args_schema=ListMessages,
+    url_template="v1/checkout/sessions/{session}/line_items",
+    args_schema=ListLineItems,
 )
 
-await list_messages.ainvoke({"q": "is:unread", "max_results": 5})
+await list_line_items.ainvoke({"session": "cs_test_123", "limit": 5})
 ```
 
-Ordinary pydantic, ordinary types. `Path()` interpolates into the URL template,
-`Query()` becomes a query parameter, and `query_case="camel"` spells `max_results` the
-way Gmail wants it on the wire.
+Ordinary pydantic, ordinary types. `Path()` interpolates into the URL template and
+`Query()` becomes a query parameter. Stripe authenticates with an API key, so this is
+one you can paste and run.
 
-`Body` and `Format` are the other two, and `Format` is where a wire format the model
-should never construct is declared once:
+`Format` is where a wire format the model should never construct is declared once:
 
 ```python
 from typing import Annotated
@@ -114,18 +150,6 @@ from charter import Body, EmailContent, Format
 class SendEmail(BaseModel):
     raw: Annotated[EmailContent, Body(envelop=True), Format("rfc822_base64")]
 ```
-
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/r28ai/charter/main/docs/images/wire-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/r28ai/charter/main/docs/images/wire-light.svg">
-    <img alt="The model fills in to, subject and body. Charter assembles the MIME message, base64url encoding, raw wrapper, credential, error handling and field policy, and sends the encoded POST to Gmail." src="https://raw.githubusercontent.com/r28ai/charter/main/docs/images/wire-light.svg" width="860">
-  </picture>
-</p>
-
-<p align="center">
-  <i>The model fills in <code>to</code>, <code>subject</code> and <code>body</code>. Everything between that<br>and the request Gmail accepts is declared rather than written.</i>
-</p>
 
 **The model never touches a wire format.** Not MIME headers, not base64 padding, not a
 GraphQL document. Every format handled by hand is a library, a spec, and a thing that
@@ -145,8 +169,7 @@ There is no per-endpoint code in Charter, generated or hidden. So when a tool ca
 fails it was the model's arguments, or it was the API. It was never the tool's logic,
 because there is no tool logic. With that variable held still, you can finally tell a
 better model from a worse one, and a better prompt from a worse one. Bad arguments do
-not reach the API either: they fail validation locally, with an error written for the
-model, so it fixes them next turn.
+not reach the API either — [see below](#when-the-model-gets-it-wrong).
 
 Two campaigns, on 15 and 16 September 2026, against live accounts over real API calls,
 with no mocks and no recorded fixtures. Two arms over the same tasks, models, prompts
@@ -270,8 +293,10 @@ task:
 Deleting the filter is the first row: a list tool that cannot narrow a list, so all three
 models page the whole team 250 issues at a time. A prompt does not reach this either. The
 same model used the filter 21/21 times when the schema was accidentally flat and 0/40
-after — the capability was never missing, the shape was. The `400`s are the extreme case,
-and the end of this section.
+after — the capability was never missing, the shape was. The `400`s are the extreme case.
+The byte counts in that table are what the harness
+actually sent in September; the token counts in the code below are what the current
+package produces, which is why they do not divide into each other exactly.
 
 > [!TIP]
 > **The recipe, for a tool that is bigger than the job you have for it.**
@@ -288,18 +313,18 @@ and the schema regenerated, so the number is what cutting it will do:
 from charter import schema_tokens
 from charter.packs import linear
 
-schema_tokens(linear.issues_list_full)            # 46913
+schema_tokens(linear.issues_list_full)            # 45072
 linear.issues_list_full.paths()                   # ['variables']
 linear.issues_list_full.paths(under="variables")
 # ['first', 'after', 'filter', 'order_by', 'include_archived']
 
 linear.issues_list_full.paths(under="variables", by_cost=True)
-# [PathCost(path='filter',   tokens=46631),
-#  PathCost(path='order_by', tokens=57),
-#  PathCost(path='first',    tokens=50), ...]
+# [PathCost(path='filter',   tokens=44828),
+#  PathCost(path='order_by', tokens=52),
+#  PathCost(path='first',    tokens=45), ...]
 ```
 
-One field of five is 46,631 of the 46,913, and nothing about its name said so.
+One field of five is 44,828 of the 45,072, and nothing about its name said so.
 
 Step 3 is the only one with judgement in it, and the question is about the job rather than
 the schema: which conditions does this agent narrow a list by? For triage, the issue's own
@@ -324,7 +349,7 @@ issues_list_triage = linear.issues_list_full.derived(
     },
 )
 
-schema_tokens(issues_list_triage)    # 3458, i.e. 13,832 bytes
+schema_tokens(issues_list_triage)    # 3458
 ```
 
 Write the full dotted path: `keep={"labels"}` matches more than 200 paths on this schema
@@ -352,7 +377,7 @@ edit_text = gdocs.documents_batch_update.derived(
 
 edit_text.paths(under="body.requests")
 # ['replace_all_text', 'insert_text', 'delete_content_range']  — 33 down to 3
-schema_tokens(edit_text)    # 1750, from 8183
+schema_tokens(edit_text)    # 1553, from 7336
 ```
 
 A projection can only ever remove, which is what makes the saving and the restriction one
@@ -410,6 +435,39 @@ One line on the factory, enforced on every call including calls by tools added n
 year. [The full measured record](https://docs.r28.ai/charter/guarantees/measured-results)
 covers both campaigns, including where task success was a wash and the one template
 that goes the other way.
+
+## When the model gets it wrong
+
+Errors go to whoever can act on them. That is what keeps a bad argument worth one turn.
+A camelCase key inside a nested object, a nested object serialised as a JSON string: the
+runtime [absorbs those](https://docs.r28.ai/charter/running/llm-input-auto-corrections),
+and nobody is told. A declaration the runtime cannot use comes to you, with a link. What
+is left is the model's to fix, and it fails before the request goes out, quoting what it
+sent:
+
+```
+Validation error:
+- **maxResults**: Input should be a valid integer, unable to parse string as an integer (got 'ten')
+- **timeMin**: Input should be a valid datetime or date, invalid character in year (got 'next tuesday')
+```
+
+**"Invalid parameter" tells a model what to stop doing, not what to do instead.** So the
+rule `format_conflicts()` prints for a reviewer above is the same one the model reads on
+the turn it breaks it:
+
+```
+Validation error:
+- **(input)**: Value error, q, timeMax, timeMin cannot be combined with syncToken.
+  An incremental sync continues the query the token came from, so the filters have
+  to be the ones already in effect. Drop syncToken to run a fresh query, or drop
+  the others to continue the sync.
+```
+
+Three offenders in one message instead of three round trips, in the vendor's own
+spelling, with both exits named. All of that comes out of one
+`ConflictsWith(..., reason=...)` on the field. No documentation link either: a model pays
+for the URL in context and cannot follow it.
+[Errors](https://docs.r28.ai/charter/running/tool-validation-error-handling).
 
 ## The rest of the vocabulary
 

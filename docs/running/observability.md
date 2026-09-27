@@ -40,6 +40,64 @@ That third line is the one worth staring at: the model produced a call that did 
 satisfy the schema, so it was rejected here, in your process, before anything was
 sent. No request, no rate-limit budget, no charge.
 
+## Seeing the wire
+
+The DEBUG path carries what the INFO line deliberately leaves out: the resolved URL,
+the headers as sent, the query, and the body. They ride on the log record rather than
+in its message, so a plain `%(message)s` formatter drops them — a structured handler
+shows them, and ten lines render them anywhere:
+
+```python wire_formatter.py
+import json
+import logging
+
+
+class Wire(logging.Formatter):
+    """Render what Charter attaches to the record, not just the message."""
+
+    def format(self, record):
+        line = record.getMessage()
+        request = getattr(record, "charter_request", None)
+        if request:
+            for key, value in request.items():
+                line += f"\n      {key}: {json.dumps(value)[:120]}"
+        return line
+
+
+handler = logging.StreamHandler()
+handler.setFormatter(Wire())
+
+root = logging.getLogger()
+root.setLevel(logging.DEBUG)
+root.handlers = [handler]
+
+# httpx logs every request too; quiet it or you see each line twice.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+```
+
+```
+HTTP → POST https://api.stripe.com/v1/customers
+      headers: {"stripe-version": "2026-08-26.dahlia", "authorization": "Bearer sk_***"}
+      body: {"email": "ada@example.com"}
+HTTP ← 200 OK
+customers_create       POST v1/customers               200    782ms  ↑     33 B  ↓     661 B →     111 B  (83%)
+```
+
+That is the whole of what a declaration did: a URL built from the template, the pinned
+API version the pack carries, a credential injected, a body assembled, and a response
+trimmed before the model saw it. None of it appears in the code that made the call.
+
+Credentials are masked before they reach the record and base64 payloads are truncated,
+so these lines are safe to paste into an issue. Nothing is logged unless you ask: there
+is no sink by default.
+
+<Note>
+The body shown is what went on the wire, which for a
+[`Format`](/tools/transforms) field is the encoded form — `{"raw": "Q29udGVudC1U…"}`
+rather than the MIME document it encodes. Decoding it is one `decode_base64url` away
+and is worth doing once, to see what the declaration built.
+</Note>
+
 ## A summary at the end of a run
 
 [`CallCollector`](/reference/observability#callcollector) is a sink that keeps

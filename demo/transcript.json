@@ -1,0 +1,177 @@
+[
+ {
+  "in": "# declare a tool once. no glue code, no vendor SDK",
+  "out": "",
+  "hold": 0.8
+ },
+ {
+  "in": "from typing import Annotated",
+  "out": "",
+  "hold": 1.0
+ },
+ {
+  "in": "from pydantic import BaseModel",
+  "out": "",
+  "hold": 1.0
+ },
+ {
+  "in": "from charter import Body, EmailContent, Format, Path, oauth_tool_factory",
+  "out": "",
+  "hold": 1.0
+ },
+ {
+  "in": "from charter.auth import EnvTokenProvider",
+  "out": "",
+  "hold": 1.0
+ },
+ {
+  "in": "",
+  "out": "",
+  "hold": 0.8
+ },
+ {
+  "in": "# input schema",
+  "out": "",
+  "hold": 0.8
+ },
+ {
+  "in": "class SendMessage(BaseModel):\n    user_id: Annotated[str, Path()] = 'me'\n    raw: Annotated[EmailContent, Body(envelop=True), Format('rfc822_base64')]",
+  "out": "",
+  "hold": 1.4
+ },
+ {
+  "in": "",
+  "out": "",
+  "hold": 0.8
+ },
+ {
+  "in": "# api config",
+  "out": "",
+  "hold": 0.8
+ },
+ {
+  "in": "gmail = oauth_tool_factory(pack='mygmail', provider='google',\n    base_url='https://gmail.googleapis.com/',\n    credential_provider=EnvTokenProvider('GOOGLE_ACCESS_TOKEN'))",
+  "out": "",
+  "hold": 1.0
+ },
+ {
+  "in": "",
+  "out": "",
+  "hold": 0.8
+ },
+ {
+  "in": "# the tool",
+  "out": "",
+  "hold": 0.8
+ },
+ {
+  "in": "send = gmail(name='messages_send', method='POST',\n    url_template='gmail/v1/users/{user_id}/messages/send',\n    args_schema=SendMessage)",
+  "out": "",
+  "hold": 1.2
+ },
+ {
+  "in": "__scroll__",
+  "out": "",
+  "hold": 0.3
+ },
+ {
+  "in": "# call the tool",
+  "out": "",
+  "hold": 0.8
+ },
+ {
+  "in": "await send.ainvoke({'raw': {'to': 'nqmug1@gmail.com',\n                           'subject': 'Sent by Charter',\n                           'body': 'Hello from a declared tool.'}})",
+  "out": "POST https://gmail.googleapis.com/gmail/v1/users/me/messages/send\nauthorization: Bearer ya29.a0AX07Cmu\u2026\ncontent-type: application/json\n{\"raw\": \"Q29udGVudC1UeXBlOiB0ZXh0L3BsYWluOyBjaGFyc2V0PSJ1dGYt\u2026\"}\n    \u21b3 decoded\n      Content-Type: text/plain; charset=\"utf-8\"\n      Content-Transfer-Encoding: base64\n      To: nqmug1@gmail.com\n      Subject: Sent by Charter\n      \u2026\nHTTP/1.1 200 OK\n{'id': '1a0df436a58f3934', 'threadId': '1a0df436a58f3934', 'labelIds': ['SENT']}",
+  "hold": 8.0
+ },
+ {
+  "in": "__clear__",
+  "out": "",
+  "hold": 0.3
+ },
+ {
+  "in": "# finetune your agent's context",
+  "out": "",
+  "hold": 0.8
+ },
+ {
+  "in": "from charter import schema_tokens, format_path_costs, format_egress_map",
+  "out": "",
+  "hold": 1.0
+ },
+ {
+  "in": "from charter.packs import linear, gmail as gmail_pack",
+  "out": "",
+  "hold": 1.0
+ },
+ {
+  "in": "schema_tokens(linear.issues_list_full)",
+  "out": "45072",
+  "hold": 0.3
+ },
+ {
+  "in": "__spotlight__ 45072 | one tool",
+  "out": "",
+  "hold": 1.5
+ },
+ {
+  "in": "# audit the schema. what's eating it?",
+  "out": "",
+  "hold": 0.8
+ },
+ {
+  "in": "print(format_path_costs(\n    linear.issues_list_full.paths(under='variables', by_cost=True)))",
+  "out": "filter            44,828\norder_by              52\nfirst                 45\nafter                 43\ninclude_archived      36",
+  "hold": 3.0
+ },
+ {
+  "in": "__scroll__",
+  "out": "",
+  "hold": 0.3
+ },
+ {
+  "in": "# keep only what your agent needs",
+  "out": "",
+  "hold": 0.8
+ },
+ {
+  "in": "F = 'variables.filter.'",
+  "out": "",
+  "hold": 1.0
+ },
+ {
+  "in": "triage = linear.issues_list_full.derived(name='issues_list_triage',\n    keep={F+'id', F+'number', F+'title', F+'priority', F+'state.type',\n          F+'assignee.email', F+'team.key', F+'labels.name'})",
+  "out": "",
+  "hold": 1.0
+ },
+ {
+  "in": "schema_tokens(triage)",
+  "out": "2267",
+  "hold": 0.3
+ },
+ {
+  "in": "__spotlight__ 2267 | 20x smaller, same job",
+  "out": "",
+  "hold": 1.9
+ },
+ {
+  "in": "__clear__",
+  "out": "",
+  "hold": 0.3
+ },
+ {
+  "in": "# define a policy the model can't touch",
+  "out": "",
+  "hold": 0.8
+ },
+ {
+  "in": "invoices = gmail_pack.messages_list.derived(name='search_invoices',\n    pin={'q': 'label:invoices'})",
+  "out": "",
+  "hold": 1.0
+ },
+ {
+  "in": "print(format_egress_map([invoices]))",
+  "out": "gmail__search_invoices  (GET gmail/v1/users/{userId}/messages)\n  visible to the model (5):\n    + userId\n    + maxResults\n    + pageToken\n    + labelIds\n    + includeSpamTrash\n  withheld (1):\n    - q  [pinned] = 'label:invoices'\n  pinned (1):\n    = q  'label:invoices'",
+  "hold": 4.0
+ }
+]

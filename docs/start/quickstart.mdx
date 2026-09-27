@@ -112,18 +112,40 @@ Eleven of the fifteen sit under `body.raw`: the message as the model writes it �
 A pack is the tools of one API, already declared. Configure the credential once and every tool in it is callable.
 
 ```python quickstart.py
-from charter.auth import StaticTokenProvider
-from charter.packs import gmail
+import logging
 
-gmail.configure(StaticTokenProvider(access_token))
+from charter.packs import stripe
 
-await gmail.messages_send.ainvoke(
-    body={"raw": {"to": "ada@example.com", "subject": "Hi", "body": "Hello"}}
-)
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+stripe.configure("sk_test_...")   # https://docs.stripe.com/keys
+
+await stripe.customers_create.ainvoke({"email": "ada@example.com", "name": "Ada Lovelace"})
 ```
 
+```
+customers_create       POST v1/customers               200    782ms  ↑     33 B  ↓     661 B →     111 B  (83%)
+```
+
+Stripe takes an API key, so run this one first — a test key is enough. Look at the
+sizes on that second line. Stripe's customer object comes back with forty-odd fields,
+and the model read six.
+
+You didn't configure that. Every pack tool ships with a response handler tailored to
+its endpoint, there to keep your agent's context window small — which is why Stripe's
+forty-odd-field customer reached the model as six. Write your own with
+`derived(response_handler=...)`, or turn the trimming off with `pass_through` and get
+the response whole. The shape is yours either way:
+[response handling](/reference/response-handling), and
+[seeing the wire](/running/observability#seeing-the-wire) for the headers and body.
+
 <Note>
-A static access token is fine for a script and useless for a product, because it expires in about an hour. See [authorization servers](/auth/authorization-servers) for refresh against any OAuth 2.0 token endpoint, and [getting the grant](/auth/oauth-flow) for where the refresh token comes from.
+Gmail and the other OAuth packs take a credential provider instead of a key:
+`gmail.configure(StaticTokenProvider(access_token))` is fine for a one-time script and wrong
+for a product, because the token expires in about an hour. See
+[authorization servers](/auth/authorization-servers) for refresh against any OAuth 2.0
+token endpoint, and [getting the grant](/auth/oauth-flow) for where the refresh token
+comes from.
 </Note>
 
 ## Hand it to a framework
