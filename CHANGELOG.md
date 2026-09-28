@@ -7,6 +7,20 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Pre-1.0, minor versions may break the public API. Anything that does will say so
 here, with the migration in the same entry.
 
+## [0.2.4] — 2026-09-28
+
+### Notes
+
+- **No code changes, for the same reason as 0.2.3, under conditions where it can
+  work.** 0.2.3 was cut to force PyPI to republish its cached project page, which
+  had been serving a render from 0.1.0. That attempt could not have succeeded: an
+  upload fires a cache purge, but the purge needs PyPI's web backend alive to
+  regenerate the page, and the backend was down — unannounced — from before 0.2.2
+  went out until roughly 12:50Z. Both purges were lost. Downloads were never
+  affected, since `files.pythonhosted.org` stayed healthy throughout. The backend
+  has since recovered, so this upload's purge is the first one able to land. The
+  package is identical to 0.2.2 apart from `__version__`.
+
 ## [0.2.3] — 2026-09-28
 
 ### Notes
@@ -1645,6 +1659,7 @@ First release.
   pagination loops, no multi-call orchestration, no streaming. See *What this
   can't express* in the README.
 
+[0.2.4]: https://github.com/r28ai/charter/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/r28ai/charter/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/r28ai/charter/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/r28ai/charter/compare/v0.2.0...v0.2.1
