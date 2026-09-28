@@ -7,6 +7,51 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Pre-1.0, minor versions may break the public API. Anything that does will say so
 here, with the migration in the same entry.
 
+## [0.2.2] — 2026-09-28
+
+### Fixed
+
+- **A progressive MCP server comes up in a third of the time on every pack.**
+  Building a `ToolSession` sized every tool's schema to decide what to defer, and
+  sizing one builds it: about 1.5s for Linear's 128 tools and 8s for the fifteen
+  packs together. At
+  the default threshold of zero that work has one possible outcome. Nothing can be
+  resident — `schema_tokens` cannot reach zero, since pydantic writes `type` and
+  `properties` for every model and the smallest parameter schema a tool can carry
+  is `{"properties": {}, "type": "object"}`, 9 tokens before a field is declared
+  and 16 across the shipped packs — so every schema was derived to answer a
+  question that was already answered.
+
+  `python -m charter.mcp` paid it between the client's `initialize` and the reply,
+  which made the progressive server — the one that sends no schemas at all — the
+  slower of the two to come up, behind `--no-progressive`, which sends every one.
+  Over the same handshake, median of seven: `--pack linear` answered `initialize`
+  in 4.8s and now answers in 3.3s; all fifteen packs took 14.7s and now take 6.8s.
+  What is left is the pack import itself, which is pydantic building the
+  declarations — 2.7s of Linear's is its recursive filter graph. A positive
+  `threshold` still has to weigh every schema to place it, and still costs what it
+  did.
+
+  The partition was also, incidentally, `prepare()` for every tool it walked — and
+  for the wrong tools, since a progressive server publishes `ToolSearch` and
+  nothing else. `ToolSearch` now prepares each tool as it loads it, which is the
+  same work in the same amount at the one point in the exchange where a schema was
+  always going to be built. Preparing is the optimisation and loading is the
+  contract, so it happens after the load and a tool whose view cannot be built no
+  longer takes the rest of the query down with it.
+
+  This finishes what 0.2.0 started under **Performance**. Deriving a view at
+  construction was dropped there because it "holds for one tool and not for 128
+  that a session will never all expose" — and then the partition touched all 128
+  anyway, one layer up, on the first session built over them.
+
+- **`tools/list` no longer rebuilds every loaded tool's schema.** The MCP adapter
+  called `llm_json_schema(tool.llm_schema())` per entry, which is the same value as
+  `to_json_schema()["parameters"]` without the cache behind it. A client re-lists
+  after every `ToolSearch`, so the 40ms-per-tool generation was paid again on each
+  load for every tool already loaded. Serving Linear with `--no-progressive`, a
+  repeated `tools/list` drops from 707ms to 29ms.
+
 ## [0.2.1] — 2026-09-28
 
 ### Fixed
@@ -1586,7 +1631,7 @@ First release.
   pagination loops, no multi-call orchestration, no streaming. See *What this
   can't express* in the README.
 
-[Unreleased]: https://github.com/r28ai/charter/compare/v0.2.1...HEAD
+[0.2.2]: https://github.com/r28ai/charter/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/r28ai/charter/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/r28ai/charter/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/r28ai/charter/releases/tag/v0.1.0

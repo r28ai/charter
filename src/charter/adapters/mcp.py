@@ -30,7 +30,6 @@ import json
 from typing import Any, Dict, List, Optional
 
 from charter.discovery import SEARCH_TOOL_NAME
-from charter.execution.schema import llm_json_schema
 from charter.session import ToolSession, ToolsLike, view_of
 from charter.types.errors import CharterError
 
@@ -132,10 +131,17 @@ def build_server(
                         if isinstance(entry, dict)
                         else (entry.description or entry_name)
                     ),
+                    # `to_json_schema` rather than building the schema here:
+                    # the two produce the same value — `parameters` *is*
+                    # `llm_json_schema(llm_schema())` — but that one caches and
+                    # copies, and this list is rebuilt on every `tools/list`. A
+                    # client re-lists after each `ToolSearch`, so building it
+                    # here paid the 40ms-per-tool generation again on every load,
+                    # for every tool already loaded.
                     input_schema=(
                         entry["parameters"]
                         if isinstance(entry, dict)
-                        else llm_json_schema(entry.llm_schema())
+                        else entry.to_json_schema()["parameters"]
                     ),
                 )
                 for entry_name, entry in view_of(session)

@@ -148,12 +148,18 @@ class ToolSession:
         inert with nothing to match it against, so a tier that came back empty
         would be served every tier's fields.
 
-    Constructing one is also :meth:`Tool.prepare <charter.Tool.prepare>` for
-    every tool it is given: partitioning sizes each schema, and sizing one
-    derives it. That is about 2.5 seconds for Linear's 128 tools, synchronously,
-    on whichever thread builds the session — so build it at startup rather than
-    per request. ``progressive=False`` skips the partition and leaves the tools
-    to derive on first use.
+    Constructing one is cheap at the default threshold, and deliberately so.
+    Nothing is weighed, because at a threshold of zero nothing can be resident
+    and the partition already knows its answer; nothing is built, because a
+    deferred tool's schema is not going out this turn. A tool is prepared when
+    ``ToolSearch`` loads it — :meth:`Tool.prepare <charter.Tool.prepare>` for the
+    tools the process is actually about to expose, rather than for all of them to
+    expose none.
+
+    A positive ``threshold`` does have to weigh every schema to place it, and
+    weighing one derives it, so that path costs about 2.5 seconds for Linear's
+    128 tools, synchronously, on whichever thread builds the session. Build it at
+    startup rather than per request.
 
     **The mode resolves once, here.** Credentials resolve per call, through a
     ContextVar, because the subject can change between two calls of one
@@ -279,9 +285,37 @@ class ToolSession:
             found = rank(self.deferrable, required, terms)[: max(1, max_results)]
             missing = []
 
+        newly: List[str] = []
         for name in found:
             if name not in self.loaded:
                 self.loaded.append(name)
+                newly.append(name)
+
+        # Built now, inside the call the model is already waiting on. This is
+        # `prepare()`'s documented case — a tool the process is about to expose —
+        # and a load is the only place that knows which those are. Left cold, the
+        # same build lands in the `tools/list` a load triggers, or in the first
+        # `ainvoke`: the same work, in the same amount, somewhere the client is
+        # waiting anyway.
+        #
+        # After the loading and never in front of it, because loading is the
+        # contract and preparing is the optimisation — "skipping it costs latency
+        # on one call, not correctness". Building a schema is the one thing here
+        # that can fail on a pack nobody has run: a type pydantic will not
+        # render raises, and raising from inside the load would return nothing
+        # for the tools that were fine while leaving the one that was not in
+        # `loaded` regardless. It is not a `CharterError` either, so it would go
+        # straight through the error handling every adapter wraps a call in. A
+        # tool left cold here fails where it is used, which is where it failed
+        # before anything was prepared at all.
+        for name in newly:
+            tool = self.deferrable.get(name)
+            if tool is not None:
+                try:
+                    tool.prepare()
+                except Exception:  # pragma: no cover - a pack whose view cannot build
+                    pass
+
         out: Dict[str, Any] = {
             "loaded": sorted(found),
             "note": "These tools are now available with their full parameters.",

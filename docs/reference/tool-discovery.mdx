@@ -40,12 +40,16 @@ session = ToolSession([*gmail.TOOLS, *stripe.TOOLS])
 ```
 
 <Note>
-  Building a session sizes every tool's schema to decide what to defer, and
-  sizing one derives it. Constructing a session is therefore also
-  [`prepare`](/reference/tool#tool-prepare) for the tools it holds. On Linear's
-  128 that is about 2.5 seconds, synchronously, on whichever thread constructs
-  it. Build the session at startup, not per request. `progressive=False` skips
-  the sizing and leaves the tools to derive on first use.
+  Building a session is cheap: at the default threshold nothing can be resident,
+  so nothing is sized, and a deferred tool's schema is not going out this turn
+  either way. `ToolSearch` is
+  [`prepare`](/reference/tool#tool-prepare) for each tool as it loads it — the
+  tools the process is about to expose, rather than all of them to expose none.
+
+  A positive `threshold` has to size every schema to place it, and sizing one
+  derives it. On Linear's 128 that is about 2.5 seconds, synchronously, on
+  whichever thread constructs it, so construct it at startup rather than per
+  request.
 </Note>
 
 ```python

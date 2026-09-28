@@ -209,8 +209,36 @@ def partition(
     """``(resident, deferrable)``.
 
     A tool is deferrable when its schema is over ``threshold``, which at the
-    default of zero is every tool.
+    default of zero is every tool — answered without weighing anything, since
+    weighing is what costs.
     """
+    # At or below zero the answer is already known, and asking costs seconds.
+    #
+    # `schema_tokens` cannot reach zero. Pydantic writes `type` and `properties`
+    # for every model, so the smallest parameter schema a tool can carry is
+    # `{"properties": {}, "type": "object"}` — 36 characters, 9 tokens, before a
+    # single field is declared, and 16 once the model's `extra` puts
+    # `additionalProperties` beside them. The shipped floor is 16 (firecrawl's
+    # no-argument tools). So at a threshold of zero every comparison below has
+    # the same answer, reached only after deriving every schema handed in to ask
+    # a question with one answer.
+    #
+    # Which was the startup cost of every served pack. Sizing is
+    # `Tool.to_json_schema`, and it ran to about 1.5s for Linear's 128 tools and
+    # 8s for the fifteen packs together. `python -m charter.mcp` paid it between
+    # the client's `initialize` and the reply, so a progressive server — the one
+    # that sends no schemas at all — was the slower of the two to come up, behind
+    # `--no-progressive`, and a client with a startup timeout saw a server that
+    # never did. Measured over the handshake, median of seven: `--pack linear`
+    # 4.8s to 3.3s, all fifteen packs 14.7s to 6.8s.
+    #
+    # The side effect that went with it was warming every tool, and it went to
+    # the wrong tools: `Tool.prepare` is documented for "the tools a process will
+    # actually expose", which here is `ToolSearch` and nothing else. What a
+    # search loads is prepared when it loads, in `ToolSession.search`.
+    if threshold <= 0:
+        return {}, dict(by_name)
+
     resident: Dict[str, Tool] = {}
     deferrable: Dict[str, Tool] = {}
     for name, tool in by_name.items():

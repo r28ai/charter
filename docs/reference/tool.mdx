@@ -301,11 +301,12 @@ than blocking the event loop. Nothing can do that for a synchronous caller:
 [`to_openai_tools`](/using/adapters) is documented to run inside the turn loop and
 calls `to_json_schema`, which blocks the thread it is on.
 
-Constructing a [`ToolSession`](/reference/tool-discovery#toolsession) already does
-this for every tool you hand it. It sizes each schema to decide what to defer,
-and sizing one builds it. That is 2.5s for Linear's 128 tools, on whichever
-thread constructs the session, so build the session at startup rather than per
-request. `progressive=False` skips the sizing and leaves the tools cold.
+A [`ToolSession`](/reference/tool-discovery#toolsession) does this for the tools it
+publishes, when it publishes them: at the default threshold it builds nothing on
+construction, and `ToolSearch` prepares each tool as it loads it. Give it a
+positive `threshold` and it has to size every schema to place it, which builds
+every schema — 2.5s for Linear's 128 tools, on whichever thread constructs the
+session, so construct it at startup rather than per request.
 
 A non-zero
 [`schema_ms`](/reference/observability#toolcall) on a call in production means a

@@ -528,15 +528,129 @@ def test_one_pack_serves_three_tiers_without_a_toolset_dict(tiered):
     ]
 
 
-def test_constructing_a_moded_session_prepares_the_variants(tiered):
-    """Building a session is `prepare()` for what it holds, at whatever mode.
+def test_constructing_a_session_builds_no_schemas(tiered):
+    """A default session is cheap, and that is the whole point of a default one.
 
-    Partitioning sizes every schema and sizing one derives it, and that is the
-    property that keeps the build at startup instead of inside the first
-    request. A mode variant is a different tool object with a cold view, so if
-    the partition ran over the originals the variants would all be cold.
+    At a threshold of zero nothing can be resident, so the partition knows its
+    answer without weighing anything — and weighing is what costs: it is
+    `to_json_schema` per tool, which ran to 1.3s for Linear's 128 and 6.4s for
+    the fifteen packs together. `python -m charter.mcp` spent it between the
+    client's `initialize` and the reply, to publish a surface holding no schemas
+    at all.
+    """
+    session = ToolSession(tiered)
+    for tool in session.tools.values():
+        assert tool._json_schema is None, f"{tool.name} was built to be deferred"
+
+
+def test_a_threshold_still_prepares_what_it_makes_resident(tiered):
+    """The old guarantee, kept where it still earns its cost.
+
+    A resident tool's schema goes out on the next tool list, so a threshold that
+    has to weigh every schema to place it leaves the ones it publishes warm.
+    """
+    session = ToolSession(tiered, threshold=10_000)
+    assert session.resident and not session.deferrable
+    for tool in session.resident.values():
+        assert tool._json_schema is not None, f"{tool.name} was weighed and then dropped"
+
+
+def test_a_tool_that_cannot_build_does_not_take_the_search_down_with_it():
+    """Loading is the contract; preparing it is the optimisation.
+
+    A search prepares what it loads, and building a schema is the one step there
+    that can fail on a pack nobody has run — a type pydantic will not render.
+    That must not cost the tools that were fine: before this was ordered and
+    guarded, one such tool returned nothing for the whole query while staying in
+    `loaded` regardless, and raised something no adapter catches, since it is not
+    a `CharterError`.
+    """
+    factory = api_key_tool_factory(
+        base_url="https://x.api/", pack="p", api_key_headers={"x-api-key": "k"}
+    )
+
+    class Args(BaseModel):
+        q: Annotated[str, Query()] = "x"
+
+    tools = [
+        factory(
+            name=name,
+            args_schema=Args,
+            method="GET",
+            url_template="things",
+            description=f"alpha {name}",
+        )
+        for name in ("aaa", "bbb", "ccc")
+    ]
+    # The middle one by load order, so a failure lands with tools on both sides.
+    broken = tools[1]
+    original = type(broken).prepare
+
+    def prepare(self):
+        if self is broken:
+            raise RuntimeError("a view pydantic cannot render")
+        return original(self)
+
+    session = ToolSession(tools)
+    monkeypatched = pytest.MonkeyPatch()
+    monkeypatched.setattr(type(broken), "prepare", prepare)
+    try:
+        result = session.search("alpha")
+    finally:
+        monkeypatched.undo()
+
+    assert result["loaded"] == ["p__aaa", "p__bbb", "p__ccc"]
+    assert session.loaded == ["p__aaa", "p__bbb", "p__ccc"]
+    # The ones that could build did; the one that could not is loaded and cold,
+    # which is where it was before anything was prepared at all.
+    assert tools[0]._json_schema is not None
+    assert tools[2]._json_schema is not None
+    assert broken._json_schema is None
+
+
+def test_the_mcp_server_does_not_rebuild_a_schema_it_has_published(tiered):
+    """`list_tools` is rebuilt on every `tools/list`, and a client re-lists often.
+
+    Building the schema per entry regenerated it each time — the same value
+    `to_json_schema` caches, at ~40ms a tool on a deep one, paid again on every
+    load for every tool already published.
+    """
+    import anyio
+
+    session = ToolSession(tiered, progressive=False)
+    server = build_server(session, name="tier")
+
+    async def go():
+        return await server.list_tools(), await server.list_tools()
+
+    first, second = anyio.run(go)
+    assert [t.name for t in first] == [t.name for t in second]
+    assert [t.input_schema for t in first] == [t.input_schema for t in second]
+    # Cached, and handed out as a copy so an adapter may edit what it is given.
+    for tool in session.resident.values():
+        assert tool._json_schema is not None
+    assert first[0].input_schema is not second[0].input_schema
+
+
+def test_a_search_prepares_the_moded_variant_it_loaded(tiered):
+    """Loading is `prepare()` for what was loaded, at whatever mode.
+
+    A mode variant is a different tool object with a cold view, so a session that
+    prepared the originals would leave the tool it actually serves cold. The
+    build has to land on the variant, and it has to land inside the search rather
+    than in the `tools/list` the search triggers.
     """
     session = ToolSession(tiered, mode="pro")
-    for tool in session.tools.values():
-        assert tool._views_ready, f"{tool.name} was left to build inside a request"
-        assert tool._json_schema is not None
+    original = tiered[0]
+    assert original._json_schema is None, "the pack's own tool was built"
+
+    session.search("select:tier__reports_get")
+
+    loaded = session.tools["tier__reports_get"]
+    assert loaded is not original, "this pack no longer varies by mode"
+    assert loaded._views_ready, "left to build inside a request"
+    assert loaded._json_schema is not None
+    # Untouched: a session resolves a view, it does not warm the pack.
+    assert original._json_schema is None
+    # And the tool nobody asked for is still cold.
+    assert session.tools["tier__reports_list"]._json_schema is None
