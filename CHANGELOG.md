@@ -7,6 +7,20 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Pre-1.0, minor versions may break the public API. Anything that does will say so
 here, with the migration in the same entry.
 
+## [0.2.3] — 2026-09-28
+
+### Notes
+
+- **No code changes: this release exists to make 0.2.2 visible.** The 0.2.2
+  artifacts uploaded and served correctly — both files answer 200 from
+  `files.pythonhosted.org` — but PyPI's cached read surfaces disagreed with each
+  other and with the upload: the project page served a render from 0.1.0, three
+  days old, while `/pypi/charter-ai/json` answered 0.2.1 and the JSON `/simple/`
+  index answered 0.2.2. Peer packages were consistent over the same window, so the
+  stale object was this project's, not a PyPI-wide lag. An upload re-emits the
+  project's purge keys, which is the only lever a publisher has. The package is
+  identical to 0.2.2 apart from `__version__`.
+
 ## [0.2.2] — 2026-09-28
 
 ### Fixed
@@ -1631,6 +1645,7 @@ First release.
   pagination loops, no multi-call orchestration, no streaming. See *What this
   can't express* in the README.
 
+[0.2.3]: https://github.com/r28ai/charter/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/r28ai/charter/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/r28ai/charter/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/r28ai/charter/compare/v0.1.0...v0.2.0
