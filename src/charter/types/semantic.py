@@ -11,10 +11,11 @@ for API calls by the transforms in :mod:`charter.transforms`.
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 __all__ = [
     "EmailContent",
@@ -22,6 +23,9 @@ __all__ = [
     "DocumentContent",
     "FileContent",
 ]
+
+# RFC 5322 folding: a line break followed by whitespace continues the header.
+_FOLDING = re.compile(r"\r?\n[ \t]+")
 
 
 # -----------------------------------------------------
@@ -80,6 +84,33 @@ class EmailContent(BaseModel):
             "Should include all previous Message-IDs in the thread, most recent first."
         ),
     )
+
+    @field_validator(
+        "to",
+        "cc",
+        "bcc",
+        "subject",
+        "from_",
+        "reply_to",
+        "in_reply_to",
+        "references",
+        mode="before",
+    )
+    @classmethod
+    def _single_line(cls, value: Any) -> Any:
+        # A line break followed by a space or tab is a folded header, one
+        # logical line, so it is unfolded. Any other line break is how a second
+        # header (a Bcc) gets smuggled in. The encoder would refuse that too,
+        # but as a parse error a model can't act on; this names the field.
+        def unfold(item: Any) -> Any:
+            if not isinstance(item, str):
+                return item
+            item = _FOLDING.sub(" ", item)
+            if "\r" in item or "\n" in item:
+                raise ValueError("must be a single line; header fields cannot contain line breaks")
+            return item
+
+        return [unfold(item) for item in value] if isinstance(value, list) else unfold(value)
 
 
 # -----------------------------------------------------

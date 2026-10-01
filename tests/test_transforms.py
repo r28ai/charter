@@ -11,7 +11,7 @@ from typing import Annotated, List, Optional
 import httpx
 import pytest
 import respx
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from charter.transforms import (
     TransformRegistry,
@@ -273,6 +273,36 @@ def test_rfc822_base64_keeps_bodies_7bit():
     msg = email.message_from_bytes(raw, policy=email.policy.default)
     assert msg.get_body(("plain",)).get_content().strip() == "Grüße — ça va? 日本"
     assert msg.get_body(("html",)).get_content().strip() == "<p>Grüße — 日本</p>"
+
+
+@pytest.mark.parametrize(
+    "field", ["to", "cc", "bcc", "subject", "from_", "reply_to", "in_reply_to", "references"]
+)
+def test_email_content_refuses_line_breaks_in_header_fields(field):
+    """A line break in a header value is how a second header gets smuggled in."""
+    values = {"to": "a@b.com", "subject": "S", "body": "a body\nmay have lines"}
+    values[field] = "x@example.com\r\nBcc: someone@evil.example"
+    with pytest.raises(ValidationError) as excinfo:
+        EmailContent(**values)
+    assert "single line" in str(excinfo.value)
+
+
+def test_email_content_refuses_a_line_break_inside_a_recipient_list():
+    with pytest.raises(ValidationError):
+        EmailContent(to=["a@b.com", "c@d.com\nBcc: someone@evil.example"], subject="S", body="B")
+
+
+def test_email_content_unfolds_a_folded_header():
+    """A line break followed by whitespace is RFC 5322 folding, one logical line."""
+    content = EmailContent(
+        to=["a@b.com", "Bo\r\n <bo@example.com>"],
+        subject="Hello\r\n World",
+        body="B",
+        references="<a@x>\r\n <b@x>\n\t<c@x>",
+    )
+    assert content.to == ["a@b.com", "Bo <bo@example.com>"]
+    assert content.subject == "Hello World"
+    assert content.references == "<a@x> <b@x> <c@x>"
 
 
 def test_rfc822_base64_punycodes_a_non_ascii_domain():

@@ -26,6 +26,11 @@ here, with the migration in the same entry.
   `jorg@xn--mller-kva.de`. A non-ASCII mailbox name has no ASCII form without
   SMTPUTF8, so it is refused with a message naming the header, before the
   request, instead of reaching Gmail as an invalid header.
+- **`EmailContent` refuses line breaks in its header fields.** A line break in a
+  header value is how a second header, a `Bcc`, gets smuggled into a message. The
+  encoder already refused one, but with a parse error a model cannot act on; the
+  field now fails validation with a message that names it. A folded header, a line
+  break followed by whitespace, is one logical line and is unfolded, not refused.
 
 ## [0.2.4] — 2026-09-28
 
