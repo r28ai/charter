@@ -12,9 +12,10 @@ from __future__ import annotations
 
 import base64
 import json
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from typing import Any, Callable, Dict, Optional, Type
+from email import policy
+from email.headerregistry import Address
+from email.message import EmailMessage
+from typing import Any, Callable, Dict, List, Optional, Type, Union
 
 from pydantic import BaseModel, ValidationError
 
@@ -164,6 +165,50 @@ class TransformRegistry:
 # -----------------------------------------------------
 
 
+# EmailMessage, not MIMEText. The compat32 classes RFC 2047-encode a whole
+# address header once its display name is non-ASCII, addr-spec included —
+# `To: =?utf-8?b?IkrDtnJnIE3DvGxsZXIiIDxqb3JnQGV4YW1wbGUuZGU+?=` — and Gmail
+# refuses that message with "Invalid To header". The header registry encodes
+# the name only. 7bit keeps every body base64 or quoted-printable, as before.
+_EMAIL_POLICY = policy.SMTP.clone(cte_type="7bit")
+
+
+def _address_list(value: Union[str, List[str]]) -> str:
+    return ", ".join(value) if isinstance(value, list) else value
+
+
+def _set_addresses(msg: EmailMessage, name: str, value: Union[str, List[str]]) -> None:
+    """Set an address header whose addr-specs are ASCII on the wire.
+
+    A non-ASCII display name is fine, the header registry encodes it. A
+    non-ASCII addr-spec is not: an encoded-word inside an address is invalid,
+    and Gmail answers ``Invalid To header``. A domain has an ASCII form, its
+    punycode; a mailbox name has none without SMTPUTF8, so it is refused here
+    with a message instead of failing as a 400 the model cannot read.
+    """
+    msg[name] = _address_list(value)
+    addresses = msg[name].addresses
+    if all(address.addr_spec.isascii() for address in addresses):
+        return
+    ascii_addresses = []
+    for address in addresses:
+        if not address.username.isascii():
+            raise ValueError(
+                f"{name}: {address.addr_spec!r} has a non-ASCII mailbox name, which cannot be "
+                "sent without SMTPUTF8; use an ASCII address"
+            )
+        domain = (
+            address.domain
+            if address.domain.isascii()
+            else address.domain.encode("idna").decode("ascii")
+        )
+        ascii_addresses.append(
+            Address(display_name=address.display_name, username=address.username, domain=domain)
+        )
+    del msg[name]
+    msg[name] = ascii_addresses
+
+
 @TransformRegistry.register("rfc822_base64", EmailContent, "Email message content")
 def transform_email_to_rfc822_base64(email: EmailContent) -> str:
     """Transform ``EmailContent`` to RFC822 format, base64url encoded.
@@ -171,58 +216,31 @@ def transform_email_to_rfc822_base64(email: EmailContent) -> str:
     This is used for the Gmail API and other email services that expect RFC822
     formatted messages. Supports plain text, HTML, and multipart/alternative.
     """
-    # Build message body: multipart/alternative if both body and bodyHtml, else single part
-    msg: MIMEText | MIMEMultipart
+    msg = EmailMessage(policy=_EMAIL_POLICY)
     if email.bodyHtml:
-        msg = MIMEMultipart("alternative")
-        msg.attach(MIMEText(email.body, "plain", "utf-8"))
-        msg.attach(MIMEText(email.bodyHtml, "html", "utf-8"))
-    elif email.mimeType == "text/html":
-        msg = MIMEText(email.body, "html", "utf-8")
+        msg.set_content(email.body)
+        msg.add_alternative(email.bodyHtml, subtype="html")
     else:
-        msg = MIMEText(email.body, "plain", "utf-8")
+        msg.set_content(email.body, subtype="html" if email.mimeType == "text/html" else "plain")
 
-    # Set headers
-    if isinstance(email.to, list):
-        msg["To"] = ", ".join(email.to)
-    else:
-        msg["To"] = email.to
-
+    _set_addresses(msg, "To", email.to)
     msg["Subject"] = email.subject
-
-    # Optional headers
     if email.from_:
-        msg["From"] = email.from_
-
+        _set_addresses(msg, "From", email.from_)
     if email.cc:
-        if isinstance(email.cc, list):
-            msg["Cc"] = ", ".join(email.cc)
-        else:
-            msg["Cc"] = email.cc
-
+        _set_addresses(msg, "Cc", email.cc)
     if email.bcc:
-        if isinstance(email.bcc, list):
-            msg["Bcc"] = ", ".join(email.bcc)
-        else:
-            msg["Bcc"] = email.bcc
-
+        _set_addresses(msg, "Bcc", email.bcc)
     if email.reply_to:
-        msg["Reply-To"] = email.reply_to
-
-    # Threading headers (RFC 2822 standard)
+        _set_addresses(msg, "Reply-To", email.reply_to)
+    # Threading headers (RFC 2822)
     if email.in_reply_to:
         msg["In-Reply-To"] = email.in_reply_to
-
     if email.references:
         msg["References"] = email.references
 
-    # Convert to RFC822 string
-    rfc822_string = msg.as_string()
-
-    # Encode to base64url (Gmail requirement)
-    encoded = base64.urlsafe_b64encode(rfc822_string.encode("utf-8")).decode("utf-8")
-    # Remove padding for URL safety
-    return encoded.rstrip("=")
+    # base64url without padding, as Gmail's `raw` takes it
+    return base64.urlsafe_b64encode(msg.as_bytes()).decode("ascii").rstrip("=")
 
 
 @TransformRegistry.register("email_json", EmailContent, "Email message as JSON")

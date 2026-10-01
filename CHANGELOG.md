@@ -7,6 +7,26 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Pre-1.0, minor versions may break the public API. Anything that does will say so
 here, with the migration in the same entry.
 
+## [Unreleased]
+
+### Fixed
+
+- **Gmail refused mail to anyone with a non-ASCII display name.** `rfc822_base64`
+  built messages with `MIMEText`, whose compat32 policy RFC 2047-encodes a whole
+  address header once its display name is non-ASCII, addr-spec included:
+  `"Jörg Müller" <jorg@example.de>` went out as
+  `To: =?utf-8?b?IkrDtnJnIE3DvGxsZXIiIDxqb3JnQGV4YW1wbGUuZGU+?=`, and the Gmail API
+  answers that with `Invalid To header`. The encoder now builds an `EmailMessage`,
+  whose header registry encodes the name only, in `To`, `Cc`, `Bcc`, `From` and
+  `Reply-To`. Bodies stay 7bit on the wire, base64 or quoted-printable, as before.
+  Found while fixing the same bug in Hermes Agent's Gmail skill.
+- **Non-ASCII email addresses go out in ASCII, or not at all.** An encoded-word
+  inside an address is invalid, and that is what `rfc822_base64` wrote for one. A
+  non-ASCII domain (`jorg@müller.de`) now goes out as its punycode,
+  `jorg@xn--mller-kva.de`. A non-ASCII mailbox name has no ASCII form without
+  SMTPUTF8, so it is refused with a message naming the header, before the
+  request, instead of reaching Gmail as an invalid header.
+
 ## [0.2.4] — 2026-09-28
 
 ### Notes

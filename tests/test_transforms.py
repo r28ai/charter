@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import email
+import email.policy
 import json
 from typing import Annotated, List, Optional
 
@@ -223,6 +224,77 @@ def test_rfc822_base64_survives_unicode():
     )
     msg = email.message_from_string(_decode_b64url(encoded))
     assert "héllo — 🌍" in msg.get_payload(decode=True).decode("utf-8")
+
+
+def test_rfc822_base64_encodes_only_the_display_name():
+    """compat32 encoded a whole address header, addr-spec included, once its
+    display name was non-ASCII, and Gmail refused the message ("Invalid To header")."""
+    encoded = apply_transform(
+        "rfc822_base64",
+        EmailContent(
+            to='"Jörg Müller" <jorg@example.de>',
+            cc=["Bo Ärger <bo@example.de>", "plain@example.com"],
+            from_='"Agent Ünicode" <me@example.com>',
+            reply_to='"Støtte" <help@example.no>',
+            subject="Grüße",
+            body="hi",
+        ),
+    )
+    raw = _decode_b64url(encoded)
+    unfolded = raw.replace("\r\n ", " ").replace("\r\n\t", " ")
+    for header, addr_spec in (
+        ("To", "<jorg@example.de>"),
+        ("Cc", "<bo@example.de>"),
+        ("From", "<me@example.com>"),
+        ("Reply-To", "<help@example.no>"),
+    ):
+        line = next(line for line in unfolded.split("\r\n") if line.startswith(f"{header}:"))
+        assert addr_spec in line, line
+
+    msg = email.message_from_string(raw, policy=email.policy.default)
+    assert [(a.display_name, a.addr_spec) for a in msg["To"].addresses] == [
+        ("Jörg Müller", "jorg@example.de")
+    ]
+    assert [a.addr_spec for a in msg["Cc"].addresses] == ["bo@example.de", "plain@example.com"]
+    assert msg["From"].addresses[0].display_name == "Agent Ünicode"
+    assert str(msg["Subject"]) == "Grüße"
+
+
+def test_rfc822_base64_keeps_bodies_7bit():
+    """Non-ASCII bodies go out base64 or quoted-printable: nothing above 0x7f on the wire."""
+    encoded = apply_transform(
+        "rfc822_base64",
+        EmailContent(
+            to="a@b.com", subject="S", body="Grüße — ça va? 日本", bodyHtml="<p>Grüße — 日本</p>"
+        ),
+    )
+    raw = base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4))
+    raw.decode("ascii")
+    msg = email.message_from_bytes(raw, policy=email.policy.default)
+    assert msg.get_body(("plain",)).get_content().strip() == "Grüße — ça va? 日本"
+    assert msg.get_body(("html",)).get_content().strip() == "<p>Grüße — 日本</p>"
+
+
+def test_rfc822_base64_punycodes_a_non_ascii_domain():
+    """An encoded-word inside an address is invalid; a domain's ASCII form is its punycode."""
+    encoded = apply_transform(
+        "rfc822_base64",
+        EmailContent(to='"Jörg" <jorg@müller.de>', cc="ann@bücher.example", subject="S", body="B"),
+    )
+    raw = _decode_b64url(encoded)
+    msg = email.message_from_string(raw, policy=email.policy.default)
+    assert [(a.display_name, a.addr_spec) for a in msg["To"].addresses] == [
+        ("Jörg", "jorg@xn--mller-kva.de")
+    ]
+    assert [a.addr_spec for a in msg["Cc"].addresses] == ["ann@xn--bcher-kva.example"]
+    raw.encode("ascii")
+
+
+def test_rfc822_base64_refuses_a_non_ascii_mailbox_name():
+    """A mailbox name has no ASCII form without SMTPUTF8: refused with a message, not a 400."""
+    with pytest.raises(TransformError) as excinfo:
+        apply_transform("rfc822_base64", EmailContent(to="jörg@example.de", subject="S", body="B"))
+    assert "non-ASCII mailbox name" in str(excinfo.value)
 
 
 def test_email_json_uses_wire_aliases():
