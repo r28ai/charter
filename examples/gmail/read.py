@@ -39,7 +39,7 @@ async def read(message_id: str) -> None:
         text = decode_base64url(plain["body"].get("data", "")).strip()
         print(f"text/plain part: {len(text.split())} words: {text[:70]!r}")
     body = message["bodyText"]
-    print(f"Charter's bodyText: {len(body.split())} words\n\n{body[:600]}\n")
+    print(f"Charter's bodyText: {len(body.split())} words\n\n{body}\n")
     kb = [len(json.dumps(r)) / 1000 for r in (api, message)]
     print(f"Gmail's response {kb[0]:.1f} KB, Charter's {kb[1]:.1f} KB")
 
