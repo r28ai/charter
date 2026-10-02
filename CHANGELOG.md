@@ -7,7 +7,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Pre-1.0, minor versions may break the public API. Anything that does will say so
 here, with the migration in the same entry.
 
-## [Unreleased]
+## [0.2.7] — 2026-10-02
 
 ### Added
 
@@ -1791,6 +1791,7 @@ First release.
   pagination loops, no multi-call orchestration, no streaming. See *What this
   can't express* in the README.
 
+[0.2.7]: https://github.com/r28ai/charter/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/r28ai/charter/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/r28ai/charter/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/r28ai/charter/compare/v0.2.3...v0.2.4
