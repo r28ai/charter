@@ -233,3 +233,13 @@ async def test_every_worked_example_runs(source, pack_state_restored):
         # would follow the snippet in and turn every annotation into a string —
         # which a reader pasting the block into their own file would not get.
         await run_doc_block(source, namespace, "<reference>")
+
+
+def test_the_cli_page_shows_the_usage_the_parser_prints(capsys):
+    from charter.mcp import main
+
+    with pytest.raises(SystemExit):
+        main(["--help"])
+    usage = capsys.readouterr().out.splitlines()[0]
+    assert usage.startswith("usage: charter-mcp ")
+    assert usage in (REFERENCE / "cli.mdx").read_text().splitlines()

@@ -217,7 +217,7 @@ MCP is the surface where this depends on the client. The server holds the
 session and a load emits `notifications/tools/list_changed`, but a client has to
 re-list on it and hand the new tools to the model at once, and most do not:
 Codex keeps the list it started with, and Google ADK reads it once per turn.
-`python -m charter.mcp` sends every schema unless you pass `--progressive`;
+`charter-mcp` sends every schema unless you pass `--progressive`;
 [the MCP page](/using/mcp#loading-on-demand) records what each client did.
 
 The projections underneath are public — `to_openai_tools(session)`,

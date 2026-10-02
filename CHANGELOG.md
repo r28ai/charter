@@ -7,6 +7,18 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Pre-1.0, minor versions may break the public API. Anything that does will say so
 here, with the migration in the same entry.
 
+## [Unreleased]
+
+### Added
+
+- **A `charter-mcp` command.** A client config can now launch the server with
+  `uvx --from 'charter-ai[mcp]' charter-mcp --pack gmail`, which needs nothing
+  installed beforehand. The configs on the MCP page named `python -m
+  charter.mcp`, which works only when the `python` the client finds on its
+  `PATH` is the one Charter was installed into. Every client config there now
+  uses the `uvx` form. `python -m charter.mcp` is the same entry point and
+  still works.
+
 ## [0.2.6] — 2026-10-02
 
 ### Changed

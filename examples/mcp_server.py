@@ -9,7 +9,7 @@ Run with:
     FIRECRAWL_API_KEY=... python examples/mcp_server.py
 
 Or serve a shipped pack without writing any code at all:
-    python -m charter.mcp --pack gmail
+    uvx --from 'charter-ai[mcp]' charter-mcp --pack gmail
 """
 
 import asyncio

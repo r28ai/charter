@@ -1,20 +1,30 @@
 ---
 title: "Command line"
-description: "python -m charter.mcp: the one entry point, its flags, and what it exits with."
+description: "charter-mcp: the one command, its flags, and what it exits with."
 ---
 
-Charter installs no console script. There is one module entry point, and it
-serves a shipped pack over the Model Context Protocol on stdio.
+Charter installs one command, `charter-mcp`, and it serves shipped packs over
+the Model Context Protocol on stdio.
+
+```bash
+uvx --from 'charter-ai[mcp]' charter-mcp --pack gmail
+```
+
+[uvx](https://docs.astral.sh/uv/guides/tools/) runs it without installing
+anything into a Python of yours, so a client config does not depend on which
+`python` the client finds on its `PATH`. With pip, the same command:
 
 ```bash
 pip install 'charter-ai[mcp]'
-python -m charter.mcp --pack gmail
+charter-mcp --pack gmail
 ```
 
-## `python -m charter.mcp`
+`python -m charter.mcp` is the same entry point, with the same flags.
+
+## `charter-mcp`
 
 ```text
-usage: python -m charter.mcp [-h] --pack PACK [--name NAME] [--progressive]
+usage: charter-mcp [-h] --pack PACK [--name NAME] [--progressive]
 
 Serve Charter packs over the Model Context Protocol (stdio).
 ```
@@ -79,8 +89,8 @@ Then it serves until the client disconnects. Missing the `mcp` extra raises
 {
   "mcpServers": {
     "charter": {
-      "command": "python",
-      "args": ["-m", "charter.mcp", "--pack", "gmail,gdrive"],
+      "command": "uvx",
+      "args": ["--from", "charter-ai[mcp]", "charter-mcp", "--pack", "gmail,gdrive"],
       "env": { "GOOGLE_TOKEN_FILE": "/path/to/token.json" }
     }
   }

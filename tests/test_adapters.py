@@ -308,6 +308,16 @@ def test_mcp_cli_requires_a_pack_argument():
         main([])
 
 
+def test_the_charter_mcp_command_is_the_module_entry_point():
+    """Client configs name `charter-mcp`, so it must be `main` and not a copy of it."""
+    from importlib.metadata import entry_points
+
+    from charter.mcp import main
+
+    (script,) = entry_points(group="console_scripts", name="charter-mcp")
+    assert script.load() is main
+
+
 def test_one_server_can_hold_several_packs():
     """The shape the setup page recommends, and the reason tool names fit.
 

@@ -6,11 +6,12 @@ description: "Compile a pack into a lean MCP server. Write once with Charter mar
 MCP is a compile target, not an adapter. You declare tools once as schemas, and Charter emits a server that speaks the protocol — with serialization, casing, [egress policy](/boundary/egress-control) and [envelope checking](/tools/envelopes) still owned by the runtime rather than by the transport.
 
 ```bash
-pip install 'charter-ai[mcp]'
-python -m charter.mcp --pack gmail
+uvx --from 'charter-ai[mcp]' charter-mcp --pack gmail
 ```
 
-`--pack` takes one pack name or several, repeated or comma-separated; `--name` overrides the server name, which defaults to `charter` and [not to the pack](/reference/naming), so the name a host composes reads `mcp__charter__gmail_messages_send` rather than spelling the pack twice. Every flag is listed under [`python -m charter.mcp`](/reference/cli#python-m-charter-mcp).
+That is the whole install: [uvx](https://docs.astral.sh/uv/guides/tools/) fetches Charter into an environment of its own and runs the `charter-mcp` command, so a client config never depends on which `python` the client finds. With pip, `pip install 'charter-ai[mcp]'` and then `charter-mcp --pack gmail`.
+
+`--pack` takes one pack name or several, repeated or comma-separated; `--name` overrides the server name, which defaults to `charter` and [not to the pack](/reference/naming), so the name a host composes reads `mcp__charter__gmail_messages_send` rather than spelling the pack twice. Every flag is listed under [`charter-mcp`](/reference/cli#charter-mcp).
 
 <Note>
 **One command, every platform** — including the three where it used to need a second one. The extra reaches `cryptography` three levels down, `mcp` → `pyjwt[crypto]` → `cryptography`, and that is a Rust extension whose wheels have been retired platform by platform. Where a wheel is missing, pip and uv fall through to a source build that needs a Rust toolchain, and the install fails in `cargo metadata` before Charter is reached — with an error that names maturin and `Cargo.lock` and reads like nothing to do with an MCP server.
@@ -51,7 +52,7 @@ A [projection](/tools/projections) is how a pack gets smaller without losing a t
 
 ### Loading on demand
 
-[`--progressive`](/reference/cli#python-m-charter-mcp) sends a single `ToolSearch` instead, whose description lists every tool by name, and adds a tool to `tools/list` when the model asks for it, announcing each load with `notifications/tools/list_changed`. It only works in a client that re-lists on that notification *and* hands the new tools to the model straight away, which most do not:
+[`--progressive`](/reference/cli#charter-mcp) sends a single `ToolSearch` instead, whose description lists every tool by name, and adds a tool to `tools/list` when the model asks for it, announcing each load with `notifications/tools/list_changed`. It only works in a client that re-lists on that notification *and* hands the new tools to the model straight away, which most do not:
 
 | Client | What happened with `--progressive` |
 |---|---|
@@ -69,34 +70,34 @@ The server speaks stdio, so a client runs it as a command rather than connecting
 <CodeGroup>
 
 ```bash Claude Code
-claude mcp add charter -- python -m charter.mcp --pack gmail,gdrive,slack
+claude mcp add charter -- uvx --from 'charter-ai[mcp]' charter-mcp --pack gmail,gdrive,slack
 ```
 
 ```toml Codex (~/.codex/config.toml)
 [mcp_servers.charter]
-command = "python"
-args = ["-m", "charter.mcp", "--pack", "gmail,gdrive,slack"]
+command = "uvx"
+args = ["--from", "charter-ai[mcp]", "charter-mcp", "--pack", "gmail,gdrive,slack"]
 env = { GOOGLE_TOKEN_FILE = "/path/to/token.json" }
 ```
 
 ```bash Grok Build
-grok mcp add -e GOOGLE_TOKEN_FILE=/path/to/token.json charter python -- -m charter.mcp --pack gmail,gdrive,slack
+grok mcp add -e GOOGLE_TOKEN_FILE=/path/to/token.json charter uvx -- --from 'charter-ai[mcp]' charter-mcp --pack gmail,gdrive,slack
 ```
 
 ```bash OpenClaw
-openclaw mcp add charter --command python --arg=-m --arg=charter.mcp --arg=--pack --arg=gmail,gdrive,slack --env GOOGLE_TOKEN_FILE=/path/to/token.json
+openclaw mcp add charter --command uvx --arg=--from --arg='charter-ai[mcp]' --arg=charter-mcp --arg=--pack --arg=gmail,gdrive,slack --env GOOGLE_TOKEN_FILE=/path/to/token.json
 ```
 
 ```bash Hermes Agent
-hermes mcp add charter --env GOOGLE_TOKEN_FILE=~/.hermes/google_token.json --command python --args -m charter.mcp --pack gmail,gdrive,slack
+hermes mcp add charter --env GOOGLE_TOKEN_FILE=~/.hermes/google_token.json --command uvx --args --from 'charter-ai[mcp]' charter-mcp --pack gmail,gdrive,slack
 ```
 
 ```json Cursor (.cursor/mcp.json)
 {
   "mcpServers": {
     "charter": {
-      "command": "python",
-      "args": ["-m", "charter.mcp", "--pack", "gmail,gdrive,slack"],
+      "command": "uvx",
+      "args": ["--from", "charter-ai[mcp]", "charter-mcp", "--pack", "gmail,gdrive,slack"],
       "env": {
         "GOOGLE_TOKEN_FILE": "${GOOGLE_TOKEN_FILE}",
         "SLACK_BOT_TOKEN": "${SLACK_BOT_TOKEN}"
@@ -111,8 +112,8 @@ hermes mcp add charter --env GOOGLE_TOKEN_FILE=~/.hermes/google_token.json --com
   "servers": {
     "charter": {
       "type": "stdio",
-      "command": "python",
-      "args": ["-m", "charter.mcp", "--pack", "gmail,gdrive,slack"]
+      "command": "uvx",
+      "args": ["--from", "charter-ai[mcp]", "charter-mcp", "--pack", "gmail,gdrive,slack"]
     }
   }
 }
@@ -127,8 +128,8 @@ from mcp import StdioServerParameters
 charter = McpToolset(
     connection_params=StdioConnectionParams(
         server_params=StdioServerParameters(
-            command="python",
-            args=["-m", "charter.mcp", "--pack", "gmail,gdrive,slack"],
+            command="uvx",
+            args=["--from", "charter-ai[mcp]", "charter-mcp", "--pack", "gmail,gdrive,slack"],
             env={"GOOGLE_TOKEN_FILE": "/path/to/token.json"},
         ),
         timeout=60,
@@ -180,6 +181,6 @@ The tools a pack exports, with the schema the model is allowed to see — not th
 
 ## Related
 
-- [`python -m charter.mcp`](/reference/cli) — the flags, the client configuration, and using it as a function
+- [`charter-mcp`](/reference/cli) — the flags, the client configuration, and using it as a function
 - [Environment fallbacks](/reference/configuration#environment-fallbacks) — the variable each pack reads, and the order they are tried in
 - [`Mode`](/reference/markers#mode) — what the client is not shown, and why

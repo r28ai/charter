@@ -55,6 +55,13 @@ Repository = "https://github.com/r28ai/charter"
 Issues = "https://github.com/r28ai/charter/issues"
 Changelog = "https://github.com/r28ai/charter/blob/main/CHANGELOG.md"
 
+# The one command, so a client config can launch the server without knowing
+# which Python has Charter installed: `uvx --from 'charter-ai[mcp]' charter-mcp`.
+# Without the extra it is still installed, and stops with an ImportError that
+# names the extra, exactly as `python -m charter.mcp` does.
+[project.scripts]
+charter-mcp = "charter.mcp:main"
+
 [project.optional-dependencies]
 langchain = ["langchain-core>=0.3"]
 # The adapter targets the mcp 2.x server API (MCPServer); 1.x had a

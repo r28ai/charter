@@ -2,7 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-``python -m charter.mcp --pack gmail`` — serve shipped packs over MCP.
+``charter-mcp --pack gmail`` — serve shipped packs over MCP.
+
+The console script and ``python -m charter.mcp`` are the same entry point. The
+script is what a client config should name, because it does not depend on which
+Python the client finds: ``uvx --from 'charter-ai[mcp]' charter-mcp --pack gmail``.
 
 ``--pack`` takes more than one (repeat it, or comma-separate), and one server
 holding several is the shape to reach for. It is not only about the config being
@@ -109,7 +113,7 @@ def resolve_packs(values: List[str]) -> List[str]:
 
 def main(argv: List[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="python -m charter.mcp",
+        prog="charter-mcp",
         description="Serve Charter packs over the Model Context Protocol (stdio).",
     )
     parser.add_argument(

@@ -18,7 +18,7 @@ failed call is something the client can read and retry.
 
 Or from the command line, which reads credentials from the environment::
 
-    python -m charter.mcp --pack gmail
+    charter-mcp --pack gmail
 
 Written against the mcp 2.x server API (``MCPServer``); mcp 1.x had a different
 low-level surface and is not supported.
