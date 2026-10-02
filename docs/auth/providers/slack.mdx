@@ -69,8 +69,15 @@ product.
 
 ## Scopes
 
-The pack declares eleven bot scopes — `chat:write`, the four `*:read` and four
-`*:history` scopes conversations need, `users:read` and `reactions:write`:
+The tools that read, post and react share eleven bot scopes — `chat:write`,
+the four `*:read` and four `*:history` scopes conversations need, `users:read`
+and `reactions:write`. Five tools need others, and declare only those:
+`reactions_get` needs `reactions:read`, `conversations_open` needs `im:write`
+and `mpim:write`, `conversations_create` needs `channels:manage` and
+`groups:write`, `conversations_invite` needs `channels:write.invites` and
+`groups:write.invites`, and `conversations_join` needs `channels:join`.
+[`scopes_for`](/reference/oauth#scopes_for) collects the scopes of the tools
+you pass it, so the request is only as wide as the tools you hand a model:
 
 ```python slack_scopes.py
 from charter.auth import scopes_for
@@ -84,7 +91,7 @@ Two things that list will not tell you:
 **`search_messages` needs a user token.** Slack's `search.messages` cannot be
 called with a bot token at all; it wants a user token carrying `search:read`.
 That scope is not in `slack.SCOPES`, and [`scopes_for(slack.TOOLS)`](/reference/oauth#scopes_for) reports the
-pack's bot scopes for every tool including that one. Ask for it explicitly, or
+eleven shared bot scopes for that tool too. Ask for it explicitly, or
 accept that one of the eighteen tools will fail with `not_allowed_token_type`.
 
 **Slack splits scopes across two parameters.** `scope` asks for bot scopes;

@@ -9,7 +9,7 @@ import pytest
 import respx
 
 from charter import APIError, CredentialError, Tool, ToolValidationError
-from charter.auth import StaticTokenProvider
+from charter.auth import StaticTokenProvider, scopes_for
 from charter.packs import slack
 
 API = "https://slack.com/api/"
@@ -56,6 +56,38 @@ def test_no_quota_cost_is_claimed():
     for tool in slack.TOOLS:
         assert tool.quota_cost is None
         assert tool.quota_doc_url == slack.QUOTA_DOC_URL
+
+
+@pytest.mark.parametrize(
+    ("tool", "needed"),
+    [
+        # One per kind of conversation the tool can reach, from each method's
+        # reference page; any one lets the call through for that kind.
+        pytest.param(t, needed, id=t.name)
+        for t, needed in [
+            (slack.conversations_create, {"channels:manage", "groups:write"}),
+            (slack.conversations_invite, {"channels:write.invites", "groups:write.invites"}),
+            (slack.conversations_join, {"channels:join"}),
+            (slack.conversations_open, {"im:write", "mpim:write"}),
+            (slack.reactions_get, {"reactions:read"}),
+        ]
+    ],
+)
+def test_a_tool_outside_the_core_scopes_declares_its_own(tool, needed):
+    """Inheriting the factory's list left these five unconsented: the app installed,
+    and the first call answered missing_scope."""
+    assert set(tool.scopes) == needed
+
+
+def test_scopes_for_a_subset_asks_only_for_that_subset():
+    readers = [slack.conversations_list, slack.conversations_history, slack.chat_post_message]
+    assert scopes_for(readers) == slack.CORE
+
+
+def test_the_pack_scopes_are_what_its_tools_declare():
+    """SCOPES is what a consent screen for the whole pack asks for, so it cannot
+    drift from the tools: the Slack guide's manifest is built from scopes_for."""
+    assert scopes_for(slack.TOOLS) == slack.SCOPES
 
 
 def test_token_is_not_a_schema_field():

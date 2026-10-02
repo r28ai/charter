@@ -76,8 +76,11 @@ from charter.types.pagination import Pagination
 BASE_URL = "https://slack.com/api/"
 QUOTA_DOC_URL = "https://docs.slack.dev/apis/web-api/rate-limits"
 
-# Bot-token scopes for everything except search_messages, which is user-token only.
-SCOPES = [
+# Bot-token scopes the reading, posting and reacting tools share: the factory's
+# default, so every tool that declares nothing of its own carries these. That
+# includes search_messages, which is user-token only and needs search:read on a
+# user token instead (see the tool below).
+CORE = [
     "chat:write",
     "channels:read",
     "groups:read",
@@ -90,6 +93,23 @@ SCOPES = [
     "users:read",
     "reactions:write",
 ]
+
+# Declared on the tools that need them rather than added to CORE, so that
+# scopes_for() over the tools someone actually hands a model asks for no more
+# than those tools can do. Slack's method pages list one scope per kind of
+# conversation, any of which lets the call through for that kind, so a tool
+# that reaches public and private channels alike declares one of each. Where
+# several would do, it is the narrowest: channels:manage would also let
+# conversations.invite through, but it can archive and rename as well.
+CREATE_CHANNELS = ["channels:manage", "groups:write"]
+INVITE_TO_CHANNELS = ["channels:write.invites", "groups:write.invites"]
+JOIN_CHANNELS = ["channels:join"]
+OPEN_DMS = ["im:write", "mpim:write"]
+READ_REACTIONS = ["reactions:read"]
+
+# Everything the pack's bot token needs, under the name every pack uses for
+# this metadata.
+SCOPES = CORE + READ_REACTIONS + OPEN_DMS + CREATE_CHANNELS + INVITE_TO_CHANNELS + JOIN_CHANNELS
 
 # Slack reports failure as 200 OK with {"ok": false, "error": "..."}. Declared
 # once here; the runtime enforces it on every tool built from the factory below,
@@ -135,7 +155,7 @@ _slack = oauth_tool_factory(
     base_url=BASE_URL,
     provider="slack",
     credential_provider=_credentials,
-    scopes=SCOPES,
+    scopes=CORE,
     # Slack is snake_case on the wire, in both directions.
     body_case="snake",
     query_case="snake",
@@ -284,6 +304,7 @@ search_messages = _slack(  # rate limit: Tier 2
 
 conversations_open = _slack(  # rate limit: Tier 4
     name="conversations_open",
+    scopes_override=OPEN_DMS,
     args_schema=ConversationsOpenRequest,
     method="POST",
     url_template="conversations.open",
@@ -299,6 +320,7 @@ conversations_open = _slack(  # rate limit: Tier 4
 
 conversations_create = _slack(  # rate limit: Tier 2
     name="conversations_create",
+    scopes_override=CREATE_CHANNELS,
     args_schema=ConversationsCreateRequest,
     method="POST",
     url_template="conversations.create",
@@ -309,6 +331,7 @@ conversations_create = _slack(  # rate limit: Tier 2
 
 conversations_invite = _slack(  # rate limit: Tier 3
     name="conversations_invite",
+    scopes_override=INVITE_TO_CHANNELS,
     args_schema=ConversationsInviteRequest,
     method="POST",
     url_template="conversations.invite",
@@ -322,6 +345,7 @@ conversations_invite = _slack(  # rate limit: Tier 3
 
 conversations_join = _slack(  # rate limit: Tier 3
     name="conversations_join",
+    scopes_override=JOIN_CHANNELS,
     args_schema=ConversationsJoinRequest,
     method="POST",
     url_template="conversations.join",
@@ -372,6 +396,7 @@ reactions_remove = _slack(  # rate limit: Tier 3
 
 reactions_get = _slack(  # rate limit: Tier 3
     name="reactions_get",
+    scopes_override=READ_REACTIONS,
     args_schema=ReactionsGetRequest,
     method="GET",
     url_template="reactions.get",
