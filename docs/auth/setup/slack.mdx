@@ -1,0 +1,160 @@
+---
+title: "Set up Slack"
+sidebarTitle: "Slack"
+description: "A Slack app created from a prefilled manifest, installed in your workspace, and the bot token the slack pack reads — about three minutes."
+---
+
+Slack issues tokens to apps, not to people, so the [`slack`](/packs/slack) pack
+needs an app installed in your workspace before its first call. The manifest
+below carries every scope the pack's tools declare, so creating the app is one
+click and a review rather than eleven scopes ticked by hand.
+
+The links open in a new tab; this page stays where you left it.
+
+<Steps>
+
+<Step title="Create the app">
+
+{/* generated:manifest start — do not edit by hand; run scripts/generate_pack_docs.py */}
+**[Create the Slack app from this manifest](https://api.slack.com/apps?new_app=1&manifest_json=%7B%22display_information%22%3A%7B%22name%22%3A%22Charter%22%7D%2C%22features%22%3A%7B%22bot_user%22%3A%7B%22display_name%22%3A%22Charter%22%2C%22always_online%22%3Afalse%7D%7D%2C%22oauth_config%22%3A%7B%22scopes%22%3A%7B%22bot%22%3A%5B%22chat%3Awrite%22%2C%22channels%3Aread%22%2C%22groups%3Aread%22%2C%22im%3Aread%22%2C%22mpim%3Aread%22%2C%22channels%3Ahistory%22%2C%22groups%3Ahistory%22%2C%22im%3Ahistory%22%2C%22mpim%3Ahistory%22%2C%22users%3Aread%22%2C%22reactions%3Awrite%22%5D%7D%7D%2C%22settings%22%3A%7B%22org_deploy_enabled%22%3Afalse%2C%22socket_mode_enabled%22%3Afalse%2C%22token_rotation_enabled%22%3Afalse%7D%7D)**
+
+```json manifest.json
+{
+  "display_information": {
+    "name": "Charter"
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "Charter",
+      "always_online": false
+    }
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "chat:write",
+        "channels:read",
+        "groups:read",
+        "im:read",
+        "mpim:read",
+        "channels:history",
+        "groups:history",
+        "im:history",
+        "mpim:history",
+        "users:read",
+        "reactions:write"
+      ]
+    }
+  },
+  "settings": {
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": false
+  }
+}
+```
+{/* generated:manifest end */}
+
+The link opens Slack's **Create an app** dialog with this manifest already in
+it. Pick the workspace, **Next**, check the scopes, **Next**, **Create**. If the
+link arrives with an empty editor, choose **From a manifest** yourself and paste
+the block above into the JSON tab.
+
+The scopes are the pack's own, read off its tools when this page is generated.
+The name is only a default: call the app anything, and that is the name your
+workspace sees on the messages it posts.
+
+<Warning>
+Those scopes cover reading channels and history, posting, and reacting. Five
+tools need one the pack does not declare yet, and answer `missing_scope`
+without it: `conversations_create` and `conversations_invite` need
+`channels:manage` (`groups:write` for private channels), `conversations_join`
+needs `channels:join`, `conversations_open` needs `im:write`, and
+`reactions_get` needs `reactions:read`. If you hand any of them to a model, add
+those under **OAuth & Permissions → Bot Token Scopes** and reinstall.
+</Warning>
+
+</Step>
+
+<Step title="Install it">
+
+On the app's page, **Install App** in the sidebar → **Install to *your
+workspace*** → **Allow**.
+
+A workspace that restricts apps sends an approval request to its admins
+instead, and the token appears once they approve.
+
+</Step>
+
+<Step title="Copy the bot token">
+
+The same page now shows a **Bot User OAuth Token** beginning `xoxb-`. That is the
+credential:
+
+```bash
+export SLACK_BOT_TOKEN=xoxb-...
+```
+
+The pack reads it on its next call. Rotation is off in the manifest, so this
+token does not expire; it stops working only if the app is uninstalled.
+
+</Step>
+
+<Step title="Invite the bot to the channels it should read">
+
+A bot reads only the channels it is a member of, and a channel it has not been
+invited to answers `not_in_channel` — on the tool call, not at install time. In
+each channel, type:
+
+```text
+/invite @Charter
+```
+
+Direct messages to the bot need no invite.
+
+</Step>
+
+<Step title="Verify">
+
+```python verify_slack.py
+import asyncio
+
+from charter.packs import slack
+
+
+async def main():
+    print(await slack.conversations_list.ainvoke({}))
+
+
+asyncio.run(main())
+```
+
+The workspace's channels, which is also the cheapest way to turn a channel
+name into the ID every other Slack tool asks for.
+
+</Step>
+
+</Steps>
+
+## Searching messages
+
+[`search_messages`](/packs/slack/search/search_messages) is the one tool a bot
+token cannot call: Slack answers `search.messages` only for a user token. To
+use it, add `search:read` under **OAuth & Permissions → User Token Scopes**,
+reinstall, and use the **User OAuth Token** (`xoxp-…`) that appears beside the
+bot token. That token acts as you — everything it posts is posted by you — so
+hand it only the search tool. The [Slack pack page](/packs/slack) has the rest.
+
+## Your users' workspaces
+
+The same app, distributed. Under **OAuth & Permissions**, add your app's
+callback as a **Redirect URL**. Under **Manage Distribution**, turn on public
+distribution. Each workspace then installs through your consent route instead
+of the **Install** button. Whether to turn token rotation on, and what changes
+when you do, is on [Slack's provider page](/auth/providers/slack#two-shapes-of-slack-app);
+the route itself is [getting the grant](/auth/oauth-flow).
+
+## Related
+
+- [Slack](/auth/providers/slack) — the server constant, both token shapes, and refresh under rotation
+- [Every pack](/auth/your-own-account) — what the other packs need, in one table

@@ -54,6 +54,8 @@ for one with several.
 ## Authenticating
 
 {/* generated:auth start — do not edit by hand; run scripts/generate_pack_docs.py */}
+**Get a key:** create an internal integration at [notion.so/profile/integrations](https://www.notion.so/profile/integrations), copy its secret, `export NOTION_API_KEY=ntn_…` — and then **connect each page it should reach**, because a new integration can see nothing. [Set up Notion](/auth/setup/notion) has the clicks.
+
 This pack takes an OAuth bearer token, and [`configure()`](/reference/configuration#configure) is optional when `$NOTION_API_KEY` is set. Which credential provider you hand it depends on whose account the calls run as.
 
 ### A token you hold
@@ -86,7 +88,7 @@ notion.configure(credentials)
 ```
 
 <Note>
-No refresh token yet? [Your own account](/auth/your-own-account) is the one-time consent flow that hands you one.
+No refresh token yet? [Getting the grant](/auth/oauth-flow) is the one-time consent flow that hands you one.
 </Note>
 
 ### Many end users
@@ -120,8 +122,8 @@ with use_subject(request.user_id):
 {/* generated:auth end */}
 
 Connecting a workspace you do not own is an OAuth flow rather than a pasted
-secret. [Using your own account](/auth/your-own-account) covers the single-token
-case, which is what an internal integration is.
+secret. [Set up Notion](/auth/setup/notion) covers the single-token case, which
+is what an internal integration is, and ends with a public one for your users.
 
 An internal integration secret is prefixed `ntn_` and goes out as a bearer
 token. An OAuth access token works the same way, and so does a personal access

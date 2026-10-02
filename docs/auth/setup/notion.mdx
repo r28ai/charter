@@ -1,0 +1,98 @@
+---
+title: "Set up Notion"
+sidebarTitle: "Notion"
+description: "An internal integration, its secret, and the step everyone misses: connecting it to the pages it should read."
+---
+
+The [`notion`](/packs/notion) pack authenticates as an **integration**, which
+is Notion's name for an app. For your own workspace an internal one is enough —
+a secret to copy, no consent screen — but a new integration can see **no
+pages at all** until you connect it to some. That last step is the one that
+turns a working token into empty results, so it gets a step of its own.
+
+The links open in a new tab; this page stays where you left it.
+
+<Steps>
+
+<Step title="Create the integration">
+
+Open [notion.so/profile/integrations](https://www.notion.so/profile/integrations)
+→ **New integration**. Give it a name, pick the workspace, leave the type as
+**Internal**, and **Save**.
+
+</Step>
+
+<Step title="Give it the capabilities the tools use">
+
+On the integration's **Configuration** tab, under **Capabilities**, tick:
+
+- **Read content**, **Update content** and **Insert content**
+- **Read comments** and **Insert comments**
+- **Read user information** — with or without email addresses
+
+Those are the capabilities the pack's tools declare. **Save changes.**
+
+</Step>
+
+<Step title="Copy the secret">
+
+Still on **Configuration**: **Internal Integration Secret → Show → Copy**. It
+begins `ntn_`.
+
+```bash
+export NOTION_API_KEY=ntn_...
+```
+
+The pack reads it on its next call. An internal secret does not expire.
+
+</Step>
+
+<Step title="Connect it to your pages">
+
+Open a page the integration should reach, then **•••** in its top-right corner →
+**Connections** → search for the integration → **Confirm**. Every page under
+that one comes with it, so connecting a top-level page covers its whole tree.
+
+The integration's own **Access** tab does the same from the other side: **Edit
+access** and pick the pages there.
+
+Without this, every call succeeds and finds nothing — `search` returns an empty
+list, and a page you know exists answers `object_not_found`.
+
+</Step>
+
+<Step title="Verify">
+
+```python verify_notion.py
+import asyncio
+
+from charter.packs import notion
+
+
+async def main():
+    print(await notion.users_retrieve_me.ainvoke({}))
+    print(await notion.search.ainvoke({}))
+
+
+asyncio.run(main())
+```
+
+The first line is the integration and the workspace it lives in. The second
+lists the pages you connected; if it is empty, step 4 has not taken.
+
+</Step>
+
+</Steps>
+
+## Your users' workspaces
+
+A product whose users each connect their own workspace needs a **public**
+integration instead: at the same page, set the type to **Public**, fill in the
+redirect URIs, and each user picks the pages to share on Notion's own consent
+screen. The route is [getting the grant](/auth/oauth-flow); the
+[pack page](/packs/notion#authenticating) shows the credential providers.
+
+## Related
+
+- [Notion](/packs/notion) — the pack, and how a database differs from the table inside it
+- [Every pack](/auth/your-own-account) — what the other packs need, in one table

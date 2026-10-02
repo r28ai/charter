@@ -213,10 +213,13 @@ def test_the_auth_signpost_routes_rather_than_restates(pack):
 
     if oauth:
         # Where a reader with no refresh token is sent. Google's packs go to the
-        # walkthrough, which is written for Google; Slack's and GitHub's go to
+        # setup guide, which is written for Google; Slack's and GitHub's go to
         # the grant section of their own server's page, which carries the code
-        # for that server.
-        assert "/auth/your-own-account" in signpost or "#getting-the-first-grant" in signpost
+        # for that server; a server with no page goes to the general flow.
+        assert any(
+            where in signpost
+            for where in ("/auth/setup/google", "#getting-the-first-grant", "[Getting the grant]")
+        )
         assert "/auth/oauth-flow" in signpost
         assert "/auth/authorization-servers" in signpost
         assert "/auth/api-key-tool-factory" not in signpost

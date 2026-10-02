@@ -64,7 +64,7 @@ REFRESH_TOKEN = "GOOGLE_REFRESH_TOKEN"
 CLIENT_ID = "GOOGLE_CLIENT_ID"
 CLIENT_SECRET = "GOOGLE_CLIENT_SECRET"
 
-_DOCS = "auth/your-own-account"
+_DOCS = "auth/setup/google"
 
 logger = logging.getLogger("charter")
 

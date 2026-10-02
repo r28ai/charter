@@ -34,6 +34,8 @@ read what respondents submitted, and the two halves take different OAuth scopes.
 ## Authenticating
 
 {/* generated:auth start — do not edit by hand; run scripts/generate_pack_docs.py */}
+**Before the first call, Google Forms needs a Google OAuth client.** Google issues no API key for it: credentials come only from an app you register in the Cloud console. [Set up Google](/auth/setup/google) walks through every screen — about ten minutes, done once, and the same client serves all six Google packs.
+
 This pack takes a Google OAuth bearer token, and [`configure()`](/reference/configuration#configure) is optional when a [renewable grant](/reference/configuration#environment-fallbacks) or `$GOOGLE_ACCESS_TOKEN` is set. Which credential provider you hand it depends on whose account the calls run as.
 
 <Note>
@@ -70,7 +72,7 @@ gforms.configure(credentials)
 ```
 
 <Note>
-No refresh token yet? [Your own account](/auth/your-own-account) is the one-time consent flow that hands you one.
+No refresh token yet? [Set up Google](/auth/setup/google) is the one-time consent flow that hands you one.
 </Note>
 
 ### Many end users

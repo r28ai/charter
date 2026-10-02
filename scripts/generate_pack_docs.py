@@ -29,13 +29,16 @@ from __future__ import annotations
 
 import importlib
 import inspect
+import json
 import re
 import sys
 import textwrap
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple
+from urllib.parse import quote
 
+from charter.auth import scopes_for
 from charter.mcp import PACKS
 from charter.tool import Tool
 from charter.types.envelope import Envelope
@@ -347,6 +350,254 @@ _PROVIDER_PAGES = {
 }
 
 
+# -----------------------------------------------------
+# Where a credential comes from
+# -----------------------------------------------------
+
+
+class _Setup(NamedTuple):
+    """What a reader does outside Charter, once, before this pack's first call.
+
+    Charter documents what it does with a credential at length and, until this
+    table, said nowhere where to get one. The cost landed on the reader with
+    the most to lose: someone who wanted Gmail and found out forty minutes in
+    that Google issues no API key for it, only credentials for an app you have
+    registered. ``CredentialError`` links to the pack's own page, so the
+    ``lead`` opens that page's Authenticating section: it is the answer to the
+    first error a new adopter meets, and it names the page that issues the
+    credential, as a link, rather than the place it can be found.
+
+    ``need``, ``where`` and ``env`` are the same fact as one row of the table on
+    /auth/your-own-account, which lists every pack so a reader who has not
+    chosen one yet sees what each will ask of them.
+    """
+
+    need: str
+    where: str
+    env: str
+    lead: str
+
+
+def _google(service: str) -> _Setup:
+    return _Setup(
+        need="An OAuth client, then a grant",
+        where="[Set up Google](/auth/setup/google) — about ten minutes, once for all six",
+        env="`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`",
+        lead=(
+            f"**Before the first call, {service} needs a Google OAuth client.** Google"
+            " issues no API key for it: credentials come only from an app you register"
+            " in the Cloud console. [Set up Google](/auth/setup/google) walks through"
+            " every screen — about ten minutes, done once, and the same client serves"
+            " all six Google packs."
+        ),
+    )
+
+
+# GitHub's classic token form ticks whatever `scopes=` names, so the link hands
+# the reader exactly the scopes the tools declare, read off the pack rather
+# than typed here.
+_GITHUB_TOKEN_FORM = (
+    "https://github.com/settings/tokens/new?description=Charter&scopes="
+    + ",".join(importlib.import_module("charter.packs.github").SCOPES)
+)
+
+_SETUP: Dict[str, _Setup] = {
+    "gmail": _google("Gmail"),
+    "gcalendar": _google("Google Calendar"),
+    "gsheets": _google("Google Sheets"),
+    "gdocs": _google("Google Docs"),
+    "gdrive": _google("Google Drive"),
+    "gforms": _google("Google Forms"),
+    "slack": _Setup(
+        need="A Slack app, installed in your workspace",
+        where="[Set up Slack](/auth/setup/slack) — about three minutes",
+        env="`SLACK_BOT_TOKEN`",
+        lead=(
+            "**Before the first call, Slack needs an app installed in your workspace.**"
+            " [Set up Slack](/auth/setup/slack) creates it from a prefilled manifest"
+            " carrying the scopes these tools use, installs it, and ends with the"
+            " `xoxb-` token `$SLACK_BOT_TOKEN` takes — about three minutes."
+        ),
+    ),
+    "github": _Setup(
+        need="A personal access token",
+        where=f"[GitHub's token form, prefilled]({_GITHUB_TOKEN_FORM}) · [Set up GitHub](/auth/setup/github)",
+        env="`GITHUB_TOKEN`",
+        lead=(
+            f"**Get a token:** [open GitHub's token form]({_GITHUB_TOKEN_FORM}) with the"
+            " scopes these tools need already ticked, generate, and `export"
+            " GITHUB_TOKEN=ghp_…`. [Set up GitHub](/auth/setup/github) covers"
+            " fine-grained tokens, and the app your users would connect through."
+        ),
+    ),
+    "notion": _Setup(
+        need="An internal integration, connected to your pages",
+        where="[notion.so/profile/integrations](https://www.notion.so/profile/integrations) · [Set up Notion](/auth/setup/notion)",
+        env="`NOTION_API_KEY`",
+        lead=(
+            "**Get a key:** create an internal integration at"
+            " [notion.so/profile/integrations](https://www.notion.so/profile/integrations),"
+            " copy its secret, `export NOTION_API_KEY=ntn_…` — and then **connect each"
+            " page it should reach**, because a new integration can see nothing."
+            " [Set up Notion](/auth/setup/notion) has the clicks."
+        ),
+    ),
+    "stripe": _Setup(
+        need="A secret key",
+        where="[dashboard.stripe.com/apikeys](https://dashboard.stripe.com/apikeys)",
+        env="`STRIPE_API_KEY`",
+        lead=(
+            "**Get a key:** [dashboard.stripe.com/apikeys](https://dashboard.stripe.com/apikeys)"
+            " → copy the **Secret key** — `sk_test_…` from a sandbox or test mode, which"
+            " moves no money — and `export STRIPE_API_KEY=sk_test_…`."
+        ),
+    ),
+    "linear": _Setup(
+        need="A personal API key",
+        where="[linear.app/settings/account/security](https://linear.app/settings/account/security)",
+        env="`LINEAR_API_KEY`",
+        lead=(
+            "**Get a key:** [linear.app/settings/account/security](https://linear.app/settings/account/security)"
+            " → **Personal API keys** → **New API key**, then `export"
+            " LINEAR_API_KEY=lin_api_…`. Linear shows the key once."
+        ),
+    ),
+    "shopify": _Setup(
+        need="An app installed on your store, and a token minted from it",
+        where="[dev.shopify.com/dashboard](https://dev.shopify.com/dashboard) · [the steps](/packs/shopify#getting-a-token)",
+        env="`SHOPIFY_SHOP`, `SHOPIFY_ACCESS_TOKEN`",
+        lead=(
+            "**Get a token:** create an app in Shopify's"
+            " [Dev Dashboard](https://dev.shopify.com/dashboard), install it on your"
+            " store, and mint an Admin API token from its client ID and secret —"
+            " [getting a token](#getting-a-token) below has the request. It needs two"
+            " values where other packs need one: `SHOPIFY_SHOP` and"
+            " `SHOPIFY_ACCESS_TOKEN`."
+        ),
+    ),
+    "firecrawl": _Setup(
+        need="An API key",
+        where="[firecrawl.dev/app/api-keys](https://www.firecrawl.dev/app/api-keys)",
+        env="`FIRECRAWL_API_KEY`",
+        lead=(
+            "**Get a key:** [firecrawl.dev/app/api-keys](https://www.firecrawl.dev/app/api-keys)"
+            " → copy the key, then `export FIRECRAWL_API_KEY=fc-…`."
+        ),
+    ),
+    "tavily": _Setup(
+        need="An API key",
+        where="[app.tavily.com](https://app.tavily.com/home)",
+        env="`TAVILY_API_KEY`",
+        lead=(
+            "**Get a key:** sign in at [app.tavily.com](https://app.tavily.com/home) —"
+            " the dashboard shows a key straight away — then `export"
+            " TAVILY_API_KEY=tvly-…`."
+        ),
+    ),
+    "granola": _Setup(
+        need="An API key, on a Business or Enterprise plan",
+        where=(
+            "The desktop app's **Settings → Connectors → API keys** ·"
+            " [Granola's guide](https://docs.granola.ai/help-center/sharing/integrations/granola-api)"
+        ),
+        env="`GRANOLA_API_KEY`",
+        lead=(
+            "**Get a key:** in the Granola desktop app, **Settings → Connectors → API"
+            " keys → Create new key** — there is no web page for it, and it needs a"
+            " Business or Enterprise plan;"
+            " [Granola's guide](https://docs.granola.ai/help-center/sharing/integrations/granola-api)"
+            " has the screens. Then `export GRANOLA_API_KEY=grn_…`."
+        ),
+    ),
+}
+
+
+def _setup(pack: str, module: ModuleType) -> _Setup:
+    """This pack's entry, checked against the variable the pack really reads.
+
+    A pack with no entry fails the run: the lead is what a first error leads
+    to, and a pack added without one would ship a page that never says where
+    its credential comes from — the exact gap this table closes.
+    """
+    setup = _SETUP.get(pack)
+    if setup is None:
+        raise SystemExit(f"{pack}: no entry in _SETUP — say where its credential comes from")
+    holder = module.TOOLS[0].credential_provider or module.TOOLS[0].api_key_headers
+    env_var = getattr(holder, "env_var", None)
+    renews = getattr(holder, "env_grant", None) is not None
+    if env_var and not renews and f"`{env_var}`" not in setup.env:
+        raise SystemExit(f"{pack}: _SETUP names {setup.env}, but the pack reads ${env_var}")
+    return setup
+
+
+def _title(pack: str) -> str:
+    match = re.search(r'^title: "([^"]+)"', page_path(pack).read_text(), re.M)
+    return match.group(1) if match else pack
+
+
+SETUP_HUB = ROOT / "docs" / "auth" / "your-own-account.mdx"
+
+
+def render_setup_table() -> str:
+    """Every pack, what it needs, and the page that issues it."""
+    rows = [
+        "| Pack | What you need | Where you get it | Then set |",
+        "|---|---|---|---|",
+    ]
+    for pack in PACKS:
+        setup = _setup(pack, pack_module(pack))
+        rows.append(
+            f"| [{_title(pack)}](/packs/{pack}) | {setup.need} | {setup.where} | {setup.env} |"
+        )
+    return "\n".join(rows)
+
+
+SLACK_SETUP = ROOT / "docs" / "auth" / "setup" / "slack.mdx"
+
+
+def slack_manifest() -> Dict[str, Any]:
+    """The app manifest the Slack guide hands to "Create New App".
+
+    Its bot scopes are read off the pack's tools, so the app a reader creates
+    from the guide can call every tool the pack ships — and a tool that starts
+    needing a new scope changes the manifest, the link and this page together.
+    Rotation stays off: a token that never expires is what ``$SLACK_BOT_TOKEN``
+    can hold, and the rotating kind is the provider page's subject.
+    """
+    return {
+        "display_information": {"name": "Charter"},
+        "features": {"bot_user": {"display_name": "Charter", "always_online": False}},
+        "oauth_config": {"scopes": {"bot": scopes_for(pack_module("slack").TOOLS)}},
+        "settings": {
+            "org_deploy_enabled": False,
+            "socket_mode_enabled": False,
+            "token_rotation_enabled": False,
+        },
+    }
+
+
+def render_slack_manifest() -> str:
+    """The prefilled create-app link, and the manifest it carries, readable.
+
+    Slack accepts a URL-encoded manifest in ``manifest_json``, which turns
+    "paste this into the editor" into one click. The block under it is the
+    same manifest, for a reader who wants to see what they are agreeing to —
+    or whose browser drops a URL this long.
+    """
+    manifest = slack_manifest()
+    compact = json.dumps(manifest, separators=(",", ":"))
+    link = "https://api.slack.com/apps?new_app=1&manifest_json=" + quote(compact, safe="")
+    return "\n".join(
+        [
+            f"**[Create the Slack app from this manifest]({link})**",
+            "",
+            "```json manifest.json",
+            json.dumps(manifest, indent=2),
+            "```",
+        ]
+    )
+
+
 def _render_credential_source(module: ModuleType, tool: Tool) -> str:
     """The clause naming what a reader can set instead of calling ``configure()``.
 
@@ -519,15 +770,18 @@ def _credential_shapes(pack: str, provider: str, env_var: str, page: Optional[st
     # about how it got there. Every OAuth pack owes the reader an answer, so
     # there is no branch where the note is simply absent.
     #
-    # Google's walkthrough is written for Google, console and all, so a Google
-    # pack sends the reader straight there; Slack and GitHub differ in exactly
-    # the places that page says they differ, so theirs go to their own server's
-    # section, which carries their code. A server with no page of its own gets
-    # the general walkthrough, which is the one that generalises.
+    # Google's setup guide is written for Google, console and all, and ends in
+    # exactly the three variables this snippet reads, so a Google pack sends
+    # the reader straight there; Slack and GitHub differ in exactly the places
+    # their server's page says they differ, so theirs go to its section, which
+    # carries their code. A server with no page of its own gets the general
+    # consent flow, which is the one that generalises.
     if page and page != "/auth/providers/google":
         where = f"[Getting the first grant]({page}#getting-the-first-grant)"
+    elif page:
+        where = "[Set up Google](/auth/setup/google)"
     else:
-        where = "[Your own account](/auth/your-own-account)"
+        where = "[Getting the grant](/auth/oauth-flow)"
     body += [
         "<Note>",
         f"No refresh token yet? {where} is the one-time consent flow that hands you one.",
@@ -571,11 +825,16 @@ def render_auth(pack: str, module: ModuleType) -> str:
     tools: List[Tool] = list(module.TOOLS)
     first = tools[0]
     source = _render_credential_source(module, first)
+    # First, because it is the question the reader arrived with: the error that
+    # sent them here said "no credentials", and this says where one comes from.
+    lead = _setup(pack, module).lead
 
     if first.credential_provider is None:
         header = getattr(first.api_key_headers, "key_header", None)
         sent = f" in {_code(header)}" if header else ""
         return (
+            f"{lead}\n"
+            "\n"
             f"This pack takes an API key{sent}{source}.\n"
             "\n"
             "There is no authorization server, no consent screen and no refresh — "
@@ -585,6 +844,8 @@ def render_auth(pack: str, module: ModuleType) -> str:
     named = _PROVIDER_PAGES.get(first.provider or "")
     server = f"{named[0]} " if named else ""
     lines = [
+        lead,
+        "",
         f"This pack takes {'a ' + server if server else 'an '}OAuth bearer token{source}."
         " Which credential provider you hand it depends on whose account the"
         " calls run as.",
@@ -1330,6 +1591,22 @@ def main(argv: Sequence[str]) -> int:
         if updated == current:
             continue
         stale.append(pack)
+        if not check:
+            path.write_text(updated)
+
+    # The pages outside docs/packs that carry a generated region: the table of
+    # every pack on /auth/your-own-account, built from the same entries as the
+    # leads above so a pack's row and its page cannot disagree, and the Slack
+    # guide's manifest, built from the scopes the Slack tools declare.
+    for path, block, body in (
+        (SETUP_HUB, "setup", render_setup_table()),
+        (SLACK_SETUP, "manifest", render_slack_manifest()),
+    ):
+        current = path.read_text()
+        updated = replace(current, block, body)
+        if updated == current:
+            continue
+        stale.append(path.relative_to(ROOT / "docs").with_suffix("").as_posix())
         if not check:
             path.write_text(updated)
 

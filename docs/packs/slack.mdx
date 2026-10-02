@@ -38,6 +38,8 @@ Slack is the pack that made [envelopes](/tools/envelopes) exist.
 ## Authenticating
 
 {/* generated:auth start — do not edit by hand; run scripts/generate_pack_docs.py */}
+**Before the first call, Slack needs an app installed in your workspace.** [Set up Slack](/auth/setup/slack) creates it from a prefilled manifest carrying the scopes these tools use, installs it, and ends with the `xoxb-` token `$SLACK_BOT_TOKEN` takes — about three minutes.
+
 This pack takes a Slack OAuth bearer token, and [`configure()`](/reference/configuration#configure) is optional when `$SLACK_BOT_TOKEN` is set. Which credential provider you hand it depends on whose account the calls run as.
 
 <Note>

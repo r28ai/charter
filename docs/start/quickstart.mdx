@@ -147,6 +147,12 @@ the response whole. The shape is yours either way:
 [seeing the wire](/running/observability#seeing-the-wire) for the headers and body.
 
 <Note>
+**Gmail, Calendar, Sheets, Docs, Drive and Forms need a Google OAuth client
+before their first call** — Google issues no API key for them. Making one is
+ten minutes, once: [Set up Google](/auth/setup/google), a screenshot per
+screen. Every other pack's credential, and the page that issues it, is on
+[your own account](/auth/your-own-account).
+
 Gmail and the other OAuth packs take a credential provider instead of a key:
 `gmail.configure(StaticTokenProvider(access_token))` is fine for a one-time script and wrong
 for a product, because the token expires in about an hour. See

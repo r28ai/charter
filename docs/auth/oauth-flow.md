@@ -7,8 +7,8 @@ sidebarTitle: "Your users' accounts"
 <Note>
 This page is the flow **inside your app**, for a product whose users each
 connect their own account. Connecting one account — yours — to a script or an
-agent you run needs none of it: [your own account](/auth/your-own-account) is
-five steps and ends in a working call.
+agent you run needs none of it: [your own account](/auth/your-own-account)
+names what each pack needs, and each guide ends in a working call.
 </Note>
 
 Charter's OAuth surface has two halves. [`OAuth2Client`](/auth/authorization-servers)
@@ -157,7 +157,7 @@ example you own and can read in one screen, not a library API. The two calls
 above are the only Charter in it; everything else is the redirect and the wait,
 which is the point.
 
-[Your own account](/auth/your-own-account) wraps that script in the rest of the
+[Set up Google](/auth/setup/google) wraps that script in the rest of the
 job — what to register with Google first, what to store afterwards, and the one
 call that proves the scopes were right.
 

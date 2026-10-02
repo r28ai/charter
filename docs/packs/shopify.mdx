@@ -42,6 +42,8 @@ not.
 ## Authenticating
 
 {/* generated:auth start — do not edit by hand; run scripts/generate_pack_docs.py */}
+**Get a token:** create an app in Shopify's [Dev Dashboard](https://dev.shopify.com/dashboard), install it on your store, and mint an Admin API token from its client ID and secret — [getting a token](#getting-a-token) below has the request. It needs two values where other packs need one: `SHOPIFY_SHOP` and `SHOPIFY_ACCESS_TOKEN`.
+
 This pack takes an API key in `X-Shopify-Access-Token`.
 
 There is no authorization server, no consent screen and no refresh — [API keys](/auth/api-key-tool-factory) is the whole story.
@@ -52,6 +54,38 @@ Two values, because a Shopify installation is a store as well as a token:
 `$SHOPIFY_ACCESS_TOKEN` are set. `shop` is the subdomain — `"my-store"` for
 `my-store.myshopify.com` — and the full domain or a complete URL is accepted
 too, since all three appear in Shopify's own documentation and admin UI.
+
+### Getting a token
+
+Since January 2026 a new app is made in Shopify's Dev Dashboard rather than in
+the store admin, and its Admin API token is minted on request rather than shown
+once on a settings page:
+
+1. In the [Dev Dashboard](https://dev.shopify.com/dashboard), **Create app**.
+2. On the app's version, choose the **Admin API access scopes** for what the
+   tools you hand out touch — products, orders, customers, inventory,
+   locations, draft orders, fulfillments; read for the readers, write for the
+   rest — and **Release** it. A call that needs one you left out names it in
+   the error: *"Required access: `read_products` access scope"*.
+3. **Install** the app on your store. The app and the store must belong to the
+   same organisation for the next step to work.
+4. Copy the **Client ID** and **Client secret** from the app's **Settings**, and
+   trade them for a token:
+
+```bash
+curl -X POST "https://my-store.myshopify.com/admin/oauth/access_token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d grant_type=client_credentials \
+  -d client_id="$SHOPIFY_CLIENT_ID" \
+  -d client_secret="$SHOPIFY_CLIENT_SECRET"
+```
+
+The `access_token` in the answer is `$SHOPIFY_ACCESS_TOKEN`. **It lasts 24
+hours**, and this pack sends the token it holds without renewing it: mint a new
+one and call `configure()` again, or restart with the new value, once a day.
+
+A store with a custom app made in the admin before 2026 keeps that app's
+`shpat_` token, which still works and does not expire.
 
 ## The client
 

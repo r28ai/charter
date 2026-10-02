@@ -28,6 +28,7 @@ _READS = {
     "test_pack_specs.py": ("docs", "scripts"),
     "test_readme.py": ("docs", "skills", "AGENTS.md"),
     "test_reference_docs.py": ("docs", "scripts"),
+    "test_setup_docs.py": ("docs", "scripts"),
 }
 
 collect_ignore = [

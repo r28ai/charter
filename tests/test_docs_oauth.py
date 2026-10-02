@@ -36,7 +36,10 @@ ROOT = FsPath(__file__).resolve().parent.parent
 DOCS = [
     ROOT / "docs/auth/authorization-servers.md",
     ROOT / "docs/auth/oauth-flow.md",
-    ROOT / "docs/auth/your-own-account.mdx",
+    ROOT / "docs/auth/setup/google.mdx",
+    ROOT / "docs/auth/setup/slack.mdx",
+    ROOT / "docs/auth/setup/github.mdx",
+    ROOT / "docs/auth/setup/notion.mdx",
     ROOT / "docs/auth/providers/google.mdx",
     ROOT / "docs/auth/providers/slack.mdx",
     ROOT / "docs/auth/providers/github.mdx",
@@ -197,6 +200,7 @@ def _credentials_in_the_environment(monkeypatch) -> None:
     monkeypatch.setenv("GOOGLE_REFRESH_TOKEN", "rt-stored")
     monkeypatch.setenv("SLACK_BOT_TOKEN", "xoxb-static")
     monkeypatch.setenv("GITHUB_TOKEN", "ghp-static")
+    monkeypatch.setenv("NOTION_API_KEY", "ntn-static")
 
 
 @pytest.mark.parametrize("doc", DOCS, ids=[d.name for d in DOCS])

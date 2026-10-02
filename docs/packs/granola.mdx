@@ -38,14 +38,15 @@ program can create, change or delete here are webhook endpoints.
 ## Authenticating
 
 {/* generated:auth start — do not edit by hand; run scripts/generate_pack_docs.py */}
+**Get a key:** in the Granola desktop app, **Settings → Connectors → API keys → Create new key** — there is no web page for it, and it needs a Business or Enterprise plan; [Granola's guide](https://docs.granola.ai/help-center/sharing/integrations/granola-api) has the screens. Then `export GRANOLA_API_KEY=grn_…`.
+
 This pack takes an API key in `Authorization`, and [`configure()`](/reference/configuration#configure) is optional when `$GRANOLA_API_KEY` is set.
 
 There is no authorization server, no consent screen and no refresh — [API keys](/auth/api-key-tool-factory) is the whole story.
 {/* generated:auth end */}
 
-The key is prefixed `grn_…` and goes out as a bearer token. It is created in the
-desktop app, under **Settings → Connectors → API keys**, and the notes it can
-reach are chosen at that moment: a key carries **Personal notes**, **Public
+The key goes out as a bearer token, and the notes it can reach are chosen when
+it is created: a key carries **Personal notes**, **Public
 notes**, or both. No parameter on any tool widens that, so a listing that comes
 back short is usually a key question rather than a filter question.
 

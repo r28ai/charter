@@ -39,6 +39,8 @@ hands back are all declared in [the wire contract](/tools/wire-contract).
 ## Authenticating
 
 {/* generated:auth start — do not edit by hand; run scripts/generate_pack_docs.py */}
+**Get a key:** [dashboard.stripe.com/apikeys](https://dashboard.stripe.com/apikeys) → copy the **Secret key** — `sk_test_…` from a sandbox or test mode, which moves no money — and `export STRIPE_API_KEY=sk_test_…`.
+
 This pack takes an API key in `Authorization`, and [`configure()`](/reference/configuration#configure) is optional when `$STRIPE_API_KEY` is set.
 
 There is no authorization server, no consent screen and no refresh — [API keys](/auth/api-key-tool-factory) is the whole story.

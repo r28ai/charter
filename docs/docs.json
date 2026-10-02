@@ -57,7 +57,16 @@
           {
             "group": "Authentication",
             "pages": [
-              "auth/your-own-account",
+              {
+                "group": "Your own account",
+                "pages": [
+                  "auth/your-own-account",
+                  "auth/setup/google",
+                  "auth/setup/slack",
+                  "auth/setup/github",
+                  "auth/setup/notion"
+                ]
+              },
               "auth/oauth-flow",
               "auth/authorization-servers",
               "auth/api-key-tool-factory",

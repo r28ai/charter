@@ -46,6 +46,8 @@ value.
 ## Authenticating
 
 {/* generated:auth start — do not edit by hand; run scripts/generate_pack_docs.py */}
+**Get a token:** [open GitHub's token form](https://github.com/settings/tokens/new?description=Charter&scopes=repo,read:user) with the scopes these tools need already ticked, generate, and `export GITHUB_TOKEN=ghp_…`. [Set up GitHub](/auth/setup/github) covers fine-grained tokens, and the app your users would connect through.
+
 This pack takes a GitHub OAuth bearer token, and [`configure()`](/reference/configuration#configure) is optional when `$GITHUB_TOKEN` is set. Which credential provider you hand it depends on whose account the calls run as.
 
 <Note>

@@ -40,6 +40,8 @@ is where each one is answered.
 ## Authenticating
 
 {/* generated:auth start — do not edit by hand; run scripts/generate_pack_docs.py */}
+**Get a key:** [linear.app/settings/account/security](https://linear.app/settings/account/security) → **Personal API keys** → **New API key**, then `export LINEAR_API_KEY=lin_api_…`. Linear shows the key once.
+
 This pack takes an API key in `Authorization`, and [`configure()`](/reference/configuration#configure) is optional when `$LINEAR_API_KEY` is set.
 
 There is no authorization server, no consent screen and no refresh — [API keys](/auth/api-key-tool-factory) is the whole story.

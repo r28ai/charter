@@ -1,0 +1,407 @@
+---
+title: "Set up Google"
+sidebarTitle: "Google"
+description: "The OAuth client every Google pack needs before its first call: ten minutes in the Cloud console, a screenshot for each screen, and a call at the end that proves it worked."
+---
+
+Gmail, Calendar, Sheets, Docs, Drive and Forms take **no API key**. Google
+issues credentials only to an app you have registered, so before the first call
+you register one: a Cloud project, a consent screen and an OAuth client. It is
+free, it takes about ten minutes, and you do it once — the same client serves
+all six packs.
+
+Every console link below opens in a new tab. Keep this page in the old one and
+come back to it after each step.
+
+<Tip>
+**Want to see one call work before any of this?** Google's
+[OAuth Playground](https://developers.google.com/oauthplayground) signs you in
+with its own client: tick **Gmail API v1 → `https://www.googleapis.com/auth/gmail.modify`**,
+**Authorize APIs**, **Exchange authorization code for tokens**, and copy the
+access token into `GOOGLE_ACCESS_TOKEN`. Every Google pack reads it. It expires
+in an hour and nothing can renew it, which is fine for a look and wrong for
+anything you leave running — that is what the steps below are for.
+</Tip>
+
+## The console
+
+<Steps>
+
+<Step title="Create a project">
+
+Open [console.cloud.google.com/projectcreate](https://console.cloud.google.com/projectcreate),
+name it anything — `charter` will do — and **Create**.
+
+Already have one? Pick it from the project picker at the top of the console
+instead. Everything below happens inside whichever project is selected there,
+so check it before each step.
+
+<Frame>
+  <img
+    src="/images/setup/google/01-new-project.webp"
+    alt="The Google Cloud project picker, with an arrow pointing at New project in its top-right corner."
+  />
+</Frame>
+
+</Step>
+
+<Step title="Turn on the APIs you will call">
+
+Each pack calls one Google API, and an API is off until you turn it on. Open
+the ones you need and click **Enable**:
+
+| Pack | API | |
+|---|---|---|
+| [`gmail`](/packs/gmail) | Gmail API | [Enable](https://console.cloud.google.com/apis/library/gmail.googleapis.com) |
+| [`gcalendar`](/packs/gcalendar) | Google Calendar API | [Enable](https://console.cloud.google.com/apis/library/calendar-json.googleapis.com) |
+| [`gsheets`](/packs/gsheets) | Google Sheets API | [Enable](https://console.cloud.google.com/apis/library/sheets.googleapis.com) |
+| [`gdocs`](/packs/gdocs) | Google Docs API | [Enable](https://console.cloud.google.com/apis/library/docs.googleapis.com) |
+| [`gdrive`](/packs/gdrive) | Google Drive API | [Enable](https://console.cloud.google.com/apis/library/drive.googleapis.com) |
+| [`gforms`](/packs/gforms) | Google Forms API | [Enable](https://console.cloud.google.com/apis/library/forms.googleapis.com) |
+
+Or [all six at once](https://console.cloud.google.com/flows/enableapi?apiid=gmail.googleapis.com,calendar-json.googleapis.com,sheets.googleapis.com,docs.googleapis.com,drive.googleapis.com,forms.googleapis.com):
+it asks which project, then turns on the lot.
+
+<Frame>
+  <img
+    src="/images/setup/google/02-enable-api.webp"
+    alt="The Gmail API's page in the API library, with an arrow pointing at the blue Enable button."
+  />
+</Frame>
+
+Skip this and the first call answers `403` with *"Gmail API has not been used
+in project N before or it is disabled"*. It reads like a permission problem and
+is not one.
+
+</Step>
+
+<Step title="Set up the consent screen">
+
+Open [console.cloud.google.com/auth/overview](https://console.cloud.google.com/auth/overview)
+— the **Google Auth Platform** — and click **Get started**.
+
+<Frame>
+  <img
+    src="/images/setup/google/03-get-started.webp"
+    alt="Google Auth Platform's overview page saying the platform is not configured yet, with a Get started button."
+  />
+</Frame>
+
+A four-part form follows:
+
+1. **App information** — an app name, which is what the consent screen will
+   show you, and a support email, which can be your own.
+2. **Audience** — **External**. *Internal* is offered only inside a Google
+   Workspace organisation; if you see it and every account you will connect
+   belongs to that organisation, choose it, and step 6 does not apply to you.
+3. **Contact information** — your email again.
+4. **Finish** — agree to the policy, then **Create**.
+
+<Frame>
+  <img
+    src="/images/setup/google/04-audience.webp"
+    alt="The Audience part of the form, with External selected and Internal left unselected."
+  />
+</Frame>
+
+<Frame>
+  <img
+    src="/images/setup/google/05-contact.webp"
+    alt="The Contact information part of the form, with an email address entered."
+  />
+</Frame>
+
+</Step>
+
+<Step title="Create the OAuth client">
+
+Back on the overview, click **Create OAuth client** — or go straight to
+[console.cloud.google.com/auth/clients/create](https://console.cloud.google.com/auth/clients/create).
+
+<Frame>
+  <img
+    src="/images/setup/google/06-create-client.webp"
+    alt="The OAuth overview after the consent screen is created, with an arrow pointing at the Create OAuth client button."
+  />
+</Frame>
+
+The application type decides where Google may send the browser after consent,
+and it is the one setting here that depends on what you are building:
+
+<Tabs>
+<Tab title="Just you: Desktop app">
+
+**Application type: Desktop app**, any name, **Create**.
+
+A desktop client accepts a redirect to `localhost` on any port, which is what
+lets the script in step 7 catch Google's answer with nothing registered.
+
+<Frame>
+  <img
+    src="/images/setup/google/07-client-desktop.webp"
+    alt="The Create OAuth client ID form, with Application type set to Desktop app and the name Charter."
+  />
+</Frame>
+
+</Tab>
+<Tab title="Your users: Web application">
+
+**Application type: Web application**, then under **Authorised redirect URIs**
+the callback route in your app — exactly, scheme and path included.
+**Authorised JavaScript origins** only matter when a browser page calls Google
+itself; Charter's flow runs on your server, so they can stay empty.
+
+To run step 7 against this client too, add `http://localhost:8765/callback` as a
+second redirect URI.
+
+<Frame>
+  <img
+    src="/images/setup/google/07-client-web.webp"
+    alt="The Create OAuth client ID form for a Web application, with https://app.example.com as the JavaScript origin and https://app.example.com/oauth/google/callback as the redirect URI."
+  />
+</Frame>
+
+</Tab>
+</Tabs>
+
+</Step>
+
+<Step title="Download the client JSON before you click OK">
+
+Google shows a dialog with the client ID and a **Download JSON** link. **Click
+the link before OK.** The file holds the client ID and the client secret
+together — `client_id` and `client_secret`, under `installed` — and step 7
+needs both.
+
+<Frame>
+  <img
+    src="/images/setup/google/08-client-created.webp"
+    alt="The OAuth client created dialog: the client ID, a Download JSON link, and an OK button."
+  />
+</Frame>
+
+Clicked OK first? Open the client from
+[Clients](https://console.cloud.google.com/auth/clients) and use **Add secret**:
+a new secret is shown in full once, when it is made, so copy it then.
+
+<Frame>
+  <img
+    src="/images/setup/google/09-client-secret.webp"
+    alt="A client's details page: the client ID, a Client secrets section with one secret shown masked, and an Add secret button."
+  />
+</Frame>
+
+</Step>
+
+<Step title="Publish the app">
+
+Open [console.cloud.google.com/auth/audience](https://console.cloud.google.com/auth/audience)
+and click **Publish app**.
+
+<Frame>
+  <img
+    src="/images/setup/google/10-publish.webp"
+    alt="The Audience page: publishing status Testing with a Publish app button, user type External, and an Add users button under Test users."
+  />
+</Frame>
+
+**This decides whether the token survives the week.** An app left in
+*Testing* gets refresh tokens that expire after seven days — the works-all-week,
+`invalid_grant`-on-Monday symptom, which is this setting rather than a bug in
+your storage. It also refuses consent to anyone not listed under **Test users**.
+
+Published, consent shows *"Google hasn't verified this app"*: click
+**Advanced**, then **Go to *your app's name***. For your own account that warning
+is the whole cost. Verification — and for a restricted scope like
+`gmail.modify`, a security assessment — is what letting other people connect
+eventually needs, and it takes weeks;
+[check Google's current rules](https://developers.google.com/identity/protocols/oauth2/production-readiness/policy-compliance)
+before planning around it.
+
+Rather stay in Testing? Then **Add users** with your own address, and expect to
+repeat step 7 every week.
+
+</Step>
+
+</Steps>
+
+## The grant
+
+<Steps>
+
+<Step title="Connect your account" stepNumber={7}>
+
+[`examples/connect_google.py`](https://github.com/r28ai/charter/blob/main/examples/connect_google.py)
+runs the consent flow once, from a terminal. Give it the two values from the
+file in step 5:
+
+```bash
+export GOOGLE_CLIENT_ID=1234-abc.apps.googleusercontent.com
+export GOOGLE_CLIENT_SECRET=GOCSPX-...
+
+curl -O https://raw.githubusercontent.com/r28ai/charter/main/examples/connect_google.py
+uv run --with charter-ai python connect_google.py
+```
+
+It prints a URL. Open it, pick your account, click through the unverified-app
+warning, and **leave every box ticked**: Google lets you untick a permission
+and still finishes the flow, and the tools that needed it then answer `403`.
+The script names any you dropped. The tab says *Connected*, and the terminal
+prints the third value:
+
+```bash
+export GOOGLE_REFRESH_TOKEN=1//0g...
+```
+
+It asks for every scope the six packs' tools declare, so one grant covers all
+of them; take a pack out of the tuple in `main()` to ask for less. The scopes
+are listed on [Google's provider page](/auth/providers/google#scopes), and
+[`scopes_for`](/reference/oauth#scopes_for) is the call that reads them off the
+tools.
+
+The script is not a library feature. It is a page you can read, and only two of
+its calls are Charter's: `flow.authorize()` builds the URL with PKCE and a
+`state`, and `flow.exchange()` trades the code for tokens. Everything between
+them — the redirect, the wait, the callback — is the script's, and in a web app
+it would be your framework's: [getting the grant](/auth/oauth-flow).
+
+</Step>
+
+<Step title="Store the three values" stepNumber={8}>
+
+Put the three `export` lines — the two you typed and the one printed — in your
+shell profile, a `.env` file, or your secret manager. That is the whole
+configuration: every Google pack, and the [MCP server](/using/mcp), renews an
+access token from them on its own.
+
+Not the access token. It lasts about an hour, and the client fetches a fresh one
+whenever it needs one.
+
+**Google does not rotate refresh tokens**, so the value printed is the value you
+keep — a refresh returns a new access token and the same refresh token. Slack
+and GitHub do rotate, and a server that does needs the `on_refresh` hook to
+write the new one back, which is
+[what varies between servers](/auth/authorization-servers).
+
+To build the client yourself instead, an [`OAuth2Client`](/reference/oauth#oauth2client)
+turns those three values into a credential provider: it fetches an access
+token, caches it, and renews it before it lapses.
+
+```python google_client.py
+from charter.auth import OAuth2Client
+from charter.packs import gcalendar, gdocs, gdrive, gforms, gmail, gsheets
+
+google = OAuth2Client(
+    GOOGLE,  # the server constant, from /auth/providers/google
+    client_id=os.environ["GOOGLE_CLIENT_ID"],
+    client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
+    refresh_token=os.environ["GOOGLE_REFRESH_TOKEN"],
+)
+
+for pack in (gmail, gcalendar, gsheets, gdocs, gdrive, gforms):
+    pack.configure(credential_provider=google)
+```
+
+One client across six packs on purpose: the access token is fetched once and
+cached once, so a run that sends a mail, files a calendar event and appends a
+row spends one refresh rather than three.
+
+</Step>
+
+<Step title="Verify" stepNumber={9}>
+
+A refresh token is not proof that the scopes are right — that failure surfaces
+as a `403` from the API, hours later, inside an agent. One call settles it now:
+
+```python verify_scopes.py
+import asyncio
+
+
+async def main():
+    labels = await gmail.labels_list.ainvoke(userId="me")
+
+    print([label["name"] for label in labels["labels"]])
+
+
+asyncio.run(main())
+```
+
+`INBOX`, `SENT`, and whatever else you have made. It costs 1 unit of Gmail's
+quota, the cheapest call in the pack.
+
+That is the loop closed: a client you registered, a grant you own, a token the
+runtime renews without being asked, and a response that came back. Hand
+`gmail.TOOLS` to an [adapter](/using/adapters) and the same credential serves
+every tool in all six packs.
+
+</Step>
+
+</Steps>
+
+## When it does not work
+
+<AccordionGroup>
+  <Accordion title="403: “… API has not been used in project N before or it is disabled”">
+    The API for that pack is off in the project the client belongs to — step 2.
+    Enabling takes a minute to reach the API. If it is on, check the project
+    picker: the client and the API have to be in the same project.
+  </Accordion>
+  <Accordion title="“Access blocked: … has not completed the Google verification process”, or access_denied">
+    The app is in *Testing* and the account you picked is not a test user. Publish
+    it, or add the address under **Test users** — step 6.
+  </Accordion>
+  <Accordion title="invalid_grant, about a week after it last worked">
+    The app was in *Testing* when the token was issued, and testing tokens expire
+    after seven days. Publish it, then run step 7 again; the new token does not
+    expire. A grant revoked at
+    [myaccount.google.com/permissions](https://myaccount.google.com/permissions)
+    answers the same way, as does a client deleted for six months of disuse.
+  </Accordion>
+  <Accordion title="redirect_uri_mismatch">
+    A web client is being sent to a redirect URI it does not list, character for
+    character. Add it in the client's settings, or use a Desktop app client for
+    the script, which needs nothing registered.
+  </Accordion>
+  <Accordion title="403: “Request had insufficient authentication scopes”">
+    The grant does not cover the tool. Either a box was unticked on the consent
+    screen, or the pack was added after the grant was issued — a grant covers the
+    scopes it was issued for and nothing else. Run step 7 again with that pack
+    in the script's tuple.
+  </Accordion>
+  <Accordion title="“Google hasn't verified this app”">
+    Expected for an app you published yourself. **Advanced → Go to *your app's
+    name***. It goes away only with verification, which you need when other
+    people connect, not for your own account.
+  </Accordion>
+</AccordionGroup>
+
+## Your users' accounts
+
+The console steps are the same, with a **Web application** client (step 4's
+second tab). What changes is everything after: the consent route lives in your
+app, each user's grant is stored against them, and many users means
+verification. [Getting the grant](/auth/oauth-flow) is the route;
+[serving many users](/auth/authorization-servers#serving-many-users) is the
+per-user cache.
+
+## What this does not cover
+
+Named rather than left for you to discover:
+
+- **Rotation.** Google hands back the same refresh token; Slack and GitHub do
+  not. [What varies between servers](/auth/authorization-servers).
+- **Revocation.** A grant killed at `myaccount.google.com/permissions` answers
+  `invalid_grant`, and Charter then stops asking for 60 seconds rather than
+  hammering a rate-limited endpoint —
+  [refresh behaviour](/auth/providers/google#refresh-behaviour).
+- **The rest of Google's silent failures** — the hundred-refresh-token cap, what
+  `login_hint` does and does not guarantee —
+  [what fails silently](/auth/providers/google#what-fails-silently).
+
+## Related
+
+- [Google](/auth/providers/google) — the server constant, every scope, the hundred-token cap and what else fails silently
+- [Getting the grant](/auth/oauth-flow) — the same two protocol steps, inside your app
+- [Authorization servers](/auth/authorization-servers) — refresh, caching, many users
+- [Every pack](/auth/your-own-account) — what the other packs need, in one table
+- [Credentials](/reference/credentials) — every credential provider, as reference

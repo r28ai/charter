@@ -1,0 +1,98 @@
+---
+title: "Set up GitHub"
+sidebarTitle: "GitHub"
+description: "A personal access token with the scopes the github pack needs already ticked, and the app your users would connect through."
+---
+
+For your own account the [`github`](/packs/github) pack needs a personal access
+token and nothing else: no app, no consent screen. GitHub's token form takes its
+scopes from the link that opens it, so the one below arrives with exactly the
+scopes the pack's tools declare.
+
+The links open in a new tab; this page stays where you left it.
+
+<Steps>
+
+<Step title="Generate the token">
+
+**[Open GitHub's token form](https://github.com/settings/tokens/new?description=Charter&scopes=repo,read:user)**
+— the note says *Charter*, and `repo` and `read:user` are ticked.
+
+Pick an expiration, then **Generate token** at the bottom of the page. GitHub
+shows the token once, beginning `ghp_`.
+
+</Step>
+
+<Step title="Set it">
+
+```bash
+export GITHUB_TOKEN=ghp_...
+```
+
+The pack reads it on its next call. A classic token has no refresh: when the
+expiration you picked arrives, generate another.
+
+</Step>
+
+<Step title="Authorize it for SSO organisations">
+
+Skip this unless an organisation you belong to signs in through SAML. If one
+does, its repositories answer `403` — *"Resource protected by organization SAML
+enforcement"* — until the token is authorized for it: on
+[your tokens page](https://github.com/settings/tokens), **Configure SSO** beside
+the token → **Authorize** for that organisation.
+
+</Step>
+
+<Step title="Verify">
+
+```python verify_github.py
+import asyncio
+
+from charter.packs import github
+
+
+async def main():
+    print(await github.users_get_authenticated.ainvoke({}))
+
+
+asyncio.run(main())
+```
+
+Your own login and profile, which proves the token is read as yours.
+
+</Step>
+
+</Steps>
+
+## A narrower token
+
+A **fine-grained** token reaches only the repositories you pick, with only the
+permissions you grant.
+[This form](https://github.com/settings/personal-access-tokens/new?name=Charter&description=Charter+packs&contents=write&issues=write&pull_requests=write)
+opens with read and write on contents, issues and pull requests; choose the
+resource owner and the repositories yourself, since GitHub will not prefill
+them. Two costs come with it: an organisation can require its admins to approve
+the token before it works, and a few endpoints — notifications among them —
+accept only classic tokens.
+
+## Your users' accounts
+
+Each user authorizes an app you register, and the app's token acts as them.
+
+- **A GitHub App** — [github.com/settings/apps/new](https://github.com/settings/apps/new).
+  Set the **Callback URL** to your consent route. Whether **Expire user
+  authorization tokens** is ticked decides whether you get a refresh token,
+  and that changes which credential provider you use:
+  [which token you have](/auth/providers/github#which-token-you-have).
+- **An OAuth App** — [github.com/settings/applications/new](https://github.com/settings/applications/new).
+  Simpler, with an **Authorization callback URL** and tokens that never expire.
+
+The route is [getting the grant](/auth/oauth-flow), and GitHub's quirks — the
+comma-delimited `scope`, the token that reports no scopes at all — are on its
+[provider page](/auth/providers/github#getting-the-first-grant).
+
+## Related
+
+- [GitHub](/auth/providers/github) — the server constant, every token type, and refresh under expiry
+- [Every pack](/auth/your-own-account) — what the other packs need, in one table

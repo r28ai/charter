@@ -74,9 +74,10 @@ def provider_docs(provider: Optional[str], *, bearer: bool = True) -> str:
     link in an error message is worse than no link at all.
 
     ``bearer`` picks the fallback when the provider has no page of its own, and
-    it is not a detail. `auth/your-own-account` opens by telling anyone using an
-    API-key pack to go and read `auth/api-key-tool-factory` instead: there is no
-    authorization server, no consent screen and no refresh. Sending a rejected
+    it is not a detail. `auth/your-own-account` is where a credential comes from
+    — a table of every pack and the page that issues its credential — and it
+    sends anyone using an API-key pack on to `auth/api-key-tool-factory`: there
+    is no authorization server, no consent screen and no refresh. Sending a rejected
     Stripe key to a page whose second paragraph says it is not for you is a live
     link pointing the wrong way, which is the failure this whole mechanism is
     supposed to avoid.
