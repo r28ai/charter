@@ -45,7 +45,7 @@ Runs in your process. No proxy, no per-call pricing, no telemetry.
 pip install charter-ai
 ```
 
-[549 tools across fifteen APIs](https://github.com/r28ai/charter#coverage) ship with
+[550 tools across fifteen APIs](https://github.com/r28ai/charter#coverage) ship with
 it, on two dependencies: `pydantic>=2.9,<3` and `httpx>=0.27,<1`. Packs never add more.
 The upper bounds are so a fresh install cannot silently resolve to pydantic 3.0 the day
 it ships.
@@ -495,7 +495,7 @@ which parameters an endpoint refuses together. Then
 
 | Pack | Import | Tools | Auth | The awkward part |
 |---|---|---|---|---|
-| Gmail | `charter.packs.gmail` | 23 | OAuth bearer | Mail goes out as base64url RFC 2822 and comes back parsed |
+| Gmail | `charter.packs.gmail` | 24 | OAuth bearer | Mail goes out as base64url RFC 2822 and comes back parsed |
 | Google Calendar | `charter.packs.gcalendar` | 13 | OAuth bearer | camelCase in the query, snake_case in the body |
 | Google Sheets | `charter.packs.gsheets` | 17 | OAuth bearer | Cells are protobuf JSON, not plain values |
 | Google Docs | `charter.packs.gdocs` | 3 | OAuth bearer | One batch request, thirty-three alternative edit types |

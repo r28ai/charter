@@ -123,6 +123,7 @@
                       "packs/gmail/message/messages_send",
                       "packs/gmail/message/messages_list",
                       "packs/gmail/message/messages_get",
+                      "packs/gmail/message/messages_attachments_get",
                       "packs/gmail/message/messages_modify",
                       "packs/gmail/message/messages_batch_modify",
                       "packs/gmail/message/objects"
@@ -1401,6 +1402,10 @@
     {
       "source": "/packs/gmail/tools/messages_get",
       "destination": "/packs/gmail/message/messages_get"
+    },
+    {
+      "source": "/packs/gmail/tools/messages_attachments_get",
+      "destination": "/packs/gmail/message/messages_attachments_get"
     },
     {
       "source": "/packs/gmail/tools/messages_modify",

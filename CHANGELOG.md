@@ -18,6 +18,32 @@ here, with the migration in the same entry.
   `PATH` is the one Charter was installed into. Every client config there now
   uses the `uvx` form. `python -m charter.mcp` is the same entry point and
   still works.
+- **`gmail.messages_attachments_get`, the call the attachment ids were kept
+  for.** Every Gmail read listed an attachment's id and nothing could fetch it.
+  Gmail answers with the file as unpadded base64url, which a standard base64
+  decoder rejects. The tool hands a model a text
+  attachment as text and says plainly that a binary one is binary, rather than
+  decoding a PDF into replacement characters. Code that wants the file derives
+  the tool with `response_handler=attachment_bytes` and gets the bytes. Gmail
+  now has 24 tools, and Charter 550.
+- **Four Gmail examples, one per job an email agent does.** `examples/gmail/`
+  holds `reply_all.py`, `send.py`, `read.py` and `save_attachments.py`. Each
+  runs with `uv run` on any authorized-user JSON, and the two that send print
+  the message instead unless given `--send`.
+
+### Fixed
+
+- **Gmail headers come back under one spelling.** Gmail returns each header as
+  the sending server spelled it, and Exchange writes `CC`, so `headers["Cc"]`
+  found nothing on an Outlook sender's message and a reply-all built from it
+  dropped every Cc recipient, with no error. Every kept header is now keyed by
+  its standard spelling (`Cc`, `Message-ID`), on both the `payload` and the
+  `raw` read.
+- **Gmail's `bodyText` no longer returns a placeholder in place of the
+  message.** It took text/plain whenever a message had one, and many senders
+  put "View this email in your browser" there beside the real message in HTML.
+  The HTML's text now wins when the plain part has fewer than half as many
+  words. On a real airline newsletter that is 82 words against 3,289.
 
 ## [0.2.6] — 2026-10-02
 

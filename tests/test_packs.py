@@ -599,6 +599,89 @@ async def test_a_raw_read_of_a_message_with_no_parts():
     assert "attachments" not in result
 
 
+async def test_a_header_comes_back_under_one_spelling_whoever_sent_it():
+    """Exchange writes `CC`, and Gmail hands the header back spelled that way.
+
+    Keyed by the sender's spelling, `headers["Cc"]` finds nothing and a reply-all
+    drops every Cc recipient without an error — googleworkspace/cli#642.
+    """
+    from charter.packs.gmail.response_handlers import extract_message_text
+
+    headers = [
+        {"name": "FROM", "value": "ada@example.com"},
+        {"name": "CC", "value": "bob@example.com, cy@example.com"},
+        {"name": "Message-Id", "value": "<m1@example.com>"},
+        {"name": "x-internal-noise", "value": "drop me"},
+    ]
+    result = await extract_message_text({"id": "m1", "payload": {"headers": headers}})
+
+    assert result["headers"] == {
+        "From": "ada@example.com",
+        "Cc": "bob@example.com, cy@example.com",
+        "Message-ID": "<m1@example.com>",
+    }
+
+
+async def test_a_raw_read_spells_headers_the_way_the_payload_path_does():
+    from charter.packs.gmail.response_handlers import extract_message_text
+
+    raw = "FROM: ada@example.com\r\nCC: bob@example.com\r\nMessage-Id: <m1@x>\r\n\r\nhi\r\n"
+    encoded = base64.urlsafe_b64encode(raw.encode()).decode().rstrip("=")
+
+    result = await extract_message_text({"id": "m1", "raw": encoded})
+
+    assert result["headers"] == {
+        "From": "ada@example.com",
+        "Cc": "bob@example.com",
+        "Message-ID": "<m1@x>",
+    }
+
+
+def _alternative(plain: str, html: str) -> dict:
+    return {
+        "mimeType": "multipart/alternative",
+        "parts": [
+            {"mimeType": "text/plain", "body": {"data": _b64(plain)}},
+            {"mimeType": "text/html", "body": {"data": _b64(html)}},
+        ],
+    }
+
+
+_NEWSLETTER = "<p>" + " ".join(f"word{i}" for i in range(40)) + "</p>"
+
+
+@pytest.mark.parametrize("plain", ["View this email in your browser", "\r\n"])
+async def test_a_placeholder_text_part_loses_to_the_html_beside_it(plain):
+    """A stub text/plain beside the real message in HTML — googleworkspace/cli#889."""
+    from charter.packs.gmail.response_handlers import extract_message_text
+
+    result = await extract_message_text({"id": "m1", "payload": _alternative(plain, _NEWSLETTER)})
+
+    assert result["bodyText"].startswith("word0 word1")
+
+
+async def test_a_text_part_that_says_the_same_still_wins_over_html():
+    from charter.packs.gmail.response_handlers import extract_message_text
+
+    plain = " ".join(f"word{i}" for i in range(30))
+    result = await extract_message_text({"id": "m1", "payload": _alternative(plain, _NEWSLETTER)})
+
+    assert result["bodyText"] == plain
+
+
+async def test_a_raw_read_also_skips_a_placeholder_text_part():
+    from charter.packs.gmail.response_handlers import extract_message_text
+
+    message = EmailMessage()
+    message.set_content("")
+    message.add_alternative(_NEWSLETTER, subtype="html")
+    raw = base64.urlsafe_b64encode(bytes(message)).decode().rstrip("=")
+
+    result = await extract_message_text({"id": "m1", "raw": raw})
+
+    assert result["bodyText"].startswith("word0 word1")
+
+
 def test_the_message_format_literal_holds_gmails_whole_enum():
     """Gmail's shared Format enum, asserted against its values, not itself."""
     from charter.packs.gmail.types.message.models import MessageFormat
@@ -611,6 +694,63 @@ def test_threads_get_declares_the_narrower_enum_gmail_documents_for_it():
     from charter.packs.gmail.types.thread.models import Format as ThreadFormat
 
     assert set(get_args(ThreadFormat)) == {"full", "metadata", "minimal"}
+
+
+# -----------------------------------------------------
+# messages.attachments.get: the call the attachment ids above exist for
+# -----------------------------------------------------
+
+_ATTACHMENT = "https://gmail.googleapis.com/gmail/v1/users/me/messages/m1/attachments/a1"
+
+
+def _b64_bytes(data: bytes) -> str:
+    """Gmail's form: base64url, unpadded."""
+    return base64.urlsafe_b64encode(data).decode().rstrip("=")
+
+
+@respx.mock
+async def test_gmail_attachments_get_decodes_a_text_file():
+    gmail.configure(StaticTokenProvider("tok"))
+    csv = "name,amount\nAda,15.00\nZoë,€20\n"
+    route = respx.get(_ATTACHMENT).mock(
+        return_value=httpx.Response(
+            200, json={"size": len(csv.encode()), "data": _b64_bytes(csv.encode())}
+        )
+    )
+
+    result = await gmail.messages_attachments_get.ainvoke(messageId="m1", id="a1")
+
+    assert route.calls.last.request.url.query == b""
+    assert result == {"size": len(csv.encode()), "text": csv}
+
+
+async def test_gmail_attachments_get_reports_a_binary_file_rather_than_decoding_it():
+    """A lenient decode turns a PDF into replacement characters that read as text."""
+    from charter.packs.gmail.response_handlers import extract_attachment
+
+    pdf = b"%PDF-1.7\n%\xe2\xe3\xcf\xd3\n" + bytes(range(256))
+    result = await extract_attachment({"size": len(pdf), "data": _b64_bytes(pdf)})
+
+    assert result["size"] == len(pdf)
+    assert result["text"].startswith(f"<no content: it is a binary file of {len(pdf)} bytes")
+    assert "�" not in json.dumps(result)
+
+
+@respx.mock
+async def test_attachment_bytes_hands_code_the_file_from_unpadded_base64url():
+    """googleworkspace/cli#774: Gmail's unpadded base64url breaks a standard decoder."""
+    from charter.packs.gmail.response_handlers import attachment_bytes
+
+    gmail.configure(StaticTokenProvider("tok"))
+    data = bytes(range(256)) + b"\xfb\xff"  # encodes to `-` and `_`, needs padding
+    respx.get(_ATTACHMENT).mock(
+        return_value=httpx.Response(200, json={"size": len(data), "data": _b64_bytes(data)})
+    )
+    download = gmail.messages_attachments_get.derived(
+        name="download_attachment", response_handler=attachment_bytes
+    )
+
+    assert await download.ainvoke(messageId="m1", id="a1") == data
 
 
 @respx.mock
@@ -1113,6 +1253,7 @@ EXPECTED_QUOTA = {
     "messages_batch_modify": 50,
     "threads_get": 40,
     "messages_get": 20,
+    "messages_attachments_get": 20,
     "drafts_get": 20,
     "drafts_update": 15,
     "threads_list": 10,

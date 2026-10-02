@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from .actions import (
+    MessagesAttachmentsGetRequest,
     MessagesBatchModifyRequest,
     MessagesGetRequest,
     MessagesListRequest,
@@ -16,6 +17,7 @@ __all__ = [
     "MessagesSendRequest",
     "MessagesListRequest",
     "MessagesGetRequest",
+    "MessagesAttachmentsGetRequest",
     "MessagesModifyRequest",
     "MessagesBatchModifyRequest",
 ]

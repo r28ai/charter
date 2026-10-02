@@ -358,7 +358,7 @@ def test_every_factory_call_in_the_tree_names_its_pack():
 
     root = pathlib.Path(__file__).resolve().parent.parent
     missing = []
-    trees = ("src/**/*.py", "examples/*.py", "scripts/**/*.py", "harness/src/**/*.py")
+    trees = ("src/**/*.py", "examples/**/*.py", "scripts/**/*.py", "harness/src/**/*.py")
     for path in sorted(p for tree in trees for p in root.glob(tree)):
         for node in ast.walk(ast.parse(path.read_text())):
             if (

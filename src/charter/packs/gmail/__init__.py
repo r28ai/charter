@@ -28,6 +28,7 @@ from charter.factories import oauth_tool_factory
 from charter.packs._config import DeferredCredentialProvider
 from charter.packs._google import ENV_GRANT
 from charter.packs.gmail.response_handlers import (
+    extract_attachment,
     extract_draft_text,
     extract_label,
     extract_labels,
@@ -48,6 +49,7 @@ from charter.packs.gmail.types import (
     LabelsListRequest,
     LabelsPatchRequest,
     LabelsUpdateRequest,
+    MessagesAttachmentsGetRequest,
     MessagesBatchModifyRequest,
     MessagesGetRequest,
     MessagesListRequest,
@@ -191,6 +193,20 @@ messages_get = _gmail(
     description="Read one message, by the id messages_list returns.",
     action_label="Reads a single email.",
     response_handler=extract_message_text,
+    quota_cost=20,
+)
+
+messages_attachments_get = _gmail(
+    name="messages_attachments_get",
+    args_schema=MessagesAttachmentsGetRequest,
+    method="GET",
+    url_template="gmail/v1/users/{userId}/messages/{messageId}/attachments/{id}",
+    description=(
+        "Read one attachment, by the attachmentId messages_get or threads_get lists. "
+        "A text file comes back as text; a binary one is reported, not decoded."
+    ),
+    action_label="Reads an email attachment.",
+    response_handler=extract_attachment,
     quota_cost=20,
 )
 
@@ -368,6 +384,7 @@ TOOLS: list[Tool] = [
     messages_send,
     messages_list,
     messages_get,
+    messages_attachments_get,
     messages_modify,
     messages_batch_modify,
     threads_list,
@@ -404,6 +421,7 @@ __all__ = [
     "messages_send",
     "messages_list",
     "messages_get",
+    "messages_attachments_get",
     "messages_modify",
     "messages_batch_modify",
     "threads_list",

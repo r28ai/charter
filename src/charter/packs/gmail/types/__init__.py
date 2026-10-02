@@ -19,6 +19,7 @@ from .label.actions import (
 )
 from .label.models import Label
 from .message.actions import (
+    MessagesAttachmentsGetRequest,
     MessagesBatchModifyRequest,
     MessagesGetRequest,
     MessagesListRequest,
@@ -51,6 +52,7 @@ __all__ = [
     "MessagesSendRequest",
     "MessagesListRequest",
     "MessagesGetRequest",
+    "MessagesAttachmentsGetRequest",
     "MessagesModifyRequest",
     "MessagesBatchModifyRequest",
     "Message",

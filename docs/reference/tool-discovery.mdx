@@ -78,7 +78,7 @@ from charter.packs import gmail, stripe
 
 session = ToolSession([*gmail.TOOLS, *stripe.TOOLS])
 len(session.tools), len(to_openai_tools(session))
-# (82, 1)        eighty-two tools, one definition: ToolSearch
+# (83, 1)        eighty-three tools, one definition: ToolSearch
 
 session.search("+stripe refund")
 # {"loaded": ["stripe_refunds_create", "stripe_refunds_list", ...], "note": "..."}
@@ -87,7 +87,7 @@ len(to_openai_tools(session))
 # 6
 ```
 
-Eighty-two tools cost 872 tokens on the first turn instead of 36,689.
+Eighty-three tools cost 880 tokens on the first turn instead of 36,862.
 
 ### What the model sees
 

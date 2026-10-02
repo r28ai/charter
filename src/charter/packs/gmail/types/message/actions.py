@@ -140,6 +140,35 @@ class MessagesGetRequest(BaseModel):
     ]
 
 
+class MessagesAttachmentsGetRequest(BaseModel):
+    """Input schema for Gmail `users.messages.attachments.get` endpoint.
+
+    Gets the specified message attachment.
+
+    API Reference: https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages.attachments/get
+    """
+
+    # Path parameters
+    userId: Annotated[
+        str,
+        Field(
+            "me",
+            description=USER_ID_DESCRIPTION,
+        ),
+        Path(),
+    ]
+    messageId: Annotated[
+        str,
+        Field(..., description="The ID of the message containing the attachment."),
+        Path(),
+    ]
+    id: Annotated[
+        str,
+        Field(..., description="The ID of the attachment."),
+        Path(),
+    ]
+
+
 class ModifyMessageRequest(BaseModel):
     """
     Request body for Gmail `users.messages.modify` endpoint.

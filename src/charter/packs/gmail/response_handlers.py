@@ -22,9 +22,10 @@ representations Gmail offers it in.
 
 from __future__ import annotations
 
+import base64
 import email
 import email.policy
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from charter.text import decode_base64url, html_to_text
 
@@ -32,6 +33,8 @@ __all__ = [
     "extract_thread_text",
     "extract_message_text",
     "extract_draft_text",
+    "extract_attachment",
+    "attachment_bytes",
     "extract_labels",
     "extract_label",
     "extract_thread_list",
@@ -121,30 +124,40 @@ def _collect_attachment_metadata(part: Dict[str, Any]) -> List[Dict[str, Any]]:
     return collected
 
 
-_KEEP_HEADERS: Set[str] = {
-    "from",
-    "to",
-    "cc",
-    "bcc",
-    "subject",
-    "date",
-    "list-unsubscribe",
-    "received",
-    "message-id",
-    "reply-to",
-    "in-reply-to",
-    "references",
-    "precedence",
-    "x-priority",
-    "delivered-to",
+# Header names are case-insensitive (RFC 5322 §1.2.2), and Gmail hands each one
+# back spelled the way the sending server spelled it: Exchange writes `CC`. Keyed
+# by that spelling, `headers["Cc"]` misses Exchange's recipients, and a reply-all
+# built from it drops them with no error (googleworkspace/cli#642). So each kept
+# header comes back under one spelling, whoever sent it.
+_KEEP_HEADERS: Dict[str, str] = {
+    "from": "From",
+    "to": "To",
+    "cc": "Cc",
+    "bcc": "Bcc",
+    "subject": "Subject",
+    "date": "Date",
+    "list-unsubscribe": "List-Unsubscribe",
+    "received": "Received",
+    "message-id": "Message-ID",
+    "reply-to": "Reply-To",
+    "in-reply-to": "In-Reply-To",
+    "references": "References",
+    "precedence": "Precedence",
+    "x-priority": "X-Priority",
+    "delivered-to": "Delivered-To",
 }
 
 
-def _extract_headers(headers: Optional[List[Dict[str, str]]], keep: Set[str]) -> Dict[str, str]:
-    """Pick only the desired headers from the headers list."""
-    if not headers:
-        return {}
-    return {h["name"]: h["value"] for h in headers if h.get("name", "").lower() in keep}
+def _extract_headers(
+    headers: Optional[List[Dict[str, str]]], keep: Dict[str, str]
+) -> Dict[str, str]:
+    """The headers worth keeping, each under its one spelling in ``keep``."""
+    kept: Dict[str, str] = {}
+    for h in headers or []:
+        name = keep.get(h.get("name", "").lower())
+        if name:
+            kept[name] = h["value"]
+    return kept
 
 
 _RAW_ATTACHMENT_MAINTYPES = ("image", "audio", "video", "application", "message")
@@ -170,7 +183,11 @@ def _from_raw(
     # the payload walk above gets the same subject already decoded by Gmail —
     # so the two representations would disagree about the same message.
     parsed = email.message_from_string(decode_base64url(raw), policy=email.policy.default)
-    headers = {name: str(value) for name, value in parsed.items() if name.lower() in _KEEP_HEADERS}
+    headers = {
+        _KEEP_HEADERS[name.lower()]: str(value)
+        for name, value in parsed.items()
+        if name.lower() in _KEEP_HEADERS
+    }
 
     texts: List[Dict[str, Any]] = []
     attachments: List[Dict[str, Any]] = []
@@ -205,10 +222,24 @@ def _from_raw(
 
 
 def _body_text(text_parts: List[Dict[str, Any]]) -> str:
-    """The one body to show: text/plain wins where a message carries both."""
-    plain = [p for p in text_parts if p["mimeType"] == "text/plain"]
-    if plain:
-        return plain[0]["text"]
+    """The one body to show: text/plain, unless the HTML beside it says far more.
+
+    text/plain wins where a message carries both, because it is what the sender
+    wrote for a reader without HTML. But plenty of senders put a placeholder
+    there ("View this email in your browser") beside the real message in HTML,
+    and returning the placeholder loses the message without saying so
+    (googleworkspace/cli#889). So the HTML's text wins when the plain part has
+    fewer than half as many words, which an empty one always does.
+    """
+
+    def first(mime: str) -> Optional[str]:
+        return next((p["text"] for p in text_parts if p["mimeType"].lower() == mime), None)
+
+    plain, html = first("text/plain"), first("text/html")
+    if plain is not None and (html is None or 2 * len(plain.split()) >= len(html.split())):
+        return plain
+    if html is not None:
+        return html
     return text_parts[0]["text"] if text_parts else ""
 
 
@@ -279,6 +310,41 @@ async def extract_message_text(response: Dict[str, Any]) -> Dict[str, Any]:
     same shape.
     """
     return _transform_message(response)
+
+
+_BINARY = "<no content: it is a binary file of {size} bytes, not decodable as UTF-8 text>"
+
+
+async def extract_attachment(response: Dict[str, Any]) -> Dict[str, Any]:
+    """Response handler for ``messages_attachments_get``.
+
+    Gmail answers with the file as one base64url string, unpadded, which a
+    standard base64 decoder rejects (googleworkspace/cli#774) and which costs
+    the model a third more tokens than the bytes it encodes. A text attachment
+    (CSV, iCalendar, JSON, plain text) is decoded and handed over as text.
+
+    Anything else is a file the model cannot read, and that is said plainly. A
+    lenient decode would turn a PDF into replacement characters that read as
+    content, so the decode is strict and its failure is the answer. Code that
+    wants the bytes derives the tool with :func:`attachment_bytes` instead.
+    """
+    size = response.get("size", 0)
+    try:
+        text = decode_base64url(response.get("data") or "", errors="strict")
+    except ValueError:  # UnicodeDecodeError and binascii.Error are both ValueErrors
+        text = _BINARY.format(size=size)
+    return {"size": size, "text": text}
+
+
+async def attachment_bytes(response: Dict[str, Any]) -> bytes:
+    """The attachment's bytes, for code rather than a model.
+
+    ``messages_attachments_get.derived(name=..., response_handler=attachment_bytes)``
+    returns the file itself, decoded from Gmail's unpadded base64url, ready to
+    write to disk or hand to another API.
+    """
+    data = response.get("data") or ""
+    return base64.urlsafe_b64decode(data + "=" * (-len(data) % 4))
 
 
 async def extract_draft_text(response: Dict[str, Any]) -> Dict[str, Any]:
