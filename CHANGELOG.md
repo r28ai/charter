@@ -7,6 +7,16 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Pre-1.0, minor versions may break the public API. Anything that does will say so
 here, with the migration in the same entry.
 
+## [Unreleased]
+
+### Removed
+
+- **The four Gmail examples moved to
+  [r28ai/charter-recipes](https://github.com/r28ai/charter-recipes).** They are
+  runnable demos, CLI flags and a hand-decoded dry run included, and in
+  `examples/` they read as the way to use Charter. `examples/` keeps the
+  documentation-grade ones.
+
 ## [0.2.7] — 2026-10-02
 
 ### Added
