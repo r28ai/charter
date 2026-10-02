@@ -17,7 +17,9 @@ Google Forms — six tools over two collections.
             "location": {"index": 0}}}]},
     )
 
-``configure()`` is optional if ``$GOOGLE_ACCESS_TOKEN`` is set.
+``configure()`` is optional if ``$GOOGLE_TOKEN_FILE``, ``$GOOGLE_REFRESH_TOKEN``
+(with ``$GOOGLE_CLIENT_ID`` and ``$GOOGLE_CLIENT_SECRET``) or ``$GOOGLE_ACCESS_TOKEN``
+is set; the first two renew themselves.
 
 **Creating a form takes two calls, and the API says so.** ``forms.create``
 copies only ``info.title`` and ``info.documentTitle``; a description, items and
@@ -59,6 +61,7 @@ from __future__ import annotations
 from charter.auth import CredentialProvider
 from charter.factories import oauth_tool_factory
 from charter.packs._config import DeferredCredentialProvider
+from charter.packs._google import ENV_GRANT
 from charter.packs.gforms.response_handlers import extract_response, extract_responses
 from charter.packs.gforms.types.form_responses.actions import (
     FormsResponsesGetRequest,
@@ -87,7 +90,9 @@ GOOGLE_PAGINATION = Pagination(cursor_field="nextPageToken", cursor_param="pageT
 SCOPES = ["https://www.googleapis.com/auth/forms.body"]
 RESPONSE_SCOPES = ["https://www.googleapis.com/auth/forms.responses.readonly"]
 
-_credentials = DeferredCredentialProvider("gforms", env_var="GOOGLE_ACCESS_TOKEN")
+_credentials = DeferredCredentialProvider(
+    "gforms", env_var="GOOGLE_ACCESS_TOKEN", env_grant=ENV_GRANT
+)
 
 
 def configure(credential_provider: CredentialProvider) -> None:

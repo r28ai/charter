@@ -111,14 +111,16 @@ async def test_every_surface_publishes_the_same_names(label, custom):
     assert await mcp_names(tools) == core
     assert langchain_names(tools) == core
     assert len(core) == len(tools), "a tool went missing"
-    assert all("__" in name for name in core)
+    # Qualified, and never with the `__` hosts join server and tool with.
+    assert all(name.split("_", 1)[0] == t.pack for name, t in qualified_names(tools).items())
+    assert not any("__" in name for name in core)
 
 
 async def test_a_pack_is_named_the_same_way_alone_as_beside_another(custom):
     """The property that makes a name safe to save in a prompt or an allow-list."""
     alone = sorted(qualified_names(gcalendar.TOOLS))
     beside = sorted(qualified_names(list(gcalendar.TOOLS) + list(custom)))
-    assert alone == [n for n in beside if n.startswith("gcalendar__")]
+    assert alone == [n for n in beside if n.startswith("gcalendar_")]
     assert await mcp_names(gcalendar.TOOLS) == alone
 
 
@@ -147,13 +149,13 @@ async def test_mcp_routes_the_published_name_and_refuses_the_bare_one(custom):
     )
     server = build_server(list(stripe.TOOLS) + list(custom), name="charter")
 
-    result = await server.call_tool("xyz__my_tool", {"thing_id": "42"})
+    result = await server.call_tool("xyz_my_tool", {"thing_id": "42"})
     assert "custom" in result.content[0].text
 
     with pytest.raises(Exception) as exc:
         await server.call_tool("my_tool", {"thing_id": "42"})
     assert "Unknown tool" in str(exc.value)
-    assert "xyz__my_tool" in str(exc.value), "the error should name what is available"
+    assert "xyz_my_tool" in str(exc.value), "the error should name what is available"
 
 
 @respx.mock
@@ -169,7 +171,7 @@ async def test_openai_round_trips_through_qualified_names(custom):
     assert published == set(by_name)
 
     # what the model sends back
-    call_name, call_args = "xyz__my_tool", '{"thing_id": "42"}'
+    call_name, call_args = "xyz_my_tool", '{"thing_id": "42"}'
     assert await by_name[call_name].ainvoke(json.loads(call_args)) == {"reached": "custom"}
 
 
@@ -180,8 +182,8 @@ async def test_langchain_routes_by_the_name_it_was_given(custom):
         return_value=httpx.Response(200, json={"reached": "custom"})
     )
     wrapped = {t.name: t for t in langchain.to_langchain_tools(list(stripe.TOOLS) + list(custom))}
-    assert "xyz__my_tool" in wrapped and "my_tool" not in wrapped
-    assert await wrapped["xyz__my_tool"].ainvoke({"thing_id": "42"}) == {"reached": "custom"}
+    assert "xyz_my_tool" in wrapped and "my_tool" not in wrapped
+    assert await wrapped["xyz_my_tool"].ainvoke({"thing_id": "42"}) == {"reached": "custom"}
 
 
 # -----------------------------------------------------
@@ -200,8 +202,8 @@ async def test_a_collision_reaches_two_different_tools(custom):
 
     # Each name reaches its own tool — asserted on identity, because Shopify's
     # base URL is deferred until configure() and says nothing about the host.
-    assert by_name["stripe__products_list"] is stripe.products_list
-    assert by_name["shopify__products_list"] is shopify.products_list
-    assert by_name["stripe__products_list"] is not by_name["shopify__products_list"]
-    assert "api.stripe.com" in str(by_name["stripe__products_list"].base_url)
+    assert by_name["stripe_products_list"] is stripe.products_list
+    assert by_name["shopify_products_list"] is shopify.products_list
+    assert by_name["stripe_products_list"] is not by_name["shopify_products_list"]
+    assert "api.stripe.com" in str(by_name["stripe_products_list"].base_url)
     assert await mcp_names(tools) == sorted(by_name)

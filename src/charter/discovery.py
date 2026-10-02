@@ -99,7 +99,7 @@ comma-separated list. Do NOT load tools one at a time; each separate call \
 wastes a full round-trip.
 
 Query forms:
-- "select:gmail__messages_list,gmail__labels_list" — fetch these exact tools by name
+- "select:gmail_messages_list,gmail_labels_list" — fetch these exact tools by name
 - "calendar event" — keyword search, up to max_results best matches
 - "+stripe refund" — require "stripe" in the name, rank by remaining terms
 

@@ -14,7 +14,9 @@ Google Docs — three tools over the Docs API.
         body={"requests": [{"insert_text": {"text": "Hello", "location": {"index": 1}}}]},
     )
 
-``configure()`` is optional if ``$GOOGLE_ACCESS_TOKEN`` is set.
+``configure()`` is optional if ``$GOOGLE_TOKEN_FILE``, ``$GOOGLE_REFRESH_TOKEN``
+(with ``$GOOGLE_CLIENT_ID`` and ``$GOOGLE_CLIENT_SECRET``) or ``$GOOGLE_ACCESS_TOKEN``
+is set; the first two renew themselves.
 
 Three endpoints is the whole API, and yet this is the hardest pack here,
 because one of them carries everything.
@@ -69,6 +71,7 @@ from __future__ import annotations
 from charter.auth import CredentialProvider
 from charter.factories import oauth_tool_factory
 from charter.packs._config import DeferredCredentialProvider
+from charter.packs._google import ENV_GRANT
 from charter.packs.gdocs.response_handlers import extract_document
 from charter.packs.gdocs.types import (
     DocumentsBatchUpdateRequest,
@@ -84,7 +87,9 @@ QUOTA_DOC_URL = "https://developers.google.com/workspace/docs/api/limits"
 # enough for documents_get alone.
 SCOPES = ["https://www.googleapis.com/auth/documents"]
 
-_credentials = DeferredCredentialProvider("gdocs", env_var="GOOGLE_ACCESS_TOKEN")
+_credentials = DeferredCredentialProvider(
+    "gdocs", env_var="GOOGLE_ACCESS_TOKEN", env_grant=ENV_GRANT
+)
 
 
 def configure(credential_provider: CredentialProvider) -> None:

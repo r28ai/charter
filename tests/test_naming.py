@@ -3,7 +3,7 @@ Qualified tool names.
 
 Charter never renames a tool: `name` is what the API calls the endpoint, and an
 MCP host composing `mcp__<server>__<tool>` over a library that had already
-prefixed would produce `mcp__gcalendar__gcalendar__events_list`. What the
+prefixed would produce `mcp__gcalendar_gcalendar_events_list`. What the
 library owes an assembler instead is one convention, and these are its rules.
 """
 
@@ -94,13 +94,26 @@ def test_every_shipped_pack_declares_itself(pack):
 # -----------------------------------------------------
 
 
-def test_the_separator_is_doubled_so_the_name_can_be_split_back():
-    """Tool names contain single underscores; `stripe_products_list` cannot be
-    taken apart again, which is why MCP doubles it too."""
-    assert SEPARATOR == "__"
+def test_one_underscore_splits_back_because_a_pack_has_none():
+    """`stripe_products_list` is the shape MCP servers already publish, and it
+    still comes apart: a pack may not contain an underscore, so the first one is
+    always the boundary."""
+    assert SEPARATOR == "_"
     name = qualified_name(stripe.products_list)
-    assert name == "stripe__products_list"
-    assert name.split(SEPARATOR) == ["stripe", "products_list"]
+    assert name == "stripe_products_list"
+    assert name.split(SEPARATOR, 1) == ["stripe", "products_list"]
+
+
+def test_a_pack_with_an_underscore_is_refused():
+    with pytest.raises(DeclarationError, match="first underscore"):
+        qualified_name(make("list", "my_pack"))
+
+
+def test_a_name_with_the_host_delimiter_is_refused():
+    """Hosts join server and tool with `__`; Grok Build drops a tool whose own
+    name contains it, because its composed name no longer parses back."""
+    with pytest.raises(DeclarationError, match="Grok Build drops"):
+        qualified_name(make("list__all", "acme"))
 
 
 def test_a_tool_without_a_pack_is_refused_rather_than_left_bare():
@@ -128,12 +141,12 @@ def test_a_name_does_not_change_when_another_pack_is_added():
     alone = qualified_names(gcalendar.TOOLS)
     beside = qualified_names(list(gcalendar.TOOLS) + list(stripe.TOOLS))
     assert set(alone) <= set(beside)
-    assert "gcalendar__events_list" in alone
+    assert "gcalendar_events_list" in alone
 
 
 def test_several_packs_are_all_qualified():
     resolved = qualified_names(list(stripe.TOOLS) + list(shopify.TOOLS))
-    assert {"stripe__products_list", "shopify__products_list"} <= set(resolved)
+    assert {"stripe_products_list", "shopify_products_list"} <= set(resolved)
     assert all(SEPARATOR in name for name in resolved)
 
 
@@ -144,7 +157,7 @@ def test_no_name_is_left_bare_beside_a_qualified_one():
     a log grep or an allow-list would silently miss the bare half."""
     resolved = qualified_names(list(stripe.TOOLS) + list(shopify.TOOLS))
     assert "balance_retrieve" not in resolved
-    assert "stripe__balance_retrieve" in resolved
+    assert "stripe_balance_retrieve" in resolved
 
 
 def test_nothing_is_dropped_when_two_packs_collide():
@@ -164,10 +177,10 @@ def test_two_identical_tools_from_one_pack_are_refused():
 def test_a_user_pack_qualifies_like_a_shipped_one():
     """Nothing here is special-cased to `charter.packs`."""
     mine = [make("my_tool", "xyz"), make("other", "xyz")]
-    assert set(qualified_names(mine)) == {"xyz__my_tool", "xyz__other"}
+    assert set(qualified_names(mine)) == {"xyz_my_tool", "xyz_other"}
     assert set(qualified_names(mine + list(stripe.TOOLS))) >= {
-        "xyz__my_tool",
-        "stripe__products_list",
+        "xyz_my_tool",
+        "stripe_products_list",
     }
 
 
@@ -200,7 +213,7 @@ def test_a_tool_name_containing_the_separator_is_refused():
 
 
 def test_hyphens_survive_because_openai_allows_them():
-    assert qualified_name(make("my-tool", "my-pack")) == "my-pack__my-tool"
+    assert qualified_name(make("my-tool", "my-pack")) == "my-pack_my-tool"
 
 
 def test_every_shipped_name_is_valid_for_the_strictest_surface():
@@ -210,7 +223,7 @@ def test_every_shipped_name_is_valid_for_the_strictest_surface():
     composes ``mcp__<server>__<tool>`` from *the key the server was configured
     under* — not from the name the server reports. So the string to measure is
     the one docs/using/mcp.mdx tells a reader to write, which is one server
-    named ``charter`` holding every pack: ``mcp__charter__<pack>__<tool>``.
+    named ``charter`` holding every pack: ``mcp__charter__<pack>_<tool>``.
 
     It used to measure the same prefix but over 12 of the 15 shipped packs, so
     a name in gforms, granola or tavily could go over without failing here.
@@ -239,7 +252,7 @@ def test_naming_a_server_after_its_pack_is_what_the_budget_cannot_afford():
 
     This is the arithmetic behind that advice, pinned so it cannot quietly stop
     being true. Spelling the pack in the server key as well as the tool name
-    costs eight characters on gsheets and puts three names over 64 — which is
+    costs eight characters on gsheets and puts two names over 64 — which is
     the whole reason ``--pack`` takes a list. If a change ever makes this shape
     fit, the advice can be relaxed; until then the docs guard below keeps the
     page from recommending it.
@@ -253,11 +266,10 @@ def test_naming_a_server_after_its_pack_is_what_the_budget_cannot_afford():
         for p in PACKS
         for t in importlib.import_module(f"charter.packs.{p}").TOOLS
     ]
-    per_pack = [f"mcp__charter-{n.split('__', 1)[0]}__{n}" for n in names]
+    per_pack = [f"mcp__charter-{n.split('_', 1)[0]}__{n}" for n in names]
     assert sorted(c for c in per_pack if len(c) > 64) == [
-        "mcp__charter-gsheets__gsheets__spreadsheets_developer_metadata_get",
-        "mcp__charter-gsheets__gsheets__spreadsheets_developer_metadata_search",
-        "mcp__charter-gsheets__gsheets__values_batch_update_by_data_filter",
+        "mcp__charter-gsheets__gsheets_spreadsheets_developer_metadata_get",
+        "mcp__charter-gsheets__gsheets_spreadsheets_developer_metadata_search",
     ], "the per-pack overruns changed; re-check the advice in docs/using/mcp.mdx"
 
 
@@ -265,7 +277,7 @@ def test_qualifying_is_a_single_pass_over_its_input():
     """It has to take a generator: `qualified_names(t for t in ...)` is the
     natural call, and consuming the iterable twice would return nothing."""
     tools = [make("a", "p"), make("b", "p")]
-    assert set(qualified_names(t for t in tools)) == {"p__a", "p__b"}
+    assert set(qualified_names(t for t in tools)) == {"p_a", "p_b"}
 
 
 def test_no_tools_is_no_names_rather_than_an_error():

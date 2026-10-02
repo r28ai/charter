@@ -14,7 +14,7 @@ python -m charter.mcp --pack gmail
 ## `python -m charter.mcp`
 
 ```text
-usage: python -m charter.mcp [-h] --pack PACK [--name NAME] [--no-progressive]
+usage: python -m charter.mcp [-h] --pack PACK [--name NAME] [--progressive]
 
 Serve Charter packs over the Model Context Protocol (stdio).
 ```
@@ -38,9 +38,15 @@ Serve Charter packs over the Model Context Protocol (stdio).
   not change what the model sees.
 </ParamField>
 
-<ParamField path="--no-progressive" type="flag">
-  Send every tool schema up front instead of loading them on demand. Use it with
-  a client that ignores `notifications/tools/list_changed`.
+<ParamField path="--progressive" type="flag">
+  Offer a single `ToolSearch` instead of every schema, and add tools as the model
+  asks for them, announcing each load with `notifications/tools/list_changed`.
+  Only for a client that re-lists on that notification and hands the new tools
+  to the model at once — Hermes Agent does; Codex, Claude Code and Google ADK
+  do not, in the ways [the MCP page](/using/mcp#loading-on-demand) records.
+
+  `--no-progressive`, which was how to get every schema before 0.2.6 made it
+  the default, is still accepted and does nothing.
 </ParamField>
 
 <ParamField path="-h, --help" type="flag">
@@ -51,17 +57,18 @@ The tools come from each pack's `TOOLS`, and the credential from
 [the environment](/reference/configuration) — the packs read their documented
 variable on first use, so no `configure()` call is needed here.
 
-Schemas are sent on demand, through a
-[`ToolSession`](/reference/tool-discovery#toolsession) the server holds: the
-client is offered a single `ToolSearch` listing every tool by name, and loading
-one emits `notifications/tools/list_changed` so the client re-lists and sees it
-appear.
+Every schema is in `tools/list` from the first request. With `--progressive`
+the server holds a [`ToolSession`](/reference/tool-discovery#toolsession) instead:
+the client is offered a single `ToolSearch` listing every tool by name, and
+loading one emits `notifications/tools/list_changed`.
 
 On start it writes one line to stderr, keeping stdout clear for the protocol:
 
 ```text
-charter: serving 23 tools from gmail over MCP (stdio) (schemas on demand via ToolSearch)
+charter: serving 23 tools from gmail over MCP (stdio)
 ```
+
+With `--progressive` the line ends `(schemas on demand via ToolSearch)`.
 
 Then it serves until the client disconnects. Missing the `mcp` extra raises
 `ImportError` from the adapter import, which happens after the pack loads.
@@ -73,8 +80,8 @@ Then it serves until the client disconnects. Missing the `mcp` extra raises
   "mcpServers": {
     "charter": {
       "command": "python",
-      "args": ["-m", "charter.mcp", "--pack", "gmail,gsheets"],
-      "env": { "GOOGLE_ACCESS_TOKEN": "ya29..." }
+      "args": ["-m", "charter.mcp", "--pack", "gmail,gdrive"],
+      "env": { "GOOGLE_TOKEN_FILE": "/path/to/token.json" }
     }
   }
 }
@@ -95,6 +102,6 @@ assert tools
 
 ## Related
 
-- [MCP server](/using/mcp) — what the client sees, and why a raw token is the wrong credential for a long-lived server
+- [MCP server](/using/mcp) — every client's config, what each does with `--progressive`, and why a long-lived server needs a grant rather than a raw token
 - [Adapters](/using/adapters) — the same tools as LangChain or OpenAI functions
 - [Configuration](/reference/configuration) — the environment variables

@@ -59,7 +59,7 @@ def test_to_openai_tool_shape():
 
 def test_to_openai_tools_preserves_order():
     tools = to_openai_tools(gmail.TOOLS)
-    assert [t["function"]["name"] for t in tools] == [f"gmail__{t.name}" for t in gmail.TOOLS]
+    assert [t["function"]["name"] for t in tools] == [f"gmail_{t.name}" for t in gmail.TOOLS]
 
 
 def test_openai_definitions_are_json_serialisable():
@@ -165,10 +165,41 @@ def test_build_server_lists_every_tool():
         return await server.list_tools()
 
     listed = anyio.run(go)
-    assert [t.name for t in listed] == [f"firecrawl__{t.name}" for t in firecrawl.TOOLS]
+    assert [t.name for t in listed] == [f"firecrawl_{t.name}" for t in firecrawl.TOOLS]
     for t in listed:
         assert t.input_schema["type"] == "object"
         assert t.description
+
+
+def test_every_listed_tool_says_whether_it_writes():
+    """Codex runs a tool marked read-only without asking, and asks before the rest.
+
+    Unannotated, every Charter tool was a write to it, and `codex exec` — which
+    cannot ask — refused `gmail_messages_list`. The method is the one fact the
+    server is sure of, so it is the only one claimed.
+    """
+    import anyio
+
+    from charter.adapters.mcp import build_server
+    from charter.session import ToolSession
+
+    async def listed(tools):
+        return {t.name: t.annotations for t in await build_server(tools).list_tools()}
+
+    gmail_tools = anyio.run(listed, gmail.TOOLS)
+    by_method = {f"gmail_{t.name}": t.method.upper() for t in gmail.TOOLS}
+    assert {"GET", "POST", "DELETE"} <= set(by_method.values())
+    for name, hints in gmail_tools.items():
+        method = by_method[name]
+        assert hints is not None, name
+        assert hints.read_only_hint is (method == "GET"), name
+        if method == "DELETE":
+            assert hints.destructive_hint is True, name
+        elif method != "GET":
+            assert hints.destructive_hint is None, name  # a POST may only search
+
+    search = anyio.run(listed, ToolSession(gmail.TOOLS, progressive=True))["ToolSearch"]
+    assert search.read_only_hint is True and search.open_world_hint is False
 
 
 async def test_mcp_round_trip_lists_and_calls_a_pack_tool():
@@ -204,10 +235,10 @@ async def test_mcp_round_trip_lists_and_calls_a_pack_tool():
 
                     listed = await session.list_tools()
                     names = [t.name for t in listed.tools]
-                    assert "firecrawl__scrape" in names
+                    assert "firecrawl_scrape" in names
 
                     result = await session.call_tool(
-                        "firecrawl__scrape", {"url": "https://example.com"}
+                        "firecrawl_scrape", {"url": "https://example.com"}
                     )
                     assert not result.is_error
                     payload = json.loads(result.content[0].text)
@@ -243,7 +274,7 @@ async def test_mcp_reports_a_failed_call_as_a_tool_error():
                 async with ClientSession(client_read, client_write) as session:
                     await session.initialize()
                     result = await session.call_tool(
-                        "firecrawl__scrape", {"url": "https://example.com"}
+                        "firecrawl_scrape", {"url": "https://example.com"}
                     )
                     assert result.is_error
                     assert "upstream down" in result.content[0].text
@@ -281,7 +312,7 @@ def test_one_server_can_hold_several_packs():
     """The shape the setup page recommends, and the reason tool names fit.
 
     One server means one entry in the client config, so a host composes
-    `mcp__charter__<pack>__<tool>` instead of `mcp__charter-<pack>__<pack>__<tool>`
+    `mcp__charter__<pack>_<tool>` instead of `mcp__charter-<pack>__<pack>_<tool>`
     — the pack once rather than twice, which is eight characters of a
     64-character budget that belong to the pack author rather than to us. It is
     what lets the server keep the product's own name; see tests/test_naming.py.
@@ -349,3 +380,60 @@ def test_a_bad_pack_argument_is_a_usage_error_not_a_crash(argv):
     with pytest.raises(SystemExit) as excinfo:
         main(argv)
     assert excinfo.value.code == 2
+
+
+def _served_session(monkeypatch, argv):
+    """What `python -m charter.mcp` would serve, captured instead of run."""
+    import charter.adapters.mcp as mcp_adapter
+    from charter.mcp import main
+
+    served = {}
+    monkeypatch.setattr(mcp_adapter, "serve", lambda session, name: served.update(session=session))
+    assert main(argv) == 0
+    return served["session"]
+
+
+def test_the_entry_point_sends_every_schema_by_default(monkeypatch):
+    """The one shape every client handles.
+
+    Loading on demand relies on the client re-listing when told the list
+    changed. Codex logs the notification and keeps the list it started with,
+    and ADK reads the list once per turn, so a progressive default left tools
+    out of reach on both.
+    """
+    from charter.mcp import load_pack
+
+    session = _served_session(monkeypatch, ["--pack", "gmail"])
+    assert not session.progressive
+    assert len(to_openai_tools(session)) == len(load_pack("gmail"))
+
+
+def test_progressive_is_an_opt_in(monkeypatch):
+    session = _served_session(monkeypatch, ["--pack", "gmail", "--progressive"])
+    assert session.progressive
+    assert [t["function"]["name"] for t in to_openai_tools(session)] == ["ToolSearch"]
+
+
+def test_the_old_no_progressive_flag_still_parses(monkeypatch):
+    """A client config written for 0.2.5, when it was the way to get every schema."""
+    session = _served_session(monkeypatch, ["--pack", "gmail", "--no-progressive"])
+    assert not session.progressive
+
+
+def test_serve_publishes_a_plain_list_whole(monkeypatch):
+    """`serve` follows `build_server`: an iterable is every schema, a session is on demand."""
+    import charter.adapters.mcp as mcp_adapter
+
+    built = {}
+
+    class _Server:
+        async def run_stdio_async(self):
+            return None
+
+    def fake_build(tools, name="charter", **_):
+        built["tools"] = tools
+        return _Server()
+
+    monkeypatch.setattr(mcp_adapter, "build_server", fake_build)
+    mcp_adapter.serve(gmail.TOOLS)
+    assert built["tools"] is gmail.TOOLS

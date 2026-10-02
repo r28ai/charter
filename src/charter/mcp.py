@@ -7,15 +7,24 @@
 ``--pack`` takes more than one (repeat it, or comma-separate), and one server
 holding several is the shape to reach for. It is not only about the config being
 shorter: an MCP host composes a tool name from the key the server is *configured
-under*, so one server named ``charter`` publishes ``mcp__charter__<pack>__<tool>``
-where a server per pack publishes ``mcp__charter-<pack>__<pack>__<tool>`` — the
+under*, so one server named ``charter`` publishes ``mcp__charter__<pack>_<tool>``
+where a server per pack publishes ``mcp__charter-<pack>__<pack>_<tool>`` — the
 pack spelled twice, for eight more of the 64 characters a function name is
 allowed. ``ToolSearch`` spans everything loaded, so discovery does not suffer
 for it.
 
+Every schema is sent at startup, because that is the one thing every client
+handles. ``--progressive`` offers a single ``ToolSearch`` instead and adds tools
+as the model asks for them, which only a client that re-lists on
+``notifications/tools/list_changed`` can follow: Claude Code and Hermes Agent
+do; Codex never re-lists, and Google ADK only from the user's next message.
+
 Credentials come from the environment, so nothing has to be written down:
 
-- Google packs (gmail, gcalendar, gsheets, gdocs, gdrive) read ``$GOOGLE_ACCESS_TOKEN``
+- Google packs (gmail, gcalendar, gsheets, gdocs, gdrive, gforms) renew a grant
+  from ``$GOOGLE_TOKEN_FILE`` (an authorized-user JSON file) or from
+  ``$GOOGLE_REFRESH_TOKEN`` with ``$GOOGLE_CLIENT_ID`` and ``$GOOGLE_CLIENT_SECRET``,
+  and otherwise read ``$GOOGLE_ACCESS_TOKEN``, which lasts about an hour
 - slack reads ``$SLACK_BOT_TOKEN``
 - github reads ``$GITHUB_TOKEN``
 - stripe reads ``$STRIPE_API_KEY``
@@ -118,13 +127,20 @@ def main(argv: List[str] | None = None) -> int:
     )
     parser.add_argument("--name", default="charter", help="Server name (default: charter).")
     parser.add_argument(
-        "--no-progressive",
+        "--progressive",
         dest="progressive",
-        action="store_false",
+        action="store_true",
         help=(
-            "Send every tool schema up front instead of loading them on demand. "
-            "Use with a client that ignores notifications/tools/list_changed."
+            "Offer one ToolSearch instead of every schema, and add tools as the "
+            "model asks for them. Only for a client that re-lists on "
+            "notifications/tools/list_changed (Claude Code, Hermes Agent); one that "
+            "does not never sees the tools it loaded."
         ),
+    )
+    # The default since 0.2.6. Accepted so a config written for 0.2.5, when
+    # progressive was the default, keeps working.
+    parser.add_argument(
+        "--no-progressive", dest="progressive", action="store_false", help=argparse.SUPPRESS
     )
     args = parser.parse_args(argv)
 

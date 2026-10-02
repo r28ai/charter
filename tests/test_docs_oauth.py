@@ -248,6 +248,10 @@ def test_the_google_constant_has_one_definition():
     canonical = _declared_server(ROOT / "docs/auth/providers/google.mdx", "GOOGLE")
     assert canonical == _declared_server(ROOT / "docs/auth/oauth-flow.md", "GOOGLE")
     assert canonical == _declared_server(ROOT / "scripts/live_google_check.py", "DOCUMENTED")
+    # ...and the one the packs renew a grant from the environment with.
+    from charter.packs._google import GOOGLE
+
+    assert canonical == GOOGLE
 
 
 async def test_the_grant_snippet_really_reaches_storage(monkeypatch):

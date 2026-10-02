@@ -15,7 +15,7 @@ qualify its own names, and why `pack` is not `provider`.
 
 ## `qualified_names`
 
-Every tool under `<pack>__<tool>`, keyed by the qualified name. This is what the
+Every tool under `<pack>_<tool>`, keyed by the qualified name. This is what the
 three shipped adapters call, so a pack is named the same way inline, through
 LangChain, and over MCP.
 
@@ -25,12 +25,12 @@ in the first the day someone added one, breaking saved prompts, allow-lists and
 logged traces in silence. MCP servers publish the same names whatever else is
 installed, and a host composes `mcp__<server>__<tool>` on top — the MCP entry
 point names its server `charter`, so the result reads
-`mcp__charter__gcalendar__events_list`.
+`mcp__charter__gcalendar_events_list`.
 
 The host builds `<server>` from the key the server was *configured under*, and
 the whole composed name has to fit the 64 characters OpenAI allows a function
-name. One server holding every pack peaks at 61; a server named after the pack
-it serves spends eight more on saying the pack a second time and puts three
+name. One server holding every pack peaks at 60; a server named after the pack
+it serves spends eight more on saying the pack a second time and puts two
 names over. Which is why `--pack` [takes a list](/using/mcp#add-it-to-your-client).
 
 ```python
@@ -42,11 +42,11 @@ from charter import qualified_names
 from charter.packs import gcalendar
 
 qualified_names(gcalendar.TOOLS)
-# {"gcalendar__events_insert": Tool(...), "gcalendar__events_list": Tool(...), ...}
+# {"gcalendar_events_insert": Tool(...), "gcalendar_events_list": Tool(...), ...}
 ```
 
 Neither function qualifies only the colliding names. A surface where
-`stripe__products_list` sits beside a bare `balance_retrieve` makes the pack a
+`stripe_products_list` sits beside a bare `balance_retrieve` makes the pack a
 substring of some names and not others, so any filter over it silently misses
 the unqualified half.
 
@@ -65,7 +65,7 @@ def qualified_name(tool: Tool) -> str: ...
 from charter import qualified_name
 from charter.packs import stripe
 
-qualified_name(stripe.products_list)   # "stripe__products_list"
+qualified_name(stripe.products_list)   # "stripe_products_list"
 ```
 
 Raises [`DeclarationError`](/reference/errors#declarationerror) if the tool
@@ -84,8 +84,8 @@ def report_key(tool: Tool) -> str: ...
 from charter import report_key
 from charter.packs import gdrive, notion
 
-report_key(gdrive.comments_list)   # "gdrive__comments_list"
-report_key(notion.comments_list)   # "notion__comments_list"
+report_key(gdrive.comments_list)   # "gdrive_comments_list"
+report_key(notion.comments_list)   # "notion_comments_list"
 ```
 
 What [`egress_map`](/reference/observability#egress_map) and
@@ -122,7 +122,7 @@ by_name = qualified_names(tools)          # name -> Tool
 definitions = to_openai_tools(tools)      # published under the same names
 
 # what the model sends back, as OpenAI shapes it
-name, arguments = "stripe__customers_list", '{"limit": 3}'
+name, arguments = "stripe_customers_list", '{"limit": 3}'
 
 
 async def main():

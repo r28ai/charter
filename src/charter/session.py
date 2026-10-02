@@ -124,7 +124,7 @@ class ToolSession:
     ----------
     tools:
         The Charter tools this conversation may reach. Named as
-        ``<pack>__<tool>`` throughout, by :func:`~charter.qualified_names`.
+        ``<pack>_<tool>`` throughout, by :func:`~charter.qualified_names`.
     progressive:
         ``True`` (the default) defers every schema. ``False`` sends them all up
         front and never offers ``ToolSearch``.

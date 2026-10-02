@@ -362,7 +362,7 @@ TOOLS = [my_tool, ...]
 ```
 
 `pack` is the namespace your tools are qualified under when someone assembles
-them beside another pack: `my_tool` becomes `mypack__my_tool`. Two APIs really
+them beside another pack: `my_tool` becomes `mypack_my_tool`. Two APIs really
 do declare the same tool name — `products_list` exists in both Stripe and
 Shopify — and without a pack the two are indistinguishable, so one shadows the
 other. It is a separate fact from the two fields beside it: `provider` is *which

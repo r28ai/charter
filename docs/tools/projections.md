@@ -272,7 +272,7 @@ Both halves print in [`egress_map()`](/reference/observability), which reads the
 same declarations the runtime executes:
 
 ```text egress.txt
-gdocs__documents_edit_text  (POST v1/documents/{document_id}:batchUpdate)
+gdocs_documents_edit_text  (POST v1/documents/{document_id}:batchUpdate)
   visible to the model (28):
     + document_id
     + body
@@ -284,7 +284,7 @@ gdocs__documents_edit_text  (POST v1/documents/{document_id}:batchUpdate)
     - body.requests.create_paragraph_bullets  [projection]
     ...
 
-gdrive__search_documents  (GET drive/v3/files)
+gdrive_search_documents  (GET drive/v3/files)
   visible to the model (10):
     + page_size
     ...

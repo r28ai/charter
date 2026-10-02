@@ -137,17 +137,17 @@ async def test_an_unloaded_tool_is_absent_not_empty(catalogue):
 
 
 async def test_loading_adds_the_tool_with_its_real_schema(catalogue):
-    assert "gdocs__documents_batch_update" not in await names_of(catalogue)
-    await search(catalogue, "select:gdocs__documents_batch_update")
-    assert "gdocs__documents_batch_update" in await names_of(catalogue)
+    assert "gdocs_documents_batch_update" not in await names_of(catalogue)
+    await search(catalogue, "select:gdocs_documents_batch_update")
+    assert "gdocs_documents_batch_update" in await names_of(catalogue)
 
     mine = next(
         ToolDef(t)
         for t in await catalogue.tools()
-        if ToolDef(t).name == "gdocs__documents_batch_update"
+        if ToolDef(t).name == "gdocs_documents_batch_update"
     )
     theirs = charter_tooldef(
-        catalogue.deferrable["gdocs__documents_batch_update"], name="gdocs__documents_batch_update"
+        catalogue.deferrable["gdocs_documents_batch_update"], name="gdocs_documents_batch_update"
     )
     # A loaded tool *is* the Charter arm's tool, not a wrapper around it. The two
     # arms have to be running the same thing for a comparison to mean anything.
@@ -184,16 +184,16 @@ def test_a_plus_term_is_required_and_the_rest_rank():
 
 
 async def test_select_loads_exactly_the_named_tools(catalogue):
-    out = await search(catalogue, "select:linear__issues_list,linear__issue_update")
-    assert out["loaded"] == ["linear__issue_update", "linear__issues_list"]
-    assert {"linear__issues_list", "linear__issue_update"} <= await names_of(catalogue)
+    out = await search(catalogue, "select:linear_issues_list,linear_issue_update")
+    assert out["loaded"] == ["linear_issue_update", "linear_issues_list"]
+    assert {"linear_issues_list", "linear_issue_update"} <= await names_of(catalogue)
 
 
 async def test_select_names_the_alternatives_for_a_name_it_does_not_know(catalogue):
-    out = await search(catalogue, "select:linear__issues_list,gdocs__documents_batchUpdate")
-    assert out["loaded"] == ["linear__issues_list"]
-    assert out["unknown"]["names"] == ["gdocs__documents_batchUpdate"]
-    assert "gdocs__documents_batch_update" in out["unknown"]["available"]
+    out = await search(catalogue, "select:linear_issues_list,gdocs_documents_batchUpdate")
+    assert out["loaded"] == ["linear_issues_list"]
+    assert out["unknown"]["names"] == ["gdocs_documents_batchUpdate"]
+    assert "gdocs_documents_batch_update" in out["unknown"]["available"]
 
 
 async def test_keywords_rank_and_respect_max_results(catalogue):
@@ -204,7 +204,7 @@ async def test_keywords_rank_and_respect_max_results(catalogue):
 
 def test_a_name_hit_outranks_a_description_hit(catalogue):
     ordered = rank(catalogue.deferrable, [], ["document"])
-    assert ordered[0].startswith("gdocs__documents_")
+    assert ordered[0].startswith("gdocs_documents_")
 
 
 def test_a_required_term_excludes_everything_without_it(catalogue):

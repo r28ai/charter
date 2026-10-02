@@ -72,11 +72,11 @@ USER = {"messages": [{"role": "user", "content": "go"}]}
 async def test_the_agent_is_bound_to_the_catalogue_then_to_what_it_loaded():
     agent, model, _ = agent_for(
         gmail.TOOLS,
-        [search("select:gmail__labels_list"), AIMessage(content="done")],
+        [search("select:gmail_labels_list"), AIMessage(content="done")],
     )
     await agent.ainvoke(USER)
     assert model.bound[0] == ["ToolSearch"]
-    assert model.bound[1] == ["ToolSearch", "gmail__labels_list"]
+    assert model.bound[1] == ["ToolSearch", "gmail_labels_list"]
 
 
 @respx.mock
@@ -91,14 +91,14 @@ async def test_a_loaded_tool_executes_and_reaches_the_api():
     agent, _, _ = agent_for(
         gmail.TOOLS,
         [
-            search("select:gmail__labels_list"),
-            invoke("gmail__labels_list", {"userId": "me"}),
+            search("select:gmail_labels_list"),
+            invoke("gmail_labels_list", {"userId": "me"}),
             AIMessage(content="one label"),
         ],
     )
     out = await agent.ainvoke(USER)
     results = {m.name: m.content for m in out["messages"] if m.type == "tool"}
-    assert "INBOX" in results["gmail__labels_list"]
+    assert "INBOX" in results["gmail_labels_list"]
     assert out["messages"][-1].content == "one label"
 
 
@@ -116,15 +116,15 @@ async def test_two_packs_load_independently():
         [*gmail.TOOLS, *stripe.TOOLS],
         [
             search("+stripe refund", "a"),
-            search("select:gmail__messages_list", "b"),
+            search("select:gmail_messages_list", "b"),
             AIMessage(content="done"),
         ],
     )
     await agent.ainvoke(USER)
     assert model.bound[0] == ["ToolSearch"]
-    assert "stripe__refunds_create" in model.bound[1]
-    assert "gmail__messages_list" not in model.bound[1]
-    assert "gmail__messages_list" in model.bound[2]
+    assert "stripe_refunds_create" in model.bound[1]
+    assert "gmail_messages_list" not in model.bound[1]
+    assert "gmail_messages_list" in model.bound[2]
 
 
 async def test_the_tool_list_only_ever_grows():
@@ -132,9 +132,9 @@ async def test_the_tool_list_only_ever_grows():
     agent, model, _ = agent_for(
         [*gmail.TOOLS, *stripe.TOOLS],
         [
-            search("select:gmail__messages_list", "a"),
-            search("select:stripe__customers_list", "b"),
-            search("select:gmail__threads_list", "c"),
+            search("select:gmail_messages_list", "a"),
+            search("select:stripe_customers_list", "b"),
+            search("select:gmail_threads_list", "c"),
             AIMessage(content="done"),
         ],
     )
@@ -210,8 +210,8 @@ def test_both_sync_hooks_refuse_when_called_directly(hook):
 async def test_the_async_run_beside_it_still_works():
     """The refusal must not be a blanket one: ainvoke is the supported path."""
     agent, model, _ = agent_for(
-        gmail.TOOLS, [search("select:gmail__labels_list"), AIMessage(content="done")]
+        gmail.TOOLS, [search("select:gmail_labels_list"), AIMessage(content="done")]
     )
     out = await agent.ainvoke(USER)
     assert out["messages"][-1].content == "done"
-    assert model.bound[1] == ["ToolSearch", "gmail__labels_list"]
+    assert model.bound[1] == ["ToolSearch", "gmail_labels_list"]

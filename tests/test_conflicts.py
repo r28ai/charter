@@ -42,7 +42,7 @@ class _Listing(BaseModel):
 
 def test_the_map_reports_each_rule_with_both_halves_named_as_the_api_names_them():
     report = conflict_map([_tool(_Listing)])
-    rules = {r["field"]: r for r in report["t__listing"]}
+    rules = {r["field"]: r for r in report["t_listing"]}
     assert set(rules) == {"i_cal_uid", "time_min"}
     assert rules["i_cal_uid"]["api_name"] == "iCalUID"
     assert rules["i_cal_uid"]["excludes"] == [
@@ -75,7 +75,7 @@ def test_a_rule_that_can_never_fire_is_reported():
         a: Annotated[Optional[str], Field(None), Query(), ConflictsWith("typo_not_a_field")]
 
     report = conflict_map([_tool(Broken)])
-    assert report["t__listing"][0]["excludes"][0]["declared"] is False
+    assert report["t_listing"][0]["excludes"][0]["declared"] is False
     assert "NOT A FIELD OF THIS SCHEMA" in format_conflicts([_tool(Broken)])
 
 
@@ -83,9 +83,9 @@ def test_the_shipped_calendar_rules_read_back_whole():
     """Ten declarations across two tools, and the documentation says four rules —
     two exclusions here and two "may not be False" that stay validators."""
     report = conflict_map(gcalendar.TOOLS)
-    assert set(report) == {"gcalendar__events_list", "gcalendar__calendar_list_list"}
-    assert len(report["gcalendar__events_list"]) == 8
-    assert len(report["gcalendar__calendar_list_list"]) == 2
+    assert set(report) == {"gcalendar_events_list", "gcalendar_calendar_list_list"}
+    assert len(report["gcalendar_events_list"]) == 8
+    assert len(report["gcalendar_calendar_list_list"]) == 2
     assert all(
         e["api_name"] == "syncToken"
         for rules in report.values()
@@ -108,7 +108,7 @@ def test_a_surface_of_several_packs_keeps_every_rule():
     tools = [*gcalendar.TOOLS, *gdrive.TOOLS, *notion.TOOLS]
     report = conflict_map(tools)
     assert set(report) <= {report_key(t) for t in tools}
-    assert "gcalendar__events_list" in report
+    assert "gcalendar_events_list" in report
 
 
 def test_two_tools_that_would_share_a_row_raise_rather_than_overwrite():
@@ -121,5 +121,5 @@ def test_two_tools_that_would_share_a_row_raise_rather_than_overwrite():
         factory(name="dup", args_schema=_Listing, method="GET", url_template="go", description="d")
         for _ in range(2)
     ]
-    with pytest.raises(DeclarationError, match="Two tools report under 'conflicts__dup'"):
+    with pytest.raises(DeclarationError, match="Two tools report under 'conflicts_dup'"):
         conflict_map(pair)

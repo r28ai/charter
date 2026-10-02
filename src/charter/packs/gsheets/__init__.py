@@ -18,7 +18,9 @@ Sheets speaks protobuf JSON. ``Format("proto_json")`` lets the model send a plai
         spreadsheet_id="1abc", range="Sheet1!A1:C10"
     )
 
-``configure()`` is optional if ``$GOOGLE_ACCESS_TOKEN`` is set.
+``configure()`` is optional if ``$GOOGLE_TOKEN_FILE``, ``$GOOGLE_REFRESH_TOKEN``
+(with ``$GOOGLE_CLIENT_ID`` and ``$GOOGLE_CLIENT_SECRET``) or ``$GOOGLE_ACCESS_TOKEN``
+is set; the first two renew themselves.
 """
 
 from __future__ import annotations
@@ -26,6 +28,7 @@ from __future__ import annotations
 from charter.auth import CredentialProvider
 from charter.factories import oauth_tool_factory
 from charter.packs._config import DeferredCredentialProvider
+from charter.packs._google import ENV_GRANT
 from charter.packs.gsheets.response_handlers import (
     extract_batch_update,
     extract_spreadsheet,
@@ -55,7 +58,9 @@ BASE_URL = "https://sheets.googleapis.com/"
 QUOTA_DOC_URL = "https://developers.google.com/workspace/sheets/api/limits"
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
-_credentials = DeferredCredentialProvider("gsheets", env_var="GOOGLE_ACCESS_TOKEN")
+_credentials = DeferredCredentialProvider(
+    "gsheets", env_var="GOOGLE_ACCESS_TOKEN", env_grant=ENV_GRANT
+)
 
 
 def configure(credential_provider: CredentialProvider) -> None:

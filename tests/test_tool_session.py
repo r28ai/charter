@@ -142,7 +142,7 @@ async def test_an_unknown_name_lists_what_is_callable():
     session = ToolSession(gmail.TOOLS)
     session.search(f"select:{sorted(session.deferrable)[0]}")
     with pytest.raises(ToolValidationError) as exc:
-        await session.dispatch("gmail__not_a_tool", {})
+        await session.dispatch("gmail_not_a_tool", {})
     assert "Unknown tool" in str(exc.value)
     assert sorted(session.visible())[0] in str(exc.value)
 
@@ -174,13 +174,13 @@ def test_a_required_term_filters_by_pack():
     enough on its own."""
     session = ToolSession([*gmail.TOOLS, *stripe.TOOLS])
     loaded = session.search("+stripe list", max_results=20)["loaded"]
-    assert loaded and all(n.startswith("stripe__") for n in loaded)
+    assert loaded and all(n.startswith("stripe_") for n in loaded)
 
 
 def test_an_unknown_name_comes_back_with_the_catalogue():
     session = ToolSession(gmail.TOOLS)
-    result = session.search("select:gmail__nope")
-    assert result["unknown"]["names"] == ["gmail__nope"]
+    result = session.search("select:gmail_nope")
+    assert result["unknown"]["names"] == ["gmail_nope"]
     assert result["unknown"]["available"] == sorted(session.deferrable)
 
 
@@ -262,9 +262,9 @@ async def test_a_loaded_tool_reaches_the_api_through_the_session(custom):
     # threshold=0 so even a two-field schema is deferred: the point here is that
     # a tool arriving through ToolSearch is the same tool, not that this one is big.
     session = ToolSession([*gmail.TOOLS, *custom], progressive=True, threshold=0)
-    assert "xyz__my_tool" in session.deferrable
-    session.search("select:xyz__my_tool")
-    assert await session.dispatch("xyz__my_tool", {"thing_id": "42"}) == {"reached": "custom"}
+    assert "xyz_my_tool" in session.deferrable
+    session.search("select:xyz_my_tool")
+    assert await session.dispatch("xyz_my_tool", {"thing_id": "42"}) == {"reached": "custom"}
     assert route.called
 
 
@@ -277,14 +277,14 @@ async def test_mcp_publishes_and_routes_a_loaded_tool(custom):
     session = ToolSession([*stripe.TOOLS, *custom], progressive=True, threshold=0)
     server = build_server(session)
 
-    assert "xyz__my_tool" not in [t.name for t in await server.list_tools()]
-    result = await server.call_tool(SEARCH_TOOL_NAME, {"query": "select:xyz__my_tool"})
-    assert json.loads(result.content[0].text)["loaded"] == ["xyz__my_tool"]
+    assert "xyz_my_tool" not in [t.name for t in await server.list_tools()]
+    result = await server.call_tool(SEARCH_TOOL_NAME, {"query": "select:xyz_my_tool"})
+    assert json.loads(result.content[0].text)["loaded"] == ["xyz_my_tool"]
 
     listed = {t.name: t for t in await server.list_tools()}
     # The LLM view is camel-cased, as it is for a tool that was never deferred.
-    assert "thingId" in listed["xyz__my_tool"].input_schema["properties"]
-    reached = await server.call_tool("xyz__my_tool", {"thing_id": "42"})
+    assert "thingId" in listed["xyz_my_tool"].input_schema["properties"]
+    reached = await server.call_tool("xyz_my_tool", {"thing_id": "42"})
     assert "custom" in reached.content[0].text
 
 
@@ -370,7 +370,7 @@ def test_a_required_term_alone_still_matches():
     something, and it is the documented way to filter by one."""
     session = ToolSession([*gmail.TOOLS, *stripe.TOOLS])
     loaded = session.search("+stripe", max_results=50)["loaded"]
-    assert loaded and all(n.startswith("stripe__") for n in loaded)
+    assert loaded and all(n.startswith("stripe_") for n in loaded)
 
 
 def test_the_search_definition_is_not_shared_between_sessions():
@@ -463,15 +463,15 @@ def test_a_session_mode_reaches_the_catalogue_and_what_the_search_loads(tiered):
     catalogue of one surface and be handed tools from another.
     """
     session = ToolSession(tiered, mode="pro")
-    assert set(session.deferrable) == {"tier__reports_get", "tier__reports_list"}
+    assert set(session.deferrable) == {"tier_reports_get", "tier_reports_list"}
 
-    session.search("select:tier__reports_get")
-    loaded = session.visible()["tier__reports_get"]
+    session.search("select:tier_reports_get")
+    loaded = session.visible()["tier_reports_get"]
     assert sorted(loaded.llm_schema().model_fields) == ["q", "raw_events", "thing_id"]
 
     # Spelled on the wire, because a published schema carries wire names.
     published = to_openai_tools(session)[-1]["function"]
-    assert published["name"] == "tier__reports_get"
+    assert published["name"] == "tier_reports_get"
     assert sorted(published["parameters"]["properties"]) == ["q", "rawEvents", "thingId"]
 
 
@@ -494,11 +494,11 @@ async def test_a_moded_session_dispatches_the_resolved_tool(tiered):
         route = mock.get("https://tiers.api/v1/things/t1").mock(
             return_value=httpx.Response(200, json={"ok": True})
         )
-        assert await session.dispatch("tier__reports_get", {"thing_id": "t1"}) == {"ok": True}
+        assert await session.dispatch("tier_reports_get", {"thing_id": "t1"}) == {"ok": True}
         assert route.called
 
         with pytest.raises(ToolValidationError, match="raw_events"):
-            await session.dispatch("tier__reports_get", {"thing_id": "t1", "raw_events": "x"})
+            await session.dispatch("tier_reports_get", {"thing_id": "t1", "raw_events": "x"})
 
 
 def test_one_pack_serves_three_tiers_without_a_toolset_dict(tiered):
@@ -509,7 +509,7 @@ def test_one_pack_serves_three_tiers_without_a_toolset_dict(tiered):
     """
     surfaces = {
         tier: sorted(
-            ToolSession(tiered, mode=tier).tools["tier__reports_get"].llm_schema().model_fields
+            ToolSession(tiered, mode=tier).tools["tier_reports_get"].llm_schema().model_fields
         )
         for tier in ("free", "pro", "max")
     }
@@ -599,8 +599,8 @@ def test_a_tool_that_cannot_build_does_not_take_the_search_down_with_it():
     finally:
         monkeypatched.undo()
 
-    assert result["loaded"] == ["p__aaa", "p__bbb", "p__ccc"]
-    assert session.loaded == ["p__aaa", "p__bbb", "p__ccc"]
+    assert result["loaded"] == ["p_aaa", "p_bbb", "p_ccc"]
+    assert session.loaded == ["p_aaa", "p_bbb", "p_ccc"]
     # The ones that could build did; the one that could not is loaded and cold,
     # which is where it was before anything was prepared at all.
     assert tools[0]._json_schema is not None
@@ -644,13 +644,13 @@ def test_a_search_prepares_the_moded_variant_it_loaded(tiered):
     original = tiered[0]
     assert original._json_schema is None, "the pack's own tool was built"
 
-    session.search("select:tier__reports_get")
+    session.search("select:tier_reports_get")
 
-    loaded = session.tools["tier__reports_get"]
+    loaded = session.tools["tier_reports_get"]
     assert loaded is not original, "this pack no longer varies by mode"
     assert loaded._views_ready, "left to build inside a request"
     assert loaded._json_schema is not None
     # Untouched: a session resolves a view, it does not warm the pack.
     assert original._json_schema is None
     # And the tool nobody asked for is still cold.
-    assert session.tools["tier__reports_list"]._json_schema is None
+    assert session.tools["tier_reports_list"]._json_schema is None

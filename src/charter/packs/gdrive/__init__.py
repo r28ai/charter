@@ -10,7 +10,9 @@ Google Drive — files, sharing, comments, revisions, shared drives and quota.
     gdrive.configure(StaticTokenProvider(access_token))
     await gdrive.files_list.ainvoke(q="trashed = false")
 
-``configure()`` is optional if ``$GOOGLE_ACCESS_TOKEN`` is set.
+``configure()`` is optional if ``$GOOGLE_TOKEN_FILE``, ``$GOOGLE_REFRESH_TOKEN``
+(with ``$GOOGLE_CLIENT_ID`` and ``$GOOGLE_CLIENT_SECRET``) or ``$GOOGLE_ACCESS_TOKEN``
+is set; the first two renew themselves.
 
 This pack sends metadata, not bytes. ``files.create`` makes a folder, a Google
 Doc, or an empty blob; writing into a Doc or Sheet is the Docs and Sheets packs.
@@ -24,6 +26,7 @@ from __future__ import annotations
 from charter.auth import CredentialProvider
 from charter.factories import oauth_tool_factory
 from charter.packs._config import DeferredCredentialProvider
+from charter.packs._google import ENV_GRANT
 from charter.packs.gdrive.response_handlers import (
     extract_about,
     extract_comment,
@@ -76,7 +79,9 @@ GOOGLE_PAGINATION = Pagination(cursor_field="nextPageToken", cursor_param="pageT
 QUOTA_DOC_URL = "https://developers.google.com/workspace/drive/api/guides/limits"
 SCOPES = ["https://www.googleapis.com/auth/drive"]
 
-_credentials = DeferredCredentialProvider("gdrive", env_var="GOOGLE_ACCESS_TOKEN")
+_credentials = DeferredCredentialProvider(
+    "gdrive", env_var="GOOGLE_ACCESS_TOKEN", env_grant=ENV_GRANT
+)
 
 
 def configure(credential_provider: CredentialProvider) -> None:

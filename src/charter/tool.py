@@ -437,7 +437,7 @@ class Tool:
     ``base_url`` is *which host* (gmail, calendar, sheets and docs use four
     different ones; Drive shares Calendar's), and
     ``pack`` is *which namespace*. It is what
-    :func:`~charter.naming.qualified_names` builds ``<pack>__<tool>`` from when
+    :func:`~charter.naming.qualified_names` builds ``<pack>_<tool>`` from when
     several packs are assembled into one tool surface and their names would
     otherwise collide — ``products_list`` exists in both Stripe and Shopify.
 

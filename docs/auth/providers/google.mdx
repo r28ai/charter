@@ -75,9 +75,13 @@ six packs. Adding a pack later means sending the user back through consent: a
 grant covers the scopes it was issued for and nothing else, and the failure when
 it does not is a `403` from the API, not from the token endpoint.
 
-Each pack also names an environment variable. All six read
-`$GOOGLE_ACCESS_TOKEN`, which is the static-token path for a script. It never
-refreshes.
+Each pack also reads the environment, so a script or the
+[MCP server](/using/mcp) needs no wiring at all. All six renew a grant from
+`$GOOGLE_TOKEN_FILE` (an authorized-user JSON file) or from
+`$GOOGLE_REFRESH_TOKEN` with `$GOOGLE_CLIENT_ID` and `$GOOGLE_CLIENT_SECRET`,
+through one shared client built on the server above. Failing those they read
+`$GOOGLE_ACCESS_TOKEN`, the static-token path, which never refreshes. The order
+is on [environment fallbacks](/reference/configuration#environment-fallbacks).
 
 ## Wiring the packs
 

@@ -43,7 +43,7 @@ Every pack is built from declarations like this one. This is Gmail's `messages_l
     ```
 
     <Note>
-    `pack` is required, and it is the namespace every tool built here is qualified into — this one is `mygmail__list_messages` when an [adapter](/using/adapters) publishes it. Two APIs that both declare `products_list` would otherwise reach a model under one name, and the call could not be routed back. Name it whatever you like; it is yours, and `mygmail` here only keeps it distinct from the shipped [`gmail` pack](/packs/gmail) further down this page.
+    `pack` is required, and it is the namespace every tool built here is qualified into — this one is `mygmail_list_messages` when an [adapter](/using/adapters) publishes it. Two APIs that both declare `products_list` would otherwise reach a model under one name, and the call could not be routed back. Name it whatever you like; it is yours, and `mygmail` here only keeps it distinct from the shipped [`gmail` pack](/packs/gmail) further down this page.
     </Note>
 
     <Note>
@@ -88,7 +88,7 @@ print(format_egress_map([gmail.messages_send]))
 ```
 
 ```text
-gmail__messages_send  (POST gmail/v1/users/{userId}/messages/send)
+gmail_messages_send  (POST gmail/v1/users/{userId}/messages/send)
   visible to the model (15):
     + userId
     + body

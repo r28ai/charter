@@ -71,7 +71,7 @@ async def test_a_loaded_tool_is_offered_on_the_next_turn():
     client = FakeClient(
         [
             message(
-                tool_calls=[tool_call("1", "ToolSearch", {"query": "select:gmail__messages_list"})]
+                tool_calls=[tool_call("1", "ToolSearch", {"query": "select:gmail_messages_list"})]
             ),
             message(content="answered"),
         ]
@@ -79,7 +79,7 @@ async def test_a_loaded_tool_is_offered_on_the_next_turn():
     result = await run(client, model="m", messages=USER, session=session)
 
     assert client.offered[0] == ["ToolSearch"]
-    assert client.offered[1] == ["ToolSearch", "gmail__messages_list"]
+    assert client.offered[1] == ["ToolSearch", "gmail_messages_list"]
     assert result == RunResult(messages=result.messages, content="answered", turns=2, stop="end")
 
 
@@ -94,9 +94,9 @@ async def test_a_tool_call_reaches_the_api_and_its_result_reaches_the_model():
     client = FakeClient(
         [
             message(
-                tool_calls=[tool_call("1", "ToolSearch", {"query": "select:gmail__labels_list"})]
+                tool_calls=[tool_call("1", "ToolSearch", {"query": "select:gmail_labels_list"})]
             ),
-            message(tool_calls=[tool_call("2", "gmail__labels_list", {"userId": "me"})]),
+            message(tool_calls=[tool_call("2", "gmail_labels_list", {"userId": "me"})]),
             message(content="you have one label"),
         ]
     )
@@ -129,8 +129,8 @@ async def test_parallel_tool_calls_are_answered_in_order():
         [
             message(
                 tool_calls=[
-                    tool_call("a", "ToolSearch", {"query": "select:gmail__messages_list"}),
-                    tool_call("b", "ToolSearch", {"query": "select:stripe__refunds_create"}),
+                    tool_call("a", "ToolSearch", {"query": "select:gmail_messages_list"}),
+                    tool_call("b", "ToolSearch", {"query": "select:stripe_refunds_create"}),
                 ]
             ),
             message(content="both"),
@@ -143,7 +143,7 @@ async def test_parallel_tool_calls_are_answered_in_order():
         if isinstance(m, dict) and m.get("role") == "tool"
     ]
     assert ids == ["a", "b"]
-    assert client.offered[1] == ["ToolSearch", "gmail__messages_list", "stripe__refunds_create"]
+    assert client.offered[1] == ["ToolSearch", "gmail_messages_list", "stripe_refunds_create"]
 
 
 # -----------------------------------------------------
@@ -156,7 +156,7 @@ async def test_calling_a_tool_that_is_not_loaded_comes_back_as_the_tool_result()
     session = ToolSession(gmail.TOOLS)
     client = FakeClient(
         [
-            message(tool_calls=[tool_call("1", "gmail__messages_list", {"userId": "me"})]),
+            message(tool_calls=[tool_call("1", "gmail_messages_list", {"userId": "me"})]),
             message(content="recovered"),
         ]
     )
@@ -164,7 +164,7 @@ async def test_calling_a_tool_that_is_not_loaded_comes_back_as_the_tool_result()
     tool_result = next(
         m for m in result.messages if isinstance(m, dict) and m.get("role") == "tool"
     )
-    assert "select:gmail__messages_list" in tool_result["content"]
+    assert "select:gmail_messages_list" in tool_result["content"]
     assert result.content == "recovered"
 
 
@@ -191,13 +191,13 @@ async def test_a_bug_in_a_tool_is_not_fed_to_the_model_as_text(monkeypatch):
     breaking one by hand breaks it for every test that runs afterwards.
     """
     session = ToolSession(gmail.TOOLS)
-    session.search("select:gmail__messages_list")
+    session.search("select:gmail_messages_list")
 
     async def boom(*args, **kwargs):
         raise RuntimeError("handler is broken")
 
-    monkeypatch.setattr(session.tools["gmail__messages_list"], "ainvoke", boom)
-    client = FakeClient([message(tool_calls=[tool_call("1", "gmail__messages_list", {})])])
+    monkeypatch.setattr(session.tools["gmail_messages_list"], "ainvoke", boom)
+    client = FakeClient([message(tool_calls=[tool_call("1", "gmail_messages_list", {})])])
     with pytest.raises(RuntimeError, match="handler is broken"):
         await run(client, model="m", messages=USER, session=session)
 

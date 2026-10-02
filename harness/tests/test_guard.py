@@ -33,32 +33,32 @@ def _ctx(arm: str, packs: list[str], **kwargs) -> GuardContext:
 
 def test_charter_reads_are_approved():
     ctx = _ctx("charter", ["github", "gmail"])
-    assert decide("github__repos_get", {"owner": "anyone", "repo": "anything"}, ctx) is None
-    assert decide("gmail__messages_list", {"userId": "me"}, ctx) is None
+    assert decide("github_repos_get", {"owner": "anyone", "repo": "anything"}, ctx) is None
+    assert decide("gmail_messages_list", {"userId": "me"}, ctx) is None
 
 
 def test_charter_github_writes_must_target_a_sandbox_repo():
     ctx = _ctx("charter", ["github"])
     assert (
         decide(
-            "github__issues_create",
+            "github_issues_create",
             {"owner": "harness-owner", "repo": "harness-abc", "body": {}},
             ctx,
         )
         is None
     )
     assert decide(
-        "github__issues_create", {"owner": "harness-owner", "repo": "charter", "body": {}}, ctx
+        "github_issues_create", {"owner": "harness-owner", "repo": "charter", "body": {}}, ctx
     )
     assert decide(
-        "github__issues_create", {"owner": "someone-else", "repo": "harness-abc", "body": {}}, ctx
+        "github_issues_create", {"owner": "someone-else", "repo": "harness-abc", "body": {}}, ctx
     )
     assert decide(
-        "github__pulls_create", {"owner": "harness-owner", "repo": "real-project", "body": {}}, ctx
+        "github_pulls_create", {"owner": "harness-owner", "repo": "real-project", "body": {}}, ctx
     )
     assert (
         decide(
-            "github__issues_create_comment",
+            "github_issues_create_comment",
             {"owner": "harness-owner", "repo": "harness-x", "issueNumber": 1, "body": {}},
             ctx,
         )
@@ -69,27 +69,27 @@ def test_charter_github_writes_must_target_a_sandbox_repo():
 def test_charter_calendar_deletes_only_touch_seeded_events():
     ctx = _ctx("charter", ["gcalendar"], owned={"gcalendar.event": ["ev1", "ev2"]})
     assert (
-        decide("gcalendar__events_delete", {"calendarId": "primary", "eventId": "ev1"}, ctx) is None
+        decide("gcalendar_events_delete", {"calendarId": "primary", "eventId": "ev1"}, ctx) is None
     )
     assert decide(
-        "gcalendar__events_delete", {"calendarId": "primary", "eventId": "the-users-dentist"}, ctx
+        "gcalendar_events_delete", {"calendarId": "primary", "eventId": "the-users-dentist"}, ctx
     )
-    assert decide("gcalendar__events_insert", {"calendarId": "primary", "event": {}}, ctx) is None
+    assert decide("gcalendar_events_insert", {"calendarId": "primary", "event": {}}, ctx) is None
 
 
 def test_charter_slack_writes_only_reach_the_harness_channel():
     ctx = _ctx("charter", ["slack"], owned={"slack.channel": ["C123", "harness"]})
-    assert decide("slack__chat_post_message", {"channel": "C123", "text": "hi"}, ctx) is None
-    assert decide("slack__chat_post_message", {"channel": "#harness", "text": "hi"}, ctx) is None
-    assert decide("slack__chat_post_message", {"channel": "C999", "text": "hi"}, ctx)
-    assert decide("slack__chat_delete", {"channel": "general", "ts": "1"}, ctx)
-    assert decide("slack__conversations_history", {"channel": "C999"}, ctx) is None
+    assert decide("slack_chat_post_message", {"channel": "C123", "text": "hi"}, ctx) is None
+    assert decide("slack_chat_post_message", {"channel": "#harness", "text": "hi"}, ctx) is None
+    assert decide("slack_chat_post_message", {"channel": "C999", "text": "hi"}, ctx)
+    assert decide("slack_chat_delete", {"channel": "general", "ts": "1"}, ctx)
+    assert decide("slack_conversations_history", {"channel": "C999"}, ctx) is None
 
 
 def test_charter_send_is_refused_even_if_it_were_registered():
     ctx = _ctx("charter", ["gmail"])
-    ctx.tool_index = {**ctx.tool_index, "gmail__messages_send": ["gmail", "messages_send"]}
-    assert decide("gmail__messages_send", {"userId": "me", "body": {}}, ctx)
+    ctx.tool_index = {**ctx.tool_index, "gmail_messages_send": ["gmail", "messages_send"]}
+    assert decide("gmail_messages_send", {"userId": "me", "body": {}}, ctx)
 
 
 def test_the_submit_tool_is_not_the_guards_business():
@@ -98,23 +98,26 @@ def test_the_submit_tool_is_not_the_guards_business():
 
 
 def test_every_tool_name_is_qualified_by_its_pack():
-    """``<pack>__<tool>``, always, after MCP's ``mcp__<server>__<tool>``.
+    """``<pack>_<tool>``, always, after MCP's ``mcp__<server>__<tool>``.
 
     Unconditionally rather than only where two packs collide: the point is that
     the pack is a reliable substring of *every* name, which is what lets the
     progressive arm's ``+stripe`` filter pick a provider. A property that held
     for some names and not others would not be a property.
 
-    The doubled underscore is what makes it reversible — tool names contain
-    single underscores, so ``stripe_products_list`` cannot be split back apart.
+    One underscore, and none in a pack label, is what makes it reversible: the
+    first underscore is the boundary, and no name carries the ``__`` hosts join
+    server and tool with.
     """
     names = model_facing_names(["stripe", "shopify"])
-    assert names[("stripe", "products_list")] == "stripe__products_list"
-    assert names[("shopify", "products_list")] == "shopify__products_list"
-    assert names[("stripe", "balance_retrieve")] == "stripe__balance_retrieve"
+    assert names[("stripe", "products_list")] == "stripe_products_list"
+    assert names[("shopify", "products_list")] == "shopify_products_list"
+    assert names[("stripe", "balance_retrieve")] == "stripe_balance_retrieve"
     shown = {d.name for d in CharterArm().tools(["stripe", "shopify"], WIRING)}
-    assert {"stripe__products_list", "shopify__products_list", "stripe__balance_retrieve"} <= shown
-    assert all(name.count("__") == 1 for name in shown), shown
+    assert {"stripe_products_list", "shopify_products_list", "stripe_balance_retrieve"} <= shown
+    assert all(
+        "__" not in name and name.split("_", 1)[0] in {"stripe", "shopify"} for name in shown
+    ), shown
 
 
 # -------------------------------------------------------------------- raw arm
@@ -279,18 +282,18 @@ def test_neither_way_of_sending_is_offered_to_the_model():
     from charter_harness.arms.charter_arm import EXCLUDED_TOOLS
 
     names = {d.name for d in CharterArm().tools(["gmail"], WIRING)}
-    assert "gmail__messages_send" not in names
-    assert "gmail__drafts_send" not in names
+    assert "gmail_messages_send" not in names
+    assert "gmail_drafts_send" not in names
     assert {("gmail", "messages_send"), ("gmail", "drafts_send")} <= EXCLUDED_TOOLS
     # and the rest of the pack still is
-    assert "gmail__messages_get" in names and "gmail__drafts_get" in names
+    assert "gmail_messages_get" in names and "gmail_drafts_get" in names
 
 
 def test_the_guard_refuses_either_send_even_if_it_were_registered():
     ctx = _ctx("charter", ["gmail"])
     for tool in ("messages_send", "drafts_send"):
-        ctx.tool_index = {**ctx.tool_index, f"gmail__{tool}": ["gmail", tool]}
-        assert decide(f"gmail__{tool}", {"userId": "me", "id": "d1"}, ctx)
+        ctx.tool_index = {**ctx.tool_index, f"gmail_{tool}": ["gmail", tool]}
+        assert decide(f"gmail_{tool}", {"userId": "me", "id": "d1"}, ctx)
 
 
 def test_the_raw_arm_cannot_post_to_either_send_path():
@@ -303,8 +306,8 @@ def test_only_seeded_threads_may_be_deleted_or_trashed():
     """threads.delete is permanent, and the mailbox holds real correspondence."""
     ctx = _ctx("charter", ["gmail"], owned={"gmail.thread": ["seeded"]})
     for tool in ("threads_delete", "threads_trash"):
-        assert decide(f"gmail__{tool}", {"userId": "me", "id": "seeded"}, ctx) is None
-        assert decide(f"gmail__{tool}", {"userId": "me", "id": "someones-real-mail"}, ctx)
+        assert decide(f"gmail_{tool}", {"userId": "me", "id": "seeded"}, ctx) is None
+        assert decide(f"gmail_{tool}", {"userId": "me", "id": "someones-real-mail"}, ctx)
 
 
 def test_the_raw_arm_is_held_to_the_same_thread_rule():
@@ -324,7 +327,7 @@ def test_the_raw_arm_is_held_to_the_same_thread_rule():
 def _charter_ctx(**owned):
     return GuardContext(
         arm="charter",
-        tool_index={"gcalendar__events_delete": ["gcalendar", "events_delete"]},
+        tool_index={"gcalendar_events_delete": ["gcalendar", "events_delete"]},
         owned=owned,
     )
 
@@ -335,13 +338,13 @@ def test_an_event_the_agent_created_may_be_deleted():
     recreated them correctly — six events where three were expected. It punished
     the agent for recovering."""
     ctx = _charter_ctx(**{"gcalendar.event": ["seeded1", "agent-made"]})
-    assert decide("gcalendar__events_delete", {"eventId": "agent-made"}, ctx) is None
-    assert decide("gcalendar__events_delete", {"eventId": "seeded1"}, ctx) is None
+    assert decide("gcalendar_events_delete", {"eventId": "agent-made"}, ctx) is None
+    assert decide("gcalendar_events_delete", {"eventId": "seeded1"}, ctx) is None
 
 
 def test_an_event_this_run_did_not_make_is_still_refused():
     ctx = _charter_ctx(**{"gcalendar.event": ["agent-made"]})
-    reason = decide("gcalendar__events_delete", {"eventId": "somebody-elses"}, ctx)
+    reason = decide("gcalendar_events_delete", {"eventId": "somebody-elses"}, ctx)
     assert reason and "created for this task" in reason
 
 

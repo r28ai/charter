@@ -92,7 +92,7 @@ def test_a_label_the_author_declared_resolves_the_view_the_deployer_gets(mode):
 @pytest.mark.parametrize("mode", list(TIERS))
 def test_a_session_resolves_every_tool_it_holds(mode):
     session = ToolSession([_reports()], mode=mode)
-    assert _fields(session.tools["rep__reports_create"]) == TIERS[mode]
+    assert _fields(session.tools["rep_reports_create"]) == TIERS[mode]
 
 
 def test_the_published_name_does_not_change_with_the_mode():
@@ -110,7 +110,7 @@ def test_the_published_name_does_not_change_with_the_mode():
         assert variant.pack == tool.pack
 
     session = ToolSession([tool], mode="pro")
-    assert list(session.tools) == ["rep__reports_create"]
+    assert list(session.tools) == ["rep_reports_create"]
 
 
 def test_the_label_already_applied_hands_back_the_tool_itself():
@@ -154,7 +154,7 @@ def test_a_session_mode_adds_its_label_to_the_one_the_tool_was_built_with():
     private labelling convention.
     """
     session = ToolSession([_reports(mode="free")], mode="max")
-    resolved = session.tools["rep__reports_create"]
+    resolved = session.tools["rep_reports_create"]
     assert resolved.mode == "free" and resolved.session_mode == "max"
     # Nothing in `Report` carries `free`, so `max` is the whole of what is added.
     assert _fields(resolved) == TIERS["max"]
@@ -201,8 +201,8 @@ def test_a_session_mode_composes_with_the_operation_split_the_author_declared():
 
     session = ToolSession([create, update], mode="pro")
     at = session.tools
-    assert _fields(at["msg__messages_create"]) == ["account_id", "always", "subject", "tier_note"]
-    assert _fields(at["msg__messages_update"]) == ["account_id", "always", "id", "tier_note"]
+    assert _fields(at["msg_messages_create"]) == ["account_id", "always", "subject", "tier_note"]
+    assert _fields(at["msg_messages_update"]) == ["account_id", "always", "id", "tier_note"]
 
 
 def test_a_tier_the_deployment_did_not_buy_takes_nothing_away():
@@ -693,15 +693,15 @@ def test_tools_at_one_mode_build_their_shared_types_once_between_them():
     two = factory("two", Second, "POST", "t/{account_id}", description="Two.")
 
     session = ToolSession([one, two], mode="pro")
-    first = _generated(session.tools["shared__one"], "item")
-    second = _generated(session.tools["shared__two"], "other")
+    first = _generated(session.tools["shared_one"], "item")
+    second = _generated(session.tools["shared_two"], "other")
     assert first is second, "the shared type was generated once per tool"
 
     # And the mode is part of the key, because it has to be: the `pro` view of
     # `Shared` carries a field the unmoded one does not, so sharing across modes
     # would hand one session the other's fields.
     free = ToolSession([one], mode="free")
-    at_free = _generated(free.tools["shared__one"], "item")
+    at_free = _generated(free.tools["shared_one"], "item")
     assert at_free is not first
     assert "premium" in first.model_fields and "premium" not in at_free.model_fields
 

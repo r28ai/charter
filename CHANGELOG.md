@@ -7,6 +7,75 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Pre-1.0, minor versions may break the public API. Anything that does will say so
 here, with the migration in the same entry.
 
+## [Unreleased]
+
+### Changed
+
+- **Breaking: a tool is published as `<pack>_<tool>`, not `<pack>__<tool>`.**
+  `gmail__messages_list` is now `gmail_messages_list`, on every adapter — MCP,
+  OpenAI and LangChain alike — and `qualified_name`, `qualified_names` and
+  `report_key` return the new form. Hosts join server and tool with `__`
+  (`mcp__<server>__<tool>`), and a host that parses its names back cannot tell
+  where one containing it splits: Grok Build 1.0 dropped all 23 of Gmail's tools
+  at session start, "invalid or ambiguous qualified name", and its model saw
+  none of them. One underscore is the shape MCP servers already publish
+  (Playwright's `browser_click`, GitHub's `actions_list`), and the name still
+  splits back, because a pack label may no longer contain an underscore: the
+  first one is the boundary. A pack label with one, or a tool name containing
+  `__`, is a `DeclarationError` naming why. **Migration:** replace `__` with `_`
+  after the pack in allow-lists, saved prompts, `select:` queries and anything
+  that matches a published name; host prefixes such as `mcp__charter__` are
+  unchanged. Composed under `mcp__charter__`, the longest shipped name is 60
+  characters, one shorter than before.
+- **`python -m charter.mcp` sends every schema at startup.** Loading on demand
+  was the default, and it depends on a client re-listing on
+  `notifications/tools/list_changed` and handing the new tools to the model at
+  once. Run against real clients, each reading a live Gmail inbox: Codex 0.160
+  logs the notification and keeps the list it started with, so a loaded tool
+  never arrives; headless Claude Code 2.1 reported the tools loaded and then
+  answered every call with *No such tool available*, for 28 turns; Google ADK
+  2.10 reads the list once per turn, so a loaded tool waits for the user's next
+  message — within one turn its model called `ToolSearch` about 130 times and
+  never reached the tool. Only Hermes Agent followed the loads. With every schema listed, all of them, and Grok Build, OpenClaw and
+  Hermes Agent, completed the task. On-demand loading is `--progressive` now,
+  and `--no-progressive` is still accepted. `serve()` follows `build_server()`:
+  a plain list is every schema, and a progressive `ToolSession` is on demand.
+  The cost is the schemas, so the [MCP page](https://docs.r28.ai/charter/using/mcp)
+  lists them per pack — Gmail's 23 tools are 8,447 tokens; all fifteen packs are
+  458,189.
+
+### Added
+
+- **The Google packs renew a grant from the environment.** `$GOOGLE_ACCESS_TOKEN`
+  expires in about an hour and nothing renewed it, so a Google tool served by
+  `python -m charter.mcp` failed every call an hour in. The six packs now look
+  first for `$GOOGLE_TOKEN_FILE`, the path of an authorized-user JSON file — the
+  `token.json` google-auth writes, Hermes Agent's `google_token.json`, gcloud's
+  `application_default_credentials.json` — and then for `$GOOGLE_REFRESH_TOKEN`
+  with `$GOOGLE_CLIENT_ID` and `$GOOGLE_CLIENT_SECRET`, and renew it through one
+  `OAuth2Client` shared by all six. Two servers held open side by side read the
+  inbox at minute zero; at minute 62 the one started from an access token got a
+  `401` and the one started from a token file read it again. A grant that is
+  named but unusable — an unreadable file, an OAuth client file in place of a
+  token, a service account key, a refresh token without its client — raises a
+  `CredentialError` saying which, instead of falling through to the raw token.
+  It is one account per process, which is what the MCP spec prescribes for a
+  stdio server; a file other users can read gets one warning to `chmod 600` it,
+  and is never refused or modified.
+- **MCP tools say whether they write.** Each tool is annotated from its method:
+  a `GET` is read-only, a `DELETE` destructive, anything else not read-only,
+  and `ToolSearch` read-only. Codex runs a read-only tool without an approval
+  prompt and asks before the rest; with no annotations every Charter tool was a
+  write to it, and `codex exec`, which cannot ask, refused `gmail_messages_list`.
+
+### Fixed
+
+- **The configuration reference said a sidecar could refresh
+  `$GOOGLE_ACCESS_TOKEN` without a restart.** Nothing outside a process can
+  change its environment, so that never worked for the MCP entry point. The page
+  now documents the grant variables above. Tavily's `TAVILY_API_KEY` was
+  missing from both credential tables, and is listed.
+
 ## [0.2.5] — 2026-10-01
 
 ### Fixed

@@ -244,7 +244,7 @@ def test_the_flattening_page_states_the_schema_size_it_measures():
 #
 # Tool names fit 64 characters only under the config the page recommends: one
 # server holding every pack. A page that went back to a server per pack would put
-# three gsheets tools out of reach without a single test failing, because nothing
+# two gsheets tools out of reach without a single test failing, because nothing
 # in the library can see the key a client was configured under.
 
 
@@ -252,14 +252,15 @@ def test_the_mcp_page_configures_one_server_holding_several_packs():
     """Every client example passes a pack list, so the pack stays out of the key."""
     text = _text("using/mcp.mdx")
 
-    # The four client examples plus the `claude mcp add` line all name the server
-    # `charter` and hand `--pack` more than one pack.
-    assert text.count("gmail,gsheets,slack") == 4, "a client example stopped passing a pack list"
+    # Every client example names the server `charter` and hands `--pack` more
+    # than one pack: Claude Code, Codex, Grok Build, OpenClaw, Hermes Agent,
+    # Cursor, VS Code and Google ADK.
+    assert text.count("gmail,gdrive,slack") == 8, "a client example stopped passing a pack list"
     assert "claude mcp add charter --" in text
 
 
 def test_the_mcp_page_does_not_recommend_a_server_named_after_a_pack():
-    """`charter-gsheets` as a config key puts three gsheets names over 64.
+    """`charter-gsheets` as a config key puts two gsheets names over 64.
 
     The page may still *mention* the shape to explain why it is wrong — it does —
     so this checks the places a reader copies from: the fenced config blocks.

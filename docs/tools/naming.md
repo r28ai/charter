@@ -12,7 +12,7 @@ follows: an MCP server publishes plain names and the **host** composes
 `mcp__<server>__<tool>` from the server it was configured with; OpenAI
 constrains a function name to `[A-Za-z0-9_-]{1,64}` and defines no namespace at
 all; LangChain resolves a call against the list you gave it. Qualifying inside
-the library would produce `mcp__gcalendar__gcalendar__events_list` the moment a
+the library would produce `mcp__gcalendar_gcalendar_events_list` the moment a
 host did its job.
 
 So the rule is that **whoever assembles tools into one namespace owns the
@@ -68,10 +68,10 @@ _acme = api_key_tool_factory(
 from charter import qualified_names
 
 qualified_names(gcalendar.TOOLS)
-# {"gcalendar__events_list": Tool(...), ...}
+# {"gcalendar_events_list": Tool(...), ...}
 
 qualified_names(list(stripe.TOOLS) + list(shopify.TOOLS))
-# {"stripe__products_list": ..., "shopify__products_list": ...}
+# {"stripe_products_list": ..., "shopify_products_list": ...}
 ```
 
 The three shipped adapters call it, so a pack is named the same way inline,
@@ -83,21 +83,27 @@ break saved prompts, allow-lists, logged traces and eval fixtures without a
 word. An MCP server publishes the same names whatever else is installed; so does
 this. A host composes `mcp__<server>__<tool>` on top, and the MCP entry point
 names its server `charter`, so the result reads
-`mcp__charter__gcalendar__events_list` — each segment a different fact. It is
+`mcp__charter__gcalendar_events_list` — each segment a different fact. It is
 also a budget: the host takes `<server>` from the key it was configured under,
 the whole name must fit 64, and one server holding every pack is what keeps the
 pack out of that prefix.
 
 **All of them, or none of them.** Neither function qualifies "just the
-collisions". A surface where `stripe__products_list` sits beside a bare
+collisions". A surface where `stripe_products_list` sits beside a bare
 `balance_retrieve` makes the pack a substring of some names and not others, so
 every filter over it — a `+stripe` in a tool search, a log grep, an allow-list —
 silently misses the unqualified half. A filter that works on most names is worse
 than none, because nothing tells you which half you got.
 
-**The separator is doubled.** Tool names contain single underscores, so
-`stripe_products_list` cannot be split back into its pack and its tool while
-`stripe__products_list` can. MCP doubles it for the same reason.
+**One underscore, and none in a pack.** `stripe_products_list` is the shape
+MCP servers already publish — Playwright's `browser_click`, GitHub's
+`actions_list` — and it still splits back into its pack and its tool, because a
+pack label may not contain an underscore: the first one is always the boundary.
+A tool name may not contain `__`. Hosts join server and tool with it
+(`mcp__<server>__<tool>`), and one that parses its names back cannot tell where
+such a name splits: Grok Build drops the tool. Charter used `__` as its own
+separator until 0.2.6, for that reason the one choice that did not work
+everywhere.
 
 A tool with no `pack` cannot be qualified, and saying so is a `DeclarationError`
 rather than a silent fall back to the bare name — which would produce exactly

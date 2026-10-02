@@ -137,4 +137,4 @@ async def test_mcp_example_lists_tools(monkeypatch):
     from charter.packs import firecrawl
 
     listed = await _load("mcp_server").build().list_tools()
-    assert [t.name for t in listed] == [f"firecrawl__{t.name}" for t in firecrawl.TOOLS]
+    assert [t.name for t in listed] == [f"firecrawl_{t.name}" for t in firecrawl.TOOLS]

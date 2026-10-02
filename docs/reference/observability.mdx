@@ -354,7 +354,7 @@ reaches the model and what is withheld — with the reason taken from the
 declaration.
 
 Returns a plain dict, keyed by [`report_key`](/reference/naming#report_key)
-(`<pack>__<tool>`, or the bare name for a tool with no pack), so it serialises
+(`<pack>_<tool>`, or the bare name for a tool with no pack), so it serialises
 straight to JSON for an audit trail. Every tool handed in gets a row: two that
 would share one raises [`DeclarationError`](/reference/errors#declarationerror)
 rather than overwriting, because a map that quietly holds fewer rows than it was
@@ -412,9 +412,9 @@ from charter import egress_map
 from charter.packs import gmail
 
 report = egress_map(gmail.TOOLS)
-withheld = {entry["field"] for entry in report["gmail__messages_send"]["withheld"]}
+withheld = {entry["field"] for entry in report["gmail_messages_send"]["withheld"]}
 assert "body.id" in withheld
-assert "body.raw" in report["gmail__messages_send"]["visible"]
+assert "body.raw" in report["gmail_messages_send"]["visible"]
 ```
 
 ## `conflict_map`
@@ -480,7 +480,7 @@ print(format_conflicts(gcalendar.TOOLS))
 ```
 
 ```text
-gcalendar__events_list
+gcalendar_events_list
   syncToken refuses 8:
     - iCalUID
     - orderBy

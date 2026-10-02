@@ -28,7 +28,7 @@ a claim about the value, not the field.
     from charter.packs import gmail
 
     report = egress_map(gmail.TOOLS)
-    print(report["gmail__messages_send"]["withheld"])
+    print(report["gmail_messages_send"]["withheld"])
 """
 
 from __future__ import annotations
@@ -320,7 +320,7 @@ def egress_map(tools: Surface) -> Dict[str, Dict[str, Any]]:
     at every nesting depth — into what reaches the model and what is withheld
     from it, with the reason taken from the declaration.
 
-    Keyed by ``<pack>__<tool>``, or by the bare name for a tool that declares no
+    Keyed by ``<pack>_<tool>``, or by the bare name for a tool that declares no
     pack. Every tool handed in gets a row: two that would share one raises rather
     than overwriting, because an audit artifact that quietly holds fewer rows than
     it was given is the one failure a reader cannot catch.
@@ -334,7 +334,7 @@ def egress_map(tools: Surface) -> Dict[str, Dict[str, Any]]:
     Returns a plain dict, so it serialises straight to JSON for an audit trail::
 
         {
-          "gmail__messages_send": {
+          "gmail_messages_send": {
             "name": "messages_send",
             "pack": "gmail",
             "provider": "google",

@@ -94,7 +94,7 @@ def _search_tool(session: Any, definition: Dict[str, Any]) -> Any:
 def to_langchain_tools(tools: ToolsLike) -> List[Any]:
     """Wrap tools for LangChain.
 
-    Names are ``<pack>__<tool>``. LangChain resolves a tool call by name against
+    Names are ``<pack>_<tool>``. LangChain resolves a tool call by name against
     the list it was given, so two packs both declaring ``products_list`` would
     leave it picking whichever it saw first. Qualified whatever else is loaded,
     so adding a pack never renames the tools already there.

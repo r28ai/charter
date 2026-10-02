@@ -10,7 +10,9 @@ Google Calendar — the Events collection, and the calendars to run it against.
     gcalendar.configure(StaticTokenProvider(access_token))
     await gcalendar.events_list.ainvoke(calendar_id="primary")
 
-``configure()`` is optional if ``$GOOGLE_ACCESS_TOKEN`` is set.
+``configure()`` is optional if ``$GOOGLE_TOKEN_FILE``, ``$GOOGLE_REFRESH_TOKEN``
+(with ``$GOOGLE_CLIENT_ID`` and ``$GOOGLE_CLIENT_SECRET``) or ``$GOOGLE_ACCESS_TOKEN``
+is set; the first two renew themselves.
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ from __future__ import annotations
 from charter.auth import CredentialProvider
 from charter.factories import oauth_tool_factory
 from charter.packs._config import DeferredCredentialProvider
+from charter.packs._google import ENV_GRANT
 from charter.packs.gcalendar.response_handlers import (
     extract_calendar,
     extract_calendar_metadata,
@@ -55,7 +58,9 @@ SCOPES = ["https://www.googleapis.com/auth/calendar.events"]
 # does not reach either of them.
 CALENDAR_LIST_SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 
-_credentials = DeferredCredentialProvider("gcalendar", env_var="GOOGLE_ACCESS_TOKEN")
+_credentials = DeferredCredentialProvider(
+    "gcalendar", env_var="GOOGLE_ACCESS_TOKEN", env_grant=ENV_GRANT
+)
 
 
 def configure(credential_provider: CredentialProvider) -> None:

@@ -359,6 +359,14 @@ def _render_credential_source(module: ModuleType, tool: Tool) -> str:
     env_var = getattr(holder, "env_var", None)
     if not env_var or len(inspect.signature(module.configure).parameters) != 1:
         return ""
+    if getattr(holder, "env_grant", None) is not None:
+        # A renewable grant is checked first; the variables it reads are too
+        # many for one clause, so the clause links to where they are listed.
+        return (
+            f", and {_CONFIGURE} is optional when a "
+            "[renewable grant](/reference/configuration#environment-fallbacks) or "
+            f"{_code('$' + env_var)} is set"
+        )
     return f", and {_CONFIGURE} is optional when {_code('$' + env_var)} is set"
 
 

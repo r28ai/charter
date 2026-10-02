@@ -54,7 +54,7 @@ def to_openai_tools(tools: ToolsLike) -> List[Dict[str, Any]]:
 
         tools = to_openai_tools(gmail.TOOLS)   # all of them, always
 
-    Names are ``<pack>__<tool>``, because OpenAI has no namespace of its own:
+    Names are ``<pack>_<tool>``, because OpenAI has no namespace of its own:
     two packs that both declare ``products_list`` would otherwise send one
     function twice under one name, and the model's call could not be routed
     back. Qualified whatever else is loaded, so adding a pack never renames the

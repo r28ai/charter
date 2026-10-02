@@ -69,7 +69,7 @@ print(format_egress_map([gmail.messages_send]))
 ```
 
 ```
-gmail__messages_send  (POST gmail/v1/users/{userId}/messages/send)
+gmail_messages_send  (POST gmail/v1/users/{userId}/messages/send)
   visible to the model (15):
     + userId
     + body
@@ -130,7 +130,7 @@ about a deployment that does not exist.
 
 Entries are keyed by [`report_key`](/reference/naming#report_key), so a surface
 assembled from several packs gets one row per tool rather than one per name:
-`gdrive__comments_list` and `notion__comments_list` are two rows, and each
+`gdrive_comments_list` and `notion_comments_list` are two rows, and each
 carries its own `name` and `pack`. Two tools that would share a row raise rather
 than one overwriting the other.
 
@@ -154,7 +154,7 @@ print(format_conflicts(gcalendar.TOOLS))
 ```
 
 ```
-gcalendar__events_list
+gcalendar_events_list
   syncToken refuses 8:
     - iCalUID
     - orderBy

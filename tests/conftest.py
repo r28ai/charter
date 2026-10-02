@@ -95,3 +95,18 @@ def pytest_runtest_call(item):
             if reason:
                 pytest.skip(reason)
         raise
+
+
+# A developer's shell may hold a real Google grant — this repository's own .env
+# names one. Every Google pack now renews from those variables before it reads
+# $GOOGLE_ACCESS_TOKEN, so without this a test that sets a fake access token
+# would quietly refresh against Google instead, and only on that machine.
+@pytest.fixture(autouse=True)
+def _no_google_grant_from_the_machine(monkeypatch):
+    from charter.packs._google import ENV_GRANT
+
+    monkeypatch.delenv("GOOGLE_TOKEN_FILE", raising=False)
+    monkeypatch.delenv("GOOGLE_REFRESH_TOKEN", raising=False)
+    ENV_GRANT.reset()
+    yield
+    ENV_GRANT.reset()

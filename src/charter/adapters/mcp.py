@@ -60,6 +60,30 @@ def _render(result: Any) -> str:
         return str(result)
 
 
+def _annotations(types: Any, entry: Any) -> Any:
+    """What a tool does to the world, from the one fact Charter is sure of: its method.
+
+    Clients act on these. Codex runs a tool marked read-only without asking and
+    asks before anything else — and ``codex exec``, which cannot ask, refuses
+    it — so leaving them off made every Charter tool, ``messages_list``
+    included, a refused call there. Only what the method settles is claimed: a
+    ``POST`` may create, send or merely search, so it is marked as not
+    read-only and nothing more, and the client stays cautious.
+    """
+    if isinstance(entry, dict):  # the ToolSearch meta-tool: loads schemas, calls nothing
+        return types.ToolAnnotations(read_only_hint=True, open_world_hint=False)
+    method = str(entry.method).upper()
+    if method in ("GET", "HEAD"):
+        return types.ToolAnnotations(
+            read_only_hint=True, idempotent_hint=True, open_world_hint=True
+        )
+    if method == "DELETE":
+        return types.ToolAnnotations(
+            read_only_hint=False, destructive_hint=True, idempotent_hint=True, open_world_hint=True
+        )
+    return types.ToolAnnotations(read_only_hint=False, open_world_hint=True)
+
+
 def build_server(
     tools: ToolsLike,
     name: str = "charter",
@@ -71,19 +95,20 @@ def build_server(
     Returned unstarted, so it can be driven directly in a test or run over any
     transport the caller likes. :func:`serve` runs it over stdio.
 
-    Pass a :class:`~charter.session.ToolSession` and schemas are sent on demand.
-    MCP is the surface where that costs nothing: the server holds the session,
+    Pass a :class:`~charter.session.ToolSession` and schemas are sent on demand:
     ``tools/list`` reports what is currently loaded, and a load emits
-    ``notifications/tools/list_changed`` so the client re-lists on its own. The
-    client sees plain tools appear, needing no cooperation and no knowledge that
-    anything was deferred.
+    ``notifications/tools/list_changed``. That needs the client's cooperation —
+    it has to re-list and hand the new tools to the model at once — and Codex,
+    Google ADK and headless Claude Code do not give it, which is why the entry
+    point only does this under ``--progressive``.
 
     A plain iterable publishes every schema, exactly as it does through the
     OpenAI and LangChain adapters. One rule across all four surfaces beats a
     per-surface default, even a good one: ``build_server(gmail.TOOLS)`` and
     ``to_openai_tools(gmail.TOOLS)`` should not quietly mean different things.
-    :func:`serve` and ``python -m charter.mcp`` build the session for you, so the
-    server people actually run is progressive by default.
+    :func:`serve` and ``python -m charter.mcp`` follow the same rule, and
+    ``--progressive`` is how the entry point opts in: a client that ignores the
+    notification never sees a loaded tool, and Codex is one.
 
     One server holds one session, which is right for stdio — one process, one
     client — but not for a single HTTP server shared between clients, where what
@@ -91,15 +116,15 @@ def build_server(
     """
     MCPServer, types, ToolError = _require_mcp()
 
-    # `<pack>__<tool>`, always. A host composes `mcp__<server>__<tool>` on top,
+    # `<pack>_<tool>`, always. A host composes `mcp__<server>__<tool>` on top,
     # taking `<server>` from the key the server was *configured under* rather
     # than the name reported here, so the result reads
-    # `mcp__charter__gcalendar__events_list` — each segment a different fact.
+    # `mcp__charter__gcalendar_events_list` — each segment a different fact.
     #
     # Which is why one server should hold every pack you want: configured under
-    # `charter` the whole composed name peaks at 61 of the 64 a function name may
+    # `charter` the whole composed name peaks at 60 of the 64 a function name may
     # occupy, but a server per pack configured under `charter-gsheets` spells the
-    # pack twice for eight more characters and puts three gsheets names over.
+    # pack twice for eight more characters and puts two gsheets names over.
     # docs/using/mcp.mdx configures one server; tests/test_naming.py measures it.
     #
     # Qualified even for one pack, so that adding a second never renames the
@@ -143,6 +168,7 @@ def build_server(
                         if isinstance(entry, dict)
                         else entry.to_json_schema()["parameters"]
                     ),
+                    annotations=_annotations(types, entry),
                 )
                 for entry_name, entry in view_of(session)
             ]
@@ -199,24 +225,17 @@ async def _announce(context: Optional[Any]) -> None:
         pass
 
 
-def _served(tools: ToolsLike) -> ToolSession:
-    """What a served server holds: a session, progressive by its own default.
-
-    This is where the default lives rather than in :func:`build_server`, which
-    stays a literal projection like its sister adapters. Serving is the entry
-    point a person runs, one process to one stdio client, which is exactly the
-    shape progressive disclosure needs.
-    """
-    return tools if isinstance(tools, ToolSession) else ToolSession(tools)
-
-
 async def serve_async(tools: ToolsLike, name: str = "charter") -> None:
-    """Run the MCP server over stdio until the client disconnects."""
-    await build_server(_served(tools), name=name).run_stdio_async()
+    """Run the MCP server over stdio until the client disconnects.
+
+    A plain iterable publishes every schema, as :func:`build_server` does. Pass
+    a progressive :class:`~charter.session.ToolSession` to send them on demand.
+    """
+    await build_server(tools, name=name).run_stdio_async()
 
 
 def serve(tools: ToolsLike, name: str = "charter") -> None:
     """Run the MCP server over stdio (blocking)."""
     import anyio
 
-    anyio.run(serve_async, _served(tools), name)
+    anyio.run(serve_async, tools, name)

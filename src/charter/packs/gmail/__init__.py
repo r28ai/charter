@@ -16,7 +16,9 @@ blob Gmail's ``raw`` field requires. No MIME assembly in your agent.
         body={"raw": {"to": "ada@example.com", "subject": "Hi", "body": "Hello"}}
     )
 
-``configure()`` is optional if ``$GOOGLE_ACCESS_TOKEN`` is set.
+``configure()`` is optional if ``$GOOGLE_TOKEN_FILE``, ``$GOOGLE_REFRESH_TOKEN``
+(with ``$GOOGLE_CLIENT_ID`` and ``$GOOGLE_CLIENT_SECRET``) or ``$GOOGLE_ACCESS_TOKEN``
+is set; the first two renew themselves.
 """
 
 from __future__ import annotations
@@ -24,6 +26,7 @@ from __future__ import annotations
 from charter.auth import CredentialProvider
 from charter.factories import oauth_tool_factory
 from charter.packs._config import DeferredCredentialProvider
+from charter.packs._google import ENV_GRANT
 from charter.packs.gmail.response_handlers import (
     extract_draft_text,
     extract_label,
@@ -72,7 +75,9 @@ SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
 # asks for it only when the tool is actually handed out.
 FULL_MAILBOX_SCOPE = "https://mail.google.com/"
 
-_credentials = DeferredCredentialProvider("gmail", env_var="GOOGLE_ACCESS_TOKEN")
+_credentials = DeferredCredentialProvider(
+    "gmail", env_var="GOOGLE_ACCESS_TOKEN", env_grant=ENV_GRANT
+)
 
 
 def configure(credential_provider: CredentialProvider) -> None:

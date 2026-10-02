@@ -236,7 +236,7 @@ def test_the_map_names_every_field_the_model_is_offered():
 
 def test_gmail_send_withholds_the_entire_mime_tree():
     """The flagship case: Gmail returns payload, and never accepts it."""
-    entry = egress_map(gmail.TOOLS)["gmail__messages_send"]
+    entry = egress_map(gmail.TOOLS)["gmail_messages_send"]
     withheld = {w["field"] for w in entry["withheld"]}
 
     visible = set(entry["visible"])
@@ -369,7 +369,7 @@ def test_the_map_reports_the_mode_the_session_resolved():
     audit that still reports the wide one is worse than no narrowing, because
     the review passes on a document describing a deployment that does not exist.
     """
-    entry = egress_map(_tiered("pro"))["rep__reports_create"]
+    entry = egress_map(_tiered("pro"))["rep_reports_create"]
     assert entry["session_mode"] == "pro"
     assert entry["modes"] == ["pro"]
     assert entry["visible"] == ["account_id", "raw_events"]
@@ -379,7 +379,7 @@ def test_the_map_reports_the_mode_the_session_resolved():
 
 
 def test_a_narrower_mode_withholds_more_and_says_which_label_did_it():
-    entry = egress_map(_tiered("free"))["rep__reports_create"]
+    entry = egress_map(_tiered("free"))["rep_reports_create"]
     assert entry["visible"] == ["account_id"]
     reasons = {w["field"]: w["reason"] for w in entry["withheld"]}
     assert reasons["raw_events"] == "mode=max,pro"
@@ -396,7 +396,7 @@ def test_format_egress_map_renders_a_resolved_mode():
 def test_no_resolved_mode_widens_past_the_declaration():
     """Every label, including ones the author never wrote, and the floor holds."""
     for mode in (None, "free", "pro", "max", "response_only", "disabled", "whatever"):
-        entry = egress_map(_tiered(mode))["rep__reports_create"]
+        entry = egress_map(_tiered(mode))["rep_reports_create"]
         assert "etag" not in entry["visible"], f"mode={mode!r} widened egress"
 
 
@@ -416,7 +416,7 @@ def test_a_session_maps_straight_from_the_tools_it_holds():
     from_map = egress_map(session.tools)
     from_list = egress_map(session.tools.values())
     assert from_map == from_list
-    assert from_map["rep__reports_create"]["session_mode"] == "pro"
+    assert from_map["rep_reports_create"]["session_mode"] == "pro"
 
     # The mapping's own keys are discarded either way: a report is keyed by
     # `report_key`, so handing in a differently-keyed map cannot move a row.
@@ -525,7 +525,7 @@ def test_a_surface_of_several_packs_keeps_every_tool():
 
     assert len(report) == len(tools)
     assert set(report) == {report_key(t) for t in tools}
-    assert {"gdrive__comments_list", "notion__comments_list"} <= set(report)
+    assert {"gdrive_comments_list", "notion_comments_list"} <= set(report)
 
     # Each row still says which tool it is without parsing the key apart.
     for key, entry in report.items():
@@ -630,7 +630,7 @@ def test_a_format_field_is_reported_as_the_type_the_model_fills_in():
     `EmailContent` in the view. Reporting the annotation described a leaf while
     the model was being offered eleven fields under it.
     """
-    entry = egress_map(gmail.TOOLS)["gmail__messages_send"]
+    entry = egress_map(gmail.TOOLS)["gmail_messages_send"]
     visible = set(entry["visible"])
 
     assert {"body.raw.to", "body.raw.cc", "body.raw.subject"} <= visible
@@ -676,7 +676,7 @@ def test_the_benign_union_a_shipped_pack_declares_is_still_allowed():
     The guard refuses a hole, not a union. Refusing the shape outright would
     have broken five shipped tools to fix nothing.
     """
-    entry = egress_map(firecrawl.TOOLS)["firecrawl__scrape"]
+    entry = egress_map(firecrawl.TOOLS)["firecrawl_scrape"]
     assert "redact_pii" in entry["visible"]
 
 

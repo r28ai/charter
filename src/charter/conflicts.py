@@ -68,14 +68,14 @@ def _rules(model: type[BaseModel]) -> List[Dict[str, Any]]:
 def conflict_map(tools: Surface) -> Dict[str, List[Dict[str, Any]]]:
     """The exclusion rules each tool declares, by tool.
 
-    Keyed by :func:`~charter.report_key`: ``<pack>__<tool>``, or the bare name for
+    Keyed by :func:`~charter.report_key`: ``<pack>_<tool>``, or the bare name for
     a tool that declares no pack. Two tools that would share a row raises rather
     than overwriting, for the reason that function gives.
 
     Returns a plain dict, so it serialises straight to JSON for a review::
 
         {
-          "gcalendar__events_list": [
+          "gcalendar_events_list": [
             {"field": "i_cal_uid", "api_name": "iCalUID",
              "excludes": [{"field": "sync_token", "api_name": "syncToken", "declared": true}],
              "reason": "An incremental sync continues ..."},

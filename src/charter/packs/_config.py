@@ -18,22 +18,44 @@ before configuration keeps working after it.
 from __future__ import annotations
 
 import os
-from typing import Dict, Optional
+from typing import Dict, Optional, Protocol
 
 from charter.auth import CredentialProvider, Credentials
 from charter.types.errors import CredentialError
 
-__all__ = ["DeferredCredentialProvider", "DeferredApiKeyHeaders"]
+__all__ = ["DeferredCredentialProvider", "DeferredApiKeyHeaders", "EnvGrant"]
 
 _UNSET = "CHARTER_UNCONFIGURED"
+
+
+class EnvGrant(Protocol):
+    """A renewable credential a pack can find in the environment.
+
+    Checked before the pack's raw-token variable, because a grant renews and a
+    raw token expires. ``variables`` names what to set, for the error a pack
+    raises when it finds nothing.
+    """
+
+    variables: str
+
+    def is_set(self) -> bool: ...
+
+    def provider(self) -> CredentialProvider: ...
 
 
 class DeferredCredentialProvider:
     """A ``CredentialProvider`` whose real provider is supplied after import."""
 
-    def __init__(self, pack: str, env_var: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        pack: str,
+        env_var: Optional[str] = None,
+        *,
+        env_grant: Optional[EnvGrant] = None,
+    ) -> None:
         self._pack = pack
         self._env_var = env_var
+        self._env_grant = env_grant
         self._provider: Optional[CredentialProvider] = None
 
     def configure(self, provider: CredentialProvider) -> None:
@@ -45,15 +67,27 @@ class DeferredCredentialProvider:
         return self._env_var
 
     @property
+    def env_grant(self) -> Optional[EnvGrant]:
+        """The renewable grant this pack also looks for, for documentation."""
+        return self._env_grant
+
+    @property
     def is_configured(self) -> bool:
-        return self._provider is not None or bool(self._env_var and os.environ.get(self._env_var))
+        return (
+            self._provider is not None
+            or bool(self._env_grant and self._env_grant.is_set())
+            or bool(self._env_var and os.environ.get(self._env_var))
+        )
 
     async def get_credentials(self, provider: str) -> Credentials:
         if self._provider is not None:
             return await self._provider.get_credentials(provider)
 
-        # Fall back to the documented environment variable, so a script or the
-        # MCP entry point works without writing any configuration code.
+        # Fall back to the documented environment variables, so a script or the
+        # MCP entry point works without writing any configuration code — a
+        # renewable grant first, since a raw token outlives nothing.
+        if self._env_grant is not None and self._env_grant.is_set():
+            return await self._env_grant.provider().get_credentials(provider)
         if self._env_var:
             token = os.environ.get(self._env_var)
             if token:
@@ -63,10 +97,13 @@ class DeferredCredentialProvider:
         # shapes for this pack are written out. Two raise sites, twelve packs,
         # one link each: this is the first error a new adopter meets, and the
         # page it lands on is the one that answers it.
+        variables = f"${self._env_var}"
+        if self._env_grant is not None:
+            variables = f"{self._env_grant.variables}, or {variables}"
         raise CredentialError(
             f"charter.packs.{self._pack} has no credentials. Either call "
             f"charter.packs.{self._pack}.configure(credential_provider=...) or set "
-            f"${self._env_var}.",
+            f"{variables}.",
             provider=provider,
             docs=f"packs/{self._pack}",
         )

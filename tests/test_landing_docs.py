@@ -446,7 +446,7 @@ def test_the_field_split_in_prose_matches_the_egress_map():
     """The 'five fields / withholds nine' claim is the egress map, in words."""
     from charter.packs import gmail
 
-    entry = egress_map([gmail.drafts_create])["gmail__drafts_create"]
+    entry = egress_map([gmail.drafts_create])["gmail_drafts_create"]
     visible, withheld = len(entry["visible"]), len(entry["withheld"])
 
     claim = f"offers the model {_word(visible)} fields and withholds {_word(withheld)}"
@@ -748,7 +748,7 @@ def test_the_quickstart_prints_the_egress_map_the_runtime_prints():
     actual = format_egress_map([gmail.messages_send]).splitlines()
     page = (DOCS / "start/quickstart.mdx").read_text()
 
-    block = re.search(r"```text\n(gmail__messages_send.*?)```", page, re.S)
+    block = re.search(r"```text\n(gmail_messages_send.*?)```", page, re.S)
     assert block, "the quickstart no longer prints an egress map"
     shown = [line for line in block.group(1).splitlines() if line.strip()]
 

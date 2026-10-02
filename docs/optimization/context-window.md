@@ -191,7 +191,7 @@ Three Linear list tools — `teams_list_full`, `issues_list_full`,
 `projects_list_full` — measured through the adapters this library ships:
 
 ```
-OpenAI    541,407 bytes    77 $defs per tool, 79 distinct across the whole payload
+OpenAI    541,404 bytes    77 $defs per tool, 79 distinct across the whole payload
 MCP       540,743 bytes    77 $defs per tool
 ```
 
@@ -213,11 +213,11 @@ Making them small is the whole of it, and it compounds the same way the cost
 does. The same three tools with `drop={"filter"}` applied:
 
 ```
-as shipped    541,407 bytes    77 $defs per tool
-projected       3,530 bytes     1 $def  per tool
+as shipped    541,404 bytes    77 $defs per tool
+projected       3,527 bytes     1 $def  per tool
 ```
 
-153x, because the saving lands once per tool rather than once. Progressive
+154x, because the saving lands once per tool rather than once. Progressive
 disclosure is the other half of the same lever: it decides how many copies are in
 the payload, while a projection decides what each copy weighs.
 

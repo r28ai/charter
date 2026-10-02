@@ -10,7 +10,7 @@ pip install 'charter-ai[mcp]'
 python -m charter.mcp --pack gmail
 ```
 
-`--pack` takes one pack name or several, repeated or comma-separated; `--name` overrides the server name, which defaults to `charter` and [not to the pack](/reference/naming), so the name a host composes reads `mcp__charter__gmail__messages_send` rather than spelling the pack twice. Every flag is listed under [`python -m charter.mcp`](/reference/cli#python-m-charter-mcp).
+`--pack` takes one pack name or several, repeated or comma-separated; `--name` overrides the server name, which defaults to `charter` and [not to the pack](/reference/naming), so the name a host composes reads `mcp__charter__gmail_messages_send` rather than spelling the pack twice. Every flag is listed under [`python -m charter.mcp`](/reference/cli#python-m-charter-mcp).
 
 <Note>
 **One command, every platform** — including the three where it used to need a second one. The extra reaches `cryptography` three levels down, `mcp` → `pyjwt[crypto]` → `cryptography`, and that is a Rust extension whose wheels have been retired platform by platform. Where a wheel is missing, pip and uv fall through to a source build that needs a Rust toolchain, and the install fails in `cargo metadata` before Charter is reached — with an error that names maturin and `Cargo.lock` and reads like nothing to do with an MCP server.
@@ -29,7 +29,38 @@ So the extra caps `cryptography` on exactly the platforms that need it, at the n
 Nothing in Charter imports `cryptography` — it reaches `mcp` only for OAuth verification on HTTP transports, and Charter serves stdio — so the older version costs those platforms no behaviour. The core install and every pack are unaffected, and no other extra pulls it.
 </Note>
 
-Schemas are sent on demand. MCP is the surface where that costs nothing: the server holds a [`ToolSession`](/reference/tool-discovery#toolsession), `tools/list` reports what is currently loaded, and a load emits `notifications/tools/list_changed` so your client re-lists on its own. Gmail's 23 tools arrive as a single `ToolSearch` whose description lists them by name; each one appears as it is used. Pass [`--no-progressive`](/reference/cli#python-m-charter-mcp) for a client that ignores the notification.
+Every schema is sent when the server starts. That is the one shape every client handles: the tools are in `tools/list` from the first request, and nothing depends on how a client reacts to a list that changes. Checked against the real clients below, each running a model that read a live Gmail inbox through the server: Claude Code 2.1, Codex 0.160, Grok Build 1.0, OpenClaw 2026.9, Hermes Agent 0.21 and Google ADK 2.10.
+
+The cost is the schemas, so serve the packs you need rather than all fifteen:
+
+| Pack | Tools | Tokens of schema |
+|---|---|---|
+| `gmail` | 23 | 8,447 |
+| `slack` | 18 | 4,495 |
+| `gdocs` | 3 | 7,689 |
+| `gdrive` | 25 | 17,559 |
+| `stripe` | 59 | 24,437 |
+| `github` | 139 | 33,861 |
+| `gcalendar` | 13 | 36,247 |
+| `notion` | 35 | 78,710 |
+| `gsheets` | 17 | 92,134 |
+| `linear` | 128 | 95,929 |
+| all fifteen | 549 | 458,189 |
+
+A [projection](/tools/projections) is how a pack gets smaller without losing a tool you use. Claude Code defers MCP schemas with its own tool search once they grow large, so there the size costs little.
+
+### Loading on demand
+
+[`--progressive`](/reference/cli#python-m-charter-mcp) sends a single `ToolSearch` instead, whose description lists every tool by name, and adds a tool to `tools/list` when the model asks for it, announcing each load with `notifications/tools/list_changed`. It only works in a client that re-lists on that notification *and* hands the new tools to the model straight away, which most do not:
+
+| Client | What happened with `--progressive` |
+|---|---|
+| Codex 0.160 | Logs the notification and keeps the list it started with. The loaded tools never arrive. |
+| Claude Code 2.1, headless | `ToolSearch` reported the tools loaded; every call to them failed with *No such tool available*. |
+| Google ADK 2.10 | Reads the list once per turn, so a loaded tool is usable only from the user's next message. Within one turn the model called `ToolSearch` about 130 times and never reached the tool. |
+| Hermes Agent 0.21 | Re-lists, and the loaded tool works. The model tried the bare name once before the one Hermes registered. |
+
+So leave it off unless the client is Hermes and the packs are large.
 
 ## Add it to your client
 
@@ -38,7 +69,26 @@ The server speaks stdio, so a client runs it as a command rather than connecting
 <CodeGroup>
 
 ```bash Claude Code
-claude mcp add charter -- python -m charter.mcp --pack gmail,gsheets,slack
+claude mcp add charter -- python -m charter.mcp --pack gmail,gdrive,slack
+```
+
+```toml Codex (~/.codex/config.toml)
+[mcp_servers.charter]
+command = "python"
+args = ["-m", "charter.mcp", "--pack", "gmail,gdrive,slack"]
+env = { GOOGLE_TOKEN_FILE = "/path/to/token.json" }
+```
+
+```bash Grok Build
+grok mcp add -e GOOGLE_TOKEN_FILE=/path/to/token.json charter python -- -m charter.mcp --pack gmail,gdrive,slack
+```
+
+```bash OpenClaw
+openclaw mcp add charter --command python --arg=-m --arg=charter.mcp --arg=--pack --arg=gmail,gdrive,slack --env GOOGLE_TOKEN_FILE=/path/to/token.json
+```
+
+```bash Hermes Agent
+hermes mcp add charter --env GOOGLE_TOKEN_FILE=~/.hermes/google_token.json --command python --args -m charter.mcp --pack gmail,gdrive,slack
 ```
 
 ```json Cursor (.cursor/mcp.json)
@@ -46,9 +96,9 @@ claude mcp add charter -- python -m charter.mcp --pack gmail,gsheets,slack
   "mcpServers": {
     "charter": {
       "command": "python",
-      "args": ["-m", "charter.mcp", "--pack", "gmail,gsheets,slack"],
+      "args": ["-m", "charter.mcp", "--pack", "gmail,gdrive,slack"],
       "env": {
-        "GOOGLE_ACCESS_TOKEN": "${GOOGLE_ACCESS_TOKEN}",
+        "GOOGLE_TOKEN_FILE": "${GOOGLE_TOKEN_FILE}",
         "SLACK_BOT_TOKEN": "${SLACK_BOT_TOKEN}"
       }
     }
@@ -62,23 +112,40 @@ claude mcp add charter -- python -m charter.mcp --pack gmail,gsheets,slack
     "charter": {
       "type": "stdio",
       "command": "python",
-      "args": ["-m", "charter.mcp", "--pack", "gmail,gsheets,slack"]
+      "args": ["-m", "charter.mcp", "--pack", "gmail,gdrive,slack"]
     }
   }
 }
 ```
 
-```toml Codex (~/.codex/config.toml)
-[mcp_servers.charter]
-command = "python"
-args = ["-m", "charter.mcp", "--pack", "gmail,gsheets,slack"]
+```python Google ADK
+from google.adk.agents import LlmAgent
+from google.adk.tools.mcp_tool.mcp_session_manager import StdioConnectionParams
+from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
+from mcp import StdioServerParameters
+
+charter = McpToolset(
+    connection_params=StdioConnectionParams(
+        server_params=StdioServerParameters(
+            command="python",
+            args=["-m", "charter.mcp", "--pack", "gmail,gdrive,slack"],
+            env={"GOOGLE_TOKEN_FILE": "/path/to/token.json"},
+        ),
+        timeout=60,
+    )
+)
+agent = LlmAgent(name="assistant", model="gemini-2.5-flash", tools=[charter])
 ```
 
 </CodeGroup>
 
-**One entry, however many packs.** Name the server `charter` and give `--pack` a list. This is worth getting right, because the name your host composes is built from the key you write here, not from anything the server reports. Under `charter` a tool arrives as `mcp__charter__gsheets__values_get`; under a key named after the pack, `charter-gsheets`, it arrives as `mcp__charter-gsheets__gsheets__values_get`, which says `gsheets` twice and spends eight more of the 64 characters a function name is allowed. On the widest pack shipped that is the difference between 61 characters and 69, and three gsheets tools stop being callable.
+**One entry, however many packs.** Name the server `charter` and give `--pack` a list. This is worth getting right, because the name your host composes is built from the key you write here, not from anything the server reports. Under `charter` a tool arrives as `mcp__charter__gsheets_values_get`; under a key named after the pack, `charter-gsheets`, it arrives as `mcp__charter-gsheets__gsheets_values_get`, which says `gsheets` twice and spends eight more of the 64 characters a function name is allowed. On the widest pack shipped that is the difference between 60 characters and 68, and two gsheets tools stop being callable.
 
-Nothing is lost by combining them. Schemas already load on demand, and a single [`ToolSearch`](/reference/tool-discovery#toolsession) spans every pack the server holds, so three packs cost the same up-front context as one. A pack you have no credential for is inert rather than broken: the tool is listed, and calling it raises a [`CredentialError`](/reference/errors#credentialerror) naming the variable to set.
+**Tool names carry one underscore.** `gmail_messages_list`, never `gmail__messages_list`: hosts join server and tool with `__`, and Grok Build drops any tool whose own name contains it. See [naming](/tools/naming).
+
+**Reads run without asking.** Each tool is annotated from its method: a `GET` is marked read-only, a `DELETE` destructive, and anything else as not read-only. Codex runs a read-only tool without an approval prompt and asks before the rest; `codex exec`, which cannot ask, refuses the rest unless you set `default_tools_approval_mode` on the server.
+
+A pack you have no credential for is inert rather than broken: the tool is listed, and calling it raises a [`CredentialError`](/reference/errors#credentialerror) naming the variable to set.
 
 Restart the client after adding the server.
 
@@ -88,7 +155,7 @@ The entry point reads them from the environment — the same [environment fallba
 
 | Pack | Environment variable |
 |---|---|
-| `gmail`, `gcalendar`, `gsheets`, `gdocs`, `gdrive`, `gforms` | `GOOGLE_ACCESS_TOKEN` |
+| `gmail`, `gcalendar`, `gsheets`, `gdocs`, `gdrive`, `gforms` | `GOOGLE_TOKEN_FILE`, or `GOOGLE_REFRESH_TOKEN` with `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, or `GOOGLE_ACCESS_TOKEN` |
 | `slack` | `SLACK_BOT_TOKEN` |
 | `github` | `GITHUB_TOKEN` |
 | `stripe` | `STRIPE_API_KEY` |
@@ -97,12 +164,15 @@ The entry point reads them from the environment — the same [environment fallba
 | `firecrawl` | `FIRECRAWL_API_KEY` |
 | `notion` | `NOTION_API_KEY` |
 | `granola` | `GRANOLA_API_KEY` |
+| `tavily` | `TAVILY_API_KEY` |
 
 Shopify needs both variables, since the host is a property of the store.
 
-<Note>
-A raw access token expires in about an hour. For a server that stays up, configure the pack with an [OAuth client](/auth/authorization-servers) in your own process rather than using the environment entry point.
-</Note>
+**Give a Google server a grant, not a token.** `GOOGLE_ACCESS_TOKEN` expires in about an hour and nothing renews it, so a server started from one fails every Google call an hour in. `GOOGLE_TOKEN_FILE` points at an authorized-user JSON file — the `token.json` Google's quickstarts write, Hermes Agent's `google_token.json`, or the file `gcloud auth application-default login` writes — and the server renews from it for as long as it runs. The three `GOOGLE_*` variables are the same grant spelled out; [your own account](/auth/your-own-account) ends with them. Either one wins over `GOOGLE_ACCESS_TOKEN`. Two servers side by side, one on each, both read the inbox at minute zero; at minute 62 the access-token server got a `401` and the token-file server read it again.
+
+The token file holds a refresh token, so keep it readable by you alone — `chmod 600 /path/to/token.json`. The server warns once, on stderr, when other users on the machine can read it, and never changes the file itself.
+
+**One account per process.** Credentials from the environment are what the MCP spec prescribes for a stdio server, and they are one person's: the server runs on your machine, for you, and holds one grant. To serve many users from one process, give each their own grant through a [`SubjectProvider`](/auth/authorization-servers#serving-many-users) over your own store — set these variables on a shared server and every user acts as this one account.
 
 ## What the client sees
 
@@ -111,5 +181,5 @@ The tools a pack exports, with the schema the model is allowed to see — not th
 ## Related
 
 - [`python -m charter.mcp`](/reference/cli) — the flags, the client configuration, and using it as a function
-- [Environment fallbacks](/reference/configuration#environment-fallbacks) — the variable each pack reads
+- [Environment fallbacks](/reference/configuration#environment-fallbacks) — the variable each pack reads, and the order they are tried in
 - [`Mode`](/reference/markers#mode) — what the client is not shown, and why

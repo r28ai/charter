@@ -36,7 +36,7 @@ never reaches your model.
 ## Authenticating
 
 {/* generated:auth start — do not edit by hand; run scripts/generate_pack_docs.py */}
-This pack takes a Google OAuth bearer token, and [`configure()`](/reference/configuration#configure) is optional when `$GOOGLE_ACCESS_TOKEN` is set. Which credential provider you hand it depends on whose account the calls run as.
+This pack takes a Google OAuth bearer token, and [`configure()`](/reference/configuration#configure) is optional when a [renewable grant](/reference/configuration#environment-fallbacks) or `$GOOGLE_ACCESS_TOKEN` is set. Which credential provider you hand it depends on whose account the calls run as.
 
 <Note>
 Refer to [Google's provider page](/auth/providers/google) for the "GOOGLE" constant the snippets below name, the scopes these 23 tools ask for, and this server's refresh behaviour.

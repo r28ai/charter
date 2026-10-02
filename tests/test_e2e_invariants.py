@@ -633,7 +633,7 @@ def test_an_unknown_tool_is_a_charter_error(sent):
     tool = api(pack="p")(name="alpha_list", args_schema=NoArgs, method="GET", url_template="e")
     session = ToolSession([tool])
     with pytest.raises(CharterError):
-        asyncio.run(session.dispatch("p__nope", {}))
+        asyncio.run(session.dispatch("p_nope", {}))
 
 
 # -----------------------------------------------------

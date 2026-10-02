@@ -315,7 +315,7 @@ def test_description_and_action_label_can_be_restated():
 
 def test_the_egress_map_reports_what_the_projection_removed():
     edit = gdocs.documents_batch_update.derived(name="documents_edit_text", keep=TEXT)
-    entry = egress_map([edit])["gdocs__documents_edit_text"]
+    entry = egress_map([edit])["gdocs_documents_edit_text"]
 
     withheld = {w["field"]: w["reason"] for w in entry["withheld"]}
     assert withheld["body.requests.insert_table"] == "projection"
@@ -328,7 +328,7 @@ def test_the_egress_map_reports_a_pin_with_its_value():
         name="search_documents",
         pin={"q": "mimeType='application/vnd.google-apps.document'"},
     )
-    entry = egress_map([scoped])["gdrive__search_documents"]
+    entry = egress_map([scoped])["gdrive_search_documents"]
 
     assert "google-apps.document" in entry["pinned"]["q"]
     pinned = [w for w in entry["withheld"] if w["field"] == "q"]

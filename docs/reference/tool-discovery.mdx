@@ -81,13 +81,13 @@ len(session.tools), len(to_openai_tools(session))
 # (82, 1)        eighty-two tools, one definition: ToolSearch
 
 session.search("+stripe refund")
-# {"loaded": ["stripe__refunds_create", "stripe__refunds_list", ...], "note": "..."}
+# {"loaded": ["stripe_refunds_create", "stripe_refunds_list", ...], "note": "..."}
 
 len(to_openai_tools(session))
 # 6
 ```
 
-Eighty-two tools cost 893 tokens on the first turn instead of 36,710.
+Eighty-two tools cost 872 tokens on the first turn instead of 36,689.
 
 ### What the model sees
 
@@ -98,7 +98,7 @@ filters by pack without a grouping API. It takes three query forms.
 
 | Query | Meaning |
 |---|---|
-| `select:gmail__drafts_send,gmail__drafts_get` | These exact tools. Not truncated. |
+| `select:gmail_drafts_send,gmail_drafts_get` | These exact tools. Not truncated. |
 | `calendar event` | Keyword search, best `max_results` matches. |
 | `+stripe refund` | Require `stripe` in the name, rank by the rest. |
 
@@ -213,9 +213,12 @@ See [the mode system](/boundary/mode-system#a-label-or-none).
 | LangChain | [`CharterMiddleware(session)`](#chartermiddleware) | nothing |
 | MCP | [`serve(session)`](/reference/cli) | nothing |
 
-MCP is the surface where this costs nothing at all: the server holds the session,
-and a load emits `notifications/tools/list_changed`, so the client re-lists and
-sees plain tools appear. It needs no knowledge that anything was deferred.
+MCP is the surface where this depends on the client. The server holds the
+session and a load emits `notifications/tools/list_changed`, but a client has to
+re-list on it and hand the new tools to the model at once, and most do not:
+Codex keeps the list it started with, and Google ADK reads it once per turn.
+`python -m charter.mcp` sends every schema unless you pass `--progressive`;
+[the MCP page](/using/mcp#loading-on-demand) records what each client did.
 
 The projections underneath are public — `to_openai_tools(session)`,
 `to_langchain_tools(session)`, `build_server(session)` all take a session and

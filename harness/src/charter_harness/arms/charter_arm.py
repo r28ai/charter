@@ -357,7 +357,7 @@ def pack_tools(pack: str) -> list[Tool]:
 
 
 def model_facing_names(packs: Sequence[str]) -> dict[tuple[str, str], str]:
-    """(pack, tool) -> the name the model sees: ``<pack>__<tool>``, always.
+    """(pack, tool) -> the name the model sees: ``<pack>_<tool>``, always.
 
     Always qualified, via :func:`charter.qualified_names` — the harness is the
     surface that assembles several packs into one namespace, which is the layer

@@ -605,7 +605,7 @@ def test_setting_two_members_of_such_a_union_is_still_rejected():
 
 def test_a_post_offers_only_the_three_fields_a_caller_writes():
     """Eight of Post's eleven fields are ``Output only`` in the reference."""
-    entry = egress_map(gsheets.TOOLS)["gsheets__spreadsheets_create"]
+    entry = egress_map(gsheets.TOOLS)["gsheets_spreadsheets_create"]
     prefix = "spreadsheet.comments.head_post."
 
     visible = {f[len(prefix) :] for f in entry["visible"] if f.startswith(prefix)}
@@ -644,7 +644,7 @@ def test_the_preview_comment_surface_is_modelled():
 
     withheld = {
         entry["field"]
-        for entry in egress_map(gsheets.TOOLS)["gsheets__spreadsheets_create"]["withheld"]
+        for entry in egress_map(gsheets.TOOLS)["gsheets_spreadsheets_create"]["withheld"]
     }
     assert "spreadsheet.comments_view_mode" in withheld
     assert "spreadsheet.sheets.comment_anchors.anchor_id" in withheld

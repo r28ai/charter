@@ -108,6 +108,11 @@ call that reads them off the tools.
 Three values, in your environment or your secret manager: the client id, the
 client secret, and the refresh token.
 
+Exported as `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and
+`GOOGLE_REFRESH_TOKEN`, they are already enough: every Google pack, and the
+[MCP server](/using/mcp), renews from them with no code, and the next step is
+for when you want to build the client yourself.
+
 Not the access token. It lasts about an hour, and the next step's client
 fetches a fresh one whenever it needs one.
 

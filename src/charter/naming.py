@@ -16,14 +16,14 @@ way whether it is reached inline, through LangChain, or over MCP.
 
 An MCP host composes ``mcp__<server>__<tool>`` on top, which is why the MCP
 entry point names its server ``charter`` rather than after a pack: the result
-reads ``mcp__charter__gcalendar__events_list``, each segment saying a different
+reads ``mcp__charter__gcalendar_events_list``, each segment saying a different
 thing, instead of repeating the pack twice.
 
 That is a budget and not only a preference. The host builds ``<server>`` from
 the key the server was *configured under*, and the whole composed name has to
 fit the 64 characters OpenAI allows a function name. One server holding every
-pack peaks at 61; naming a server after the pack it serves — ``charter-gsheets``
-— spends eight more on saying ``gsheets`` a second time and puts three names
+pack peaks at 60; naming a server after the pack it serves — ``charter-gsheets``
+— spends eight more on saying ``gsheets`` a second time and puts two names
 over. So ``--pack`` takes a list, and the setup page configures one server.
 
 **Always, and identically.** A tool's published name is a function of that tool
@@ -35,15 +35,21 @@ installed, and the host prefixes with the server — and it is the property wort
 copying.
 
 **All of them or none of them.** :func:`qualified_names` never qualifies "just
-the collisions". A surface where ``stripe__products_list`` sits beside a bare
+the collisions". A surface where ``stripe_products_list`` sits beside a bare
 ``balance_retrieve`` makes the pack a substring of some names and not others, so
 any filter over it — a ``+stripe`` in a tool search, a log grep, an
 allow-list — silently misses the unqualified half. A filter that works on most
 names is worse than none, because nothing tells you which half you got.
 
-**Why the doubled underscore.** Tool names contain single underscores, so
-``stripe_products_list`` cannot be split back into pack and tool, while
-``stripe__products_list`` can. MCP doubles it for the same reason.
+**Why one underscore, and none in a pack.** ``stripe_products_list`` is the
+shape the MCP servers people use already publish — Playwright's
+``browser_click``, GitHub's ``actions_list`` — and it still splits back into
+pack and tool, because a pack name may not contain an underscore: the first one
+is always the boundary. Charter used ``__`` until 0.2.6, and it is the one
+separator that does not work everywhere. Hosts join server and tool with it
+(``mcp__<server>__<tool>``), so a host that parses its own names back cannot
+tell where the server ends: Grok Build drops every tool whose name contains it.
+No qualified name may contain ``__`` for that reason.
 
 **A report is not a tool surface.** :func:`report_key` is the one place that
 falls back to a bare name, for the dict an audit artifact keys by, and it is not
@@ -68,7 +74,11 @@ if TYPE_CHECKING:  # pragma: no cover - import cycle at runtime, fine for typing
 
 __all__ = ["SEPARATOR", "check_pack", "qualified_name", "qualified_names", "report_key"]
 
-SEPARATOR = "__"
+SEPARATOR = "_"
+
+# What hosts join server and tool names with. A tool name containing it cannot
+# be parsed back out of the host's own composition, and Grok Build drops it.
+_HOST_DELIMITER = "__"
 
 # What a name may contain, taken from the strictest surface Charter targets:
 # OpenAI accepts `^[a-zA-Z0-9_-]{1,64}$` for a function name and nothing else. A
@@ -85,11 +95,12 @@ def _check(part: str, kind: str, tool_name: str) -> None:
             f"[A-Za-z0-9_-] and nothing else.",
             docs="tools/naming",
         )
-    if SEPARATOR in part:
+    if _HOST_DELIMITER in part:
         raise DeclarationError(
-            f"{kind} {part!r} (on tool {tool_name!r}) contains {SEPARATOR!r}, which is "
-            f"what separates the pack from the tool. A qualified name has to split "
-            f"back into its two halves, and this one would not.",
+            f"{kind} {part!r} (on tool {tool_name!r}) contains {_HOST_DELIMITER!r}, "
+            f"which MCP hosts use to join a server's name to a tool's. A host that "
+            f"parses its names back cannot tell where this one splits, and Grok "
+            f"Build drops the tool.",
             docs="tools/naming",
         )
 
@@ -106,7 +117,7 @@ def check_pack(pack: str, where: str) -> None:
     if not isinstance(pack, str) or not pack.strip():
         raise DeclarationError(
             f"{where} needs a non-empty pack label. It is the namespace every tool "
-            f"built here is published under — `<pack>__<tool>` — so two APIs that "
+            f"built here is published under — `<pack>_<tool>` — so two APIs that "
             f"both declare `products_list` stay distinguishable.",
             docs="tools/naming",
         )
@@ -120,19 +131,21 @@ def check_pack(pack: str, where: str) -> None:
     if SEPARATOR in pack:
         raise DeclarationError(
             f"Pack {pack!r} ({where}) contains {SEPARATOR!r}, which is what separates "
-            f"the pack from the tool. A qualified name has to split back into its two "
-            f"halves, and this one would not.",
+            f"the pack from the tool: `<pack>_<tool>` splits at its first underscore, "
+            f"and this one would split inside the pack. Use letters, digits and "
+            f"hyphens.",
             docs="tools/naming",
         )
 
 
 def qualified_name(tool: Tool) -> str:
-    """``<pack>__<name>``.
+    """``<pack>_<name>``.
 
     Raises:
         DeclarationError: if the tool declares no ``pack``; if either half is
-            not usable in a tool name; or if either half contains ``__``, which
-            would leave the result impossible to split back apart.
+            not usable in a tool name; if the pack contains ``_``, which would
+            leave the result impossible to split back apart; or if either half
+            contains ``__``, which hosts reserve for joining server and tool.
 
     Falling back to the bare name for a tool with no pack would produce the
     half-qualified surface this module exists to prevent, and silently.
@@ -145,11 +158,12 @@ def qualified_name(tool: Tool) -> str:
         )
     _check(tool.pack, "Pack", tool.name)
     _check(tool.name, "Tool name", tool.name)
+    check_pack(tool.pack, f"tool {tool.name!r}")
     return f"{tool.pack}{SEPARATOR}{tool.name}"
 
 
 def report_key(tool: Tool) -> str:
-    """The row a tool gets in an audit artifact: ``<pack>__<tool>``, or its name.
+    """The row a tool gets in an audit artifact: ``<pack>_<tool>``, or its name.
 
     :func:`egress_map <charter.egress_map>` and
     :func:`conflict_map <charter.conflict_map>` both key a dict by tool, and both
@@ -210,7 +224,7 @@ def _duplicate_row(key: str, tool: Tool) -> DeclarationError:
 
 
 def qualified_names(tools: Iterable[Tool]) -> Dict[str, Tool]:
-    """Every tool under ``<pack>__<name>``, keyed by the qualified name.
+    """Every tool under ``<pack>_<name>``, keyed by the qualified name.
 
     Raises:
         DeclarationError: if a tool has no pack, or if two tools qualify to the

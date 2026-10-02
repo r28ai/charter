@@ -353,7 +353,7 @@ def test_egress_doc_example_matches_reality():
     from charter.packs import gmail
 
     doc = (ROOT / "docs" / "boundary" / "egress-control.md").read_text()
-    entry = egress_map(gmail.TOOLS)["gmail__messages_send"]
+    entry = egress_map(gmail.TOOLS)["gmail_messages_send"]
     withheld = {w["field"] for w in entry["withheld"]}
 
     for field in ("body.payload", "body.id", "body.snippet"):

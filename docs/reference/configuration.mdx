@@ -77,7 +77,7 @@ first use.
 
 | Pack | Variable |
 |---|---|
-| `gmail`, `gcalendar`, `gsheets`, `gdocs`, `gdrive`, `gforms` | `GOOGLE_ACCESS_TOKEN` |
+| `gmail`, `gcalendar`, `gsheets`, `gdocs`, `gdrive`, `gforms` | `GOOGLE_TOKEN_FILE`, or `GOOGLE_REFRESH_TOKEN` with `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, or `GOOGLE_ACCESS_TOKEN` |
 | `slack` | `SLACK_BOT_TOKEN` |
 | `github` | `GITHUB_TOKEN` |
 | `stripe` | `STRIPE_API_KEY` |
@@ -86,14 +86,41 @@ first use.
 | `firecrawl` | `FIRECRAWL_API_KEY` |
 | `notion` | `NOTION_API_KEY` |
 | `granola` | `GRANOLA_API_KEY` |
+| `tavily` | `TAVILY_API_KEY` |
 
-The bearer variables are read per call, so a sidecar that refreshes one is
-picked up without a restart. The API-key variables are read at import.
+The bearer variables are read per call, and the API-key variables at import.
+
+**The Google packs take a renewable grant.** A raw access token expires in about
+an hour and nothing renews it, so the six Google packs also look for a grant,
+tried first:
+
+1. `GOOGLE_TOKEN_FILE` — the path of an authorized-user JSON file: the
+   `token.json` google-auth writes, Hermes Agent's `google_token.json`, or
+   gcloud's `application_default_credentials.json`. Only `client_id`,
+   `client_secret` and `refresh_token` are read, and `~` is expanded.
+2. `GOOGLE_REFRESH_TOKEN` with `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` —
+   the three values [your own account](/auth/your-own-account) ends with.
+3. `GOOGLE_ACCESS_TOKEN`.
+
+A grant is renewed by one [`OAuth2Client`](/reference/oauth#oauth2client) shared
+by all six packs, so a call to Gmail and one to Calendar spend one refresh. The
+file is read per call, and a different grant in it is picked up without a
+restart. A grant that is named but unusable — a file that cannot be read, an
+OAuth client file in place of a token, a refresh token without its client —
+raises a [`CredentialError`](/reference/errors#credentialerror) saying which,
+rather than falling through to `GOOGLE_ACCESS_TOKEN`.
+
+The token file holds a refresh token: keep it readable by its owner alone
+(`chmod 600`). Charter warns once per process when other users can read it, and
+never changes it.
 
 This is the path the [MCP entry point](/using/mcp) uses, which is why it needs
-no configuration code. A raw access token expires in about an hour: for a server
-that stays up, configure the pack with an
-[`OAuth2Client`](/reference/oauth) in your own process instead.
+no configuration code. **It is one account per process** — the shape the MCP
+spec prescribes for a stdio server, which reads its credentials from the
+environment. Serving many users means a grant per user, through a
+[`SubjectProvider`](/reference/credentials) over your own store; persisting a
+rotated refresh token is an [`OAuth2Client`](/reference/oauth) with
+`on_refresh`, in your own process.
 
 ## Settings that tune behaviour
 

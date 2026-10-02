@@ -216,12 +216,12 @@ def test_withheld_tools_never_reach_the_model():
     for pack, name in EXCLUDED_TOOLS:
         assert name not in {t.name for t in pack_tools(pack)}
     names = {d.name for d in CharterArm().tools(["gmail", "slack"], Wiring(settings=Settings()))}
-    # Qualified as <pack>__<tool>, so assert on the qualified name: a bare
+    # Qualified as <pack>_<tool>, so assert on the qualified name: a bare
     # "messages_send" is absent from this set whether or not it is withheld,
     # which would make the check pass for the wrong reason.
-    assert "gmail__messages_send" not in names
-    assert "slack__search_messages" not in names
-    assert "gmail__drafts_create" in names and "slack__chat_post_message" in names
+    assert "gmail_messages_send" not in names
+    assert "slack_search_messages" not in names
+    assert "gmail_drafts_create" in names and "slack_chat_post_message" in names
 
 
 def test_inspect_truncation_is_disabled_on_every_tooldef():

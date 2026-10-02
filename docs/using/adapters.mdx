@@ -8,7 +8,7 @@ Charter is not an agent framework and does not ship an agent loop. It is the lay
 That means tools stay built once. The [credential lookup](/auth/authorization-servers) happens below every adapter, so [serving many users](/auth/authorization-servers) works unchanged whichever one you use — or none.
 
 <Note>
-**Every adapter publishes `<pack>__<tool>`.** Both factories require a `pack` for that reason, so a tool built by one always has a name an assembler can use. A [`Tool`](/reference/tool#tool) constructed directly does not — that case is for something you only ever `ainvoke` yourself — and publishing one is refused here rather than given a bare name that a `+stripe` filter or a log grep would silently miss. [The naming rules](/tools/naming) are the argument.
+**Every adapter publishes `<pack>_<tool>`.** Both factories require a `pack` for that reason, so a tool built by one always has a name an assembler can use. A [`Tool`](/reference/tool#tool) constructed directly does not — that case is for something you only ever `ainvoke` yourself — and publishing one is refused here rather than given a bare name that a `+stripe` filter or a log grep would silently miss. [The naming rules](/tools/naming) are the argument.
 </Note>
 
 ## OpenAI
@@ -56,7 +56,7 @@ Install it with: pip install 'charter-ai[langchain]'
 
 ## Sending schemas on demand
 
-A [`ToolSession`](/reference/tool-discovery#toolsession) sends the schemas of the tools the model has reached for, plus a `ToolSearch` that loads the rest, so Gmail and Stripe together cost 893 tokens on the first turn instead of 36,710.
+A [`ToolSession`](/reference/tool-discovery#toolsession) sends the schemas of the tools the model has reached for, plus a `ToolSearch` that loads the rest, so Gmail and Stripe together cost 872 tokens on the first turn instead of 36,689.
 
 Its tool list grows, which means the loop has to rebuild that list every turn. Charter ships the loop rather than asking you to remember:
 
