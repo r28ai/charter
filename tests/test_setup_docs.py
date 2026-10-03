@@ -83,7 +83,9 @@ def test_the_github_link_asks_for_the_pack_s_scopes():
 def test_every_screenshot_is_on_the_page_and_every_reference_resolves():
     page = (DOCS / "auth" / "setup" / "google.mdx").read_text()
     referenced = set(re.findall(r'src="(/images/setup/google/[^"]+)"', page))
-    on_disk = {f"/{p.relative_to(DOCS).as_posix()}" for p in (DOCS / "images/setup/google").iterdir()}
+    on_disk = {
+        f"/{p.relative_to(DOCS).as_posix()}" for p in (DOCS / "images/setup/google").iterdir()
+    }
 
     assert referenced, "the guide shows no screenshots"
     assert referenced <= on_disk, f"missing images: {referenced - on_disk}"

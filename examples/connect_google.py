@@ -16,6 +16,7 @@ GOOGLE = OAuth2Server(
     token_endpoint="https://oauth2.googleapis.com/token",
     authorization_params={"access_type": "offline", "prompt": "consent"},
 )
+SCOPES = scopes_for(t for p in (gmail, gcalendar, gsheets, gdocs, gdrive, gforms) for t in p.TOOLS)
 
 
 def build_flow() -> OAuth2Flow:
@@ -43,15 +44,14 @@ def wait_for_callback() -> dict:
 
 
 async def main() -> None:
-    scopes = scopes_for([t for p in (gmail, gcalendar, gsheets, gdocs, gdrive, gforms) for t in p.TOOLS])
     flow = build_flow()
-    request = flow.authorize(scopes)
+    request = flow.authorize(SCOPES)
     print(f"Open this in a browser:\n{request.url}")
     params = wait_for_callback()
     if not states_match(request.state, params.get("state", "")):
         raise SystemExit(f"no grant ({params.get('error', 'state mismatch')}) — start over")
     grant = await flow.exchange(params["code"], code_verifier=request.code_verifier)
-    for scope in sorted(set(scopes) - set(grant.scopes)):  # a box unticked on the consent screen
+    for scope in sorted(set(SCOPES) - set(grant.scopes)):  # a box unticked on the consent screen
         print(f"not granted, so the tools that need it will answer 403: {scope}")
     print(f"export GOOGLE_REFRESH_TOKEN={grant.refresh_token}")
 
