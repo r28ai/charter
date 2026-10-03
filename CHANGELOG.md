@@ -7,6 +7,18 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Pre-1.0, minor versions may break the public API. Anything that does will say so
 here, with the migration in the same entry.
 
+## [0.3.1] — 2026-10-04
+
+### Added
+
+- **`charter.packs.is_configured(pack)`: whether a pack has a credential to
+  call with**, from its `configure()` or from the environment it reads by
+  itself. It is the test the pack makes before its first call, so a host can
+  tell "connected" from "not yet" without making one. `charter-families` had
+  been reading each pack's private `_credentials` and `_headers` to answer
+  that; a rename on Charter's side would have reported every app as not
+  connected, and nothing would have failed.
+
 ## [0.3.0] — 2026-10-03
 
 ### Added
@@ -1909,6 +1921,7 @@ First release.
   pagination loops, no multi-call orchestration, no streaming. See *What this
   can't express* in the README.
 
+[0.3.1]: https://github.com/r28ai/charter/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/r28ai/charter/compare/v0.2.7...v0.3.0
 [0.2.7]: https://github.com/r28ai/charter/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/r28ai/charter/compare/v0.2.5...v0.2.6
