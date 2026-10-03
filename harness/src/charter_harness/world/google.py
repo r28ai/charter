@@ -125,7 +125,9 @@ class Gmail:
         return got
 
     async def message_get(self, message_id: str, *, fmt: str = "metadata") -> dict[str, Any]:
-        params = {"format": fmt}
+        # A list value is repeated in the query string, which is how Gmail takes
+        # several metadataHeaders.
+        params: dict[str, Any] = {"format": fmt}
         if fmt == "metadata":
             params["metadataHeaders"] = ["From", "To", "Subject", "Message-ID", "In-Reply-To"]
         return await self.http.json(
