@@ -378,6 +378,24 @@ def test_a_bearer_token_does_not_follow_a_redirect_off_origin():
     assert "authorization" not in hops[-1].headers
 
 
+def test_a_token_in_its_own_header_does_not_follow_a_redirect_off_origin():
+    hops: List[httpx.Request] = []
+    with respx.mock(assert_all_called=False) as router:
+        router.route().mock(side_effect=_redirecting_router(hops))
+        tool = oauth_tool_factory(
+            pack="e2e",
+            base_url=BASE,
+            provider="v",
+            credential_provider=StaticTokenProvider("TOKEN"),
+            token_header="X-Shopify-Access-Token",
+            follow_redirects=True,
+        )(name="t", args_schema=NoArgs, method="GET", url_template="download")
+        tool.invoke({})
+    assert hops[0].headers["x-shopify-access-token"] == "TOKEN"
+    assert hops[-1].url.host == "elsewhere.test"
+    assert "x-shopify-access-token" not in hops[-1].headers
+
+
 def test_an_api_key_does_not_follow_a_redirect_off_origin():
     hops: List[httpx.Request] = []
     with respx.mock(assert_all_called=False) as router:

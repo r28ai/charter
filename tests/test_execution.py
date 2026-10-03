@@ -158,6 +158,23 @@ def test_executor_rejects_two_auth_methods():
         _executor(credential_provider=StaticTokenProvider("t"))
 
 
+def test_a_token_header_needs_a_credential_provider_to_fill_it():
+    """api_key_headers names its own headers; a second name would be one
+    credential declared twice."""
+    with pytest.raises(ValueError, match="token_header"):
+        _executor(token_header="X-Token")
+
+
+@pytest.mark.parametrize("name", ["", " ", "X-Token: injected", "X-Token\r\nX-Other"])
+def test_a_token_header_must_be_a_header_name(name):
+    with pytest.raises(ValueError, match="header name"):
+        _executor(
+            api_key_headers=None,
+            credential_provider=StaticTokenProvider("t"),
+            token_header=name,
+        )
+
+
 def test_executor_rejects_a_sync_response_handler():
     def sync_handler(response):
         return response
@@ -385,6 +402,85 @@ async def test_bearer_credentials_become_an_authorization_header():
         base_url=BASE,
     )
     assert route.calls.last.request.headers["authorization"] == "Bearer tok123"
+
+
+@respx.mock
+async def test_a_token_header_carries_the_token_bare_instead_of_authorization():
+    """Shopify reads its OAuth token from X-Shopify-Access-Token with no scheme."""
+    route = respx.get(f"{BASE}v1/me").mock(return_value=httpx.Response(200, json={}))
+    executor = _executor(
+        api_key_headers=None,
+        credential_provider=StaticTokenProvider("tok123"),
+        token_header="X-Shopify-Access-Token",
+    )
+
+    await executor.execute(SimpleInput(id="me"))
+
+    headers = route.calls.last.request.headers
+    assert headers["x-shopify-access-token"] == "tok123"
+    assert "authorization" not in headers
+
+
+@respx.mock
+async def test_a_token_header_is_asked_for_a_token_on_every_call():
+    """Only where the token lands changes; a renewing provider keeps renewing."""
+    tokens = iter(["first", "second"])
+
+    class Renewing:
+        async def get_credentials(self, provider):
+            return Credentials(token=next(tokens))
+
+    route = respx.get(f"{BASE}v1/me").mock(return_value=httpx.Response(200, json={}))
+    executor = _executor(
+        api_key_headers=None, credential_provider=Renewing(), token_header="X-Token"
+    )
+
+    await executor.execute(SimpleInput(id="me"))
+    await executor.execute(SimpleInput(id="me"))
+
+    assert [c.request.headers["x-token"] for c in route.calls] == ["first", "second"]
+
+
+@pytest.mark.parametrize(
+    "auth",
+    [
+        {"api_key_headers": {"X-Shopify-Access-Token": "shpat_SECRETVALUE"}},
+        {
+            "api_key_headers": None,
+            "credential_provider": StaticTokenProvider("shpat_SECRETVALUE"),
+            "token_header": "X-Shopify-Access-Token",
+        },
+    ],
+    ids=["api-key", "token-header"],
+)
+@respx.mock
+async def test_a_credential_under_the_apis_own_header_name_is_masked_in_the_log(auth, caplog):
+    """The debug log masked a fixed list of names, so a key sent under a name of
+    the API's choosing was logged whole while the redirect walk protected it."""
+    respx.get(f"{BASE}v1/me").mock(return_value=httpx.Response(200, json={}))
+
+    with caplog.at_level("DEBUG", logger="charter"):
+        await _executor(**auth).execute(SimpleInput(id="me"))
+
+    logged = [r.charter_request for r in caplog.records if hasattr(r, "charter_request")]
+    assert logged
+    assert all("SECRETVALUE" not in str(request["headers"]) for request in logged)
+
+
+@pytest.mark.parametrize(
+    ("value", "shown"),
+    [
+        ("f85632530bf277ec9ac6f649fc327f17", "f856***"),
+        ("Bearer f85632530bf277ec9ac6f649fc327f17", "Bearer f856***"),
+    ],
+)
+def test_the_log_shows_four_characters_of_a_secret_whatever_its_shape(value, shown):
+    """Ten characters was "Bearer " and three of a bearer token, but ten of a
+    bare one — a third of a 32-character Shopify token."""
+    from charter.execution.http import _mask_headers_for_log
+
+    masked = _mask_headers_for_log({"X-Token": value}, sensitive=frozenset({"x-token"}))
+    assert masked == {"X-Token": shown}
 
 
 @respx.mock

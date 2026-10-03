@@ -513,6 +513,7 @@ class Tool:
         expiry_leeway_seconds: int = 10,
         credential_statuses: Optional[Iterable[int]] = None,
         follow_redirects: bool = False,
+        token_header: Optional[str] = None,
         prune: Optional[Iterable[str]] = None,
         pins: Optional[Dict[str, Any]] = None,
         llm_cache: Optional[Dict[Any, Any]] = None,
@@ -558,6 +559,7 @@ class Tool:
             frozenset(credential_statuses) if credential_statuses is not None else None
         )
         self.follow_redirects = follow_redirects
+        self.token_header = token_header
 
         self.args_schema: Type[BaseModel] = args_schema
 
@@ -664,6 +666,7 @@ class Tool:
             expiry_leeway_seconds=expiry_leeway_seconds,
             credential_statuses=credential_statuses,
             follow_redirects=follow_redirects,
+            token_header=token_header,
         )
 
     # -----------------------------------------------------
@@ -1098,6 +1101,7 @@ class Tool:
             expiry_leeway_seconds=self.expiry_leeway_seconds,
             credential_statuses=self.credential_statuses,
             follow_redirects=self.follow_redirects,
+            token_header=self.token_header,
             prune=prune,
             pins=pins,
             # A variant reads the same type graph as the tool it came from, so

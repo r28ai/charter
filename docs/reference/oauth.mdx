@@ -197,6 +197,13 @@ stream of requests against an endpoint that rate-limits per client.
   re-authorizing, if you are reusing the client rather than building a new one.
 </ResponseField>
 
+<ResponseField name="invalidate(credentials)" type="None">
+  Forget the cached token if it is `credentials.token` — called by the runtime
+  when the API refuses it, so the next call fetches a new one rather than
+  sending a revoked token until its expiry. A token that has already been
+  replaced is left alone, and the grant and its cool-down are untouched.
+</ResponseField>
+
 ### `OAuth2Client.from_grant`
 
 ```python

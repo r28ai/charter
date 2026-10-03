@@ -211,7 +211,17 @@ def test_the_auth_signpost_routes_rather_than_restates(pack):
     signpost = GEN.blocks(pack)["auth"]
     oauth = module.TOOLS[0].credential_provider is not None
 
-    if oauth:
+    if oauth and GEN._takes_more_than_a_credential(module):
+        # Shopify: a store as well as a credential, and no refresh token. The
+        # signpost defers to the page's own prose, so the prose is what is
+        # checked — every credential configure() takes is shown being passed.
+        assert "written out below" in signpost
+        assert "/auth/api-key-tool-factory" not in signpost
+        page = GEN.page_path(pack).read_text()
+        for name in inspect.signature(module.configure).parameters:
+            if name != "shop":
+                assert f"{name}=" in page, f"{pack}: configure({name}=...) is not shown"
+    elif oauth:
         # Where a reader with no refresh token is sent. Google's packs go to the
         # setup guide, which is written for Google; Slack's and GitHub's go to
         # the grant section of their own server's page, which carries the code
@@ -237,8 +247,17 @@ _AUTH_BLOCK = re.compile(r"^```python[^\n]*\n(.*?)^```", re.M | re.S)
 
 
 def _oauth_packs():
+    """The packs the three credential shapes are written for.
+
+    Not Shopify: its configure() takes the store as well, its token is minted
+    from the app's own client ID and secret rather than refreshed, and its page
+    says so in prose the signpost test above checks.
+    """
     return [
-        pack for pack in PACKS if GEN.pack_module(pack).TOOLS[0].credential_provider is not None
+        pack
+        for pack in PACKS
+        if GEN.pack_module(pack).TOOLS[0].credential_provider is not None
+        and not GEN._takes_more_than_a_credential(GEN.pack_module(pack))
     ]
 
 
@@ -481,8 +500,19 @@ def test_the_summary_states_the_count_and_the_auth(pack):
     assert f"</Visibility>{len(module.TOOLS)} tools</span>" in summary
 
     oauth = module.TOOLS[0].credential_provider is not None
-    assert ("</Visibility>OAuth bearer</span>" in summary) is oauth
+    bearer = oauth and not module.TOOLS[0].token_header
+    assert ("</Visibility>OAuth bearer</span>" in summary) is bearer
+    assert ("</Visibility>OAuth token</span>" in summary) is (oauth and not bearer)
     assert ("</Visibility>API key</span>" in summary) is not oauth
+
+
+@pytest.mark.parametrize("pack", PACKS)
+def test_a_token_in_its_own_header_is_declared_on_the_hand_written_client(pack):
+    """Left off, the client in the first tab would send Authorization: Bearer,
+    and Shopify answers that with a 401."""
+    header = GEN.pack_module(pack).TOOLS[0].token_header
+    wire = GEN.blocks(pack)["wire"]
+    assert (f'token_header="{header}"' in wire) is bool(header)
 
 
 @pytest.mark.parametrize("pack", PACKS)

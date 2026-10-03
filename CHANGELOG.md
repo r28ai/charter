@@ -9,6 +9,58 @@ here, with the migration in the same entry.
 
 ## [Unreleased]
 
+### Added
+
+- **`token_header` on `oauth_tool_factory`, for an API that reads its OAuth
+  token from a header of its own.** `None` keeps `Authorization: Bearer
+  <token>`; a name sends the token bare in that header. The token still comes
+  from the credential provider on every call, so a renewing provider keeps
+  renewing, which a key in `api_key_headers` could not.
+- **Shopify renews its own token.** A Dev Dashboard app's token lasts 24 hours,
+  and the pack held whatever it was given until it stopped working. It now
+  takes the app's client ID and secret — `configure(shop=...,
+  client_id=..., client_secret=...)`, or `$SHOPIFY_CLIENT_ID` and
+  `$SHOPIFY_CLIENT_SECRET` beside `$SHOPIFY_SHOP` — and trades them for a
+  token through Shopify's client credentials grant, again shortly before each
+  one expires. That is what keeps the MCP server working past its first day.
+  The pair wins over `$SHOPIFY_ACCESS_TOKEN` when both are set. A store's
+  older `shpat_` token, which does not expire, works as before.
+
+### Changed
+
+- **The Shopify pack is built on `oauth_tool_factory`.** Its tools carry a
+  `credential_provider` and `token_header="X-Shopify-Access-Token"` where they
+  carried `api_key_headers`, and the request on the wire is unchanged.
+  `configure(shop, access_token)` still works; `configure()` also takes
+  `client_id` and `client_secret`, or `credential_provider`, and `shop` may be
+  left to `$SHOPIFY_SHOP`. It checks everything before changing anything, and
+  refuses to move a fixed access token to another store: pass that store's
+  token, or the client ID and secret, which mint per store.
+
+### Fixed
+
+- **`$SHOPIFY_SHOP` set to the store's full domain pointed the pack at
+  `my-store.myshopify.com.myshopify.com`.** `configure(shop=...)` accepted the
+  subdomain, the domain or the URL, and the environment variable was used raw.
+  Both now read all three.
+- **A token refused before its expiry was sent until that expiry.** Nothing
+  dropped a cached token when the API rejected it, so a token revoked early —
+  an app reinstalled, a secret rotated — failed every call until the expiry it
+  was issued with: a day, for Shopify, or until a restart. A `401`, or an
+  envelope's credential error, now tells the provider that issued the token;
+  `OAuth2Client` forgets it, and the next call fetches a new one. The refused
+  call still raises. A provider of your own can take part by defining
+  `invalidate(credentials)`; `SubjectProvider` and the packs' providers pass
+  it on.
+- **A credential sent under a header name of the API's choosing reached the
+  debug log whole.** The request log masked a fixed list of names —
+  `Authorization`, `X-Api-Key` and a few others — so Shopify's
+  `X-Shopify-Access-Token` was written out in full at `DEBUG`, while the
+  redirect walk beside it already treated the same header as a secret. Both
+  now read one list: every header the request's credential travels in. The
+  mask itself showed the first ten characters of a value — three of a bearer
+  token, but ten of a bare one — and now shows the scheme and four.
+
 ### Removed
 
 - **The four Gmail examples moved to

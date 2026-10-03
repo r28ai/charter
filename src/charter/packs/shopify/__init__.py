@@ -6,13 +6,14 @@ Shopify — ten tools over the Admin GraphQL API.
 
     from charter.packs import shopify
 
-    shopify.configure(shop="my-store", access_token="shpat_...")
+    shopify.configure(shop="my-store", client_id="...", client_secret="...")
     await shopify.orders_list.ainvoke(
         variables={"query": "financial_status:paid fulfillment_status:unshipped"}
     )
 
-``configure()`` is optional if ``$SHOPIFY_SHOP`` and ``$SHOPIFY_ACCESS_TOKEN``
-are both set.
+``configure()`` is optional if ``$SHOPIFY_SHOP`` is set beside either
+``$SHOPIFY_CLIENT_ID`` and ``$SHOPIFY_CLIENT_SECRET``, which renew, or
+``$SHOPIFY_ACCESS_TOKEN``, which does not.
 
 Shopify is the second GraphQL pack, and it breaks one assumption Linear did not.
 
@@ -23,6 +24,15 @@ installs the app. It cannot be a schema field — that would let the model choos
 which server to talk to, which is the one thing a boundary must not permit — so
 it is resolved at request time from what ``configure()`` was given. Zendesk,
 Atlassian and self-hosted GitLab have the same shape.
+
+**The token is renewed, and it is not sent in ``Authorization``.** A Dev
+Dashboard app trades its client ID and secret for an Admin API token that lasts
+24 hours (:mod:`~charter.packs.shopify._grant`), and Shopify reads it from
+``X-Shopify-Access-Token``, bare. So the pack is built on
+:func:`~charter.factories.oauth_tool_factory` with ``token_header`` naming that
+header: the token is fetched and renewed like any OAuth token and only lands
+somewhere else. A store's older ``shpat_`` token does not expire and is held as
+it is.
 
 **The API version is in the path, and pinning it is not optional.** Shopify
 ships a new version quarterly and supports each for twelve months; an unpinned
@@ -77,9 +87,11 @@ import math
 import os
 from typing import Any, Optional
 
-from charter.factories import api_key_tool_factory
-from charter.packs._config import DeferredApiKeyHeaders, api_key_headers
+from charter.auth import CredentialProvider, StaticTokenProvider
+from charter.factories import oauth_tool_factory
+from charter.packs._config import DeferredCredentialProvider
 from charter.packs.shopify import queries
+from charter.packs.shopify._grant import ShopifyClientCredentials, ShopifyEnvGrant
 from charter.packs.shopify.response_handlers import unwrap, unwrap_mutation
 from charter.packs.shopify.types import (
     CustomerCreateRequest,
@@ -195,15 +207,26 @@ class _DeferredShopUrl:
     env_var = "SHOPIFY_SHOP"
 
     def __init__(self) -> None:
-        self._shop: Optional[str] = os.environ.get(self.env_var) or None
+        # Read through the same normalisation as configure(): the full domain is
+        # what Shopify's admin shows and what most .env files hold, and taken
+        # raw it became https://my-store.myshopify.com.myshopify.com/.
+        from_env = os.environ.get(self.env_var, "").strip()
+        self._shop: Optional[str] = self.normalize(from_env) if from_env else None
 
-    def configure(self, shop: str) -> None:
+    @staticmethod
+    def normalize(shop: str) -> str:
+        """``"my-store"`` from any spelling Shopify's own UI and docs show.
+
+        The subdomain, ``my-store.myshopify.com``, or the full URL.
+        """
+        shop = (shop or "").strip().removeprefix("https://").removeprefix("http://")
+        shop = shop.rstrip("/").removesuffix(".myshopify.com")
         if not shop:
             raise CredentialError("charter.packs.shopify was given an empty shop name")
-        # Accept "my-store", "my-store.myshopify.com", or the full URL, since all
-        # three appear in Shopify's own documentation and admin UI.
-        shop = shop.strip().removeprefix("https://").removeprefix("http://")
-        self._shop = shop.rstrip("/").removesuffix(".myshopify.com")
+        return shop
+
+    def configure(self, shop: str) -> None:
+        self._shop = self.normalize(shop)
 
     @property
     def is_configured(self) -> bool:
@@ -213,8 +236,7 @@ class _DeferredShopUrl:
         if self._shop is None:
             raise CredentialError(
                 "charter.packs.shopify has no store. Call "
-                "charter.packs.shopify.configure(shop=..., access_token=...) or set "
-                "$SHOPIFY_SHOP.",
+                "charter.packs.shopify.configure(shop=...) or set $SHOPIFY_SHOP.",
                 provider="shopify",
             )
         return f"https://{self._shop}.myshopify.com/"
@@ -227,23 +249,82 @@ _base_url = _DeferredShopUrl()
 
 # Shopify does not use Authorization; the token has its own header.
 # https://shopify.dev/docs/api/admin-graphql#authentication
-_headers: DeferredApiKeyHeaders = api_key_headers(
-    "shopify",
-    {"X-Shopify-Access-Token": "CHARTER_UNCONFIGURED"},
-    "X-Shopify-Access-Token",
-    "SHOPIFY_ACCESS_TOKEN",
+TOKEN_HEADER = "X-Shopify-Access-Token"
+
+ENV_GRANT = ShopifyEnvGrant(_base_url)
+
+_credentials = DeferredCredentialProvider(
+    "shopify", env_var="SHOPIFY_ACCESS_TOKEN", env_grant=ENV_GRANT
 )
 
 
-def configure(shop: str, access_token: str) -> None:
-    """Point this pack's tools at one store.
+def configure(
+    shop: Optional[str] = None,
+    access_token: Optional[str] = None,
+    *,
+    client_id: Optional[str] = None,
+    client_secret: Optional[str] = None,
+    credential_provider: Optional[CredentialProvider] = None,
+) -> None:
+    """Point this pack's tools at one store, and say how to authenticate to it.
 
     ``shop`` is the store's subdomain — ``"my-store"`` for
-    ``my-store.myshopify.com``. The full domain or URL is accepted too.
-    ``access_token`` is an Admin API access token (``shpat_...``).
+    ``my-store.myshopify.com``. The full domain or URL is accepted too. Left
+    out, the store comes from ``$SHOPIFY_SHOP``.
+
+    At most one credential, in one of three shapes:
+
+    - ``client_id`` and ``client_secret``, a Dev Dashboard app's pair. The pack
+      trades them for a 24-hour token and renews it before it runs out.
+    - ``access_token``, held as given: a store's older ``shpat_`` token, which
+      does not expire, or a token minted elsewhere, which does.
+    - ``credential_provider``, anything that supplies the token. It is sent in
+      ``X-Shopify-Access-Token``, not ``Authorization``.
+
+    Passing none leaves the credential as it was: what an earlier call set, or
+    the environment variables.
     """
-    _base_url.configure(shop)
-    _headers.configure(access_token)
+    given = [
+        name
+        for name, present in (
+            ("access_token", access_token is not None),
+            ("client_id/client_secret", client_id is not None or client_secret is not None),
+            ("credential_provider", credential_provider is not None),
+        )
+        if present
+    ]
+    if len(given) > 1:
+        raise TypeError(f"configure() takes one credential, got {' and '.join(given)}.")
+
+    # Everything is checked before anything changes, so a refused credential
+    # leaves the pack pointing where it was rather than at a new store with the
+    # old store's token.
+    store = _DeferredShopUrl.normalize(shop) if shop is not None else None
+    provider: Optional[CredentialProvider] = None
+    if access_token is not None:
+        provider = StaticTokenProvider(access_token)
+    elif client_id is not None or client_secret is not None:
+        provider = ShopifyClientCredentials(_base_url, client_id or "", client_secret or "")
+    elif credential_provider is not None:
+        provider = credential_provider
+    elif (
+        store is not None
+        and store != _base_url._shop
+        and isinstance(_credentials._provider, StaticTokenProvider)
+    ):
+        # A minted or shpat_ token is for the store it was issued by. Moving the
+        # store without it sent that token to the new store. The client ID and
+        # secret mint per store, so they move freely.
+        raise TypeError(
+            "configure(shop=...) moves the pack to another store, and the access "
+            "token it holds was given for the previous one. Pass that store's "
+            "access_token as well, or configure the app's client_id and client_secret."
+        )
+
+    if store is not None:
+        _base_url.configure(store)
+    if provider is not None:
+        _credentials.configure(provider)
 
 
 def base_url() -> str:
@@ -251,10 +332,12 @@ def base_url() -> str:
     return _base_url()
 
 
-_shopify = api_key_tool_factory(
+_shopify = oauth_tool_factory(
     pack="shopify",
     base_url=_base_url,
-    api_key_headers=_headers,
+    provider="shopify",
+    credential_provider=_credentials,
+    token_header=TOKEN_HEADER,
     # GraphQL variables are camelCase: `sort_key` arrives as `sortKey`.
     body_case="camel",
     quota_doc_url=QUOTA_DOC_URL,

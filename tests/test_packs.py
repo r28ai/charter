@@ -55,7 +55,9 @@ ALL_PACKS = [
 GOOGLE_PACKS = [gmail, gcalendar, gsheets, gdocs, gdrive, gforms]
 # Bearer-token packs, Google and otherwise — they share a configure() shape.
 OAUTH_PACKS = [gmail, gcalendar, gsheets, gdocs, gdrive, gforms, slack, github, notion]
-API_KEY_PACKS = [firecrawl, stripe, linear, shopify, granola]
+API_KEY_PACKS = [firecrawl, stripe, linear, granola]
+# Shopify is a bearer pack with neither shape: its token goes in a header of its
+# own, and its configure() takes the store as well. Its own tests are below.
 
 
 def _decode_b64url(value: str) -> str:
@@ -226,27 +228,63 @@ async def test_a_tool_added_without_ceremony_is_still_guarded(pack, monkeypatch)
         assert not route.called
 
 
-# How each API-key pack takes its credential, and which header it lands in.
-# Most take `api_key` and use Authorization; Shopify needs the store as well,
-# because its host is a property of the installation, and puts the token in its
-# own header.
-CONFIGURE_CALL = {
-    "shopify": ({"shop": "my-store", "access_token": "late-key"}, "x-shopify-access-token"),
-}
-_DEFAULT_CONFIGURE = ({"api_key": "late-key"}, "authorization")
-
-
 @pytest.mark.parametrize("pack", API_KEY_PACKS, ids=lambda p: p.__name__)
 async def test_configure_after_construction_reaches_existing_tools(pack, monkeypatch):
     monkeypatch.setattr(pack._headers, "_api_key", None)
     tool, args = _valid_call(pack)
-    kwargs, header = CONFIGURE_CALL.get(pack.__name__.rsplit(".", 1)[-1], _DEFAULT_CONFIGURE)
-    pack.configure(**kwargs)
+    pack.configure(api_key="late-key")
 
     with respx.mock:
         route = respx.route().mock(return_value=httpx.Response(200, json={}))
         await tool.ainvoke(args)
-        assert "late-key" in route.calls.last.request.headers[header]
+        assert "late-key" in route.calls.last.request.headers["authorization"]
+
+
+@pytest.fixture
+def _shopify_unconfigured(monkeypatch):
+    monkeypatch.setattr(shopify._credentials, "_provider", None)
+    monkeypatch.delenv("SHOPIFY_ACCESS_TOKEN", raising=False)
+    monkeypatch.setenv("SHOPIFY_SHOP", "my-store")
+
+
+async def test_unconfigured_shopify_fails_before_any_request(_shopify_unconfigured):
+    tool, args = _valid_call(shopify)
+    with respx.mock:
+        route = respx.route().mock(return_value=httpx.Response(200, json={}))
+        with pytest.raises(CredentialError, match="configure"):
+            await tool.ainvoke(args)
+        assert not route.called
+
+
+async def test_a_shopify_tool_added_without_ceremony_is_still_guarded(_shopify_unconfigured):
+    reference, args = _valid_call(shopify)
+    plain = Tool(
+        name="added_later",
+        args_schema=reference.args_schema,
+        method=reference.method,
+        url_template=reference.url_template,
+        base_url=reference.base_url,
+        credential_provider=shopify._credentials,
+        token_header=shopify.TOKEN_HEADER,
+    )
+
+    with respx.mock:
+        route = respx.route().mock(return_value=httpx.Response(200, json={}))
+        with pytest.raises(CredentialError):
+            await plain.ainvoke(args)
+        assert not route.called
+
+
+async def test_shopify_configure_after_construction_reaches_existing_tools(
+    _shopify_unconfigured,
+):
+    tool, args = _valid_call(shopify)
+    shopify.configure(shop="my-store", access_token="late-key")
+
+    with respx.mock:
+        route = respx.route().mock(return_value=httpx.Response(200, json={}))
+        await tool.ainvoke(args)
+        assert route.calls.last.request.headers["x-shopify-access-token"] == "late-key"
 
 
 # -----------------------------------------------------
@@ -1196,7 +1234,7 @@ def test_api_key_packs_declare_no_format_markers():
     but a Format marker appearing here would mean the wire format changed."""
     from charter.types import Format
 
-    for pack in API_KEY_PACKS:
+    for pack in [*API_KEY_PACKS, shopify]:
         for tool in pack.TOOLS:
             for field in tool.args_schema.model_fields.values():
                 assert not any(isinstance(m, Format) for m in field.metadata)
@@ -1294,7 +1332,7 @@ def test_google_packs_annotate_quota_cost_and_link_the_docs(pack):
         assert tool.quota_doc_url == pack.QUOTA_DOC_URL
 
 
-@pytest.mark.parametrize("pack", API_KEY_PACKS, ids=lambda p: p.__name__)
+@pytest.mark.parametrize("pack", [*API_KEY_PACKS, shopify], ids=lambda p: p.__name__)
 def test_api_key_packs_declare_no_quota_cost(pack):
     """Upstream had none for these APIs; absent is honest, 0 would not be."""
     for tool in pack.TOOLS:

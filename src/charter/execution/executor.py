@@ -33,7 +33,8 @@ from typing import (
 import httpx
 from pydantic import BaseModel
 
-from charter.auth import CredentialProvider
+from charter.auth import CredentialProvider, Credentials
+from charter.auth.credentials import invalidate
 from charter.execution.http import (
     BaseUrl,
     BodyFormat,
@@ -297,6 +298,19 @@ def _create_auto_transformer(
 # -----------------------------------------------------
 
 
+def _report_rejection(provider: CredentialProvider, credentials: Credentials) -> None:
+    """Pass a refused token back to its provider, without masking the refusal.
+
+    The provider is the host's code. If dropping the token fails, the
+    CredentialError being raised is still the thing the caller needs to see, so
+    the failure is logged rather than raised in its place.
+    """
+    try:
+        invalidate(provider, credentials)
+    except Exception:
+        logger.warning("charter: the credential provider's invalidate() raised", exc_info=True)
+
+
 class ToolExecutor:
     """Runs one endpoint: transform → auth → call_api → response_handler."""
 
@@ -325,6 +339,7 @@ class ToolExecutor:
         expiry_leeway_seconds: int = 10,
         credential_statuses: Optional[Iterable[int]] = None,
         follow_redirects: bool = False,
+        token_header: Optional[str] = None,
     ) -> None:
         has_oauth = credential_provider is not None
         # A callable resolves later, so it counts as configured auth; a literal
@@ -346,6 +361,22 @@ class ToolExecutor:
                 "Choose one authentication method.",
                 docs="reference/factories",
             )
+
+        # Where a credential provider's token goes. api_key_headers already
+        # names its own headers, so the two together would be one credential
+        # declared twice, and silence about which one wins.
+        if token_header is not None:
+            if not has_oauth:
+                raise DeclarationError(
+                    "token_header names the header a credential_provider's token "
+                    "goes in; api_key_headers names its headers itself.",
+                    docs="reference/factories",
+                )
+            if not token_header.strip() or any(c in token_header for c in ": \r\n"):
+                raise DeclarationError(
+                    f"token_header must be a header name, got {token_header!r}.",
+                    docs="reference/factories",
+                )
 
         # The Literal types are written out rather than inferred. Assigning a
         # Literal-typed parameter to a bare attribute widens it to str, and
@@ -374,6 +405,7 @@ class ToolExecutor:
         self._expiry_leeway_seconds = expiry_leeway_seconds
         self._credential_statuses = credential_statuses
         self._follow_redirects = follow_redirects
+        self._token_header = token_header
 
         # Auto-generate build_request if not provided
         if build_request is None:
@@ -565,29 +597,42 @@ class ToolExecutor:
                 docs="auth/oauth-flow",
             )
 
-        return await call_api(
-            method=self._method,
-            url_template=self._url_template,
-            tool_input=tool_input,
-            credentials=credentials,
-            credential_headers=("authorization",),
-            base_url=self._base_url,
-            body_case=self._body_case,
-            query_case=self._query_case,
-            path_case=self._path_case,
-            timeout=self._timeout,
-            transport_override=transport_override,
-            provider=self._provider or None,
-            envelope=self._envelope,
-            request_headers=request_headers,
-            body_format=self._body_format,
-            query_format=self._query_format,
-            static_query=self._static_query,
-            static_headers=self._static_headers,
-            static_body=self._static_body,
-            client=client,
-            probe=probe,
-            credential_statuses=self._credential_statuses,
-            follow_redirects=self._follow_redirects,
-            body_field_count=self._body_field_count,
-        )
+        try:
+            return await call_api(
+                method=self._method,
+                url_template=self._url_template,
+                tool_input=tool_input,
+                credentials=credentials,
+                credential_headers=(self._token_header or "authorization",),
+                token_header=self._token_header,
+                base_url=self._base_url,
+                body_case=self._body_case,
+                query_case=self._query_case,
+                path_case=self._path_case,
+                timeout=self._timeout,
+                transport_override=transport_override,
+                provider=self._provider or None,
+                envelope=self._envelope,
+                request_headers=request_headers,
+                body_format=self._body_format,
+                query_format=self._query_format,
+                static_query=self._static_query,
+                static_headers=self._static_headers,
+                static_body=self._static_body,
+                client=client,
+                probe=probe,
+                credential_statuses=self._credential_statuses,
+                follow_redirects=self._follow_redirects,
+                body_field_count=self._body_field_count,
+            )
+        except CredentialError as exc:
+            # The API refused this token — a status in credential_statuses, or an
+            # envelope's credential error, both of which carry the status. Tell
+            # whatever issued it, so the next call fetches another rather than
+            # sending this one until the expiry it was issued with. This call
+            # still fails: retrying is the caller's decision. A CredentialError
+            # with no status was raised locally (no store configured, say) and
+            # says nothing about the token.
+            if exc.status_code is not None:
+                _report_rejection(self._credential_provider, credentials)
+            raise

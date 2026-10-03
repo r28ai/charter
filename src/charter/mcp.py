@@ -33,8 +33,9 @@ Credentials come from the environment, so nothing has to be written down:
 - github reads ``$GITHUB_TOKEN``
 - stripe reads ``$STRIPE_API_KEY``
 - linear reads ``$LINEAR_API_KEY``
-- shopify reads ``$SHOPIFY_SHOP`` and ``$SHOPIFY_ACCESS_TOKEN`` — it needs
-  both, since its host is a property of the store
+- shopify reads ``$SHOPIFY_SHOP``, since its host is a property of the store,
+  and renews a token from ``$SHOPIFY_CLIENT_ID`` and ``$SHOPIFY_CLIENT_SECRET``,
+  or otherwise reads ``$SHOPIFY_ACCESS_TOKEN``
 - firecrawl reads ``$FIRECRAWL_API_KEY``
 - notion reads ``$NOTION_API_KEY``
 - tavily reads ``$TAVILY_API_KEY``

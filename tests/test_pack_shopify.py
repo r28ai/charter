@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
+from urllib.parse import parse_qs
 
 import httpx
 import pytest
@@ -12,10 +14,12 @@ import respx
 from pydantic import ValidationError
 
 from charter import APIError, CredentialError, Tool, ToolValidationError
+from charter.auth import Credentials
 from charter.packs import shopify
 
 SHOP = "my-store"
 API = f"https://{SHOP}.myshopify.com/admin/api/{shopify.API_VERSION}/graphql.json"
+TOKEN_URL = f"https://{SHOP}.myshopify.com/admin/oauth/access_token"
 
 
 @pytest.fixture(autouse=True)
@@ -165,6 +169,50 @@ def test_every_spelling_of_the_store_that_shopifys_own_ui_shows_is_accepted(give
     assert shopify.base_url() == "https://my-store.myshopify.com/"
 
 
+@pytest.mark.parametrize(
+    "given",
+    ["my-store", "my-store.myshopify.com", "https://my-store.myshopify.com/", " my-store "],
+)
+def test_every_spelling_is_accepted_from_the_environment_too(given, monkeypatch):
+    """$SHOPIFY_SHOP was used raw, so the full domain most .env files hold became
+    https://my-store.myshopify.com.myshopify.com/ — on the MCP server's one path."""
+    monkeypatch.setenv("SHOPIFY_SHOP", given)
+    assert shopify._DeferredShopUrl()() == "https://my-store.myshopify.com/"
+
+
+@pytest.mark.parametrize("given", ["", "   ", "https://", ".myshopify.com"])
+def test_an_empty_store_is_refused(given):
+    with pytest.raises(CredentialError, match="empty shop name"):
+        shopify.configure(shop=given)
+
+
+def test_a_refused_credential_leaves_the_store_where_it_was():
+    with pytest.raises(CredentialError):
+        shopify.configure(shop="other-store", access_token="")
+    assert shopify.base_url() == f"https://{SHOP}.myshopify.com/"
+
+
+@respx.mock
+async def test_moving_the_store_without_its_token_is_refused():
+    """The token was given for the first store; sending it to the second is a
+    401 at best, and the pack cannot know it is not a mistake."""
+    with pytest.raises(TypeError, match="previous one"):
+        shopify.configure(shop="other-store")
+    assert shopify.base_url() == f"https://{SHOP}.myshopify.com/"
+
+    shopify.configure(shop="other-store", access_token="shpat_other")
+    route = respx.post(url__startswith="https://other-store.myshopify.com/").mock(
+        return_value=httpx.Response(200, json={"data": {"shop": {}}})
+    )
+    await shopify.shop_get.ainvoke()
+    assert route.calls.last.request.headers["x-shopify-access-token"] == "shpat_other"
+
+
+def test_restating_the_same_store_is_not_a_move():
+    shopify.configure(shop=f"{SHOP}.myshopify.com")
+    assert shopify.base_url() == f"https://{SHOP}.myshopify.com/"
+
+
 @respx.mock
 async def test_the_access_token_goes_in_its_own_header_not_authorization():
     respx.post(API).mock(return_value=httpx.Response(200, json={"data": {"shop": {}}}))
@@ -174,6 +222,188 @@ async def test_the_access_token_goes_in_its_own_header_not_authorization():
     headers = respx.calls.last.request.headers
     assert headers["x-shopify-access-token"] == "shpat_test123"
     assert "authorization" not in headers
+
+
+# -----------------------------------------------------
+# A Dev Dashboard app's token, renewed
+# -----------------------------------------------------
+
+
+def _token(value: str, expires_in: int = 86399) -> httpx.Response:
+    return httpx.Response(
+        200, json={"access_token": value, "scope": "read_products", "expires_in": expires_in}
+    )
+
+
+@respx.mock
+async def test_a_client_id_and_secret_are_traded_for_the_token_the_call_carries():
+    minted = respx.post(TOKEN_URL).mock(return_value=_token("minted-1"))
+    respx.post(API).mock(return_value=httpx.Response(200, json={"data": {"shop": {}}}))
+    shopify.configure(shop=SHOP, client_id="cid", client_secret="csecret")
+
+    await shopify.shop_get.ainvoke()
+
+    assert parse_qs(minted.calls.last.request.content.decode()) == {
+        "grant_type": ["client_credentials"],
+        "client_id": ["cid"],
+        "client_secret": ["csecret"],
+    }
+    headers = respx.calls.last.request.headers
+    assert headers["x-shopify-access-token"] == "minted-1"
+    assert "authorization" not in headers
+
+
+@respx.mock
+async def test_the_token_is_minted_once_and_renewed_when_it_runs_out():
+    minted = respx.post(TOKEN_URL).mock(side_effect=[_token("minted-1"), _token("minted-2")])
+    api = respx.post(API).mock(return_value=httpx.Response(200, json={"data": {"shop": {}}}))
+    shopify.configure(shop=SHOP, client_id="cid", client_secret="csecret")
+
+    await shopify.shop_get.ainvoke()
+    await shopify.shop_get.ainvoke()
+    assert minted.call_count == 1
+
+    # A day later, as far as the cache can tell.
+    client = shopify._credentials._provider._client  # type: ignore[union-attr]
+    client._cached = Credentials(
+        token="minted-1", expires_at=datetime.now(timezone.utc) - timedelta(seconds=1)
+    )
+    await shopify.shop_get.ainvoke()
+
+    assert minted.call_count == 2
+    sent = [call.request.headers["x-shopify-access-token"] for call in api.calls]
+    assert sent == ["minted-1", "minted-1", "minted-2"]
+
+
+@respx.mock
+async def test_a_token_shopify_revokes_early_is_replaced_on_the_next_call(_from_the_environment):
+    """Uninstalling and reinstalling the app revokes the token a running MCP
+    server holds. It used to keep sending it, and failing, for the rest of the
+    day; now the 401 drops it and the next call mints."""
+    _from_the_environment.setenv("SHOPIFY_CLIENT_ID", "env-cid")
+    _from_the_environment.setenv("SHOPIFY_CLIENT_SECRET", "env-secret")
+    minted = respx.post(TOKEN_URL).mock(side_effect=[_token("revoked"), _token("fresh")])
+    api = respx.post(API).mock(
+        side_effect=[
+            httpx.Response(401, json={"errors": "[API] Invalid API key or access token"}),
+            httpx.Response(200, json={"data": {"shop": {}}}),
+        ]
+    )
+
+    with pytest.raises(CredentialError):
+        await shopify.shop_get.ainvoke()
+    await shopify.shop_get.ainvoke()
+
+    assert minted.call_count == 2
+    sent = [call.request.headers["x-shopify-access-token"] for call in api.calls]
+    assert sent == ["revoked", "fresh"]
+
+
+@respx.mock
+async def test_a_token_minted_for_one_store_is_not_sent_to_another():
+    respx.post(TOKEN_URL).mock(return_value=_token("for-my-store"))
+    other = respx.post("https://other.myshopify.com/admin/oauth/access_token").mock(
+        return_value=_token("for-other")
+    )
+    respx.post(API).mock(return_value=httpx.Response(200, json={"data": {"shop": {}}}))
+    other_api = respx.post(
+        f"https://other.myshopify.com/admin/api/{shopify.API_VERSION}/graphql.json"
+    ).mock(return_value=httpx.Response(200, json={"data": {"shop": {}}}))
+    shopify.configure(shop=SHOP, client_id="cid", client_secret="csecret")
+    await shopify.shop_get.ainvoke()
+
+    shopify.configure(shop="other")
+    await shopify.shop_get.ainvoke()
+
+    assert other.called
+    assert other_api.calls.last.request.headers["x-shopify-access-token"] == "for-other"
+
+
+@respx.mock
+async def test_a_refused_client_secret_is_a_credential_error():
+    respx.post(TOKEN_URL).mock(return_value=httpx.Response(400, json={"error": "invalid_client"}))
+    api = respx.post(API).mock(return_value=httpx.Response(200, json={}))
+    shopify.configure(shop=SHOP, client_id="cid", client_secret="wrong")
+
+    with pytest.raises(CredentialError, match="invalid_client"):
+        await shopify.shop_get.ainvoke()
+    assert not api.called
+
+
+@pytest.mark.parametrize(
+    "credentials",
+    [
+        {"access_token": "shpat_x", "client_id": "c", "client_secret": "s"},
+        {"access_token": "shpat_x", "client_id": ""},
+        {"client_secret": "s", "credential_provider": object()},
+    ],
+)
+def test_configure_takes_one_credential(credentials):
+    with pytest.raises(TypeError, match="one credential"):
+        shopify.configure(shop=SHOP, **credentials)
+
+
+def test_a_client_id_without_its_secret_is_refused_at_configure():
+    with pytest.raises(CredentialError, match="both"):
+        shopify.configure(shop=SHOP, client_id="cid")
+
+
+@pytest.fixture
+def _from_the_environment(monkeypatch):
+    """No configure() call: the pack reads what the MCP server would."""
+    monkeypatch.setattr(shopify._credentials, "_provider", None)
+    monkeypatch.setenv("SHOPIFY_SHOP", SHOP)
+    return monkeypatch
+
+
+@respx.mock
+async def test_the_environment_pair_renews_and_wins_over_a_raw_token(_from_the_environment):
+    _from_the_environment.setenv("SHOPIFY_CLIENT_ID", "env-cid")
+    _from_the_environment.setenv("SHOPIFY_CLIENT_SECRET", "env-secret")
+    _from_the_environment.setenv("SHOPIFY_ACCESS_TOKEN", "shpat_stale")
+    minted = respx.post(TOKEN_URL).mock(return_value=_token("from-env"))
+    respx.post(API).mock(return_value=httpx.Response(200, json={"data": {"shop": {}}}))
+
+    await shopify.shop_get.ainvoke()
+
+    assert parse_qs(minted.calls.last.request.content.decode())["client_id"] == ["env-cid"]
+    assert respx.calls.last.request.headers["x-shopify-access-token"] == "from-env"
+
+
+@respx.mock
+async def test_the_raw_token_still_works_on_its_own(_from_the_environment):
+    _from_the_environment.setenv("SHOPIFY_ACCESS_TOKEN", "shpat_forever")
+    respx.post(API).mock(return_value=httpx.Response(200, json={"data": {"shop": {}}}))
+
+    await shopify.shop_get.ainvoke()
+
+    assert respx.calls.last.request.headers["x-shopify-access-token"] == "shpat_forever"
+
+
+@pytest.mark.parametrize(
+    ("present", "missing"),
+    [
+        ("SHOPIFY_CLIENT_ID", "SHOPIFY_CLIENT_SECRET"),
+        ("SHOPIFY_CLIENT_SECRET", "SHOPIFY_CLIENT_ID"),
+    ],
+)
+@respx.mock
+async def test_half_a_pair_names_the_other_half(_from_the_environment, present, missing):
+    """Not a fall-through to $SHOPIFY_ACCESS_TOKEN: half a pair is a mistake."""
+    _from_the_environment.setenv(present, "x")
+    _from_the_environment.setenv("SHOPIFY_ACCESS_TOKEN", "shpat_x")
+    route = respx.route().mock(return_value=httpx.Response(200, json={}))
+
+    with pytest.raises(CredentialError, match=f"\\${missing} is not"):
+        await shopify.shop_get.ainvoke()
+    assert not route.called
+
+
+async def test_no_credential_at_all_names_every_variable_that_would_do(_from_the_environment):
+    with pytest.raises(CredentialError) as raised:
+        await shopify.shop_get.ainvoke()
+    for variable in ("SHOPIFY_CLIENT_ID", "SHOPIFY_CLIENT_SECRET", "SHOPIFY_ACCESS_TOKEN"):
+        assert variable in str(raised.value)
 
 
 @respx.mock

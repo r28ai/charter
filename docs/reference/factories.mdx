@@ -151,13 +151,16 @@ def oauth_tool_factory(
     on_call: Optional[CallSink] = None,
     expiry_leeway_seconds: int = 10,
     credential_statuses: Optional[Iterable[int]] = None,
+    follow_redirects: bool = False,
+    token_header: Optional[str] = None,
 ) -> ToolBuilder: ...
 ```
 
 The keyword parameters it shares with `api_key_tool_factory` — `body_case`,
 `query_case`, `path_case`, `timeout`, `quota_doc_url`, `envelope`, `pagination`,
 `body_format`, `query_format`, `static_query`, `static_headers`, `on_call`,
-`credential_statuses` — behave identically. The four that differ:
+`credential_statuses`, `follow_redirects` — behave identically. The five that
+differ:
 
 <ParamField path="provider" type="str" required>
   Provider identifier passed to `get_credentials`, e.g. `"google"`. Also the
@@ -176,6 +179,16 @@ The keyword parameters it shares with `api_key_tool_factory` — `body_case`,
 <ParamField path="expiry_leeway_seconds" type="int" default="10">
   How dead a token must be before the runtime refuses to send it. A guard
   against sending something already expired, not a refresh policy.
+</ParamField>
+
+<ParamField path="token_header" type="Optional[str]" default="None">
+  The header the token goes in, for an API that does not read it from
+  `Authorization`. `None` sends `Authorization: Bearer <token>`; a name sends
+  the token bare in that header — `"X-Shopify-Access-Token"` for Shopify. Only
+  where the token lands changes: it still comes from `credential_provider` on
+  every call, so a provider that renews keeps renewing, which a key in
+  `api_key_headers` cannot. Dropped on a redirect that leaves the origin, and
+  masked in the debug log, as `Authorization` is.
 </ParamField>
 
 ```python

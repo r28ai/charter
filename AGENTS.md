@@ -69,6 +69,11 @@ src/charter/
 connected-account selector). That is `ainvoke(args, headers={...})` — not a schema
 field, and not something Charter generates. See [docs/tools/wire-contract.md](docs/tools/wire-contract.md).
 
+**An OAuth token the API reads from its own header** (Shopify's
+`X-Shopify-Access-Token`). Set `token_header` on `oauth_tool_factory`. Do not
+move the token into `api_key_headers`: those are resolved synchronously and
+cannot wait on a renewal.
+
 **A constant the API wants on every request** (Azure `api-version`, a
 `Notion-Version` header). Use `static_query` / `static_headers` on the factory.
 Never put it in the schema: the model would see a field it must not set.

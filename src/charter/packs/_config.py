@@ -21,6 +21,7 @@ import os
 from typing import Dict, Optional, Protocol
 
 from charter.auth import CredentialProvider, Credentials
+from charter.auth.credentials import invalidate
 from charter.types.errors import CredentialError
 
 __all__ = ["DeferredCredentialProvider", "DeferredApiKeyHeaders", "EnvGrant"]
@@ -78,6 +79,17 @@ class DeferredCredentialProvider:
             or bool(self._env_grant and self._env_grant.is_set())
             or bool(self._env_var and os.environ.get(self._env_var))
         )
+
+    def invalidate(self, credentials: Credentials) -> None:
+        """Pass a rejection on to whichever provider supplied ``credentials``."""
+        if self._provider is not None:
+            invalidate(self._provider, credentials)
+        elif self._env_grant is not None and self._env_grant.is_set():
+            try:
+                invalidate(self._env_grant.provider(), credentials)
+            except CredentialError:
+                # A grant that cannot be built now cannot be holding the token.
+                pass
 
     async def get_credentials(self, provider: str) -> Credentials:
         if self._provider is not None:

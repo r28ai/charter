@@ -93,9 +93,27 @@ class CredentialProvider(Protocol):
 
     ``provider`` is the identifier the tool was built with (e.g. ``"google"``),
     so one implementation can serve several APIs.
+
+    A provider that caches may also define ``invalidate(credentials)``, which
+    the runtime calls when the API rejects those credentials — a 401, or an
+    envelope's credential error — so the next call fetches fresh ones instead of
+    sending the refused token until it expires. It is optional, and not part of
+    this protocol: a provider that holds nothing has nothing to drop.
     """
 
     async def get_credentials(self, provider: str) -> Credentials: ...
+
+
+def invalidate(provider: object, credentials: Credentials) -> None:
+    """Tell ``provider`` the API refused ``credentials``, if it keeps any to drop.
+
+    Forwarded by providers that wrap another — :class:`SubjectProvider`, a
+    pack's deferred provider — so the request reaches whichever one holds the
+    cached token.
+    """
+    method = getattr(provider, "invalidate", None)
+    if callable(method):
+        method(credentials)
 
 
 class StaticTokenProvider:
@@ -349,6 +367,20 @@ class SubjectProvider:
     def forget(self, subject: str) -> None:
         """Drop a subject's provider — after a revocation, or a sign-out."""
         self._providers.pop(subject, None)
+
+    def invalidate(self, credentials: Credentials) -> None:
+        """Pass a rejection on to the provider of the subject this call is for.
+
+        The provider is kept: it still holds the subject's grant, and it is the
+        token, not the grant, that the API refused.
+        """
+        try:
+            subject = current_subject.get()
+        except LookupError:
+            return
+        built = self._providers.get(subject)
+        if built is not None:
+            invalidate(built, credentials)
 
     def __len__(self) -> int:
         return len(self._providers)

@@ -505,7 +505,7 @@ which parameters an endpoint refuses together. Then
 | GitHub | `charter.packs.github` | 139 | OAuth bearer | Three constant headers, one of them a pinned API version |
 | Stripe | `charter.packs.stripe` | 59 | API key | Form-encoded, bracketed query, DELETE with a body |
 | Linear | `charter.packs.linear` | 128 | API key | GraphQL, with the cursor nested inside the response |
-| Shopify | `charter.packs.shopify` | 22 | API key | No fixed host, and every price is a nested `MoneyBag` |
+| Shopify | `charter.packs.shopify` | 22 | OAuth token | No fixed host, and every price is a nested `MoneyBag` |
 | Notion | `charter.packs.notion` | 35 | OAuth bearer | 100 blocks and two levels of children per write |
 | Firecrawl | `charter.packs.firecrawl` | 43 | API key | camelCase wire, and some failures answer HTTP 200 |
 | Granola | `charter.packs.granola` | 9 | API key | Four kinds of actor in one discriminated union |

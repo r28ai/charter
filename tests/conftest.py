@@ -111,3 +111,17 @@ def _no_google_grant_from_the_machine(monkeypatch):
     ENV_GRANT.reset()
     yield
     ENV_GRANT.reset()
+
+
+# The same for Shopify: a Dev Dashboard app's client ID and secret in the
+# environment win over $SHOPIFY_ACCESS_TOKEN, so a test setting a fake token
+# would mint a real one against whichever store $SHOPIFY_SHOP names.
+@pytest.fixture(autouse=True)
+def _no_shopify_grant_from_the_machine(monkeypatch):
+    from charter.packs.shopify import ENV_GRANT
+
+    monkeypatch.delenv("SHOPIFY_CLIENT_ID", raising=False)
+    monkeypatch.delenv("SHOPIFY_CLIENT_SECRET", raising=False)
+    ENV_GRANT.reset()
+    yield
+    ENV_GRANT.reset()

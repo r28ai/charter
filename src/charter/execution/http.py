@@ -199,20 +199,28 @@ def _truncate_base64_for_log(obj: Any, *, _depth: int = 0) -> Any:
     return obj
 
 
-def _mask_headers_for_log(headers: Mapping[str, str], max_len: int = 50) -> Dict[str, str]:
+def _mask_headers_for_log(
+    headers: Mapping[str, str],
+    max_len: int = 50,
+    *,
+    sensitive: FrozenSet[str] = _SENSITIVE_HEADER_KEYS,
+) -> Dict[str, str]:
     """Mask header values for safe logging.
 
-    - Sensitive headers (Authorization, API keys, ...): partially redacted
+    - Sensitive headers (Authorization, API keys, ...): partially redacted.
+      ``sensitive`` is the lowercased set, which ``call_api`` widens with the
+      headers this request's credential travels in.
     - All values capped at *max_len* characters to prevent log bloat
     """
     masked: Dict[str, str] = {}
     for key, value in headers.items():
-        if key.lower() in _SENSITIVE_HEADER_KEYS:
-            # Sensitive: show auth type prefix + first few chars of secret
-            if len(value) > 10:
-                masked[key] = value[:10] + "***"
-            else:
-                masked[key] = value[:4] + "***"
+        if key.lower() in sensitive:
+            # The scheme, when there is one, and four characters of the secret:
+            # enough to tell two tokens apart in a log. A fixed ten characters
+            # showed "Bearer " and three of a bearer token, but ten of a bare
+            # one — a third of a 32-character Shopify token.
+            scheme, _, secret = value.rpartition(" ")
+            masked[key] = f"{scheme} {secret[:4]}***" if scheme else f"{secret[:4]}***"
         else:
             # Non-sensitive: just cap length
             if len(value) > max_len:
@@ -764,6 +772,7 @@ async def call_api(
     follow_redirects: bool = False,
     body_field_count: Optional[int] = None,
     credential_headers: Optional[Iterable[str]] = None,
+    token_header: Optional[str] = None,
 ) -> Any:
     """Map a validated tool input onto an HTTP request, send it, return the body.
 
@@ -815,6 +824,12 @@ async def call_api(
         knows which of the headers it assembled is the secret —
         ``Authorization`` for a bearer tool, whatever the API named it for an
         api-key one. :data:`_SENSITIVE_HEADER_KEYS` is the floor either way.
+        The same names are masked in the debug log of the request.
+    token_header: Where ``credentials.token`` goes. ``None`` sends
+        ``Authorization: Bearer <token>``; a header name sends the token bare in
+        that header instead, for an API that wants its OAuth token somewhere
+        else — Shopify's ``X-Shopify-Access-Token``. The name is treated as a
+        credential header whether or not ``credential_headers`` lists it.
     follow_redirects: Whether a 3xx is followed. ``False`` by default, which is
         httpx's own default and the right one for a JSON API: a redirect there
         is usually a misconfigured URL, and following it silently would hide
@@ -928,7 +943,19 @@ async def call_api(
     headers = httpx.Headers()
 
     if credentials is not None:
-        headers["Authorization"] = f"Bearer {credentials.token}"
+        if token_header is None:
+            headers["Authorization"] = f"Bearer {credentials.token}"
+        else:
+            headers[token_header] = credentials.token
+
+    # The headers whose values are this request's credential: masked in the
+    # debug log below, and dropped if a redirect leaves the origin. One set for
+    # both, because the log used to mask a fixed list of names, and a key sent
+    # under a name of the API's choosing — `X-Shopify-Access-Token` — reached
+    # the log in full while the redirect walk was already protecting it.
+    secret_headers = _SENSITIVE_HEADER_KEYS | {name.lower() for name in credential_headers or ()}
+    if token_header is not None:
+        secret_headers |= {token_header.lower()}
 
     # Apply the key cascade to the body.
     #
@@ -1029,7 +1056,9 @@ async def call_api(
         headers.update({k: str(v) for k, v in request_headers.items() if v is not None})
 
     if logger.isEnabledFor(logging.DEBUG):
-        req_extra: Dict[str, Any] = {"headers": _mask_headers_for_log(headers)}
+        req_extra: Dict[str, Any] = {
+            "headers": _mask_headers_for_log(headers, sensitive=secret_headers)
+        }
         if params_payload:
             req_extra["query"] = params_payload
         if json_payload is not None:
@@ -1086,11 +1115,7 @@ async def call_api(
                 url,
                 request_kwargs,
                 follow_redirects=follow_redirects,
-                credential_headers=(
-                    _SENSITIVE_HEADER_KEYS | {name.lower() for name in credential_headers}
-                    if credential_headers is not None
-                    else _SENSITIVE_HEADER_KEYS
-                ),
+                credential_headers=secret_headers,
             )
         finally:
             if probe is not None:

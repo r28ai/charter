@@ -195,7 +195,8 @@ lock, so eviction removes both together.
 
 ## What the cache does, precisely
 
-Two behaviours worth knowing, because both are deliberate and both are visible:
+Three behaviours worth knowing, because all three are deliberate and all three
+are visible:
 
 **Renewal is capped at half the granted lifetime.** `leeway_seconds` (default 90)
 renews a token shortly before it expires. But a server issuing 60-second tokens
@@ -211,6 +212,21 @@ Token endpoints rate-limit per *client*, so an agent that keeps calling tools fo
 revoked user would degrade every other user of your app. The client remembers the
 refusal for 60 seconds and raises the same [`CredentialError`](/reference/errors#credentialerror) without asking again.
 Call `reset()` — or build a new client — after re-authorizing.
+
+**A token the API refuses is dropped, not kept until it expires.** A token can
+die early: an app uninstalled and reinstalled, a secret rotated, a grant revoked
+and given again. When a call comes back `401`, or with an envelope's credential
+error, the runtime tells the provider that issued the token, and the client
+forgets it, so the next call fetches a new one. Before this a running server
+sent the dead token until the expiry it was issued with, which for Shopify is a
+day. The call that was refused still raises: retrying is yours to decide. Only
+that token is dropped — if a concurrent call has already replaced it, the
+replacement stays — and the grant is kept, so a dead *grant* still lands on the
+cool-down above.
+
+A provider of your own can take part by defining `invalidate(credentials)`.
+`SubjectProvider` passes it on to the current subject's provider, and the packs'
+own providers pass it on to the client they hold.
 
 ## What Charter does not do
 

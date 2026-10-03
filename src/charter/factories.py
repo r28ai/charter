@@ -251,6 +251,7 @@ def oauth_tool_factory(
     expiry_leeway_seconds: int = 10,
     credential_statuses: Optional[Iterable[int]] = None,
     follow_redirects: bool = False,
+    token_header: Optional[str] = None,
 ) -> ToolBuilder:
     """Build tools for an API that authenticates with a bearer token.
 
@@ -284,6 +285,14 @@ def oauth_tool_factory(
             redirect — GitHub serves Actions logs and artifacts as a 302 to a
             short-lived signed URL. The bearer token does not travel with it:
             ``Authorization`` is dropped when a redirect leaves the origin.
+        token_header: The header the token goes in, for an API that does not
+            read it from ``Authorization``. ``None`` (the default) sends
+            ``Authorization: Bearer <token>``; a name sends the token bare in
+            that header — ``"X-Shopify-Access-Token"`` for Shopify. Only where
+            the token lands changes: it still comes from
+            ``credential_provider`` on every call, so a provider that renews
+            keeps renewing. Dropped on a redirect that leaves the origin, as
+            ``Authorization`` is.
 
     Returns:
         A callable that builds :class:`~charter.tool.Tool` instances with these defaults.
@@ -376,6 +385,7 @@ def oauth_tool_factory(
             ),
             expiry_leeway_seconds=expiry_leeway_seconds,
             credential_statuses=credential_statuses,
+            token_header=token_header,
             llm_cache=_llm_cache,
         )
 

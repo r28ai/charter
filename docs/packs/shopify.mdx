@@ -7,11 +7,11 @@ sidebarTitle: "Overview"
 {/* generated:summary start — do not edit by hand; run scripts/generate_pack_docs.py */}
 <div className="pack-summary">
   <span><Visibility for="humans"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg></Visibility>22 tools</span>
-  <span><Visibility for="humans"><svg viewBox="0 0 24 24"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4" /><path d="m21 2-9.6 9.6" /><circle cx="7.5" cy="15.5" r="5.5" /></svg></Visibility>API key</span>
+  <span><Visibility for="humans"><svg viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /></svg></Visibility>OAuth token</span>
 </div>
 {/* generated:summary end */}
 
-```python shopify_example.py {13}
+```python shopify_example.py {14}
 import asyncio
 import os
 
@@ -19,7 +19,8 @@ from charter.packs import shopify
 
 shopify.configure(
     shop=os.environ["SHOPIFY_SHOP"],
-    access_token=os.environ["SHOPIFY_ACCESS_TOKEN"],
+    client_id=os.environ["SHOPIFY_CLIENT_ID"],
+    client_secret=os.environ["SHOPIFY_CLIENT_SECRET"],
 )
 
 
@@ -42,20 +43,61 @@ not.
 ## Authenticating
 
 {/* generated:auth start — do not edit by hand; run scripts/generate_pack_docs.py */}
-**Get a token:** create an app in Shopify's [Dev Dashboard](https://dev.shopify.com/dashboard), install it on your store, and mint an Admin API token from its client ID and secret — [getting a token](#getting-a-token) below has the request. It needs two values where other packs need one: `SHOPIFY_SHOP` and `SHOPIFY_ACCESS_TOKEN`.
+**Get credentials:** create an app in Shopify's [Dev Dashboard](https://dev.shopify.com/dashboard), install it on your store, and copy its client ID and secret — [the steps](#getting-the-client-id-and-secret) are below. The pack trades them for an Admin API token and trades them again when it runs out, so `SHOPIFY_SHOP`, `SHOPIFY_CLIENT_ID` and `SHOPIFY_CLIENT_SECRET` are all it needs.
 
-This pack takes an API key in `X-Shopify-Access-Token`.
-
-There is no authorization server, no consent screen and no refresh — [API keys](/auth/api-key-tool-factory) is the whole story.
+This pack takes an OAuth token, sent bare in `X-Shopify-Access-Token` rather than in `Authorization`. Its [`configure()`](/reference/configuration#configure) takes the installation as well as the credential, so the shapes it accepts are written out below.
 {/* generated:auth end */}
 
-Two values, because a Shopify installation is a store as well as a token:
-`configure()` is optional when **both** `$SHOPIFY_SHOP` and
-`$SHOPIFY_ACCESS_TOKEN` are set. `shop` is the subdomain — `"my-store"` for
-`my-store.myshopify.com` — and the full domain or a complete URL is accepted
-too, since all three appear in Shopify's own documentation and admin UI.
+`configure()` takes the store and one credential, because a Shopify
+installation is a store as well as a token. `shop` is the subdomain —
+`"my-store"` for `my-store.myshopify.com` — and the full domain or a complete
+URL is accepted too, since all three appear in Shopify's own documentation and
+admin UI. The credential is one of three:
 
-### Getting a token
+| Pass | For | Renewed |
+|---|---|---|
+| `client_id=`, `client_secret=` | a Dev Dashboard app, the shape since January 2026 | yes, before its 24 hours are up |
+| `access_token=` | a store's older `shpat_` token, or one minted elsewhere | no — a `shpat_` token does not expire, a minted one stops the next day |
+| `credential_provider=` | anything else that supplies the token | however that provider does it |
+
+`configure()` is optional when `$SHOPIFY_SHOP` is set beside either
+`$SHOPIFY_CLIENT_ID` and `$SHOPIFY_CLIENT_SECRET` or `$SHOPIFY_ACCESS_TOKEN`.
+When both are set the pair wins, because it can always produce a valid token
+and a raw one left in the environment usually cannot. That is what keeps
+[the MCP server](/using/mcp) working past its first day.
+
+The pair is Shopify's client credentials grant: the pack posts it to the store's
+own `/admin/oauth/access_token`, sends the token it gets back in
+`X-Shopify-Access-Token`, and asks again shortly before the token expires. It is
+the same [`OAuth2Client`](/reference/oauth#oauth2client) every other OAuth pack
+uses, pointed at a token endpoint on the store's host. Built by hand, which is
+what the client below takes as `credentials`:
+
+```python shopify_credentials.py
+import os
+
+from charter.auth import OAuth2Client, OAuth2Server
+
+shop = os.environ["SHOPIFY_SHOP"]
+
+credentials = OAuth2Client(
+    OAuth2Server(
+        token_endpoint=f"https://{shop}.myshopify.com/admin/oauth/access_token"
+    ),
+    client_id=os.environ["SHOPIFY_CLIENT_ID"],
+    client_secret=os.environ["SHOPIFY_CLIENT_SECRET"],
+    grant="client_credentials",
+)
+```
+
+<Note>
+Shopify grants this only when the app and the store belong to the same
+organisation, so it is a credential for your own stores. An app installed on
+merchants' stores goes through Shopify's authorization code flow and holds a
+token per store, which is your application's to keep.
+</Note>
+
+### Getting the client ID and secret
 
 Since January 2026 a new app is made in Shopify's Dev Dashboard rather than in
 the store admin, and its Admin API token is minted on request rather than shown
@@ -68,30 +110,26 @@ once on a settings page:
    rest — and **Release** it. A call that needs one you left out names it in
    the error: *"Required access: `read_products` access scope"*.
 3. **Install** the app on your store. The app and the store must belong to the
-   same organisation for the next step to work.
-4. Copy the **Client ID** and **Client secret** from the app's **Settings**, and
-   trade them for a token:
+   same organisation, or Shopify refuses the client credentials grant.
+4. Copy the **Client ID** and **Client secret** from the app's **Settings**:
 
 ```bash
-curl -X POST "https://my-store.myshopify.com/admin/oauth/access_token" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d grant_type=client_credentials \
-  -d client_id="$SHOPIFY_CLIENT_ID" \
-  -d client_secret="$SHOPIFY_CLIENT_SECRET"
+export SHOPIFY_SHOP=my-store
+export SHOPIFY_CLIENT_ID=...
+export SHOPIFY_CLIENT_SECRET=...
 ```
 
-The `access_token` in the answer is `$SHOPIFY_ACCESS_TOKEN`. **It lasts 24
-hours**, and this pack sends the token it holds without renewing it: mint a new
-one and call `configure()` again, or restart with the new value, once a day.
+The secret is the credential that mints every token, so it is kept like one.
 
 A store with a custom app made in the admin before 2026 keeps that app's
-`shpat_` token, which still works and does not expire.
+`shpat_` token, which still works and does not expire: set it as
+`$SHOPIFY_ACCESS_TOKEN` instead of the pair.
 
 ## The client
 
 {/* generated:wire start — do not edit by hand; run scripts/generate_pack_docs.py */}
 <Note>
-[`api_key_tool_factory`](/reference/factories#api_key_tool_factory) is the whole client: a thin wrapper over `httpx` that attaches your key and these endpoint constants to each request. `ShopifyAPI` does not enter your dependency tree.
+[`oauth_tool_factory`](/reference/factories#oauth_tool_factory) is the whole client: a thin wrapper over `httpx` that attaches your token and these endpoint constants to each request. `ShopifyAPI` does not enter your dependency tree.
 </Note>
 
 <div className="named-tabs" data-files="shopify_api_client.py|shopify_pack_client.py">
@@ -100,15 +138,17 @@ A store with a custom app made in the admin before 2026 keeps that app's
 ```python Without the pack
 import os
 
-from charter import Envelope, api_key_tool_factory
+from charter import Envelope, oauth_tool_factory
 
 shop = os.environ["SHOPIFY_SHOP"]
-access_token = os.environ["SHOPIFY_ACCESS_TOKEN"]
 
-shopify_api_client = api_key_tool_factory(
+shopify_api_client = oauth_tool_factory(
     # the host is a property of the installation, not of the API
     base_url=lambda: f"https://{shop}.myshopify.com/",
-    api_key_headers={"X-Shopify-Access-Token": access_token},
+    provider="shopify",
+    credential_provider=credentials,
+    # the token is not sent in Authorization
+    token_header="X-Shopify-Access-Token",
     pack="shopify",
     body_format="json",
     query_format="repeat",
@@ -135,7 +175,7 @@ from charter.packs import shopify
 
 shopify.configure(
     shop=os.environ["SHOPIFY_SHOP"],
-    access_token=os.environ["SHOPIFY_ACCESS_TOKEN"],
+    credential_provider=credentials,
 )
 
 # The base URL, the casing, the envelope and the pagination are
@@ -145,6 +185,8 @@ tools = shopify.TOOLS
 
 </CodeGroup>
 </div>
+
+`credentials` is the provider you built in [Authenticating](#authenticating). A pack takes it through [`configure()`](/reference/configuration#configure); a client you build takes the same object as `credential_provider`, and has no `configure()` of its own.
 
 ### Paging through a list
 

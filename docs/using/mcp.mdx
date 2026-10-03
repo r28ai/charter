@@ -161,13 +161,17 @@ The entry point reads them from the environment — the same [environment fallba
 | `github` | `GITHUB_TOKEN` |
 | `stripe` | `STRIPE_API_KEY` |
 | `linear` | `LINEAR_API_KEY` |
-| `shopify` | `SHOPIFY_SHOP` and `SHOPIFY_ACCESS_TOKEN` |
+| `shopify` | `SHOPIFY_SHOP`, with `SHOPIFY_CLIENT_ID` and `SHOPIFY_CLIENT_SECRET` or `SHOPIFY_ACCESS_TOKEN` |
 | `firecrawl` | `FIRECRAWL_API_KEY` |
 | `notion` | `NOTION_API_KEY` |
 | `granola` | `GRANOLA_API_KEY` |
 | `tavily` | `TAVILY_API_KEY` |
 
-Shopify needs both variables, since the host is a property of the store.
+Shopify always needs `SHOPIFY_SHOP`, since the host is a property of the store.
+Give it the app's client ID and secret rather than a token: a token minted from
+them lasts 24 hours, and from the pair the server mints and renews its own. The
+pair wins when both are set. A store's older `shpat_` token does not expire and
+works as `SHOPIFY_ACCESS_TOKEN`.
 
 **Give a Google server a grant, not a token.** `GOOGLE_ACCESS_TOKEN` expires in about an hour and nothing renews it, so a server started from one fails every Google call an hour in. `GOOGLE_TOKEN_FILE` points at an authorized-user JSON file — the `token.json` Google's quickstarts write, Hermes Agent's `google_token.json`, or the file `gcloud auth application-default login` writes — and the server renews from it for as long as it runs. The three `GOOGLE_*` variables are the same grant spelled out; [Set up Google](/auth/setup/google) ends with them. Either one wins over `GOOGLE_ACCESS_TOKEN`. Two servers side by side, one on each, both read the inbox at minute zero; at minute 62 the access-token server got a `401` and the token-file server read it again.
 

@@ -618,6 +618,36 @@
                 ]
               },
               {
+                "group": "Shopify",
+                "expanded": false,
+                "pages": [
+                  "packs/shopify",
+                  "packs/shopify/shop_get",
+                  "packs/shopify/products_list",
+                  "packs/shopify/product_get",
+                  "packs/shopify/product_create",
+                  "packs/shopify/product_update",
+                  "packs/shopify/orders_list",
+                  "packs/shopify/order_get",
+                  "packs/shopify/customers_list",
+                  "packs/shopify/customer_get",
+                  "packs/shopify/customer_create",
+                  "packs/shopify/customer_update",
+                  "packs/shopify/order_fulfillment_orders",
+                  "packs/shopify/fulfillment_create",
+                  "packs/shopify/inventory_adjust_quantities",
+                  "packs/shopify/variant_inventory_level",
+                  "packs/shopify/locations_list",
+                  "packs/shopify/order_close",
+                  "packs/shopify/order_open",
+                  "packs/shopify/order_cancel",
+                  "packs/shopify/draft_order_create",
+                  "packs/shopify/draft_order_complete",
+                  "packs/shopify/product_variants_bulk_create",
+                  "packs/shopify/objects"
+                ]
+              },
+              {
                 "group": "Notion",
                 "expanded": false,
                 "pages": [
@@ -1070,36 +1100,6 @@
                       "packs/linear/webhooks/objects"
                     ]
                   }
-                ]
-              },
-              {
-                "group": "Shopify",
-                "expanded": false,
-                "pages": [
-                  "packs/shopify",
-                  "packs/shopify/shop_get",
-                  "packs/shopify/products_list",
-                  "packs/shopify/product_get",
-                  "packs/shopify/product_create",
-                  "packs/shopify/product_update",
-                  "packs/shopify/orders_list",
-                  "packs/shopify/order_get",
-                  "packs/shopify/customers_list",
-                  "packs/shopify/customer_get",
-                  "packs/shopify/customer_create",
-                  "packs/shopify/customer_update",
-                  "packs/shopify/order_fulfillment_orders",
-                  "packs/shopify/fulfillment_create",
-                  "packs/shopify/inventory_adjust_quantities",
-                  "packs/shopify/variant_inventory_level",
-                  "packs/shopify/locations_list",
-                  "packs/shopify/order_close",
-                  "packs/shopify/order_open",
-                  "packs/shopify/order_cancel",
-                  "packs/shopify/draft_order_create",
-                  "packs/shopify/draft_order_complete",
-                  "packs/shopify/product_variants_bulk_create",
-                  "packs/shopify/objects"
                 ]
               },
               {

@@ -455,6 +455,185 @@ async def test_an_expired_token_from_a_provider_is_refused_before_the_request():
 
 
 # -----------------------------------------------------
+# A token the API refuses before it expires
+# -----------------------------------------------------
+
+
+def _tool(credential_provider, **factory_kw):
+    factory = oauth_tool_factory(
+        pack="oauth",
+        base_url=API,
+        provider="example",
+        credential_provider=credential_provider,
+        **factory_kw,
+    )
+    return factory(
+        name="things_get", args_schema=Args, method="GET", url_template="v1/things/{thing_id}"
+    )
+
+
+@respx.mock
+async def test_a_token_refused_before_its_expiry_is_replaced_on_the_next_call():
+    """A token revoked early (an app reinstalled, a secret rotated) was sent on
+    every call until the expiry it was issued with: up to a day of 401s."""
+    minted = respx.post(TOKEN_URL).mock(
+        side_effect=[_token_response(access_token="at-1"), _token_response(access_token="at-2")]
+    )
+    api = respx.get(f"{API}v1/things/t1").mock(
+        side_effect=[httpx.Response(401, json={}), httpx.Response(200, json={})]
+    )
+    tool = _tool(_client())
+
+    with pytest.raises(CredentialError):
+        await tool.ainvoke(thing_id="t1")
+    await tool.ainvoke(thing_id="t1")
+
+    assert minted.call_count == 2
+    sent = [call.request.headers["Authorization"] for call in api.calls]
+    assert sent == ["Bearer at-1", "Bearer at-2"]
+
+
+@respx.mock
+async def test_an_envelope_credential_error_replaces_the_token_too():
+    from charter import Envelope
+
+    minted = respx.post(TOKEN_URL).mock(
+        side_effect=[_token_response(access_token="at-1"), _token_response(access_token="at-2")]
+    )
+    respx.get(f"{API}v1/things/t1").mock(
+        side_effect=[
+            httpx.Response(200, json={"ok": False, "error": "token_revoked"}),
+            httpx.Response(200, json={"ok": True}),
+        ]
+    )
+    envelope = Envelope(ok_field="ok", error_field="error", credential_errors={"token_revoked"})
+    tool = _tool(_client(), envelope=envelope)
+
+    with pytest.raises(CredentialError):
+        await tool.ainvoke(thing_id="t1")
+    await tool.ainvoke(thing_id="t1")
+
+    assert minted.call_count == 2
+
+
+@respx.mock
+async def test_a_failure_that_is_not_the_tokens_keeps_it():
+    from charter import APIError
+
+    minted = respx.post(TOKEN_URL).mock(return_value=_token_response())
+    respx.get(f"{API}v1/things/t1").mock(
+        side_effect=[httpx.Response(500, json={}), httpx.Response(200, json={})]
+    )
+    tool = _tool(_client())
+
+    with pytest.raises(APIError):
+        await tool.ainvoke(thing_id="t1")
+    await tool.ainvoke(thing_id="t1")
+
+    assert minted.call_count == 1
+
+
+@respx.mock
+async def test_a_local_credential_error_keeps_the_token():
+    """No store configured, say: raised before the request, so it says nothing
+    about the token and must not cost a refresh."""
+    minted = respx.post(TOKEN_URL).mock(return_value=_token_response())
+    route = respx.get(f"{API}v1/things/t1").mock(return_value=httpx.Response(200, json={}))
+    configured = {"host": None}
+
+    def base_url() -> str:
+        if configured["host"] is None:
+            raise CredentialError("no host yet")
+        return configured["host"]
+
+    factory = oauth_tool_factory(
+        pack="oauth", base_url=base_url, provider="example", credential_provider=_client()
+    )
+    tool = factory(
+        name="things_get", args_schema=Args, method="GET", url_template="v1/things/{thing_id}"
+    )
+    with pytest.raises(CredentialError, match="no host"):
+        await tool.ainvoke(thing_id="t1")
+    configured["host"] = API
+    await tool.ainvoke(thing_id="t1")
+
+    assert minted.call_count == 1
+    assert route.called
+
+
+@respx.mock
+async def test_a_late_rejection_does_not_drop_the_token_that_replaced_it():
+    """Two calls in flight on the old token: the first 401 replaces it, and the
+    second must not throw the replacement away."""
+    from charter.auth import Credentials
+
+    respx.post(TOKEN_URL).mock(
+        side_effect=[_token_response(access_token="at-1"), _token_response(access_token="at-2")]
+    )
+    client = _client()
+    old = await client.get_credentials("example")
+    client.invalidate(old)
+    new = await client.get_credentials("example")
+
+    client.invalidate(Credentials(token="at-1"))
+
+    assert (await client.get_credentials("example")) is new
+
+
+@respx.mock
+async def test_a_rejection_reaches_only_the_subject_it_was_for():
+    issued: dict = {}
+
+    def mint(request: httpx.Request) -> httpx.Response:
+        subject = dict(pair.split("=") for pair in request.content.decode().split("&"))[
+            "refresh_token"
+        ]
+        issued[subject] = issued.get(subject, 0) + 1
+        return _token_response(access_token=f"{subject}-{issued[subject]}")
+
+    respx.post(TOKEN_URL).mock(side_effect=mint)
+    api = respx.get(f"{API}v1/things/t1").mock(
+        side_effect=[
+            httpx.Response(200, json={}),
+            httpx.Response(401, json={}),
+            httpx.Response(200, json={}),
+            httpx.Response(200, json={}),
+        ]
+    )
+    tool = _tool(SubjectProvider(lambda subject: _client(refresh_token=subject)))
+
+    with use_subject("bob"):
+        await tool.ainvoke(thing_id="t1")
+    with use_subject("alice"), pytest.raises(CredentialError):
+        await tool.ainvoke(thing_id="t1")
+    with use_subject("alice"):
+        await tool.ainvoke(thing_id="t1")
+    with use_subject("bob"):
+        await tool.ainvoke(thing_id="t1")
+
+    sent = [call.request.headers["Authorization"] for call in api.calls]
+    assert sent == ["Bearer bob-1", "Bearer alice-1", "Bearer alice-2", "Bearer bob-1"]
+
+
+@respx.mock
+async def test_a_provider_whose_invalidate_raises_does_not_hide_the_401(caplog):
+    from charter.auth import Credentials
+
+    class Broken:
+        async def get_credentials(self, provider):
+            return Credentials(token="t")
+
+        def invalidate(self, credentials):
+            raise RuntimeError("store unreachable")
+
+    respx.get(f"{API}v1/things/t1").mock(return_value=httpx.Response(401, json={}))
+
+    with pytest.raises(CredentialError):
+        await _tool(Broken()).ainvoke(thing_id="t1")
+    assert "invalidate() raised" in caplog.text
+
+
+# -----------------------------------------------------
 # Many end users
 # -----------------------------------------------------
 

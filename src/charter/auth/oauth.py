@@ -515,6 +515,27 @@ class OAuth2Client:
         self._dead_status = None
         self._dead_until = 0.0
 
+    def invalidate(self, credentials: Credentials) -> None:
+        """Drop the cached token if it is the one the API just refused.
+
+        Called by the runtime on a 401. Without it a token revoked before its
+        expiry — an app reinstalled, a secret rotated — was sent on every call
+        until the expiry it was issued with, up to a day of 401s for a token the
+        server could have replaced on the next request.
+
+        Only that token: if another call has already replaced it, the
+        replacement stays. The grant is untouched, so the next call refreshes
+        rather than failing, and a server that answers that refresh with
+        ``invalid_grant`` is held off by the cool-down as before.
+        """
+        cached = self._cached
+        if cached is not None and cached.token == credentials.token:
+            self._cached = None
+            logger.debug(
+                "OAuth token for %s was rejected; the next call fetches a new one",
+                self.server.issuer or self.server.token_endpoint,
+            )
+
     @property
     def refresh_token(self) -> Optional[str]:
         """The current refresh token — which is not necessarily the one passed in.

@@ -205,7 +205,10 @@ def _render_auth_short(tool: Tool) -> Tuple[str, str]:
     third here rather than falling into one of these.
     """
     if tool.credential_provider is not None:
-        return _ICON_OAUTH, "OAuth bearer"
+        # Same glyph: it is still an OAuth token from a credential provider, and
+        # only the header it lands in differs. "Bearer" would be the one word
+        # on the chip that is false.
+        return _ICON_OAUTH, "OAuth token" if tool.token_header else "OAuth bearer"
     return _ICON_API_KEY, "API key"
 
 
@@ -463,16 +466,17 @@ _SETUP: Dict[str, _Setup] = {
         ),
     ),
     "shopify": _Setup(
-        need="An app installed on your store, and a token minted from it",
-        where="[dev.shopify.com/dashboard](https://dev.shopify.com/dashboard) · [the steps](/packs/shopify#getting-a-token)",
-        env="`SHOPIFY_SHOP`, `SHOPIFY_ACCESS_TOKEN`",
+        need="An app installed on your store",
+        where="[dev.shopify.com/dashboard](https://dev.shopify.com/dashboard) · [the steps](/packs/shopify#getting-the-client-id-and-secret)",
+        env="`SHOPIFY_SHOP`, `SHOPIFY_CLIENT_ID`, `SHOPIFY_CLIENT_SECRET`",
         lead=(
-            "**Get a token:** create an app in Shopify's"
+            "**Get credentials:** create an app in Shopify's"
             " [Dev Dashboard](https://dev.shopify.com/dashboard), install it on your"
-            " store, and mint an Admin API token from its client ID and secret —"
-            " [getting a token](#getting-a-token) below has the request. It needs two"
-            " values where other packs need one: `SHOPIFY_SHOP` and"
-            " `SHOPIFY_ACCESS_TOKEN`."
+            " store, and copy its client ID and secret —"
+            " [the steps](#getting-the-client-id-and-secret) are below. The pack trades"
+            " them for an Admin API token and trades them again when it runs out, so"
+            " `SHOPIFY_SHOP`, `SHOPIFY_CLIENT_ID` and `SHOPIFY_CLIENT_SECRET` are all it"
+            " needs."
         ),
     ),
     "firecrawl": _Setup(
@@ -810,6 +814,19 @@ def _credential_shapes(pack: str, provider: str, env_var: str, page: Optional[st
     return "\n".join(body).rstrip()
 
 
+def _takes_more_than_a_credential(module: ModuleType) -> bool:
+    """Whether this OAuth pack's ``configure()`` takes anything besides the provider."""
+    params = inspect.signature(module.configure).parameters
+    return "credential_provider" in params and len(params) > 1
+
+
+def _token_placement(tool: Tool) -> str:
+    """Where the token goes, said only when it is not ``Authorization: Bearer``."""
+    if not tool.token_header:
+        return ""
+    return f", sent bare in {_code(tool.token_header)} rather than in `Authorization`"
+
+
 def render_auth(pack: str, module: ModuleType) -> str:
     """What credential this pack takes, in what shapes, and where to get one.
 
@@ -841,12 +858,27 @@ def render_auth(pack: str, module: ModuleType) -> str:
             "[API keys](/auth/api-key-tool-factory) is the whole story."
         )
 
+    if _takes_more_than_a_credential(module):
+        # The three shapes below are written for a pack whose configure() takes
+        # a credential and nothing else, and they name a server constant and a
+        # refresh token. A pack that takes its installation as well — Shopify's
+        # store, whose token endpoint is on that store's own host — has neither,
+        # so its own prose under this block says what it accepts.
+        return (
+            f"{lead}\n"
+            "\n"
+            f"This pack takes an OAuth token{_token_placement(first)}. Its {_CONFIGURE}"
+            " takes the installation as well as the credential, so the shapes it"
+            " accepts are written out below."
+        )
+
     named = _PROVIDER_PAGES.get(first.provider or "")
     server = f"{named[0]} " if named else ""
     lines = [
         lead,
         "",
-        f"This pack takes {'a ' + server if server else 'an '}OAuth bearer token{source}."
+        f"This pack takes {'a ' + server if server else 'an '}OAuth bearer token"
+        f"{_token_placement(first)}{source}."
         " Which credential provider you hand it depends on whose account the"
         " calls run as.",
     ]
@@ -1136,7 +1168,7 @@ def wire_declarations(pack: str, module: ModuleType) -> str:
     key_var = getattr(holder, "env_var", None)
     base_url = uniform(lambda t: t.base_url)
     host_var = getattr(base_url, "env_var", None) if callable(base_url) else None
-    reads, key_name, host_name = _env_bindings(module, key_var, host_var)
+    reads, key_name, host_name = _env_bindings(module, None if oauth else key_var, host_var)
 
     if _varies(base_url):
         base_url, exceptions = _dominant(tools, lambda t: t.base_url)
@@ -1168,6 +1200,13 @@ def wire_declarations(pack: str, module: ModuleType) -> str:
         if not _varies(provider) and provider:
             kwargs.append((None, f"provider={_py(provider)}"))
         kwargs.append((None, f"credential_provider={_py_credential(first)}"))
+        token_header = uniform(lambda t: t.token_header)
+        if _varies(token_header):
+            kwargs.append(("varies by tool", "token_header=..."))
+        elif token_header:
+            kwargs.append(
+                ("the token is not sent in Authorization", f"token_header={_py(token_header)}")
+            )
     else:
         kwargs.append(
             (
@@ -1401,8 +1440,15 @@ def pack_usage(pack: str, module: ModuleType) -> str:
     host_var = getattr(base_url, "env_var", None) if callable(base_url) else None
 
     args: List[str] = []
-    for name in inspect.signature(module.configure).parameters:
-        if name == "credential_provider" and key_var:
+    parameters = inspect.signature(module.configure).parameters
+    for name, parameter in parameters.items():
+        if "credential_provider" in parameters and name not in ("credential_provider", "shop"):
+            # The other credential shapes are alternatives to this one, and the
+            # tab hands over the same object as its neighbour.
+            continue
+        if name == "credential_provider" and parameter.kind is parameter.KEYWORD_ONLY:
+            args.append(f"{name}={_CREDENTIAL}")
+        elif name == "credential_provider" and key_var:
             # The same name the other tab passes to the factory. These two tabs
             # are a controlled comparison — the only thing that should differ
             # between them is how much you had to write — so the credential is
@@ -1532,9 +1578,14 @@ def render_wire(pack: str, module: ModuleType) -> str:
     # tabs read the key straight from the environment on both sides, so there is
     # no picked-provider to place and nothing here to say.
     if oauth:
+        which = (
+            "the provider you built in"
+            if _takes_more_than_a_credential(module)
+            else "whichever of the three you built in"
+        )
         lines += [
             "",
-            f"`{_CREDENTIAL}` is whichever of the three you built in"
+            f"`{_CREDENTIAL}` is {which}"
             " [Authenticating](#authenticating). A pack takes it through"
             " [`configure()`](/reference/configuration#configure); a client you"
             " build takes the same object as `credential_provider`, and has no"

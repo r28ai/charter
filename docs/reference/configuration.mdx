@@ -63,12 +63,26 @@ stripe.configure("sk_test_123")
 ### Shopify
 
 ```python
-def configure(shop: str, access_token: str) -> None: ...
+def configure(
+    shop: Optional[str] = None,
+    access_token: Optional[str] = None,
+    *,
+    client_id: Optional[str] = None,
+    client_secret: Optional[str] = None,
+    credential_provider: Optional[CredentialProvider] = None,
+) -> None: ...
 ```
 
-Two values, because the host is a property of the store rather than of the API.
-`shop` is the subdomain — `"my-store"` for `my-store.myshopify.com` — and the
-full domain or URL is accepted too. `access_token` is an Admin API access token.
+A store and a credential, because the host is a property of the store rather
+than of the API. `shop` is the subdomain — `"my-store"` for
+`my-store.myshopify.com` — and the full domain or URL is accepted too; left out,
+it comes from `$SHOPIFY_SHOP`. The credential is at most one of `client_id` with
+`client_secret`, a Dev Dashboard app's pair, which the pack trades for a 24-hour
+token and renews; `access_token`, held as given; or `credential_provider`. Two
+at once raise `TypeError`, and so does moving to another store while holding an
+`access_token` given for the previous one — a token belongs to the store that
+issued it, while the client ID and secret mint per store. Nothing changes when
+a call raises. The token is sent in `X-Shopify-Access-Token`.
 
 ## Environment fallbacks
 
@@ -82,7 +96,7 @@ first use.
 | `github` | `GITHUB_TOKEN` |
 | `stripe` | `STRIPE_API_KEY` |
 | `linear` | `LINEAR_API_KEY` |
-| `shopify` | `SHOPIFY_SHOP` and `SHOPIFY_ACCESS_TOKEN` |
+| `shopify` | `SHOPIFY_SHOP`, with `SHOPIFY_CLIENT_ID` and `SHOPIFY_CLIENT_SECRET` or `SHOPIFY_ACCESS_TOKEN` |
 | `firecrawl` | `FIRECRAWL_API_KEY` |
 | `notion` | `NOTION_API_KEY` |
 | `granola` | `GRANOLA_API_KEY` |
