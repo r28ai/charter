@@ -995,6 +995,9 @@ def _py_envelope(envelope: Envelope, indent: str, prefix: int = 0) -> str:
     if envelope.credential_errors:
         codes = sorted(envelope.credential_errors)
         args.append(f"credential_errors={_py_seq(codes, '{', '}', indent + '    ')}")
+    if envelope.permission_errors:
+        codes = sorted(envelope.permission_errors)
+        args.append(f"permission_errors={_py_seq(codes, '{', '}', indent + '    ')}")
     if envelope.detail_fields:
         rendered = _py_seq(list(envelope.detail_fields), "(", ")", indent + "    ")
         args.append(f"detail_fields={rendered}")

@@ -733,3 +733,28 @@ async def test_concurrent_first_calls_for_one_subject_share_a_provider():
 
     assert len({id(p) for p in results}) == 1
     assert len(provider) == 1
+
+
+@respx.mock
+async def test_a_permission_error_keeps_the_token():
+    """A missing scope is not a bad token: dropping it cost a refresh per failing
+    call, on a token no refresh could widen."""
+    from charter import Envelope
+
+    minted = respx.post(TOKEN_URL).mock(return_value=_token_response())
+    respx.get(f"{API}v1/things/t1").mock(
+        side_effect=[
+            httpx.Response(200, json={"ok": False, "error": "missing_scope"}),
+            httpx.Response(200, json={"ok": False, "error": "missing_scope"}),
+            httpx.Response(200, json={"ok": True}),
+        ]
+    )
+    envelope = Envelope(ok_field="ok", error_field="error", permission_errors={"missing_scope"})
+    tool = _tool(_client(), envelope=envelope)
+
+    for _ in range(2):
+        with pytest.raises(CredentialError):
+            await tool.ainvoke(thing_id="t1")
+    await tool.ainvoke(thing_id="t1")
+
+    assert minted.call_count == 1

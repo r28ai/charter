@@ -154,9 +154,10 @@ class Envelope:
     errors_field:
         Path — or several paths — to a list of errors; non-empty means failure.
     credential_errors:
-        Error codes that mean the credential is the problem. These raise
-        :class:`~charter.types.errors.CredentialError` so a host application can
-        refresh and retry; everything else raises
+        Error codes that mean the token itself was refused — revoked, expired,
+        invalid. These raise :class:`~charter.types.errors.CredentialError`, and
+        the runtime tells the credential provider, so the next call fetches a
+        new token; everything not listed raises
         :class:`~charter.types.errors.APIError`.
     detail_fields:
         Paths to extra values worth appending to the message — Slack's ``needed``
@@ -170,6 +171,15 @@ class Envelope:
         response carries the budget and the restore rate, and the wait is
         arithmetic on them rather than a field to read. Charter never retries; it
         declines to throw away the answer to "when?".
+    permission_errors:
+        Error codes that mean the token works but may not do this: a missing
+        scope, a token of the wrong type, an admin's block. These raise
+        :class:`~charter.types.errors.CredentialError` too, because the fix is
+        still a credential one — a wider grant, a different token — but the
+        token is kept. Listing ``missing_scope`` under ``credential_errors``
+        instead would drop a working token on every such call, and a provider
+        that refreshes would spend a refresh each time on a token no refresh
+        can widen.
     """
 
     ok_field: Optional[str] = None
@@ -183,6 +193,7 @@ class Envelope:
     credential_errors: AbstractSet[str] = field(default_factory=frozenset)
     detail_fields: Tuple[str, ...] = ()
     retry_after: Optional[Callable[[Any], Optional[int]]] = None
+    permission_errors: AbstractSet[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
         if not self.ok_field and not self.errors_field:
@@ -193,6 +204,15 @@ class Envelope:
             )
         # dataclass(frozen=True) blocks assignment; go through object.__setattr__.
         object.__setattr__(self, "credential_errors", _frozen(self.credential_errors))
+        object.__setattr__(self, "permission_errors", _frozen(self.permission_errors))
+        both = self.credential_errors & self.permission_errors
+        if both:
+            raise DeclarationError(
+                f"{', '.join(sorted(both))} cannot be both a refused token "
+                "(credential_errors) and a working token without permission "
+                "(permission_errors). Pick the one the API means.",
+                docs="tools/envelopes",
+            )
         object.__setattr__(self, "detail_fields", tuple(self.detail_fields))
 
     # -----------------------------------------------------
@@ -274,7 +294,8 @@ class Envelope:
         """Raise the right typed error if ``payload`` is a failure.
 
         Raises:
-            CredentialError: the error code is in ``credential_errors``.
+            CredentialError: the error code is in ``credential_errors`` or
+                ``permission_errors``; ``token_refused`` says which.
             APIError: any other declared failure. ``status_code`` stays 200 on
                 purpose — that really was the status, and it is the fact that
                 surprises whoever reads the log.
@@ -292,6 +313,15 @@ class Envelope:
                 provider=provider,
                 status_code=401,
                 docs=provider_docs(provider, bearer=bearer),
+            )
+        if code in self.permission_errors:
+            # 403 is HTTP's own word for "authenticated, but not allowed".
+            raise CredentialError(
+                message,
+                provider=provider,
+                status_code=403,
+                docs=provider_docs(provider, bearer=bearer),
+                token_refused=False,
             )
 
         body = payload

@@ -140,15 +140,17 @@ slack_api_client = oauth_tool_factory(
         error_field="error",
         credential_errors={
             "account_inactive",
-            "ekm_access_denied",
             "invalid_auth",
+            "not_authed",
+            "token_expired",
+            "token_revoked",
+        },
+        permission_errors={
+            "ekm_access_denied",
             "missing_scope",
             "no_permission",
             "not_allowed_token_type",
-            "not_authed",
             "org_login_required",
-            "token_expired",
-            "token_revoked",
         },
         detail_fields=("needed", "warning"),
     ),
@@ -306,11 +308,15 @@ somebody adds next year:
 from charter.packs.slack import SLACK_ENVELOPE
 ```
 
-Ten error codes are listed as credential errors, so `invalid_auth`,
-`token_revoked` and `missing_scope` raise `CredentialError` while
+Ten error codes raise `CredentialError`, in two kinds. `invalid_auth`,
+`token_revoked` and the other credential errors mean the token itself was
+refused, so the runtime tells the credential provider and a renewing one fetches
+another on the next call. `missing_scope`, `no_permission` and the other
+permission errors mean the token works and may not do this: no refresh widens
+it, so it is kept, and `token_refused` on the error is `False`.
 `channel_not_found` raises `APIError`. A host application can therefore tell
-"refresh the token and retry" from "the request was wrong" without parsing
-strings. `detail_fields` carries `needed` and `warning` through onto the error,
+"refresh the token and retry" from "ask for a scope" from "the request was
+wrong" without parsing strings. `detail_fields` carries `needed` and `warning` through onto the error,
 and `needed` is the one that says *which* scope was missing.
 
 `APIError.status_code` is 200 on these. That really was the status, and it is the
@@ -340,8 +346,8 @@ and a handler here never sees a failed payload — the envelope raised first.
   <Accordion title="search_messages needs a user token, not a bot token">
     `search.messages` is user-token only, and wants `search:read`. Called with a
     bot token, Slack returns `not_allowed_token_type` — which is in
-    `credential_errors`, so it surfaces as a `CredentialError` naming the
-    provider rather than as a generic failure. The scopes this pack declares are
+    `permission_errors`, so it surfaces as a `CredentialError` naming the
+    provider rather than as a generic failure, and the bot token is kept. The scopes this pack declares are
     the bot-token set; `search:read` is not among them.
   </Accordion>
 

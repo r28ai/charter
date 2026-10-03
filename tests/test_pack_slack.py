@@ -758,3 +758,25 @@ def test_every_timestamp_in_the_pack_tells_the_model_it_is_seconds():
     assert not naked, (
         f"Slack timestamp fields with no Gloss telling the model they are seconds: {sorted(naked)}"
     )
+
+
+@respx.mock
+@pytest.mark.parametrize(
+    ("code", "refused"),
+    [
+        ("invalid_auth", True),
+        ("token_revoked", True),
+        ("token_expired", True),
+        ("missing_scope", False),
+        ("no_permission", False),
+        ("not_allowed_token_type", False),
+    ],
+)
+async def test_only_a_refused_token_is_dropped(code, refused):
+    """A missing scope keeps the token: a refresh returns the same grant."""
+    respx.post(f"{API}chat.postMessage").mock(
+        return_value=httpx.Response(200, json={"ok": False, "error": code})
+    )
+    with pytest.raises(CredentialError) as excinfo:
+        await slack.chat_post_message.ainvoke(channel="C1", text="hi")
+    assert excinfo.value.token_refused is refused

@@ -627,12 +627,13 @@ class ToolExecutor:
             )
         except CredentialError as exc:
             # The API refused this token — a status in credential_statuses, or an
-            # envelope's credential error, both of which carry the status. Tell
-            # whatever issued it, so the next call fetches another rather than
-            # sending this one until the expiry it was issued with. This call
-            # still fails: retrying is the caller's decision. A CredentialError
-            # with no status was raised locally (no store configured, say) and
-            # says nothing about the token.
-            if exc.status_code is not None:
+            # envelope's credential error. Tell whatever issued it, so the next
+            # call fetches another rather than sending this one until the expiry
+            # it was issued with. This call still fails: retrying is the caller's
+            # decision. Not every CredentialError is a refusal: one raised locally
+            # (no store configured, say) says nothing about the token, and an
+            # envelope's permission error says the token works and may not do
+            # this — dropping it would only cost a refresh on every such call.
+            if exc.token_refused:
                 _report_rejection(self._credential_provider, credentials)
             raise

@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from charter import (
     APIError,
     CredentialError,
+    DeclarationError,
     Envelope,
     Path,
     Query,
@@ -440,3 +441,42 @@ def test_a_detail_path_that_matches_nothing_adds_nothing():
     with pytest.raises(APIError) as excinfo:
         absent.raise_for_payload({"errors": [{"message": "boom"}]})
     assert "extensions" not in str(excinfo.value)
+
+
+# -----------------------------------------------------
+# A refused token, or a working one without permission
+# -----------------------------------------------------
+
+PERMISSIONED = Envelope(
+    ok_field="ok",
+    error_field="error",
+    credential_errors={"token_revoked"},
+    permission_errors={"missing_scope"},
+)
+
+
+def test_a_refused_token_says_so():
+    with pytest.raises(CredentialError) as caught:
+        PERMISSIONED.raise_for_payload({"ok": False, "error": "token_revoked"}, provider="x")
+    assert (caught.value.status_code, caught.value.token_refused) == (401, True)
+
+
+def test_a_permission_error_is_a_credential_error_that_keeps_the_token():
+    with pytest.raises(CredentialError) as caught:
+        PERMISSIONED.raise_for_payload({"ok": False, "error": "missing_scope"}, provider="x")
+    assert (caught.value.status_code, caught.value.token_refused) == (403, False)
+
+
+def test_a_code_cannot_be_both_a_refusal_and_a_permission_error():
+    with pytest.raises(DeclarationError, match="missing_scope"):
+        Envelope(
+            ok_field="ok",
+            error_field="error",
+            credential_errors={"missing_scope"},
+            permission_errors={"missing_scope"},
+        )
+
+
+def test_a_credential_error_raised_before_any_request_refuses_nothing():
+    assert CredentialError("no store configured").token_refused is False
+    assert CredentialError("refused", status_code=401).token_refused is True

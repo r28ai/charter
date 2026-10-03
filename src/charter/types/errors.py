@@ -177,6 +177,12 @@ class CredentialError(CharterError):
         The HTTP status that triggered this, when it came from a response
         (``401`` by default; see ``credential_statuses``). ``None`` when the
         credentials were missing locally or a refresh failed.
+    token_refused:
+        Whether the API refused the token itself, so whatever issued it should
+        drop it and fetch another. True for a credential status and for an
+        envelope's ``credential_errors``. False for an envelope's
+        ``permission_errors`` — the token works and may not do this, which no
+        refresh changes — and for a failure raised before any request.
     """
 
     def __init__(
@@ -186,11 +192,15 @@ class CredentialError(CharterError):
         provider: Optional[str] = None,
         status_code: Optional[int] = None,
         docs: Optional[str] = None,
+        token_refused: Optional[bool] = None,
     ) -> None:
         super().__init__(message, docs=docs)
         self.message = message
         self.provider = provider
         self.status_code = status_code
+        # A status means a response, and a response refusing credentials refused
+        # this token, unless the raiser says the token is not what was wrong.
+        self.token_refused = status_code is not None if token_refused is None else token_refused
 
     def __str__(self) -> str:
         if self.provider:

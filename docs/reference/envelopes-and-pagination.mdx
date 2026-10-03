@@ -19,6 +19,7 @@ class Envelope:
     credential_errors: FrozenSet[str] = frozenset()
     detail_fields: Tuple[str, ...] = ()
     retry_after: Optional[Callable[[Any], Optional[int]]] = None
+    permission_errors: FrozenSet[str] = frozenset()
 ```
 
 How to tell success from failure when the status line will not.
@@ -44,9 +45,17 @@ How to tell success from failure when the status line will not.
 </ParamField>
 
 <ParamField path="credential_errors" type="FrozenSet[str]" default="frozenset()">
-  Error codes that mean the credential is the problem. These raise
-  [`CredentialError`](/reference/errors#credentialerror) with `status_code=401` so a host can refresh and retry;
-  everything else raises [`APIError`](/reference/errors#apierror).
+  Error codes that mean the token itself was refused. These raise
+  [`CredentialError`](/reference/errors#credentialerror) with `status_code=401`, and the runtime tells the
+  credential provider so the next call fetches a new token; everything not
+  listed in either set raises [`APIError`](/reference/errors#apierror).
+</ParamField>
+
+<ParamField path="permission_errors" type="FrozenSet[str]" default="frozenset()">
+  Error codes that mean the token works but may not do this: a missing scope, a
+  token of the wrong type. These raise `CredentialError` with `status_code=403`
+  and `token_refused=False`, and the token is kept, because no refresh widens a
+  grant. A code in both sets is refused at declaration.
 </ParamField>
 
 <ParamField path="detail_fields" type="Tuple[str, ...]" default="()">

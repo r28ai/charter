@@ -42,7 +42,8 @@ from charter import Envelope, oauth_tool_factory
 SLACK_ENVELOPE = Envelope(
     ok_field="ok",                      # falsy => failure
     error_field="error",                # where the code lives
-    credential_errors={"invalid_auth", "token_revoked", "missing_scope"},
+    credential_errors={"invalid_auth", "token_revoked"},  # the token is refused
+    permission_errors={"missing_scope"},                  # the token may not do this
     detail_fields=("needed",),          # names the missing scope
 )
 
@@ -79,10 +80,12 @@ that declaration, exported ready to use.
 
 ## What it raises
 
-`credential_errors` decides which of the two typed errors comes out, so a host
-application can tell "refresh the token and retry" from "the request was wrong":
+The two code sets decide which typed error comes out, so a host application can
+tell "refresh the token and retry" from "ask for a scope" from "the request was
+wrong":
 
-- code in `credential_errors` → [`CredentialError`](/reference/errors#credentialerror), tagged with the provider
+- code in `credential_errors` → [`CredentialError`](/reference/errors#credentialerror), tagged with the provider, `token_refused=True`. The runtime tells the credential provider, so a renewing one fetches a new token on the next call.
+- code in `permission_errors` → `CredentialError` with `token_refused=False`. The token works and may not do this, and no refresh widens a grant, so it is kept. Listing `missing_scope` under `credential_errors` instead would drop a working token on every such call.
 - anything else → [`APIError`](/reference/errors#apierror)
 
 `APIError.status_code` is `200` on purpose. That really was the status, and it is

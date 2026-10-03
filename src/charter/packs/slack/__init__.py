@@ -118,14 +118,19 @@ SCOPES = CORE + READ_REACTIONS + OPEN_DMS + CREATE_CHANNELS + INVITE_TO_CHANNELS
 SLACK_ENVELOPE = Envelope(
     ok_field="ok",
     error_field="error",
+    # The token itself is refused: drop it, so a renewing provider fetches another.
     credential_errors={
         "invalid_auth",
         "not_authed",
-        "no_permission",
         "token_revoked",
         "token_expired",
         "account_inactive",
+    },
+    # The token works and may not do this. A refresh returns the same grant, so
+    # the token is kept; the fix is a scope, a different token, or an admin.
+    permission_errors={
         "missing_scope",
+        "no_permission",
         "not_allowed_token_type",
         "ekm_access_denied",
         "org_login_required",

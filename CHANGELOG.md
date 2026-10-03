@@ -77,6 +77,15 @@ here, with the migration in the same entry.
   call still raises. A provider of your own can take part by defining
   `invalidate(credentials)`; `SubjectProvider` and the packs' providers pass
   it on.
+- **A missing scope dropped a working token.** Slack listed `missing_scope`
+  among its credential errors, so once a refusal began dropping the token, a
+  renewing provider spent a refresh on every call that lacked a scope, and no
+  refresh widens a grant. `Envelope` now takes `permission_errors` beside
+  `credential_errors`: codes that still raise `CredentialError`, with
+  `status_code=403` and the new `token_refused=False`, but keep the token. The
+  runtime drops a token only when `token_refused` is true. Slack's
+  `missing_scope`, `no_permission`, `not_allowed_token_type`,
+  `ekm_access_denied` and `org_login_required` moved there.
 - **A credential sent under a header name of the API's choosing reached the
   debug log whole.** The request log masked a fixed list of names —
   `Authorization`, `X-Api-Key` and a few others — so Shopify's

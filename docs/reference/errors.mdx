@@ -111,6 +111,7 @@ class CredentialError(CharterError):
         *,
         provider: Optional[str] = None,
         status_code: Optional[int] = None,
+        token_refused: Optional[bool] = None,
     ) -> None: ...
 ```
 
@@ -127,6 +128,14 @@ class CredentialError(CharterError):
   The HTTP status that triggered it, when it came from a response — `401` by
   default, or whatever `credential_statuses` declared. `None` when the
   credentials were missing locally or a refresh failed.
+</ResponseField>
+
+<ResponseField name="token_refused" type="bool">
+  Whether the API refused the token itself, so its provider should drop it.
+  `True` for a credential status and an envelope's `credential_errors`; `False`
+  for an envelope's `permission_errors`, where the token works and may not do
+  this, and for a failure raised before any request. Defaults to whether there
+  is a `status_code`.
 </ResponseField>
 
 `str(exc)` prefixes the provider in brackets when there is one.
