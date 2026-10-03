@@ -25,6 +25,15 @@ here, with the migration in the same entry.
   one expires. That is what keeps the MCP server working past its first day.
   The pair wins over `$SHOPIFY_ACCESS_TOKEN` when both are set. A store's
   older `shpat_` token, which does not expire, works as before.
+- **The MCP adapter serves prompts, instructions and tools of its own.**
+  `build_server(..., prompts=..., instructions=..., local_tools=...)`, and the
+  same on `serve` and `serve_async`. A prompt is an MCP prompt with one
+  optional `details` argument, which Claude Code lists as a slash command.
+  `instructions` go out in the `initialize` result, ahead of the first
+  message. A local tool is listed after the Charter tools and answered
+  in-process, for what belongs to the server rather than to an API. All three
+  default to nothing, so an existing server is unchanged.
+
 ### Changed
 
 - **Breaking: `notion.pages_create` takes content as `markdown`, not blocks.**

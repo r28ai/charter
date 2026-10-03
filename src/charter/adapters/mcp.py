@@ -27,13 +27,52 @@ low-level surface and is not supported.
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List, Optional
+from typing import Annotated, Any, Dict, List, Optional, Protocol, Sequence
 
 from charter.discovery import SEARCH_TOOL_NAME
 from charter.session import ToolSession, ToolsLike, view_of
 from charter.types.errors import CharterError
 
-__all__ = ["build_server", "serve", "serve_async"]
+__all__ = ["LocalToolLike", "PromptLike", "build_server", "serve", "serve_async"]
+
+
+class PromptLike(Protocol):
+    """What the server needs to offer a prompt: a name, a title, a description, its text."""
+
+    @property
+    def name(self) -> str: ...
+
+    @property
+    def title(self) -> str: ...
+
+    @property
+    def description(self) -> str: ...
+
+    def render(self, details: str = "") -> str: ...
+
+
+class LocalToolLike(Protocol):
+    """A tool the server answers itself, without an API behind it.
+
+    For what belongs to the server rather than to any pack, such as reporting
+    which credentials it holds. Its result is text, and a Charter error it raises
+    becomes a tool error the client can read.
+    """
+
+    @property
+    def name(self) -> str: ...
+
+    @property
+    def description(self) -> str: ...
+
+    @property
+    def input_schema(self) -> Dict[str, Any]: ...
+
+    @property
+    def read_only(self) -> bool: ...
+
+    async def call(self, arguments: Dict[str, Any]) -> str: ...
+
 
 _INSTALL_HINT = (
     "The MCP adapter needs the mcp package. Install it with: pip install 'charter-ai[mcp]'"
@@ -89,6 +128,9 @@ def build_server(
     name: str = "charter",
     *,
     progressive: bool = False,
+    prompts: Sequence[PromptLike] = (),
+    instructions: Optional[str] = None,
+    local_tools: Sequence[LocalToolLike] = (),
 ) -> Any:
     """Build an MCP server exposing ``tools``.
 
@@ -113,6 +155,15 @@ def build_server(
     One server holds one session, which is right for stdio — one process, one
     client — but not for a single HTTP server shared between clients, where what
     one loads the next would see. Build a server per session there.
+
+    ``prompts`` are offered as MCP prompts, which Claude Code lists as slash
+    commands. Each takes one optional argument, ``details``, appended to the text
+    so a user can name the repo or the customer up front. A prompt is text for
+    the client's agent; the server runs nothing when one is fetched.
+
+    ``instructions`` go out in the ``initialize`` result, which Claude Code puts
+    in front of the model before the first message. ``local_tools`` are listed
+    after the Charter tools and answered in-process.
     """
     MCPServer, types, ToolError = _require_mcp()
 
@@ -134,6 +185,7 @@ def build_server(
     session = (
         tools if isinstance(tools, ToolSession) else ToolSession(tools, progressive=progressive)
     )
+    by_name = {local.name: local for local in local_tools}
 
     class _CharterServer(MCPServer):
         """An MCPServer whose tools are Charter Tools.
@@ -171,6 +223,16 @@ def build_server(
                     annotations=_annotations(types, entry),
                 )
                 for entry_name, entry in view_of(session)
+            ] + [
+                types.Tool(
+                    name=local.name,
+                    description=local.description,
+                    input_schema=local.input_schema,
+                    annotations=types.ToolAnnotations(
+                        read_only_hint=local.read_only, open_world_hint=False
+                    ),
+                )
+                for local in local_tools
             ]
 
         async def call_tool(
@@ -179,6 +241,14 @@ def build_server(
             arguments: Dict[str, Any],
             context: Optional[Any] = None,
         ) -> Any:
+            local = by_name.get(name)
+            if local is not None:
+                try:
+                    text = await local.call(arguments or {})
+                except CharterError as exc:
+                    raise ToolError(str(exc)) from exc
+                return types.CallToolResult(content=[types.TextContent(type="text", text=text)])
+
             loaded_before = len(session.loaded)
             try:
                 result = await session.dispatch(name, arguments or {})
@@ -204,9 +274,34 @@ def build_server(
     # scope because `charter/__init__` is what pulls this package's siblings in.
     from charter import __version__
 
-    server = _CharterServer(name=name, version=__version__)
+    server = _CharterServer(name=name, version=__version__, instructions=instructions)
     server.session = session
+    for prompt in prompts:
+        server.add_prompt(_prompt(prompt))
     return server
+
+
+_DETAILS = "Anything that narrows it: a repo, a team key, a channel, a customer, a date range."
+
+
+def _prompt(prompt: PromptLike) -> Any:
+    """An MCP prompt over ``prompt.render``, with ``details`` as its one argument."""
+    from mcp.server.mcpserver.prompts import Prompt
+    from pydantic import Field
+
+    def render(details: str = "") -> str:
+        return prompt.render(details)
+
+    # Set as objects rather than written in the signature: this module defers
+    # annotations, and the names they use are imported here, where resolving a
+    # string later could not find them.
+    render.__annotations__ = {
+        "details": Annotated[str, Field(description=_DETAILS)],
+        "return": str,
+    }
+    return Prompt.from_function(
+        render, name=prompt.name, title=prompt.title, description=prompt.description
+    )
 
 
 async def _announce(context: Optional[Any]) -> None:
@@ -225,17 +320,32 @@ async def _announce(context: Optional[Any]) -> None:
         pass
 
 
-async def serve_async(tools: ToolsLike, name: str = "charter") -> None:
+async def serve_async(
+    tools: ToolsLike,
+    name: str = "charter",
+    prompts: Sequence[PromptLike] = (),
+    instructions: Optional[str] = None,
+    local_tools: Sequence[LocalToolLike] = (),
+) -> None:
     """Run the MCP server over stdio until the client disconnects.
 
     A plain iterable publishes every schema, as :func:`build_server` does. Pass
     a progressive :class:`~charter.session.ToolSession` to send them on demand.
     """
-    await build_server(tools, name=name).run_stdio_async()
+    server = build_server(
+        tools, name=name, prompts=prompts, instructions=instructions, local_tools=local_tools
+    )
+    await server.run_stdio_async()
 
 
-def serve(tools: ToolsLike, name: str = "charter") -> None:
+def serve(
+    tools: ToolsLike,
+    name: str = "charter",
+    prompts: Sequence[PromptLike] = (),
+    instructions: Optional[str] = None,
+    local_tools: Sequence[LocalToolLike] = (),
+) -> None:
     """Run the MCP server over stdio (blocking)."""
     import anyio
 
-    anyio.run(serve_async, tools, name)
+    anyio.run(serve_async, tools, name, prompts, instructions, local_tools)
