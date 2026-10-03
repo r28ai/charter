@@ -15,11 +15,10 @@ them fail *silently* when they are wrong:
   protects was wrong before this file existed.
 * ``tags`` on ``product_update`` replaces rather than appends.
 
-The store token is an online one from ``shopify store auth`` and expires after 24
-hours, so this module skips with the command to re-mint it rather than reporting
-a wall of credential failures. Scopes are checked the same way: the harness token
-carries products, customers, inventory and locations, and the order tests skip
-until it also carries orders.
+A store that cannot be reached skips this module, with what to check, rather
+than reporting a wall of credential failures. Scopes are checked the same way:
+the harness app carries products, customers, inventory and locations, and the
+order tests skip until it also carries orders.
 """
 
 from __future__ import annotations
@@ -41,12 +40,13 @@ ORDER_SCOPES = (
 
 @pytest.fixture(autouse=True)
 async def shopify_is_reachable(needs, request):
-    """One cheap call before each test, so an expired token reads as a skip.
+    """One cheap call before each test, so an unusable credential reads as a skip.
 
-    ``SHOPIFY_ACCESS_TOKEN`` is an *online* token despite its ``shpat_`` prefix,
-    and it dies 24 hours after ``shopify store auth`` mints it. Without this every
-    test in the file fails with a credential error and the run looks like a pack
-    regression.
+    With ``SHOPIFY_CLIENT_ID`` and ``SHOPIFY_CLIENT_SECRET`` the pack mints its
+    own token, and this fails only when the app is not installed on the store or
+    the pair is wrong. A ``SHOPIFY_ACCESS_TOKEN`` from ``shopify store auth``
+    dies 24 hours after issue. Either way, without this every test in the file
+    fails with a credential error and the run looks like a pack regression.
     """
     if "shopify" not in request.getfixturevalue("available"):
         pytest.skip("not configured: shopify")
@@ -54,8 +54,9 @@ async def shopify_is_reachable(needs, request):
         await shopify.shop_get.ainvoke({})
     except CharterError as exc:
         pytest.skip(
-            "the Shopify token is not usable — re-mint it with `shopify store auth "
-            f"--store $SHOPIFY_SHOP --scopes ...` and update harness/.env ({exc})"
+            "Shopify is not reachable with the configured credential. Check that "
+            "SHOPIFY_CLIENT_ID and SHOPIFY_CLIENT_SECRET belong to an app installed "
+            f"on $SHOPIFY_SHOP, in the same organisation; see harness/AGENTS.md ({exc})"
         )
 
 

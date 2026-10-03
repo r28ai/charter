@@ -118,23 +118,31 @@ private repo. Note that `ensure_sandbox()` hardcodes `"private": True`, so a
 fresh bootstrap produces a repo that breaks that scenario and its five variants.
 Fix with `gh repo edit --visibility public`.
 
-**Shopify.** Provision through the CLI:
+**Shopify.** Create an app in the [Dev Dashboard](https://dev.shopify.com/dashboard)
+in the same organisation as the development store, give its version these Admin
+API access scopes, release it and install it on the store:
 
-```bash
-shopify store auth --store <your-store>.myshopify.com \
-  --scopes read_products,write_products,read_customers,write_customers,\
-read_inventory,write_inventory,read_locations
+```
+read_products, write_products, read_customers, write_customers,
+read_inventory, write_inventory, read_locations
 ```
 
-The CLI does not print the token. It writes it to
-`~/Library/Preferences/shopify-cli-store-nodejs/config.json` under
-`sessionsByUserId/<id>/accessToken`, from where it is copied into `.env`.
+The live order tests also want `read_orders`, `write_orders`,
+`write_draft_orders` and `write_merchant_managed_fulfillment_orders`, and skip
+without them. Copy the app's **Client ID** and **Client secret** from its
+Settings into `.env` as `SHOPIFY_CLIENT_ID` and `SHOPIFY_CLIENT_SECRET`, beside
+`SHOPIFY_SHOP=<your-store>.myshopify.com`.
 
-⚠️ **This token expires 24 hours after it is issued.** Despite its `shpat_`
-prefix it is an *online* token with a real `expiresAt`, so a run started after
-expiry gets 401s on the two Shopify scenarios. Re-run the command above and copy
-the token out again. For a token that does not expire, create a custom app in the
-store admin under Settings > Apps and sales channels > Develop apps.
+The pack trades the pair for a 24-hour token through Shopify's client
+credentials grant and mints a new one before it lapses, so nothing in `.env`
+expires. `wire_packs` builds one provider from it, and the pack, the raw arm and
+the world all read that provider, so every path sends the same token. A store
+that already has a custom app made in the admin before 2026 can set that app's
+`shpat_` token as `SHOPIFY_ACCESS_TOKEN` instead; the pair wins when both are set.
+
+Not a token from `shopify store auth`. Despite its `shpat_` prefix it is an
+*online* token that dies 24 hours after issue, and a run started after that gets
+401s on both Shopify scenarios.
 
 **Slack.** Create an app, install it to a workspace you own, and put the bot into
 one channel. `SLACK_CHANNEL` names it. The bot token needs the nine scopes the
