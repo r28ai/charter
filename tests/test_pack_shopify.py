@@ -180,6 +180,19 @@ def test_every_spelling_is_accepted_from_the_environment_too(given, monkeypatch)
     assert shopify._DeferredShopUrl()() == "https://my-store.myshopify.com/"
 
 
+def test_a_store_set_after_import_is_seen(monkeypatch):
+    """$SHOPIFY_SHOP was read once, at import. A host that connects the store at
+    runtime — charter-families' `login shopify` — set it afterwards, and every
+    call, the credential check included, said the pack had no store."""
+    url = shopify._DeferredShopUrl()
+    assert not url.is_configured
+    monkeypatch.setenv("SHOPIFY_SHOP", "late-store.myshopify.com")
+    assert url.is_configured
+    assert url() == "https://late-store.myshopify.com/"
+    url.configure("chosen")
+    assert url() == "https://chosen.myshopify.com/"  # configure() still wins
+
+
 @pytest.mark.parametrize("given", ["", "   ", "https://", ".myshopify.com"])
 def test_an_empty_store_is_refused(given):
     with pytest.raises(CredentialError, match="empty shop name"):

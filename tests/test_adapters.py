@@ -202,6 +202,38 @@ def test_every_listed_tool_says_whether_it_writes():
     assert search.read_only_hint is True and search.open_world_hint is False
 
 
+def test_a_graphql_query_is_read_only_and_a_mutation_is_not():
+    """Every Linear tool is a POST, so by method alone `codex exec` refused every Linear read.
+
+    The fixed document settles it instead: a query cannot change anything.
+    """
+    import anyio
+
+    from charter.adapters.mcp import _graphql_query, build_server
+    from charter.packs import linear
+
+    async def listed(tools):
+        return {t.name: t.annotations for t in await build_server(tools).list_tools()}
+
+    hints = anyio.run(listed, linear.TOOLS)
+    assert hints["linear_issues_list"].read_only_hint is True
+    assert hints["linear_search_issues"].read_only_hint is True
+    assert hints["linear_issue_create"].read_only_hint is False
+    for tool in linear.TOOLS:
+        operation = tool.static_body["query"].lstrip().split(None, 1)[0]
+        assert hints[f"linear_{tool.name}"].read_only_hint is (operation == "query"), tool.name
+
+    class Entry:
+        def __init__(self, document):
+            self.static_body = {"query": document}
+
+    assert _graphql_query(Entry("# a comment\n  query Q { viewer { id } }"))
+    assert _graphql_query(Entry("{ viewer { id } }"))
+    assert not _graphql_query(Entry("query Q { a }\nmutation M { b }"))
+    assert not _graphql_query(Entry("subscription S { a }"))
+    assert not _graphql_query(Entry("queryish"))
+
+
 async def test_mcp_round_trip_lists_and_calls_a_pack_tool():
     """Drive the server in-process over memory streams, as a client would."""
     import anyio

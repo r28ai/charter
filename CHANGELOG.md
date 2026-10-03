@@ -64,6 +64,16 @@ here, with the migration in the same entry.
 
 ### Fixed
 
+- **A GraphQL query is read-only over MCP.** Every Linear and Shopify tool is a
+  `POST` to one URL, so the method alone marked `issues_list` and
+  `products_list` as writes: Claude Code asked before each read, and `codex
+  exec` refused them outright. The adapter now reads the tool's fixed
+  document, and one whose every operation is a `query` is marked read-only.
+  Mutations are unchanged.
+- **`$SHOPIFY_SHOP` is read when it is needed, not once at import.** A host
+  that set it at runtime — `load_dotenv` after the import, or a server
+  connecting the store from its keychain — was never seen, and every call said
+  the pack had no store, even beside a valid client ID and secret.
 - **`$SHOPIFY_SHOP` set to the store's full domain pointed the pack at
   `my-store.myshopify.com.myshopify.com`.** `configure(shop=...)` accepted the
   subdomain, the domain or the URL, and the environment variable was used raw.

@@ -27,6 +27,7 @@ low-level surface and is not supported.
 from __future__ import annotations
 
 import json
+import re
 from typing import Annotated, Any, Dict, List, Optional, Protocol, Sequence
 
 from charter.discovery import SEARCH_TOOL_NAME
@@ -99,6 +100,28 @@ def _render(result: Any) -> str:
         return str(result)
 
 
+_WRITING_OPERATION = re.compile(r"(?:^|\})\s*(?:mutation|subscription)\b")
+
+
+def _graphql_query(entry: Any) -> bool:
+    """Whether a tool's fixed GraphQL document is a query, which the spec makes read-only.
+
+    A GraphQL API takes every operation as a ``POST`` to one URL, so the method
+    alone made ``linear.issues_list`` a write, and ``codex exec`` refused every
+    Linear read. The document is ``static_body`` — fixed by the pack, never the
+    model's — so its operation keyword settles it just as a method would. Only a
+    document whose every operation is a query counts.
+    """
+    body = getattr(entry, "static_body", None)
+    document = body.get("query") if isinstance(body, dict) else None
+    if not isinstance(document, str):
+        return False
+    lines = [line.split("#", 1)[0] for line in document.splitlines()]
+    text = "\n".join(lines).strip()
+    starts_as_query = text.startswith("{") or re.match(r"query\b", text) is not None
+    return starts_as_query and _WRITING_OPERATION.search(text) is None
+
+
 def _annotations(types: Any, entry: Any) -> Any:
     """What a tool does to the world, from the one fact Charter is sure of: its method.
 
@@ -107,12 +130,13 @@ def _annotations(types: Any, entry: Any) -> Any:
     it — so leaving them off made every Charter tool, ``messages_list``
     included, a refused call there. Only what the method settles is claimed: a
     ``POST`` may create, send or merely search, so it is marked as not
-    read-only and nothing more, and the client stays cautious.
+    read-only and nothing more, and the client stays cautious. The one ``POST``
+    that is settled is a GraphQL query, by its fixed document.
     """
     if isinstance(entry, dict):  # the ToolSearch meta-tool: loads schemas, calls nothing
         return types.ToolAnnotations(read_only_hint=True, open_world_hint=False)
     method = str(entry.method).upper()
-    if method in ("GET", "HEAD"):
+    if method in ("GET", "HEAD") or (method == "POST" and _graphql_query(entry)):
         return types.ToolAnnotations(
             read_only_hint=True, idempotent_hint=True, open_world_hint=True
         )

@@ -207,11 +207,22 @@ class _DeferredShopUrl:
     env_var = "SHOPIFY_SHOP"
 
     def __init__(self) -> None:
-        # Read through the same normalisation as configure(): the full domain is
-        # what Shopify's admin shows and what most .env files hold, and taken
-        # raw it became https://my-store.myshopify.com.myshopify.com/.
+        # What configure() set. Until then the store is $SHOPIFY_SHOP, read when
+        # it is needed, as the client ID and secret are: read once at import, a
+        # variable set afterwards — by load_dotenv, or a host that connects the
+        # store at runtime — was never seen, and every call said "no store".
+        self._shop: Optional[str] = None
+
+    @property
+    def shop(self) -> Optional[str]:
+        """The store's subdomain: what configure() set, else ``$SHOPIFY_SHOP`` now."""
+        if self._shop is not None:
+            return self._shop
+        # Through the same normalisation as configure(): the full domain is what
+        # Shopify's admin shows and what most .env files hold, and taken raw it
+        # became https://my-store.myshopify.com.myshopify.com/.
         from_env = os.environ.get(self.env_var, "").strip()
-        self._shop: Optional[str] = self.normalize(from_env) if from_env else None
+        return self.normalize(from_env) if from_env else None
 
     @staticmethod
     def normalize(shop: str) -> str:
@@ -230,19 +241,20 @@ class _DeferredShopUrl:
 
     @property
     def is_configured(self) -> bool:
-        return self._shop is not None
+        return self.shop is not None
 
     def __call__(self) -> str:
-        if self._shop is None:
+        shop = self.shop
+        if shop is None:
             raise CredentialError(
                 "charter.packs.shopify has no store. Call "
                 "charter.packs.shopify.configure(shop=...) or set $SHOPIFY_SHOP.",
                 provider="shopify",
             )
-        return f"https://{self._shop}.myshopify.com/"
+        return f"https://{shop}.myshopify.com/"
 
     def __repr__(self) -> str:
-        return f"_DeferredShopUrl({self._shop or 'unconfigured'!r})"
+        return f"_DeferredShopUrl({self.shop or 'unconfigured'!r})"
 
 
 _base_url = _DeferredShopUrl()
@@ -309,7 +321,7 @@ def configure(
         provider = credential_provider
     elif (
         store is not None
-        and store != _base_url._shop
+        and store != _base_url.shop
         and isinstance(_credentials._provider, StaticTokenProvider)
     ):
         # A minted or shpat_ token is for the store it was issued by. Moving the
