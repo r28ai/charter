@@ -57,6 +57,17 @@ class World:
             self._http[base_url] = Http(base_url, headers)
         return self._http[base_url]
 
+    def _shopify_http(self, base_url: str) -> Http:
+        """The pack's own provider, so seeding and checking use the token the arms use."""
+        if base_url not in self._http:
+            wiring = self.wiring
+
+            async def headers() -> dict[str, str]:
+                return {"X-Shopify-Access-Token": await wiring.shopify_token()}
+
+            self._http[base_url] = Http(base_url, headers)
+        return self._http[base_url]
+
     def _static_http(self, base_url: str, static: dict[str, str]) -> Http:
         if base_url not in self._http:
 
@@ -156,10 +167,7 @@ class World:
         if self._shopify is None:
             self.settings.require("shopify")
             self._shopify = Shopify(
-                self._static_http(
-                    f"https://{self.settings.shopify_shop}/",
-                    {"X-Shopify-Access-Token": self.settings.shopify_access_token or ""},
-                ),
+                self._shopify_http(f"https://{self.settings.shopify_shop}/"),
                 shop=self.settings.shopify_shop or "",
                 api_version=shopify_pack.API_VERSION,
             )

@@ -90,6 +90,19 @@ REQUIRED_VARS: dict[str, tuple] = {
     "tavily": ("TAVILY_API_KEY",),
 }
 
+# Other complete sets of variables that configure the same provider. A Dev
+# Dashboard app's client ID and secret mint Shopify tokens as they are needed,
+# where SHOPIFY_ACCESS_TOKEN is one token that dies a day after it was minted.
+# As in the pack, the pair wins when both are set.
+ALTERNATIVE_VARS: dict[str, tuple[tuple[str, ...], ...]] = {
+    "shopify": (("SHOPIFY_SHOP", "SHOPIFY_CLIENT_ID", "SHOPIFY_CLIENT_SECRET"),),
+}
+
+
+def _variable_sets(provider: str) -> tuple[tuple[str, ...], ...]:
+    """Every complete set of variables that configures ``provider``, preferred first."""
+    return (REQUIRED_VARS[provider], *ALTERNATIVE_VARS.get(provider, ()))
+
 
 class MissingCredentials(RuntimeError):
     """A scenario needs a provider the environment does not configure."""
@@ -123,6 +136,8 @@ class Settings:
 
     shopify_shop: str | None = None
     shopify_access_token: str | None = None
+    shopify_client_id: str | None = None
+    shopify_client_secret: str | None = None
 
     slack_bot_token: str | None = None
     slack_channel: str = "harness"
@@ -137,7 +152,11 @@ class Settings:
 
     def available(self) -> frozenset[str]:
         """The providers whose variables are all set."""
-        return frozenset(p for p in PROVIDERS if all(self.raw.get(v) for v in REQUIRED_VARS[p]))
+        return frozenset(
+            p
+            for p in PROVIDERS
+            if any(all(self.raw.get(v) for v in names) for names in _variable_sets(p))
+        )
 
     def require(self, *providers: str) -> None:
         missing = {
@@ -146,7 +165,14 @@ class Settings:
             if p not in self.available()
         }
         if missing:
-            lines = [f"  {p}: set {', '.join(vs)}" for p, vs in missing.items()]
+            lines = [
+                f"  {p}: set "
+                + " — or ".join(
+                    ", ".join(v for v in names if not self.raw.get(v))
+                    for names in _variable_sets(p)
+                )
+                for p in missing
+            ]
             raise MissingCredentials(
                 "The harness is missing credentials for "
                 + ", ".join(sorted(missing))
@@ -171,7 +197,8 @@ def load(env_file: Path | None = None) -> Settings:
         value = os.environ.get(name, "").strip() or (file_values.get(name) or "").strip()
         return value or None
 
-    raw = {name: v for name in {v for vs in REQUIRED_VARS.values() for v in vs} if (v := get(name))}
+    names = {v for p in PROVIDERS for vs in _variable_sets(p) for v in vs}
+    raw = {name: v for name in names if (v := get(name))}
 
     stripe_key = get("STRIPE_API_KEY")
     if stripe_key and not stripe_key.startswith(("sk_test_", "rk_test_")):
@@ -198,6 +225,8 @@ def load(env_file: Path | None = None) -> Settings:
         linear_team_key=get("LINEAR_TEAM_KEY"),
         shopify_shop=get("SHOPIFY_SHOP"),
         shopify_access_token=get("SHOPIFY_ACCESS_TOKEN"),
+        shopify_client_id=get("SHOPIFY_CLIENT_ID"),
+        shopify_client_secret=get("SHOPIFY_CLIENT_SECRET"),
         slack_bot_token=get("SLACK_BOT_TOKEN"),
         slack_channel=(get("SLACK_CHANNEL") or "harness").lstrip("#"),
         firecrawl_api_key=get("FIRECRAWL_API_KEY"),
@@ -218,6 +247,13 @@ class Wiring:
 
     settings: Settings
     google: CredentialProvider | None = None
+    shopify: CredentialProvider | None = None
+
+    async def shopify_token(self) -> str:
+        """The token the pack is sending too: one provider, so one token at a time."""
+        if self.shopify is None:
+            raise MissingCredentials("Shopify is not configured")
+        return (await self.shopify.get_credentials("shopify")).token
 
     async def google_token(self) -> str:
         if self.google is None:
@@ -278,11 +314,19 @@ def wire_packs(settings: Settings, providers: frozenset[str] | None = None) -> W
 
     if "shopify" in wanted:
         settings.require("shopify")
+        from charter.auth import StaticTokenProvider
         from charter.packs import shopify
+        from charter.packs.shopify._grant import ShopifyClientCredentials
 
-        shopify.configure(
-            shop=settings.shopify_shop or "", access_token=settings.shopify_access_token or ""
-        )
+        if settings.shopify_client_id and settings.shopify_client_secret:
+            # `shopify.base_url` is read on every call, so the provider mints for
+            # whichever store the configure() below points the pack at.
+            wiring.shopify = ShopifyClientCredentials(
+                shopify.base_url, settings.shopify_client_id, settings.shopify_client_secret
+            )
+        else:
+            wiring.shopify = StaticTokenProvider(settings.shopify_access_token or "")
+        shopify.configure(shop=settings.shopify_shop or "", credential_provider=wiring.shopify)
 
     if "slack" in wanted:
         settings.require("slack")

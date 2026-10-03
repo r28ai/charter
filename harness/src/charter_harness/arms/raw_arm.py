@@ -160,7 +160,7 @@ async def _auth_headers(pack: str, wiring: Wiring) -> dict[str, str]:
     if pack == "linear":
         return {"Authorization": s.linear_api_key or ""}
     if pack == "shopify":
-        return {"X-Shopify-Access-Token": s.shopify_access_token or ""}
+        return {"X-Shopify-Access-Token": await wiring.shopify_token()}
     if pack == "slack":
         return {"Authorization": f"Bearer {s.slack_bot_token}"}
     if pack == "firecrawl":
