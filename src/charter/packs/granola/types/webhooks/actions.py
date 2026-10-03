@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Annotated, List, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import Field, field_validator
 
 from charter.packs.granola.types.common import (
     FOLDER_ID_PATTERN,
@@ -22,6 +22,7 @@ from charter.packs.granola.types.common import (
 )
 from charter.packs.granola.types.webhooks.models import WebhookEventName, WebhookScope
 from charter.types import Body, Path
+from charter.types.model import PackModel
 
 __all__ = [
     "WebhookEndpointsCreateRequest",
@@ -67,7 +68,7 @@ def _workspace_scope_stands_alone(scopes: Optional[List[str]]) -> Optional[List[
     return scopes
 
 
-class WebhookEndpointsCreateRequest(BaseModel):
+class WebhookEndpointsCreateRequest(PackModel):
     """Register an HTTPS URL to receive note events.
 
     The response to this call carries the signing secret, and no later response
@@ -123,7 +124,7 @@ class WebhookEndpointsCreateRequest(BaseModel):
         return _workspace_scope_stands_alone(value) or value
 
 
-class WebhookEndpointsListRequest(BaseModel):
+class WebhookEndpointsListRequest(PackModel):
     """List the webhook endpoints this API key can manage.
 
     Takes nothing and pages through nothing: Granola returns the whole list in
@@ -134,7 +135,7 @@ class WebhookEndpointsListRequest(BaseModel):
     """
 
 
-class WebhookEndpointsUpdateRequest(BaseModel):
+class WebhookEndpointsUpdateRequest(PackModel):
     """Change a webhook endpoint, or pause it.
 
     Every field is optional and an omitted one is left alone. The list fields
@@ -225,7 +226,7 @@ class WebhookEndpointsUpdateRequest(BaseModel):
         return _workspace_scope_stands_alone(value)
 
 
-class WebhookEndpointsDeleteRequest(BaseModel):
+class WebhookEndpointsDeleteRequest(PackModel):
     """Delete a webhook endpoint and stop its deliveries immediately.
 
     There is no disable-and-keep here — that is ``enabled: false`` on the update

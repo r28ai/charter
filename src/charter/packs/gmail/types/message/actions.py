@@ -5,15 +5,16 @@ from __future__ import annotations
 
 from typing import Annotated, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Body, Path, Query
+from charter.types.model import PackModel
 
 from .._common import PAGE_TOKEN_DESCRIPTION, USER_ID_DESCRIPTION
 from .models import Message, MessageFormat
 
 
-class MessagesListRequest(BaseModel):
+class MessagesListRequest(PackModel):
     """Input schema for Gmail `users.messages.list` endpoint.
 
     Lists the messages in the user's mailbox.
@@ -80,7 +81,7 @@ class MessagesListRequest(BaseModel):
     ]
 
 
-class MessagesGetRequest(BaseModel):
+class MessagesGetRequest(PackModel):
     """Input schema for Gmail `users.messages.get` endpoint.
 
     Gets the specified message.
@@ -140,7 +141,7 @@ class MessagesGetRequest(BaseModel):
     ]
 
 
-class MessagesAttachmentsGetRequest(BaseModel):
+class MessagesAttachmentsGetRequest(PackModel):
     """Input schema for Gmail `users.messages.attachments.get` endpoint.
 
     Gets the specified message attachment.
@@ -169,7 +170,7 @@ class MessagesAttachmentsGetRequest(BaseModel):
     ]
 
 
-class ModifyMessageRequest(BaseModel):
+class ModifyMessageRequest(PackModel):
     """
     Request body for Gmail `users.messages.modify` endpoint.
 
@@ -188,7 +189,7 @@ class ModifyMessageRequest(BaseModel):
     )
 
 
-class BatchModifyMessagesRequest(BaseModel):
+class BatchModifyMessagesRequest(PackModel):
     """
     Request body for Gmail `users.messages.batchModify` endpoint.
 
@@ -208,7 +209,7 @@ class BatchModifyMessagesRequest(BaseModel):
     )
 
 
-class MessagesModifyRequest(BaseModel):
+class MessagesModifyRequest(PackModel):
     """Input schema for Gmail `users.messages.modify` endpoint.
 
     Modifies the labels on the specified message.
@@ -247,7 +248,7 @@ class MessagesModifyRequest(BaseModel):
     }
 
 
-class MessagesBatchModifyRequest(BaseModel):
+class MessagesBatchModifyRequest(PackModel):
     """Input schema for Gmail `users.messages.batchModify` endpoint.
 
     Modifies the labels on the specified messages.
@@ -278,7 +279,7 @@ class MessagesBatchModifyRequest(BaseModel):
     }
 
 
-class MessagesSendRequest(BaseModel):
+class MessagesSendRequest(PackModel):
     """Input schema for Gmail `users.messages.send`.
 
     This mirrors the Message resource with minimal required fields. The API accepts

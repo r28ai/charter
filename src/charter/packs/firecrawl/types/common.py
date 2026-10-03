@@ -10,9 +10,10 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field, model_serializer
+from pydantic import Field, model_serializer
 
 from charter.types import Body, WireName
+from charter.types.model import PackModel
 
 __all__ = [
     "Viewport",
@@ -56,14 +57,14 @@ FormatType = Literal[
 ]
 
 
-class Viewport(BaseModel):
+class Viewport(PackModel):
     """Viewport dimensions for screenshot actions or formats."""
 
     width: int = Field(..., description="The width of the viewport in pixels")
     height: int = Field(..., description="The height of the viewport in pixels")
 
 
-class Format(BaseModel):
+class Format(PackModel):
     """An output format. The API also accepts a bare type string in the formats list."""
 
     type_: Annotated[FormatType, Field(..., alias="type", description="The format type.")]
@@ -116,7 +117,7 @@ class Format(BaseModel):
     )
 
 
-class PdfParser(BaseModel):
+class PdfParser(PackModel):
     """PDF parser configuration. The parsers list also accepts the bare string 'pdf'."""
 
     type_: Annotated[
@@ -154,7 +155,7 @@ class PdfParser(BaseModel):
 ParserItem = Union[Literal["pdf"], PdfParser]
 
 
-class Action(BaseModel):
+class Action(PackModel):
     """A browser action to perform on the page before grabbing the content."""
 
     type_: Annotated[
@@ -199,7 +200,7 @@ class Action(BaseModel):
     scale: Optional[float] = Field(None, description="The scale multiplier of the resulting PDF.")
 
 
-class ScrapeLocation(BaseModel):
+class ScrapeLocation(PackModel):
     """Geographic location settings for the scrape request."""
 
     country: Optional[str] = Field(
@@ -213,7 +214,7 @@ class ScrapeLocation(BaseModel):
     )
 
 
-class AuditMetadata(BaseModel):
+class AuditMetadata(PackModel):
     """User attribution included with SIEM logging events when SIEM is enabled."""
 
     username: str = Field(
@@ -221,7 +222,7 @@ class AuditMetadata(BaseModel):
     )
 
 
-class ThreatProtectionOverride(BaseModel):
+class ThreatProtectionOverride(PackModel):
     """Per-request threat protection override. Enterprise feature."""
 
     mode: Optional[Literal["off", "normal"]] = Field(
@@ -255,7 +256,7 @@ class ThreatProtectionOverride(BaseModel):
     )
 
 
-class RedactPIIOptions(BaseModel):
+class RedactPIIOptions(PackModel):
     """Tuning options for PII redaction."""
 
     mode: Optional[Literal["accurate", "aggressive", "fast"]] = Field(
@@ -277,7 +278,7 @@ class RedactPIIOptions(BaseModel):
 RedactPII = Union[bool, RedactPIIOptions]
 
 
-class BrowserProfile(BaseModel):
+class BrowserProfile(PackModel):
     """Persistent browser storage across scrape and interact sessions."""
 
     name: str = Field(
@@ -295,7 +296,7 @@ class BrowserProfile(BaseModel):
 WebhookEvent = Literal["completed", "page", "failed", "started"]
 
 
-class Webhook(BaseModel):
+class Webhook(PackModel):
     """Webhook specification for crawl or batch scrape jobs."""
 
     url: str = Field(..., description="The URL to send the webhook to.")
@@ -312,7 +313,7 @@ class Webhook(BaseModel):
     )
 
 
-class ScrapeOptionsNested(BaseModel):
+class ScrapeOptionsNested(PackModel):
     """Nested scrape options used by search, crawl, and monitor targets."""
 
     formats: Optional[List[Union[FormatType, Format]]] = Field(
@@ -412,7 +413,7 @@ class ScrapeOptionsNested(BaseModel):
         return data
 
 
-class ScrapeOptionsMixin(BaseModel):
+class ScrapeOptionsMixin(PackModel):
     """Scrape option fields merged at the top level of scrape and batch scrape bodies."""
 
     formats: Annotated[
@@ -568,7 +569,7 @@ class ScrapeOptionsMixin(BaseModel):
     ]
 
 
-class CrawlTargetOptions(BaseModel):
+class CrawlTargetOptions(PackModel):
     """Crawl options attached to a monitor crawl target."""
 
     limit: Optional[int] = Field(None, description="Maximum number of pages to crawl.")

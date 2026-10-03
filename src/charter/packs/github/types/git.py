@@ -42,6 +42,7 @@ from pydantic import BaseModel, Field, model_validator
 from charter.packs.github.types.common import RepoRequest
 from charter.types import Body, Path, Query
 from charter.types.markers import TransportOverride
+from charter.types.model import PackModel
 
 __all__ = [
     "BlobEncoding",
@@ -269,7 +270,7 @@ class GitBlobsGetRequest(RepoRequest):
     ]
 
 
-class TreeEntry(BaseModel):
+class TreeEntry(PackModel):
     """One path in a tree: what is at it, and in what mode.
 
     Two rules, both of which GitHub answers with an error rather than a guess:
@@ -428,7 +429,7 @@ class GitTreesGetRequest(RepoRequest):
     ]
 
 
-class GitCommitAuthor(BaseModel):
+class GitCommitAuthor(PackModel):
     """Who a Git commit object is attributed to.
 
     GitHub: "You must provide values for both `name` and `email`." `date`

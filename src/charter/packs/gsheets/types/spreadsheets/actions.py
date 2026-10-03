@@ -17,15 +17,16 @@ from __future__ import annotations
 
 from typing import Annotated, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Body, Path, Query
+from charter.types.model import PackModel
 
 from .models import CommentsViewMode, DataFilter, Spreadsheet
 from .requests import Request
 
 
-class SpreadsheetsCreateRequest(BaseModel):
+class SpreadsheetsCreateRequest(PackModel):
     """
     Input schema for Google Sheets ``spreadsheets.create``.
 
@@ -50,7 +51,7 @@ class SpreadsheetsCreateRequest(BaseModel):
     ]
 
 
-class SpreadsheetsGetRequest(BaseModel):
+class SpreadsheetsGetRequest(PackModel):
     """
     Input schema for Google Sheets ``spreadsheets.get``.
 
@@ -99,7 +100,7 @@ class SpreadsheetsGetRequest(BaseModel):
     ]
 
 
-class SpreadsheetsBatchUpdateRequest(BaseModel):
+class SpreadsheetsBatchUpdateRequest(PackModel):
     """
     Input schema for Google Sheets ``spreadsheets.batchUpdate``.
 
@@ -184,7 +185,7 @@ class SpreadsheetsBatchUpdateRequest(BaseModel):
     ]
 
 
-class CopySheetToAnotherSpreadsheetRequest(BaseModel):
+class CopySheetToAnotherSpreadsheetRequest(PackModel):
     """
     The request to copy a sheet across spreadsheets.
 
@@ -197,7 +198,7 @@ class CopySheetToAnotherSpreadsheetRequest(BaseModel):
     )
 
 
-class SpreadsheetsSheetsCopyToRequest(BaseModel):
+class SpreadsheetsSheetsCopyToRequest(PackModel):
     """
     Input schema for Google Sheets ``spreadsheets.sheets.copyTo``.
 
@@ -224,7 +225,7 @@ class SpreadsheetsSheetsCopyToRequest(BaseModel):
     ]
 
 
-class SpreadsheetsGetByDataFilterRequest(BaseModel):
+class SpreadsheetsGetByDataFilterRequest(PackModel):
     """
     Input schema for Google Sheets ``spreadsheets.getByDataFilter``.
 

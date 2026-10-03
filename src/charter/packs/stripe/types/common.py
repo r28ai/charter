@@ -14,14 +14,15 @@ from __future__ import annotations
 
 from typing import Annotated, Dict, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.types import Query
+from charter.types.model import PackModel
 
 __all__ = ["StripeListRequest", "Address"]
 
 
-class StripeListRequest(BaseModel):
+class StripeListRequest(PackModel):
     """The parameters every Stripe list endpoint accepts.
 
     API Reference: https://docs.stripe.com/api/pagination
@@ -82,7 +83,7 @@ class StripeListRequest(BaseModel):
         return self
 
 
-class Address(BaseModel):
+class Address(PackModel):
     """A postal address.
 
     API Reference: https://docs.stripe.com/api/customers/create

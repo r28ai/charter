@@ -29,7 +29,7 @@ from __future__ import annotations
 
 from typing import Annotated, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.packs.stripe.types.common import StripeListRequest
 from charter.packs.stripe.types.payments import CreatedFilter
@@ -38,6 +38,7 @@ from charter.packs.stripe.types.subscriptions import (
     SubscriptionDiscount,
 )
 from charter.types import Body, Gloss, Path, Query
+from charter.types.model import PackModel
 
 __all__ = [
     "InvoiceStatus",
@@ -68,7 +69,7 @@ _MEMO = "An arbitrary string attached to the invoice. Shown as the memo in the D
 _SEND_INVOICE_ONLY = "Valid only when `collection_method` is 'send_invoice'."
 
 
-class _InvoiceId(BaseModel):
+class _InvoiceId(PackModel):
     """The path parameter the six single-invoice endpoints share."""
 
     invoice: Annotated[
@@ -120,7 +121,7 @@ class InvoicesRetrieveRequest(_InvoiceId):
     """
 
 
-class _InvoiceWriteCommon(BaseModel):
+class _InvoiceWriteCommon(PackModel):
     """Fields create and update spell identically."""
 
     description: Annotated[Optional[str], Field(None, description=_MEMO), Body()]

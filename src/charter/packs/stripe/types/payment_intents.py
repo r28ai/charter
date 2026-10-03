@@ -34,9 +34,10 @@ from __future__ import annotations
 
 from typing import Annotated, Dict, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.types import Body, Gloss, Path
+from charter.types.model import PackModel
 
 __all__ = [
     "CaptureMethod",
@@ -51,7 +52,7 @@ __all__ = [
 CaptureMethod = Literal["automatic_async", "automatic", "manual"]
 
 
-class AutomaticPaymentMethods(BaseModel):
+class AutomaticPaymentMethods(PackModel):
     """Which payment methods Stripe offers on this intent.
 
     API Reference:
@@ -86,7 +87,7 @@ class AutomaticPaymentMethods(BaseModel):
 CancellationReason = Literal["duplicate", "fraudulent", "requested_by_customer", "abandoned"]
 
 
-class _IntentId(BaseModel):
+class _IntentId(PackModel):
     intent: Annotated[
         str,
         Field(..., description="The ID of the PaymentIntent."),
@@ -94,7 +95,7 @@ class _IntentId(BaseModel):
     ]
 
 
-class PaymentIntentsCreateRequest(BaseModel):
+class PaymentIntentsCreateRequest(PackModel):
     """Input schema for Stripe `POST /v1/payment_intents`.
 
     API Reference: https://docs.stripe.com/api/payment_intents/create
@@ -291,7 +292,7 @@ class PaymentIntentsCancelRequest(_IntentId):
     ]
 
 
-class ChargesRetrieveRequest(BaseModel):
+class ChargesRetrieveRequest(PackModel):
     """Input schema for Stripe `GET /v1/charges/{charge}`.
 
     API Reference: https://docs.stripe.com/api/charges/retrieve

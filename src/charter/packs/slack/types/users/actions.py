@@ -10,12 +10,13 @@ from __future__ import annotations
 
 from typing import Annotated, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Query
+from charter.types.model import PackModel
 
 
-class UsersListRequest(BaseModel):
+class UsersListRequest(PackModel):
     """Input schema for Slack `users.list`.
 
     Lists all users in a Slack team, including deactivated accounts.
@@ -71,7 +72,7 @@ class UsersListRequest(BaseModel):
     ]
 
 
-class UsersInfoRequest(BaseModel):
+class UsersInfoRequest(PackModel):
     """Input schema for Slack `users.info`.
 
     Gets information about a user.

@@ -14,9 +14,10 @@ from __future__ import annotations
 
 from typing import Annotated, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Path, Query
+from charter.types.model import PackModel
 
 __all__ = ["GitHubListRequest", "RepoRequest", "SortDirection"]
 
@@ -26,7 +27,7 @@ SortDirection = Literal["asc", "desc"]
 REST list endpoints and ``order`` on the search endpoints."""
 
 
-class GitHubListRequest(BaseModel):
+class GitHubListRequest(PackModel):
     """The pagination parameters every GitHub list endpoint accepts.
 
     GitHub pages by number, not by cursor: you ask for page 1, 2, 3 and stop
@@ -58,7 +59,7 @@ class GitHubListRequest(BaseModel):
     ]
 
 
-class RepoRequest(BaseModel):
+class RepoRequest(PackModel):
     """The two path parameters every repository-scoped endpoint takes.
 
     API Reference: https://docs.github.com/en/rest/repos/repos

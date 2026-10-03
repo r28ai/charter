@@ -10,10 +10,11 @@ from __future__ import annotations
 
 from typing import Annotated, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.packs.firecrawl.types.common import CrawlTargetOptions, ScrapeOptionsNested
 from charter.types import Body, Path, Query
+from charter.types.model import PackModel
 
 __all__ = [
     "MonitorCreateRequest",
@@ -41,7 +42,7 @@ MonitorStatus = Literal["active", "paused", "deleted"]
 MonitorSearchWindow = Literal["5m", "15m", "1h", "6h", "24h", "7d"]
 
 
-class MonitorSchedule(BaseModel):
+class MonitorSchedule(PackModel):
     """Schedule for monitor checks. Provide either cron or text."""
 
     cron: Optional[str] = Field(
@@ -65,7 +66,7 @@ class MonitorSchedule(BaseModel):
         return self
 
 
-class MonitorWebhook(BaseModel):
+class MonitorWebhook(PackModel):
     """Webhook destination for monitor page and check completion events."""
 
     url: str = Field(..., description="The URL to send monitor webhooks to.")
@@ -81,7 +82,7 @@ class MonitorWebhook(BaseModel):
     )
 
 
-class MonitorEmailNotification(BaseModel):
+class MonitorEmailNotification(PackModel):
     """Email notification settings for a monitor."""
 
     enabled: Optional[bool] = Field(None, description="Whether email notifications are enabled.")
@@ -93,7 +94,7 @@ class MonitorEmailNotification(BaseModel):
     )
 
 
-class MonitorNotification(BaseModel):
+class MonitorNotification(PackModel):
     """Notification destinations for a monitor."""
 
     email: Optional[MonitorEmailNotification] = Field(
@@ -101,7 +102,7 @@ class MonitorNotification(BaseModel):
     )
 
 
-class MonitorScrapeTarget(BaseModel):
+class MonitorScrapeTarget(PackModel):
     """Monitor target that scrapes one or more URLs on each check."""
 
     id: Optional[str] = Field(
@@ -114,7 +115,7 @@ class MonitorScrapeTarget(BaseModel):
     )
 
 
-class MonitorCrawlTarget(BaseModel):
+class MonitorCrawlTarget(PackModel):
     """Monitor target that crawls a site on each check."""
 
     id: Optional[str] = Field(
@@ -130,7 +131,7 @@ class MonitorCrawlTarget(BaseModel):
     )
 
 
-class MonitorSearchTarget(BaseModel):
+class MonitorSearchTarget(PackModel):
     """Monitor target that runs web search queries on each check."""
 
     id: Optional[str] = Field(
@@ -164,7 +165,7 @@ class MonitorSearchTarget(BaseModel):
 MonitorTarget = Union[MonitorScrapeTarget, MonitorCrawlTarget, MonitorSearchTarget]
 
 
-class MonitorCreateRequest(BaseModel):
+class MonitorCreateRequest(PackModel):
     """Create a monitor that runs scrape, crawl, or search targets on a schedule.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/monitor-create
@@ -213,7 +214,7 @@ class MonitorCreateRequest(BaseModel):
     ]
 
 
-class MonitorListRequest(BaseModel):
+class MonitorListRequest(PackModel):
     """List monitors for the authenticated team.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/monitor-list
@@ -240,7 +241,7 @@ class MonitorListRequest(BaseModel):
     ]
 
 
-class MonitorGetRequest(BaseModel):
+class MonitorGetRequest(PackModel):
     """Get a monitor by ID.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/monitor-get
@@ -249,7 +250,7 @@ class MonitorGetRequest(BaseModel):
     monitor_id: Annotated[str, Field(..., description="The monitor ID"), Path()]
 
 
-class MonitorUpdateRequest(BaseModel):
+class MonitorUpdateRequest(PackModel):
     """Update a monitor. Include at least one field.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/monitor-update
@@ -316,7 +317,7 @@ class MonitorUpdateRequest(BaseModel):
         return self
 
 
-class MonitorDeleteRequest(BaseModel):
+class MonitorDeleteRequest(PackModel):
     """Delete a monitor.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/monitor-delete
@@ -325,7 +326,7 @@ class MonitorDeleteRequest(BaseModel):
     monitor_id: Annotated[str, Field(..., description="The monitor ID"), Path()]
 
 
-class MonitorRunRequest(BaseModel):
+class MonitorRunRequest(PackModel):
     """Queue an immediate monitor check.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/monitor-run
@@ -334,7 +335,7 @@ class MonitorRunRequest(BaseModel):
     monitor_id: Annotated[str, Field(..., description="The monitor ID"), Path()]
 
 
-class MonitorChecksListRequest(BaseModel):
+class MonitorChecksListRequest(PackModel):
     """List checks for a monitor.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/monitor-checks-list
@@ -367,7 +368,7 @@ class MonitorChecksListRequest(BaseModel):
     ]
 
 
-class MonitorCheckGetRequest(BaseModel):
+class MonitorCheckGetRequest(PackModel):
     """Get a monitor check with optional page results.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/monitor-check-get

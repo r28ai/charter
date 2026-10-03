@@ -24,10 +24,11 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.granola.types.common import CursorPage
 from charter.types import Mode
+from charter.types.model import PackModel
 
 __all__ = [
     "ApiKeyActor",
@@ -41,7 +42,7 @@ __all__ = [
 ]
 
 
-class ApiKeyActor(BaseModel):
+class ApiKeyActor(PackModel):
     """A public API key authenticated the request.
 
     API Reference: https://docs.granola.ai/api-reference/list-audit-events
@@ -62,7 +63,7 @@ class ApiKeyActor(BaseModel):
     ]
 
 
-class UserActor(BaseModel):
+class UserActor(PackModel):
     """A person in your workspace performed the action.
 
     API Reference: https://docs.granola.ai/api-reference/list-audit-events
@@ -97,7 +98,7 @@ class UserActor(BaseModel):
     ]
 
 
-class SystemActor(BaseModel):
+class SystemActor(PackModel):
     """No identifiable user performed the action.
 
     It came from an automated process, such as a scheduled job or an inbound
@@ -113,7 +114,7 @@ class SystemActor(BaseModel):
     ]
 
 
-class AnonymousActor(BaseModel):
+class AnonymousActor(PackModel):
     """A person acted without signing in, so there is no account to name.
 
     Someone opening a note through a shared link, for example. Distinct from
@@ -138,7 +139,7 @@ Actor = Annotated[
 ]
 
 
-class AuditContext(BaseModel):
+class AuditContext(PackModel):
     """How the request that produced this event reached Granola.
 
     Every field is nullable: Granola records what it has, and an event reaching
@@ -178,7 +179,7 @@ class AuditContext(BaseModel):
     ]
 
 
-class AuditEvent(BaseModel):
+class AuditEvent(PackModel):
     """One recorded action: what happened, who did it, and how it arrived.
 
     API Reference: https://docs.granola.ai/api-reference/list-audit-events

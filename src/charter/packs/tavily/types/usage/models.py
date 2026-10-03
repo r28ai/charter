@@ -10,13 +10,14 @@ from __future__ import annotations
 
 from typing import Annotated, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.tavily.types.common import LogEndpoint
 from charter.types import Mode
+from charter.types.model import PackModel
 
 
-class KeyUsage(BaseModel):
+class KeyUsage(PackModel):
     """Usage for the authenticated API key.
 
     API Reference: https://docs.tavily.com/documentation/api-reference/endpoint/usage
@@ -39,7 +40,7 @@ class KeyUsage(BaseModel):
     research_usage: Annotated[Optional[int], Field(None), Mode("response_only")]
 
 
-class AccountUsage(BaseModel):
+class AccountUsage(PackModel):
     """Account-level plan and usage.
 
     API Reference: https://docs.tavily.com/documentation/api-reference/endpoint/usage
@@ -57,7 +58,7 @@ class AccountUsage(BaseModel):
     research_usage: Annotated[Optional[int], Field(None), Mode("response_only")]
 
 
-class UsageResponse(BaseModel):
+class UsageResponse(PackModel):
     """Root response from Tavily GET /usage.
 
     API Reference: https://docs.tavily.com/documentation/api-reference/endpoint/usage
@@ -67,7 +68,7 @@ class UsageResponse(BaseModel):
     account: Annotated[Optional[AccountUsage], Field(None), Mode("response_only")]
 
 
-class LogEntry(BaseModel):
+class LogEntry(PackModel):
     """One usage log entry.
 
     API Reference: https://docs.tavily.com/documentation/api-reference/endpoint/logs
@@ -82,7 +83,7 @@ class LogEntry(BaseModel):
     request_id: Annotated[Optional[str], Field(None), Mode("response_only")]
 
 
-class LogsResponse(BaseModel):
+class LogsResponse(PackModel):
     """Root response from Tavily POST /logs.
 
     API Reference: https://docs.tavily.com/documentation/api-reference/endpoint/logs
@@ -94,7 +95,7 @@ class LogsResponse(BaseModel):
     request_id: Annotated[Optional[str], Field(None), Mode("response_only")]
 
 
-class UsageMetrics(BaseModel):
+class UsageMetrics(PackModel):
     """Per-endpoint usage breakdown.
 
     API Reference: https://docs.tavily.com/documentation/enterprise/org-usage
@@ -105,7 +106,7 @@ class UsageMetrics(BaseModel):
     request_count: Annotated[Optional[int], Field(None), Mode("response_only")]
 
 
-class OrgUsageFilters(BaseModel):
+class OrgUsageFilters(PackModel):
     """Applied filters echoed in an org usage response."""
 
     start_date: Annotated[Optional[str], Field(None), Mode("response_only")]
@@ -114,14 +115,14 @@ class OrgUsageFilters(BaseModel):
     depth: Annotated[Optional[str], Field(None), Mode("response_only")]
 
 
-class OrganizationInfo(BaseModel):
+class OrganizationInfo(PackModel):
     """Organization metadata in an org usage response."""
 
     name: Annotated[Optional[str], Field(None), Mode("response_only")]
     filters: Annotated[Optional[OrgUsageFilters], Field(None), Mode("response_only")]
 
 
-class OrgUsageByType(BaseModel):
+class OrgUsageByType(PackModel):
     """Per-endpoint totals for an organization or key."""
 
     search: Annotated[Optional[UsageMetrics], Field(None), Mode("response_only")]
@@ -131,7 +132,7 @@ class OrgUsageByType(BaseModel):
     research: Annotated[Optional[UsageMetrics], Field(None), Mode("response_only")]
 
 
-class OrgUsageTotals(BaseModel):
+class OrgUsageTotals(PackModel):
     """Aggregated usage across all organization keys."""
 
     usage: Annotated[Optional[int], Field(None), Mode("response_only")]
@@ -140,7 +141,7 @@ class OrgUsageTotals(BaseModel):
     by_type: Annotated[Optional[OrgUsageByType], Field(None), Mode("response_only")]
 
 
-class OrgKeyUsage(BaseModel):
+class OrgKeyUsage(PackModel):
     """Per-key usage breakdown."""
 
     key: Annotated[Optional[str], Field(None), Mode("response_only")]
@@ -151,7 +152,7 @@ class OrgKeyUsage(BaseModel):
     by_type: Annotated[Optional[OrgUsageByType], Field(None), Mode("response_only")]
 
 
-class OrgUsageResponse(BaseModel):
+class OrgUsageResponse(PackModel):
     """Root response from Tavily POST /org-usage.
 
     API Reference: https://docs.tavily.com/documentation/enterprise/org-usage

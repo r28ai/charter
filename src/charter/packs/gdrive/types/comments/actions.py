@@ -11,10 +11,11 @@ from __future__ import annotations
 
 from typing import Annotated, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.execution.schema import partial_of
 from charter.types import Body, Path, Query
+from charter.types.model import PackModel
 
 from .._shared import FILE_ID, PageToken
 from .models import Comment
@@ -38,7 +39,7 @@ COMMENT_FIELDS = (
 )
 
 
-class CommentsListRequest(BaseModel):
+class CommentsListRequest(PackModel):
     """
     Lists a file's comments. Required: The `fields` parameter must be set.
 
@@ -59,7 +60,7 @@ class CommentsListRequest(BaseModel):
     ] = None
 
 
-class CommentsCreateRequest(BaseModel):
+class CommentsCreateRequest(PackModel):
     """
     Creates a comment on a file. Required: The `fields` parameter must be set.
 
@@ -89,7 +90,7 @@ PatchComment = partial_of(
 )
 
 
-class CommentsUpdateRequest(BaseModel):
+class CommentsUpdateRequest(PackModel):
     """
     Updates a comment with patch semantics. Required: The `fields` parameter
     must be set.
@@ -113,7 +114,7 @@ class CommentsUpdateRequest(BaseModel):
     fields: Annotated[str, Field(..., description=COMMENT_FIELDS), Query()]
 
 
-class CommentsDeleteRequest(BaseModel):
+class CommentsDeleteRequest(PackModel):
     """
     Deletes a comment.
 

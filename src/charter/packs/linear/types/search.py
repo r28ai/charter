@@ -18,11 +18,12 @@ from __future__ import annotations
 
 from typing import Annotated, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.linear.types.common import PageVariables, PaginationOrderBy
 from charter.packs.linear.types.filters import IssueFilter
 from charter.types import Body
+from charter.types.model import PackModel
 
 __all__ = [
     "SearchIssuesRequest",
@@ -58,7 +59,7 @@ class SearchIssuesVariables(_SearchVariables):
     )
 
 
-class SearchIssuesRequest(BaseModel):
+class SearchIssuesRequest(PackModel):
     """Search issues by text."""
 
     variables: Annotated[
@@ -72,7 +73,7 @@ class SearchProjectsVariables(_SearchVariables):
     """Variables for ``searchProjects``."""
 
 
-class SearchProjectsRequest(BaseModel):
+class SearchProjectsRequest(PackModel):
     """Search projects by text."""
 
     variables: Annotated[
@@ -86,7 +87,7 @@ class SearchDocumentsVariables(_SearchVariables):
     """Variables for ``searchDocuments``."""
 
 
-class SearchDocumentsRequest(BaseModel):
+class SearchDocumentsRequest(PackModel):
     """Search documents by text."""
 
     variables: Annotated[

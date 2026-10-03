@@ -62,9 +62,10 @@ from charter.packs.gsheets.types.spreadsheets.models import (
     Table,
 )
 from charter.types import FieldMask, Format
+from charter.types.model import PackModel, resolve_forward_refs
 
 
-class AddBandingRequest(BaseModel):
+class AddBandingRequest(PackModel):
     """
     Adds a new banded range to the spreadsheet.
 
@@ -77,7 +78,7 @@ class AddBandingRequest(BaseModel):
     )
 
 
-class AddChartRequest(BaseModel):
+class AddChartRequest(PackModel):
     """
     Adds a chart to a sheet in the spreadsheet.
 
@@ -90,7 +91,7 @@ class AddChartRequest(BaseModel):
     )
 
 
-class AddConditionalFormatRuleRequest(BaseModel):
+class AddConditionalFormatRuleRequest(PackModel):
     """
     Adds a new conditional format rule at the given index. All subsequent rules' indexes are incremented.
 
@@ -108,7 +109,7 @@ class AddConditionalFormatRuleRequest(BaseModel):
     )
 
 
-class AddDataSourceRequest(BaseModel):
+class AddDataSourceRequest(PackModel):
     """
     Adds a data source. After the data source is added successfully, an associated DATA_SOURCE sheet is created and an execution is triggered to refresh the sheet to read data from the data source. The request requires an additional `bigquery.readonly` OAuth scope if you are adding a BigQuery data source.
 
@@ -121,7 +122,7 @@ class AddDataSourceRequest(BaseModel):
     )
 
 
-class AddDimensionGroupRequest(BaseModel):
+class AddDimensionGroupRequest(PackModel):
     """
     Creates a group over the specified range. If the requested range is a superset of the range of an existing group G, then the depth of G is incremented and this new group G' has the depth of that group. For example, a group [C:D, depth 1] + [B:E] results in groups [B:E, depth 1] and [C:D, depth 2]. If the requested range is a subset of the range of an existing group G, then the depth of the new group G' becomes one greater than the depth of G. For example, a group [B:E, depth 1] + [C:D] results in groups [B:E, depth 1] and [C:D, depth 2]. If the requested range starts before and ends within, or starts within and ends after, the range of an existing group G, then the range of the existing group G becomes the union of the ranges, and the new group G' has depth one greater than the depth of G and range as the intersection of the ranges. For example, a group [B:D, depth 1] + [C:E] results in groups [B:E, depth 1] and [C:D, depth 2].
 
@@ -134,7 +135,7 @@ class AddDimensionGroupRequest(BaseModel):
     )
 
 
-class AddFilterViewRequest(BaseModel):
+class AddFilterViewRequest(PackModel):
     """
     Adds a filter view.
 
@@ -147,7 +148,7 @@ class AddFilterViewRequest(BaseModel):
     )
 
 
-class AddNamedRangeRequest(BaseModel):
+class AddNamedRangeRequest(PackModel):
     """
     Adds a named range to the spreadsheet.
 
@@ -160,7 +161,7 @@ class AddNamedRangeRequest(BaseModel):
     )
 
 
-class AddProtectedRangeRequest(BaseModel):
+class AddProtectedRangeRequest(PackModel):
     """
     Adds a new protected range.
 
@@ -173,7 +174,7 @@ class AddProtectedRangeRequest(BaseModel):
     )
 
 
-class AddSheetRequest(BaseModel):
+class AddSheetRequest(PackModel):
     """
     Adds a new sheet. When a sheet is added at a given index, all subsequent sheets' indexes are incremented. To add an object sheet, use AddChartRequest instead and specify EmbeddedObjectPosition.sheetId or EmbeddedObjectPosition.newSheet.
 
@@ -186,7 +187,7 @@ class AddSheetRequest(BaseModel):
     )
 
 
-class AddSlicerRequest(BaseModel):
+class AddSlicerRequest(PackModel):
     """
     Adds a slicer to a sheet in the spreadsheet.
 
@@ -199,7 +200,7 @@ class AddSlicerRequest(BaseModel):
     )
 
 
-class AddTableRequest(BaseModel):
+class AddTableRequest(PackModel):
     """
     Adds a new table to the spreadsheet.
 
@@ -212,7 +213,7 @@ class AddTableRequest(BaseModel):
     )
 
 
-class AppendCellsRequest(BaseModel):
+class AppendCellsRequest(PackModel):
     """
     Adds new cells after the last row with data in a sheet, inserting new rows into the sheet if necessary.
 
@@ -244,7 +245,7 @@ class AppendCellsRequest(BaseModel):
     ] = None
 
 
-class AppendDimensionRequest(BaseModel):
+class AppendDimensionRequest(PackModel):
     """
     Appends rows or columns to the end of a sheet.
 
@@ -267,7 +268,7 @@ class AppendDimensionRequest(BaseModel):
     )
 
 
-class AutoFillRequest(BaseModel):
+class AutoFillRequest(PackModel):
     """
     Fills in more data based on existing data.
 
@@ -299,7 +300,7 @@ class AutoFillRequest(BaseModel):
         return self
 
 
-class AutoResizeDimensionsRequest(BaseModel):
+class AutoResizeDimensionsRequest(PackModel):
     """
     Automatically resizes one or more dimensions based on the contents of the cells in that dimension.
 
@@ -330,7 +331,7 @@ class AutoResizeDimensionsRequest(BaseModel):
         return self
 
 
-class CancelDataSourceRefreshRequest(BaseModel):
+class CancelDataSourceRefreshRequest(PackModel):
     """
     Cancels one or multiple refreshes of data source objects in the spreadsheet by the specified references. The request requires an additional `bigquery.readonly` OAuth scope if you are cancelling a refresh on a BigQuery data source.
 
@@ -364,7 +365,7 @@ class CancelDataSourceRefreshRequest(BaseModel):
         return self
 
 
-class ClearBasicFilterRequest(BaseModel):
+class ClearBasicFilterRequest(PackModel):
     """
     Clears the basic filter, if any exists on the sheet.
 
@@ -377,7 +378,7 @@ class ClearBasicFilterRequest(BaseModel):
     )
 
 
-class CopyPasteRequest(BaseModel):
+class CopyPasteRequest(PackModel):
     """
     Copies data from the source to the destination.
 
@@ -405,7 +406,7 @@ class CopyPasteRequest(BaseModel):
     )
 
 
-class CreateDeveloperMetadataRequest(BaseModel):
+class CreateDeveloperMetadataRequest(PackModel):
     """
     A request to create developer metadata.
 
@@ -418,7 +419,7 @@ class CreateDeveloperMetadataRequest(BaseModel):
     )
 
 
-class CutPasteRequest(BaseModel):
+class CutPasteRequest(PackModel):
     """
     Moves data from the source to the destination.
 
@@ -441,7 +442,7 @@ class CutPasteRequest(BaseModel):
     )
 
 
-class DataSourceSheetDimensionRange(BaseModel):
+class DataSourceSheetDimensionRange(PackModel):
     """
     A range along a single dimension on a DATA_SOURCE sheet.
 
@@ -459,7 +460,7 @@ class DataSourceSheetDimensionRange(BaseModel):
     )
 
 
-class DeleteBandingRequest(BaseModel):
+class DeleteBandingRequest(PackModel):
     """
     Removes the banded range with the given ID from the spreadsheet.
 
@@ -472,7 +473,7 @@ class DeleteBandingRequest(BaseModel):
     )
 
 
-class DeleteConditionalFormatRuleRequest(BaseModel):
+class DeleteConditionalFormatRuleRequest(PackModel):
     """
     Deletes a conditional format rule at the given index. All subsequent rules' indexes are decremented.
 
@@ -490,7 +491,7 @@ class DeleteConditionalFormatRuleRequest(BaseModel):
     )
 
 
-class DeleteDataSourceRequest(BaseModel):
+class DeleteDataSourceRequest(PackModel):
     """
     Deletes a data source. The request also deletes the associated data source sheet, and unlinks all associated data source objects.
 
@@ -503,7 +504,7 @@ class DeleteDataSourceRequest(BaseModel):
     )
 
 
-class DeleteDeveloperMetadataRequest(BaseModel):
+class DeleteDeveloperMetadataRequest(PackModel):
     """
     A request to delete developer metadata.
 
@@ -516,7 +517,7 @@ class DeleteDeveloperMetadataRequest(BaseModel):
     )
 
 
-class DeleteDimensionGroupRequest(BaseModel):
+class DeleteDimensionGroupRequest(PackModel):
     """
     Deletes a group over the specified range by decrementing the depth of the dimensions in the range. For example, assume the sheet has a depth-1 group over B:E and a depth-2 group over C:D. Deleting a group over D:E leaves the sheet with a depth-1 group over B:D and a depth-2 group over C:C.
 
@@ -529,7 +530,7 @@ class DeleteDimensionGroupRequest(BaseModel):
     )
 
 
-class DeleteDimensionRequest(BaseModel):
+class DeleteDimensionRequest(PackModel):
     """
      Deletes the dimensions from the sheet.
 
@@ -542,7 +543,7 @@ class DeleteDimensionRequest(BaseModel):
     )
 
 
-class DeleteDuplicatesRequest(BaseModel):
+class DeleteDuplicatesRequest(PackModel):
     """
     Removes rows within this range that contain values in the specified columns that are duplicates of values in any previous row. Rows with identical values but different letter cases, formatting, or formulas are considered to be duplicates. This request also removes duplicate rows hidden from view (for example, due to a filter). When removing duplicates, the first instance of each duplicate row scanning from the top downwards is kept in the resulting range. Content outside of the specified range isn't removed, and rows considered duplicates do not have to be adjacent to each other in the range.
 
@@ -560,7 +561,7 @@ class DeleteDuplicatesRequest(BaseModel):
     )
 
 
-class DeleteEmbeddedObjectRequest(BaseModel):
+class DeleteEmbeddedObjectRequest(PackModel):
     """
     Deletes the embedded object with the given ID.
 
@@ -573,7 +574,7 @@ class DeleteEmbeddedObjectRequest(BaseModel):
     )
 
 
-class DeleteFilterViewRequest(BaseModel):
+class DeleteFilterViewRequest(PackModel):
     """
     Deletes a particular filter view.
 
@@ -586,7 +587,7 @@ class DeleteFilterViewRequest(BaseModel):
     )
 
 
-class DeleteNamedRangeRequest(BaseModel):
+class DeleteNamedRangeRequest(PackModel):
     """
     Removes the named range with the given ID from the spreadsheet.
 
@@ -599,7 +600,7 @@ class DeleteNamedRangeRequest(BaseModel):
     )
 
 
-class DeleteProtectedRangeRequest(BaseModel):
+class DeleteProtectedRangeRequest(PackModel):
     """
     Deletes the protected range with the given ID.
 
@@ -612,7 +613,7 @@ class DeleteProtectedRangeRequest(BaseModel):
     )
 
 
-class DeleteRangeRequest(BaseModel):
+class DeleteRangeRequest(PackModel):
     """
     Deletes a range of cells, shifting other cells into the deleted area.
 
@@ -630,7 +631,7 @@ class DeleteRangeRequest(BaseModel):
     )
 
 
-class DeleteSheetRequest(BaseModel):
+class DeleteSheetRequest(PackModel):
     """
     Deletes the requested sheet.
 
@@ -643,7 +644,7 @@ class DeleteSheetRequest(BaseModel):
     )
 
 
-class DeleteTableRequest(BaseModel):
+class DeleteTableRequest(PackModel):
     """
     Removes the table with the given ID from the spreadsheet.
 
@@ -656,7 +657,7 @@ class DeleteTableRequest(BaseModel):
     )
 
 
-class DuplicateFilterViewRequest(BaseModel):
+class DuplicateFilterViewRequest(PackModel):
     """
     Duplicates a particular filter view.
 
@@ -669,7 +670,7 @@ class DuplicateFilterViewRequest(BaseModel):
     )
 
 
-class DuplicateSheetRequest(BaseModel):
+class DuplicateSheetRequest(PackModel):
     """
     Duplicates the contents of a sheet.
 
@@ -698,7 +699,7 @@ class DuplicateSheetRequest(BaseModel):
     )
 
 
-class FindReplaceRequest(BaseModel):
+class FindReplaceRequest(PackModel):
     """
     Finds and replaces data in cells over a range, sheet, or all sheets.
 
@@ -760,7 +761,7 @@ class FindReplaceRequest(BaseModel):
         return self
 
 
-class InsertDimensionRequest(BaseModel):
+class InsertDimensionRequest(PackModel):
     """
     Inserts rows or columns in a sheet at a particular index.
 
@@ -778,7 +779,7 @@ class InsertDimensionRequest(BaseModel):
     )
 
 
-class InsertRangeRequest(BaseModel):
+class InsertRangeRequest(PackModel):
     """
     Inserts cells into a range, shifting the existing cells over or down.
 
@@ -796,7 +797,7 @@ class InsertRangeRequest(BaseModel):
     )
 
 
-class MergeCellsRequest(BaseModel):
+class MergeCellsRequest(PackModel):
     """
     Merges all cells in the range.
 
@@ -814,7 +815,7 @@ class MergeCellsRequest(BaseModel):
     )
 
 
-class MoveDimensionRequest(BaseModel):
+class MoveDimensionRequest(PackModel):
     """
     Moves one or more rows or columns.
 
@@ -832,7 +833,7 @@ class MoveDimensionRequest(BaseModel):
     )
 
 
-class PasteDataRequest(BaseModel):
+class PasteDataRequest(PackModel):
     """
     Inserts data into the spreadsheet starting at the specified coordinate.
 
@@ -872,7 +873,7 @@ class PasteDataRequest(BaseModel):
         return self
 
 
-class RandomizeRangeRequest(BaseModel):
+class RandomizeRangeRequest(PackModel):
     """
     Randomizes the order of the rows in a range.
 
@@ -885,7 +886,7 @@ class RandomizeRangeRequest(BaseModel):
     )
 
 
-class RefreshDataSourceRequest(BaseModel):
+class RefreshDataSourceRequest(PackModel):
     """
     Refreshes one or multiple data source objects in the spreadsheet by the specified references. The request requires an additional `bigquery.readonly` OAuth scope if you are refreshing a BigQuery data source. If there are multiple refresh requests referencing the same data source objects in one batch, only the last refresh request is processed, and all those requests will have the same response accordingly.
 
@@ -924,7 +925,7 @@ class RefreshDataSourceRequest(BaseModel):
         return self
 
 
-class RepeatCellRequest(BaseModel):
+class RepeatCellRequest(PackModel):
     """
     Updates all cells in the range to the values in the given Cell object. Only the fields listed in the fields field are updated; others are unchanged. If writing a cell with a formula, the formula's ranges will automatically increment for each field in the range. For example, if writing a cell with formula `=A1` into range B2:C4, B2 would be `=A1`, B3 would be `=A2`, B4 would be `=A3`, C2 would be `=B1`, C3 would be `=B2`, C4 would be `=B3`. To keep the formula's ranges static, use the `$` indicator. For example, use the formula `=$A$1` to prevent both the row and the column from incrementing.
 
@@ -951,7 +952,7 @@ class RepeatCellRequest(BaseModel):
     )
 
 
-class SetBasicFilterRequest(BaseModel):
+class SetBasicFilterRequest(PackModel):
     """
     Sets the basic filter associated with a sheet.
 
@@ -964,7 +965,7 @@ class SetBasicFilterRequest(BaseModel):
     )
 
 
-class SetDataValidationRequest(BaseModel):
+class SetDataValidationRequest(PackModel):
     """
     Sets a data validation rule to every cell in the range. To clear validation in a range, call this with no rule specified.
 
@@ -987,7 +988,7 @@ class SetDataValidationRequest(BaseModel):
     )
 
 
-class SortRangeRequest(BaseModel):
+class SortRangeRequest(PackModel):
     """
     Sorts data in rows based on a sort order per column.
 
@@ -1005,7 +1006,7 @@ class SortRangeRequest(BaseModel):
     )
 
 
-class SourceAndDestination(BaseModel):
+class SourceAndDestination(PackModel):
     """
     A combination of a source range and how to extend that source.
 
@@ -1028,7 +1029,7 @@ class SourceAndDestination(BaseModel):
     )
 
 
-class TextToColumnsRequest(BaseModel):
+class TextToColumnsRequest(PackModel):
     """
     Splits a column of text into multiple columns, based on a delimiter in each cell.
 
@@ -1051,7 +1052,7 @@ class TextToColumnsRequest(BaseModel):
     )
 
 
-class TrimWhitespaceRequest(BaseModel):
+class TrimWhitespaceRequest(PackModel):
     """
     Trims the whitespace (such as spaces, tabs, or new lines) in every cell in the specified range. This request removes all whitespace from the start and end of each cell's text, and reduces any subsequence of remaining whitespace characters to a single space. If the resulting trimmed text starts with a '+' or '=' character, the text remains as a string value and isn't interpreted as a formula.
 
@@ -1064,7 +1065,7 @@ class TrimWhitespaceRequest(BaseModel):
     )
 
 
-class UnmergeCellsRequest(BaseModel):
+class UnmergeCellsRequest(PackModel):
     """
     Unmerges cells in the given range.
 
@@ -1077,7 +1078,7 @@ class UnmergeCellsRequest(BaseModel):
     )
 
 
-class UpdateBandingRequest(BaseModel):
+class UpdateBandingRequest(PackModel):
     """
     Updates properties of the supplied banded range.
 
@@ -1099,7 +1100,7 @@ class UpdateBandingRequest(BaseModel):
     )
 
 
-class UpdateBordersRequest(BaseModel):
+class UpdateBordersRequest(PackModel):
     """
     Updates the borders of a range. If a field is not set in the request, that means the border remains as-is. For example, with two subsequent UpdateBordersRequest: 1. range: A1:A5 `{ top: RED, bottom: WHITE }` 2. range: A1:A5 `{ left: BLUE }` That would result in A1:A5 having a borders of `{ top: RED, bottom: WHITE, left: BLUE }`. If you want to clear a border, explicitly set the style to NONE.
 
@@ -1142,7 +1143,7 @@ class UpdateBordersRequest(BaseModel):
     )
 
 
-class UpdateCellsRequest(BaseModel):
+class UpdateCellsRequest(PackModel):
     """
     Updates all cells in a range with new data.
 
@@ -1181,7 +1182,7 @@ class UpdateCellsRequest(BaseModel):
         return self
 
 
-class UpdateChartSpecRequest(BaseModel):
+class UpdateChartSpecRequest(PackModel):
     """
     Updates a chart's specifications. (This does not move or resize a chart. To move or resize a chart, use UpdateEmbeddedObjectPositionRequest.)
 
@@ -1199,7 +1200,7 @@ class UpdateChartSpecRequest(BaseModel):
     )
 
 
-class UpdateConditionalFormatRuleRequest(BaseModel):
+class UpdateConditionalFormatRuleRequest(PackModel):
     """
     Updates a conditional format rule at the given index, or moves a conditional format rule to another index.
 
@@ -1234,7 +1235,7 @@ class UpdateConditionalFormatRuleRequest(BaseModel):
         return self
 
 
-class UpdateDataSourceRequest(BaseModel):
+class UpdateDataSourceRequest(PackModel):
     """
     Updates a data source. After the data source is updated successfully, an execution is triggered to refresh the associated DATA_SOURCE sheet to read data from the updated data source. The request requires an additional `bigquery.readonly` OAuth scope if you are updating a BigQuery data source.
 
@@ -1256,7 +1257,7 @@ class UpdateDataSourceRequest(BaseModel):
     ] = None
 
 
-class UpdateDeveloperMetadataRequest(BaseModel):
+class UpdateDeveloperMetadataRequest(PackModel):
     """
     A request to update properties of developer metadata. Updates the properties of the developer metadata selected by the filters to the values provided in the DeveloperMetadata resource. Callers must specify the properties they wish to update in the fields parameter, as well as specify at least one DataFilter matching the metadata they wish to update.
 
@@ -1283,7 +1284,7 @@ class UpdateDeveloperMetadataRequest(BaseModel):
     ] = None
 
 
-class UpdateDimensionGroupRequest(BaseModel):
+class UpdateDimensionGroupRequest(PackModel):
     """
     Updates the state of the specified group.
 
@@ -1305,7 +1306,7 @@ class UpdateDimensionGroupRequest(BaseModel):
     )
 
 
-class UpdateDimensionPropertiesRequest(BaseModel):
+class UpdateDimensionPropertiesRequest(PackModel):
     """
     Updates properties of dimensions within the specified range.
 
@@ -1346,7 +1347,7 @@ class UpdateDimensionPropertiesRequest(BaseModel):
         return self
 
 
-class UpdateEmbeddedObjectBorderRequest(BaseModel):
+class UpdateEmbeddedObjectBorderRequest(PackModel):
     """
     Updates an embedded object's border property.
 
@@ -1373,7 +1374,7 @@ class UpdateEmbeddedObjectBorderRequest(BaseModel):
     ] = None
 
 
-class UpdateEmbeddedObjectPositionRequest(BaseModel):
+class UpdateEmbeddedObjectPositionRequest(PackModel):
     """
     Update an embedded object's position (such as a moving or resizing a chart or image).
 
@@ -1400,7 +1401,7 @@ class UpdateEmbeddedObjectPositionRequest(BaseModel):
     )
 
 
-class UpdateFilterViewRequest(BaseModel):
+class UpdateFilterViewRequest(PackModel):
     """
     Updates properties of the filter view.
 
@@ -1422,7 +1423,7 @@ class UpdateFilterViewRequest(BaseModel):
     )
 
 
-class UpdateNamedRangeRequest(BaseModel):
+class UpdateNamedRangeRequest(PackModel):
     """
     Updates properties of the named range with the specified namedRangeId.
 
@@ -1444,7 +1445,7 @@ class UpdateNamedRangeRequest(BaseModel):
     ] = None
 
 
-class UpdateProtectedRangeRequest(BaseModel):
+class UpdateProtectedRangeRequest(PackModel):
     """
     Updates an existing protected range with the specified protectedRangeId.
 
@@ -1466,7 +1467,7 @@ class UpdateProtectedRangeRequest(BaseModel):
     ] = None
 
 
-class UpdateSheetPropertiesRequest(BaseModel):
+class UpdateSheetPropertiesRequest(PackModel):
     """
     Updates properties of the sheet with the specified sheetId.
 
@@ -1488,7 +1489,7 @@ class UpdateSheetPropertiesRequest(BaseModel):
     ] = None
 
 
-class UpdateSlicerSpecRequest(BaseModel):
+class UpdateSlicerSpecRequest(PackModel):
     """
     Updates a slicer's specifications. (This does not move or resize a slicer. To move or resize a slicer use UpdateEmbeddedObjectPositionRequest.
 
@@ -1515,7 +1516,7 @@ class UpdateSlicerSpecRequest(BaseModel):
     )
 
 
-class UpdateSpreadsheetPropertiesRequest(BaseModel):
+class UpdateSpreadsheetPropertiesRequest(PackModel):
     """
     Updates properties of a spreadsheet.
 
@@ -1537,7 +1538,7 @@ class UpdateSpreadsheetPropertiesRequest(BaseModel):
     )
 
 
-class UpdateTableRequest(BaseModel):
+class UpdateTableRequest(PackModel):
     """
     Updates a table in the spreadsheet.
 
@@ -1559,7 +1560,7 @@ class UpdateTableRequest(BaseModel):
     )
 
 
-class InsertCommentRequest(BaseModel):
+class InsertCommentRequest(PackModel):
     """
     Inserts a CommentThread into the spreadsheet.
 
@@ -1589,7 +1590,7 @@ class InsertCommentRequest(BaseModel):
     )
 
 
-class AddCommentReplyRequest(BaseModel):
+class AddCommentReplyRequest(PackModel):
     """
     Inserts a reply Post into a CommentThread.
 
@@ -1609,7 +1610,7 @@ class AddCommentReplyRequest(BaseModel):
     )
 
 
-class UpdateCommentPostRequest(BaseModel):
+class UpdateCommentPostRequest(PackModel):
     """
     Updates a Post in a CommentThread.
 
@@ -1636,7 +1637,7 @@ class UpdateCommentPostRequest(BaseModel):
     )
 
 
-class DeleteCommentRequest(BaseModel):
+class DeleteCommentRequest(PackModel):
     """
     Deletes a CommentThread.
 
@@ -1652,7 +1653,7 @@ class DeleteCommentRequest(BaseModel):
     )
 
 
-class DeleteCommentReplyRequest(BaseModel):
+class DeleteCommentReplyRequest(PackModel):
     """
     Deletes a reply Post from a CommentThread.
 
@@ -1672,7 +1673,7 @@ class DeleteCommentReplyRequest(BaseModel):
     )
 
 
-class Request(BaseModel):
+class Request(PackModel):
     """
     A single kind of update to apply to a spreadsheet.
 
@@ -2068,14 +2069,16 @@ class Request(BaseModel):
 
 
 def _rebuild_forward_refs() -> None:
-    for obj in list(globals().values()):
-        if (
-            isinstance(obj, type)
+    resolve_forward_refs(
+        *(
+            obj
+            for obj in list(globals().values())
+            if isinstance(obj, type)
             and issubclass(obj, BaseModel)
             and obj is not BaseModel
             and obj.__module__ == __name__
-        ):
-            obj.model_rebuild()
+        )
+    )
 
 
 _rebuild_forward_refs()

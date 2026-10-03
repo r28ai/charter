@@ -16,10 +16,11 @@ by the vendor is one edit rather than nine.
 from datetime import datetime
 from typing import Annotated, List, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.execution.schema import partial_of
 from charter.types import Body, ConflictsWith, Mode, Path, Query, WireName
+from charter.types.model import PackModel
 
 from .._shared import CALENDAR_ID
 from .models import Event
@@ -145,7 +146,7 @@ _SupportsAttachments = Annotated[
 # ──────────────────────────────────────────────────────────
 
 
-class EventsGetRequest(BaseModel):
+class EventsGetRequest(PackModel):
     """
     Returns an event based on its Google Calendar ID.
 
@@ -160,7 +161,7 @@ class EventsGetRequest(BaseModel):
     time_zone: _TimeZone = None
 
 
-class EventsListRequest(BaseModel):
+class EventsListRequest(PackModel):
     """
     Returns events on the specified calendar.
 
@@ -413,7 +414,7 @@ class EventsListRequest(BaseModel):
         return self
 
 
-class EventsInstancesRequest(BaseModel):
+class EventsInstancesRequest(PackModel):
     """
     Returns instances of the specified recurring event.
 
@@ -489,7 +490,7 @@ class EventsInstancesRequest(BaseModel):
 # ──────────────────────────────────────────────────────────
 
 
-class EventsInsertRequest(BaseModel):
+class EventsInsertRequest(PackModel):
     """
     Creates an event.
 
@@ -508,7 +509,7 @@ class EventsInsertRequest(BaseModel):
     event: Annotated[Event, Field(..., description="The event to insert."), Body()]
 
 
-class EventsUpdateRequest(BaseModel):
+class EventsUpdateRequest(PackModel):
     """
     Updates an event. This method does not support patch semantics and always
     updates the entire event resource; to do a partial update, use `events_patch`.
@@ -549,7 +550,7 @@ class EventsUpdateRequest(BaseModel):
 PatchEvent = partial_of(Event, name="PatchEvent")
 
 
-class EventsPatchRequest(BaseModel):
+class EventsPatchRequest(PackModel):
     """
     Updates an event. This method supports patch semantics: the provided fields
     are merged into the existing event.
@@ -581,7 +582,7 @@ class EventsPatchRequest(BaseModel):
     ]
 
 
-class EventsImportRequest(BaseModel):
+class EventsImportRequest(PackModel):
     """
     Imports an event. This operation is used to add a private copy of an existing
     event to a calendar. Only events with an `eventType` of `default` may be imported.
@@ -627,7 +628,7 @@ class EventsImportRequest(BaseModel):
         return self
 
 
-class EventsMoveRequest(BaseModel):
+class EventsMoveRequest(PackModel):
     """
     Moves an event to another calendar, i.e. changes an event's organizer. Note
     that only `default` events can be moved; `birthday`, `focusTime`,
@@ -658,7 +659,7 @@ class EventsMoveRequest(BaseModel):
     send_updates: _SendUpdates = None
 
 
-class EventsQuickAddRequest(BaseModel):
+class EventsQuickAddRequest(PackModel):
     """
     Creates an event based on a simple text string.
 
@@ -676,7 +677,7 @@ class EventsQuickAddRequest(BaseModel):
     send_updates: _SendUpdates = None
 
 
-class EventsDeleteRequest(BaseModel):
+class EventsDeleteRequest(PackModel):
     """
     Deletes an event.
 

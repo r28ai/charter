@@ -14,10 +14,11 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.notion.types.common import PaginatedQuery
 from charter.types import Path
+from charter.types.model import PackModel
 
 __all__ = ["UsersListRequest", "UsersRetrieveRequest", "UsersRetrieveMeRequest"]
 
@@ -32,7 +33,7 @@ class UsersListRequest(PaginatedQuery):
     """
 
 
-class UsersRetrieveRequest(BaseModel):
+class UsersRetrieveRequest(PackModel):
     """Retrieve a user by ID.
 
     API Reference: https://developers.notion.com/reference/get-user
@@ -41,7 +42,7 @@ class UsersRetrieveRequest(BaseModel):
     user_id: Annotated[str, Field(..., description="The ID of the user to retrieve."), Path()]
 
 
-class UsersRetrieveMeRequest(BaseModel):
+class UsersRetrieveMeRequest(PackModel):
     """Retrieve the bot the token authenticates as.
 
     Answers with the bot user for an integration token, including its owner and

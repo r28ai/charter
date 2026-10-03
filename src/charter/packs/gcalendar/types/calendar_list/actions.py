@@ -11,9 +11,10 @@ from __future__ import annotations
 
 from typing import Annotated, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.types import ConflictsWith, Path, Query
+from charter.types.model import PackModel
 
 from .._shared import CALENDAR_ID
 from .models import AccessRole
@@ -26,7 +27,7 @@ SYNC_TOKEN_REASON = (
 _NoSyncToken = ConflictsWith("sync_token", reason=SYNC_TOKEN_REASON)
 
 
-class CalendarListGetRequest(BaseModel):
+class CalendarListGetRequest(PackModel):
     """Returns a calendar from the user's calendar list.
 
     API Reference: https://developers.google.com/workspace/calendar/api/v3/reference/calendarList/get
@@ -37,7 +38,7 @@ class CalendarListGetRequest(BaseModel):
     model_config = {"validate_assignment": True, "extra": "forbid"}
 
 
-class CalendarListListRequest(BaseModel):
+class CalendarListListRequest(PackModel):
     """Returns the calendars on the user's calendar list.
 
     API Reference: https://developers.google.com/workspace/calendar/api/v3/reference/calendarList/list

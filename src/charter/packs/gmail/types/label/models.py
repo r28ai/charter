@@ -5,9 +5,10 @@ from __future__ import annotations
 
 from typing import Annotated, List, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.types import Mode
+from charter.types.model import PackModel, resolve_forward_refs
 
 # Enums
 MessageListVisibility = Literal["show", "hide"]
@@ -15,7 +16,7 @@ LabelListVisibility = Literal["labelShow", "labelShowIfUnread", "labelHide"]
 LabelType = Literal["system", "user"]
 
 
-class Color(BaseModel):
+class Color(PackModel):
     """
     Color settings for a label.
 
@@ -67,7 +68,7 @@ class Color(BaseModel):
         return self
 
 
-class ListLabelsResponse(BaseModel):
+class ListLabelsResponse(PackModel):
     """
     Response model for users.labels.list.
 
@@ -84,7 +85,7 @@ class ListLabelsResponse(BaseModel):
     ]
 
 
-class Label(BaseModel):
+class Label(PackModel):
     """
     Labels are used to categorize messages and threads within the user's mailbox.
     The maximum number of labels supported for a user's mailbox is 10,000.
@@ -146,4 +147,4 @@ class Label(BaseModel):
     )
 
 
-ListLabelsResponse.model_rebuild()
+resolve_forward_refs(ListLabelsResponse)

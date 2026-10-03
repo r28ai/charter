@@ -10,13 +10,14 @@ from __future__ import annotations
 
 from typing import Annotated, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.tavily.types.common import Usage
 from charter.types import Mode
+from charter.types.model import PackModel
 
 
-class CrawlResult(BaseModel):
+class CrawlResult(PackModel):
     """An extracted page from a crawl.
 
     API Reference: https://docs.tavily.com/documentation/api-reference/endpoint/crawl
@@ -40,7 +41,7 @@ class CrawlResult(BaseModel):
     ]
 
 
-class CrawlResponse(BaseModel):
+class CrawlResponse(PackModel):
     """Root response from Tavily POST /crawl.
 
     API Reference: https://docs.tavily.com/documentation/api-reference/endpoint/crawl

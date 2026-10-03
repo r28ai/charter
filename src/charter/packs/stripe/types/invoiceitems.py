@@ -29,13 +29,14 @@ from __future__ import annotations
 
 from typing import Annotated, Dict, List, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.packs.stripe.types.common import StripeListRequest
 from charter.packs.stripe.types.invoices import _InvoiceTaxBehavior
 from charter.packs.stripe.types.payments import CreatedFilter
 from charter.packs.stripe.types.subscriptions import SubscriptionDiscount
 from charter.types import Body, Gloss, Path, Query
+from charter.types.model import PackModel
 
 __all__ = [
     "InvoiceItemPeriod",
@@ -48,7 +49,7 @@ __all__ = [
 ]
 
 
-class InvoiceItemPeriod(BaseModel):
+class InvoiceItemPeriod(PackModel):
     """The service period a line covers. Both ends are inclusive and required."""
 
     start: Annotated[
@@ -69,7 +70,7 @@ class InvoiceItemPeriod(BaseModel):
         return self
 
 
-class InvoiceItemPricing(BaseModel):
+class InvoiceItemPricing(PackModel):
     """Where an existing price is named.
 
     Stripe moved `price` under here; a top-level `price` is not a parameter.
@@ -78,7 +79,7 @@ class InvoiceItemPricing(BaseModel):
     price: Optional[str] = Field(None, description="The ID of an existing price to bill.")
 
 
-class InvoiceItemPriceData(BaseModel):
+class InvoiceItemPriceData(PackModel):
     """A price created inline for this line only.
 
     Unlike a subscription's inline price this takes a product ID; there is no
@@ -130,7 +131,7 @@ class InvoiceItemPriceData(BaseModel):
         return self
 
 
-class _InvoiceItemFields(BaseModel):
+class _InvoiceItemFields(PackModel):
     """What create and update both accept."""
 
     amount: Annotated[
@@ -301,7 +302,7 @@ class InvoiceItemsUpdateRequest(_InvoiceItemFields):
     ]
 
 
-class InvoiceItemsDeleteRequest(BaseModel):
+class InvoiceItemsDeleteRequest(PackModel):
     """Input schema for Stripe `DELETE /v1/invoiceitems/{invoiceitem}`.
 
     Only while the line is unattached or its invoice is still a draft.

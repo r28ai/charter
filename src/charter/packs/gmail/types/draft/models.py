@@ -5,14 +5,15 @@ from __future__ import annotations
 
 from typing import Annotated, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Mode
+from charter.types.model import PackModel, resolve_forward_refs
 
 from ..message.models import Message  # Re-use Message definition
 
 
-class ListDraftsResponse(BaseModel):
+class ListDraftsResponse(PackModel):
     """
     Response model for users.drafts.list.
 
@@ -42,7 +43,7 @@ class ListDraftsResponse(BaseModel):
     ]
 
 
-class Draft(BaseModel):
+class Draft(PackModel):
     """Gmail draft resource.
 
     API: https://developers.google.com/gmail/api/reference/rest/v1/users.drafts#Draft
@@ -56,4 +57,4 @@ class Draft(BaseModel):
     message: Message = Field(..., description="The message content of the draft.")
 
 
-ListDraftsResponse.model_rebuild()
+resolve_forward_refs(ListDraftsResponse)

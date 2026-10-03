@@ -11,10 +11,11 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.execution.schema import partial_of
 from charter.types import Body, Path
+from charter.types.model import PackModel
 
 from .._shared import FILE_ID
 from ..comments.actions import COMMENT_ID
@@ -23,7 +24,7 @@ from ..comments.models import Reply
 REPLY_ID = "The ID of the reply."
 
 
-class RepliesCreateRequest(BaseModel):
+class RepliesCreateRequest(PackModel):
     """
     Creates a reply to a comment.
 
@@ -62,7 +63,7 @@ PatchReply = partial_of(
 )
 
 
-class RepliesUpdateRequest(BaseModel):
+class RepliesUpdateRequest(PackModel):
     """
     Updates a reply with patch semantics.
 
@@ -84,7 +85,7 @@ class RepliesUpdateRequest(BaseModel):
     ]
 
 
-class RepliesDeleteRequest(BaseModel):
+class RepliesDeleteRequest(PackModel):
     """
     Deletes a reply.
 

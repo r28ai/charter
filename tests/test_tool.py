@@ -1612,6 +1612,59 @@ def test_a_schema_that_cannot_resolve_its_own_names_fails_at_declaration():
         )
 
 
+def test_the_resolvability_check_reads_fields_not_whether_a_model_is_built():
+    """A ``PackModel`` is unbuilt at declaration and must pass; an unresolvable one must not.
+
+    The check read ``__pydantic_complete__``, which a deferred model leaves False
+    until first use — so deferring a pack's models made every one of its tools
+    look broken. Resolved fields are what it is asking about.
+    """
+    from typing import List
+
+    from pydantic import Field
+
+    from charter.types.errors import DeclarationError
+    from charter.types.model import DEFERRED, PackModel
+
+    if not DEFERRED:
+        pytest.skip("this pydantic builds every model at definition")
+
+    class Sound(PackModel):
+        name: Optional[str] = Field(None, description="A name.")
+
+    class SoundArgs(PackModel):
+        item: Annotated[Optional[Sound], Field(None, description="An item."), Body()]
+
+    tool = Tool(
+        name="sound",
+        method="POST",
+        url_template="t",
+        args_schema=SoundArgs,
+        base_url=BASE,
+        description="T.",
+        api_key_headers={"X-Key": "k"},
+    )
+    assert not Sound.__pydantic_complete__, "declaring the tool built the model"
+    assert tool.to_json_schema()["parameters"]["properties"]["item"]
+
+    class Leaf(PackModel):
+        kids: Optional[List[Missing]] = Field(None, description="Children.")  # noqa: F821
+
+    class Args(PackModel):
+        leaf: Annotated[Optional[Leaf], Field(None, description="A leaf."), Body()]
+
+    with pytest.raises(DeclarationError, match="cannot resolve its own annotations"):
+        Tool(
+            name="broken",
+            method="POST",
+            url_template="t",
+            args_schema=Args,
+            base_url=BASE,
+            description="T.",
+            api_key_headers={"X-Key": "k"},
+        )
+
+
 def test_the_resolvability_check_does_not_refuse_a_working_schema():
     """Including the two shapes it would be easiest to refuse by accident.
 

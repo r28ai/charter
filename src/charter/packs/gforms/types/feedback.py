@@ -18,7 +18,9 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
+
+from charter.types.model import PackModel
 
 __all__ = [
     "TextLink",
@@ -28,7 +30,7 @@ __all__ = [
 ]
 
 
-class TextLink(BaseModel):
+class TextLink(PackModel):
     """Link for text.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/Feedback#TextLink
@@ -44,7 +46,7 @@ class TextLink(BaseModel):
     )
 
 
-class VideoLink(BaseModel):
+class VideoLink(PackModel):
     """Link to a video.
 
     ``youtubeUri`` is the sole member of the required ``video`` union, so it is
@@ -71,7 +73,7 @@ class VideoLink(BaseModel):
         return self
 
 
-class ExtraMaterial(BaseModel):
+class ExtraMaterial(PackModel):
     """Supplementary material to the feedback.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/Feedback#ExtraMaterial
@@ -96,7 +98,7 @@ class ExtraMaterial(BaseModel):
         return self
 
 
-class Feedback(BaseModel):
+class Feedback(PackModel):
     """Feedback for a respondent about their response to a question.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/Feedback

@@ -16,15 +16,16 @@ from __future__ import annotations
 
 from typing import Annotated, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.granola.types.common import CURSOR_DESCRIPTION
 from charter.types import Query
+from charter.types.model import PackModel
 
 __all__ = ["FoldersListRequest"]
 
 
-class FoldersListRequest(BaseModel):
+class FoldersListRequest(PackModel):
     """List the folders this API key can reach, sorted alphabetically.
 
     The listing is flat and each folder names its parent, so a hierarchy is

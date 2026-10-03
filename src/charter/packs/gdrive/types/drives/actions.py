@@ -11,9 +11,10 @@ from __future__ import annotations
 
 from typing import Annotated, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Path, Query
+from charter.types.model import PackModel
 
 from .._shared import PageToken
 
@@ -36,7 +37,7 @@ USE_DOMAIN_ADMIN_ACCESS_GET = (
 )
 
 
-class DrivesListRequest(BaseModel):
+class DrivesListRequest(PackModel):
     """
     Lists the user's shared drives. This method accepts the `q` parameter, which
     is a search query combining one or more search terms.
@@ -54,7 +55,7 @@ class DrivesListRequest(BaseModel):
     ] = None
 
 
-class DrivesGetRequest(BaseModel):
+class DrivesGetRequest(PackModel):
     """
     Gets a shared drive's metadata by ID.
 

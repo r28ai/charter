@@ -15,10 +15,11 @@ from __future__ import annotations
 
 from typing import Annotated, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.granola.types.common import User
 from charter.types import Mode
+from charter.types.model import PackModel
 
 __all__ = [
     "WebhookScope",
@@ -36,7 +37,7 @@ WebhookScope = Literal["personal", "public", "workspace"]
 WebhookEventName = Literal["note.access_granted", "note.edited", "note.generated"]
 
 
-class WebhookEndpoint(BaseModel):
+class WebhookEndpoint(PackModel):
     """A registered delivery target: where events go, and which events reach it.
 
     The signing secret is not here. It is returned once, by the create call, and
@@ -160,7 +161,7 @@ class CreateWebhookEndpointOutput(WebhookEndpoint):
     ]
 
 
-class ListWebhookEndpointsOutput(BaseModel):
+class ListWebhookEndpointsOutput(PackModel):
     """Every endpoint this key can manage.
 
     Not paginated, and deliberately so: Granola returns the whole list in one
@@ -177,7 +178,7 @@ class ListWebhookEndpointsOutput(BaseModel):
     ]
 
 
-class DeleteWebhookEndpointOutput(BaseModel):
+class DeleteWebhookEndpointOutput(PackModel):
     """The receipt for a deleted endpoint.
 
     API Reference: https://docs.granola.ai/api-reference/delete-webhook-endpoint

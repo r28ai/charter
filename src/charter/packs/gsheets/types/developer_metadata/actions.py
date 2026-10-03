@@ -17,14 +17,15 @@ from __future__ import annotations
 
 from typing import Annotated, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Body, Path
+from charter.types.model import PackModel
 
 from ..spreadsheets.models import DataFilter
 
 
-class SpreadsheetsDeveloperMetadataGetRequest(BaseModel):
+class SpreadsheetsDeveloperMetadataGetRequest(PackModel):
     """
     Input schema for Google Sheets ``spreadsheets.developerMetadata.get``.
 
@@ -46,7 +47,7 @@ class SpreadsheetsDeveloperMetadataGetRequest(BaseModel):
     ]
 
 
-class SpreadsheetsDeveloperMetadataSearchRequest(BaseModel):
+class SpreadsheetsDeveloperMetadataSearchRequest(PackModel):
     """
     Input schema for Google Sheets ``spreadsheets.developerMetadata.search``.
 

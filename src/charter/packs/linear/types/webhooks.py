@@ -19,10 +19,11 @@ from __future__ import annotations
 
 from typing import Annotated, List, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.packs.linear.types.common import PageVariables, PaginationOrderBy
 from charter.types import Body
+from charter.types.model import PackModel
 
 __all__ = [
     "WebhooksListRequest",
@@ -44,7 +45,7 @@ class WebhooksListVariables(PageVariables):
     )
 
 
-class WebhooksListRequest(BaseModel):
+class WebhooksListRequest(PackModel):
     """List the workspace's webhooks."""
 
     variables: Annotated[
@@ -54,13 +55,13 @@ class WebhooksListRequest(BaseModel):
     ]
 
 
-class WebhookGetVariables(BaseModel):
+class WebhookGetVariables(PackModel):
     """Variables for the ``webhook`` query."""
 
     id: str = Field(..., description="The webhook's UUID.")
 
 
-class WebhookGetRequest(BaseModel):
+class WebhookGetRequest(PackModel):
     """Get one webhook."""
 
     variables: Annotated[
@@ -70,7 +71,7 @@ class WebhookGetRequest(BaseModel):
     ]
 
 
-class WebhookCreateInput(BaseModel):
+class WebhookCreateInput(PackModel):
     """The input to ``webhookCreate``.
 
     Give a ``team_id`` to scope the webhook to one team, or set
@@ -117,13 +118,13 @@ class WebhookCreateInput(BaseModel):
         return self
 
 
-class WebhookCreateVariables(BaseModel):
+class WebhookCreateVariables(PackModel):
     """Variables for the ``webhookCreate`` mutation."""
 
     input: WebhookCreateInput = Field(..., description="The webhook to create.")
 
 
-class WebhookCreateRequest(BaseModel):
+class WebhookCreateRequest(PackModel):
     """Create a webhook."""
 
     variables: Annotated[
@@ -133,7 +134,7 @@ class WebhookCreateRequest(BaseModel):
     ]
 
 
-class WebhookUpdateInput(BaseModel):
+class WebhookUpdateInput(PackModel):
     """The fields ``webhookUpdate`` changes. All optional."""
 
     url: Optional[str] = Field(None, description="The URL that will be called on data change.")
@@ -153,14 +154,14 @@ class WebhookUpdateInput(BaseModel):
         return self
 
 
-class WebhookUpdateVariables(BaseModel):
+class WebhookUpdateVariables(PackModel):
     """Variables for the ``webhookUpdate`` mutation."""
 
     id: str = Field(..., description="The webhook's UUID.")
     input: WebhookUpdateInput = Field(..., description="The fields to change.")
 
 
-class WebhookUpdateRequest(BaseModel):
+class WebhookUpdateRequest(PackModel):
     """Update a webhook."""
 
     variables: Annotated[
@@ -170,13 +171,13 @@ class WebhookUpdateRequest(BaseModel):
     ]
 
 
-class WebhookDeleteVariables(BaseModel):
+class WebhookDeleteVariables(PackModel):
     """Variables for the ``webhookDelete`` mutation."""
 
     id: str = Field(..., description="The webhook's UUID.")
 
 
-class WebhookDeleteRequest(BaseModel):
+class WebhookDeleteRequest(PackModel):
     """Delete a webhook."""
 
     variables: Annotated[

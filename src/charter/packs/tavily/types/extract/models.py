@@ -10,13 +10,14 @@ from __future__ import annotations
 
 from typing import Annotated, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.tavily.types.common import Usage
 from charter.types import Mode
+from charter.types.model import PackModel
 
 
-class ExtractResult(BaseModel):
+class ExtractResult(PackModel):
     """A successful URL extraction.
 
     API Reference: https://docs.tavily.com/documentation/api-reference/endpoint/extract
@@ -40,7 +41,7 @@ class ExtractResult(BaseModel):
     ]
 
 
-class FailedExtractResult(BaseModel):
+class FailedExtractResult(PackModel):
     """A URL that could not be extracted.
 
     API Reference: https://docs.tavily.com/documentation/api-reference/endpoint/extract
@@ -52,7 +53,7 @@ class FailedExtractResult(BaseModel):
     ]
 
 
-class ExtractResponse(BaseModel):
+class ExtractResponse(PackModel):
     """Root response from Tavily POST /extract.
 
     API Reference: https://docs.tavily.com/documentation/api-reference/endpoint/extract

@@ -11,9 +11,10 @@ from __future__ import annotations
 
 from typing import Annotated, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Format, Mode
+from charter.types.model import PackModel
 
 from ..common import User
 from ..permissions.models import Permission
@@ -22,7 +23,7 @@ Aes256GcmChunkSize = Literal["default", "small"]
 ContentRestrictionType = Literal["globalContentRestriction"]
 
 
-class Thumbnail(BaseModel):
+class Thumbnail(PackModel):
     """
     A thumbnail for the file. This will only be used if Google Drive cannot
     generate a standard thumbnail.
@@ -44,7 +45,7 @@ class Thumbnail(BaseModel):
     mime_type: Optional[str] = Field(None, description="The MIME type of the thumbnail.")
 
 
-class ContentHints(BaseModel):
+class ContentHints(PackModel):
     """
     Additional information about the content of the file. These fields are never
     populated in responses.
@@ -69,7 +70,7 @@ class ContentHints(BaseModel):
     )
 
 
-class ImageLocation(BaseModel):
+class ImageLocation(PackModel):
     """
     Geographic location information stored in the image.
 
@@ -93,7 +94,7 @@ class ImageLocation(BaseModel):
     ] = None
 
 
-class ImageMediaMetadata(BaseModel):
+class ImageMediaMetadata(PackModel):
     """
     Output only. Additional metadata about image media, if available.
 
@@ -264,7 +265,7 @@ class ImageMediaMetadata(BaseModel):
     ] = None
 
 
-class VideoMediaMetadata(BaseModel):
+class VideoMediaMetadata(PackModel):
     """
     Output only. Additional metadata about video media. This may not be
     available immediately upon upload.
@@ -292,7 +293,7 @@ class VideoMediaMetadata(BaseModel):
     ] = None
 
 
-class ShortcutDetails(BaseModel):
+class ShortcutDetails(PackModel):
     """
     Information about a shortcut file. Apps creating shortcuts with
     `files.create` must specify the MIME type `application/vnd.google-apps.shortcut`.
@@ -326,7 +327,7 @@ class ShortcutDetails(BaseModel):
     ] = None
 
 
-class ContentRestriction(BaseModel):
+class ContentRestriction(PackModel):
     """
     A restriction for accessing the content of the file.
 
@@ -403,7 +404,7 @@ class ContentRestriction(BaseModel):
     ] = None
 
 
-class DownloadRestriction(BaseModel):
+class DownloadRestriction(PackModel):
     """
     A restriction for copy and download of the file.
 
@@ -423,7 +424,7 @@ class DownloadRestriction(BaseModel):
     )
 
 
-class DownloadRestrictionsMetadata(BaseModel):
+class DownloadRestrictionsMetadata(PackModel):
     """
     Download restrictions applied to the file.
 
@@ -451,7 +452,7 @@ class DownloadRestrictionsMetadata(BaseModel):
     ] = None
 
 
-class LinkShareMetadata(BaseModel):
+class LinkShareMetadata(PackModel):
     """
     Contains details about the link URLs that clients are using to refer to
     this item.
@@ -477,7 +478,7 @@ class LinkShareMetadata(BaseModel):
     ] = None
 
 
-class LabelField(BaseModel):
+class LabelField(PackModel):
     """
     Representation of a field, which is a typed key-value pair.
 
@@ -538,7 +539,7 @@ class LabelField(BaseModel):
     ] = None
 
 
-class Label(BaseModel):
+class Label(PackModel):
     """
     Representation of a label and its fields.
 
@@ -570,7 +571,7 @@ class Label(BaseModel):
     ] = None
 
 
-class LabelInfo(BaseModel):
+class LabelInfo(PackModel):
     """
     Label information on the file.
 
@@ -591,7 +592,7 @@ class LabelInfo(BaseModel):
     ] = None
 
 
-class DecryptionMetadata(BaseModel):
+class DecryptionMetadata(PackModel):
     """
     Representation of the CSE DecryptionMetadata.
 
@@ -640,7 +641,7 @@ class DecryptionMetadata(BaseModel):
     )
 
 
-class ClientEncryptionDetails(BaseModel):
+class ClientEncryptionDetails(PackModel):
     """
     Details about the client-side encryption applied to the file.
 
@@ -660,7 +661,7 @@ class ClientEncryptionDetails(BaseModel):
     )
 
 
-class FileCapabilities(BaseModel):
+class FileCapabilities(PackModel):
     """
     Output only. Capabilities the current user has on this file. Each
     capability corresponds to a fine-grained action that a user may take.
@@ -972,7 +973,7 @@ class FileCapabilities(BaseModel):
     )
 
 
-class File(BaseModel):
+class File(PackModel):
     """
     The metadata for a file. Some resource methods (such as `files.update`)
     require a `fileId`. Use the `files.list` method to retrieve the ID for a

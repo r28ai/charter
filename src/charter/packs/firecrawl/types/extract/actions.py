@@ -10,10 +10,11 @@ from __future__ import annotations
 
 from typing import Annotated, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.firecrawl.types.common import ScrapeOptionsNested, ThreatProtectionOverride
 from charter.types import Body, Path, WireName
+from charter.types.model import PackModel
 
 __all__ = [
     "ExtractRequest",
@@ -21,7 +22,7 @@ __all__ = [
 ]
 
 
-class ExtractRequest(BaseModel):
+class ExtractRequest(PackModel):
     """Extract structured data from pages using LLMs.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/extract
@@ -100,7 +101,7 @@ class ExtractRequest(BaseModel):
     ]
 
 
-class ExtractStatusRequest(BaseModel):
+class ExtractStatusRequest(PackModel):
     """Get the status of an extract job.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/extract-get

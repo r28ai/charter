@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from typing import Annotated, List, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.packs.linear.types.common import (
     Day,
@@ -31,6 +31,7 @@ from charter.packs.linear.types.common import (
 from charter.packs.linear.types.filters import InitiativeFilter
 from charter.packs.linear.types.projects import DateResolutionType, ProjectHealth
 from charter.types import Body
+from charter.types.model import PackModel
 
 __all__ = [
     "InitiativesListRequest",
@@ -66,7 +67,7 @@ class InitiativesListVariables(PageVariables):
     )
 
 
-class InitiativesListRequest(BaseModel):
+class InitiativesListRequest(PackModel):
     """List initiatives."""
 
     variables: Annotated[
@@ -76,13 +77,13 @@ class InitiativesListRequest(BaseModel):
     ]
 
 
-class InitiativeGetVariables(BaseModel):
+class InitiativeGetVariables(PackModel):
     """Variables for the ``initiative`` query."""
 
     id: str = Field(..., description="The initiative's UUID.")
 
 
-class InitiativeGetRequest(BaseModel):
+class InitiativeGetRequest(PackModel):
     """Get one initiative."""
 
     variables: Annotated[
@@ -92,7 +93,7 @@ class InitiativeGetRequest(BaseModel):
     ]
 
 
-class InitiativeCreateInput(BaseModel):
+class InitiativeCreateInput(PackModel):
     """The input to ``initiativeCreate``."""
 
     name: str = Field(..., description="The name of the initiative.")
@@ -140,13 +141,13 @@ class InitiativeCreateInput(BaseModel):
     )
 
 
-class InitiativeCreateVariables(BaseModel):
+class InitiativeCreateVariables(PackModel):
     """Variables for the ``initiativeCreate`` mutation."""
 
     input: InitiativeCreateInput = Field(..., description="The initiative to create.")
 
 
-class InitiativeCreateRequest(BaseModel):
+class InitiativeCreateRequest(PackModel):
     """Create an initiative."""
 
     variables: Annotated[
@@ -156,7 +157,7 @@ class InitiativeCreateRequest(BaseModel):
     ]
 
 
-class InitiativeUpdateInput(BaseModel):
+class InitiativeUpdateInput(PackModel):
     """The fields the ``initiativeUpdate`` mutation changes. All optional.
 
     This edits the initiative. To post a status update *on* one, use
@@ -238,14 +239,14 @@ class InitiativeUpdateInput(BaseModel):
         return self
 
 
-class InitiativeUpdateVariables(BaseModel):
+class InitiativeUpdateVariables(PackModel):
     """Variables for the ``initiativeUpdate`` mutation."""
 
     id: str = Field(..., description="The initiative's UUID.")
     input: InitiativeUpdateInput = Field(..., description="The fields to change.")
 
 
-class InitiativeUpdateRequest(BaseModel):
+class InitiativeUpdateRequest(PackModel):
     """Update an initiative."""
 
     variables: Annotated[
@@ -255,13 +256,13 @@ class InitiativeUpdateRequest(BaseModel):
     ]
 
 
-class InitiativeIdVariables(BaseModel):
+class InitiativeIdVariables(PackModel):
     """Variables for the initiative mutations that take only an id."""
 
     id: str = Field(..., description="The initiative's UUID.")
 
 
-class InitiativeDeleteRequest(BaseModel):
+class InitiativeDeleteRequest(PackModel):
     """Move an initiative to the trash."""
 
     variables: Annotated[
@@ -271,7 +272,7 @@ class InitiativeDeleteRequest(BaseModel):
     ]
 
 
-class InitiativeArchiveRequest(BaseModel):
+class InitiativeArchiveRequest(PackModel):
     """Archive an initiative."""
 
     variables: Annotated[
@@ -281,7 +282,7 @@ class InitiativeArchiveRequest(BaseModel):
     ]
 
 
-class InitiativeUnarchiveRequest(BaseModel):
+class InitiativeUnarchiveRequest(PackModel):
     """Restore an archived initiative."""
 
     variables: Annotated[
@@ -291,7 +292,7 @@ class InitiativeUnarchiveRequest(BaseModel):
     ]
 
 
-class InitiativeToProjectCreateInput(BaseModel):
+class InitiativeToProjectCreateInput(PackModel):
     """The input to ``initiativeToProjectCreate`` — puts a project in an initiative."""
 
     initiative_id: str = Field(..., description="The identifier of the initiative.")
@@ -307,7 +308,7 @@ class InitiativeToProjectCreateInput(BaseModel):
     )
 
 
-class InitiativeToProjectCreateVariables(BaseModel):
+class InitiativeToProjectCreateVariables(PackModel):
     """Variables for the ``initiativeToProjectCreate`` mutation."""
 
     input: InitiativeToProjectCreateInput = Field(
@@ -315,7 +316,7 @@ class InitiativeToProjectCreateVariables(BaseModel):
     )
 
 
-class InitiativeToProjectCreateRequest(BaseModel):
+class InitiativeToProjectCreateRequest(PackModel):
     """Add a project to an initiative."""
 
     variables: Annotated[
@@ -325,7 +326,7 @@ class InitiativeToProjectCreateRequest(BaseModel):
     ]
 
 
-class InitiativeToProjectDeleteVariables(BaseModel):
+class InitiativeToProjectDeleteVariables(PackModel):
     """Variables for the ``initiativeToProjectDelete`` mutation."""
 
     id: str = Field(
@@ -337,7 +338,7 @@ class InitiativeToProjectDeleteVariables(BaseModel):
     )
 
 
-class InitiativeToProjectDeleteRequest(BaseModel):
+class InitiativeToProjectDeleteRequest(PackModel):
     """Remove a project from an initiative."""
 
     variables: Annotated[
@@ -358,7 +359,7 @@ class InitiativeUpdatesListVariables(PageVariables):
     )
 
 
-class InitiativeUpdatesListRequest(BaseModel):
+class InitiativeUpdatesListRequest(PackModel):
     """Read the status updates posted on initiatives."""
 
     variables: Annotated[
@@ -368,7 +369,7 @@ class InitiativeUpdatesListRequest(BaseModel):
     ]
 
 
-class InitiativeUpdateCreateInput(BaseModel):
+class InitiativeUpdateCreateInput(PackModel):
     """The input to ``initiativeUpdateCreate`` — a status post on an initiative."""
 
     initiative_id: str = Field(..., description="The initiative to associate the update with.")
@@ -392,13 +393,13 @@ class InitiativeUpdateCreateInput(BaseModel):
     )
 
 
-class InitiativeUpdateCreateVariables(BaseModel):
+class InitiativeUpdateCreateVariables(PackModel):
     """Variables for the ``initiativeUpdateCreate`` mutation."""
 
     input: InitiativeUpdateCreateInput = Field(..., description="The status update to post.")
 
 
-class InitiativeUpdateCreateRequest(BaseModel):
+class InitiativeUpdateCreateRequest(PackModel):
     """Post a status update on an initiative."""
 
     variables: Annotated[

@@ -14,16 +14,17 @@ from __future__ import annotations
 
 from typing import Annotated, Any, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Mode
+from charter.types.model import PackModel
 
 # ---------------------------------------------------------------------------
 # Metadata
 # ---------------------------------------------------------------------------
 
 
-class ScrapeMetadata(BaseModel):
+class ScrapeMetadata(PackModel):
     """Metadata extracted from the scraped page.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/scrape
@@ -95,7 +96,7 @@ class ScrapeMetadata(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class ActionsScrape(BaseModel):
+class ActionsScrape(PackModel):
     """Content captured by a scrape action during page interaction.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/scrape
@@ -113,7 +114,7 @@ class ActionsScrape(BaseModel):
     ]
 
 
-class JavascriptReturn(BaseModel):
+class JavascriptReturn(PackModel):
     """Return value from an executeJavascript action.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/scrape
@@ -126,7 +127,7 @@ class JavascriptReturn(BaseModel):
     ]
 
 
-class ScrapeActionsResult(BaseModel):
+class ScrapeActionsResult(PackModel):
     """Results of all actions performed on the page before content capture.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/scrape
@@ -167,7 +168,7 @@ class ScrapeActionsResult(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class ChangeTrackingResult(BaseModel):
+class ChangeTrackingResult(PackModel):
     """Change tracking information comparing the current page against a previous scrape.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/scrape
@@ -214,7 +215,7 @@ class ChangeTrackingResult(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class BrandingColors(BaseModel):
+class BrandingColors(PackModel):
     """Brand colors extracted from the page.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/scrape
@@ -256,7 +257,7 @@ class BrandingColors(BaseModel):
     ]
 
 
-class BrandingFont(BaseModel):
+class BrandingFont(PackModel):
     """A font family used on the page.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/scrape
@@ -267,7 +268,7 @@ class BrandingFont(BaseModel):
     ]
 
 
-class BrandingTypographyFontFamilies(BaseModel):
+class BrandingTypographyFontFamilies(PackModel):
     """Font families by role.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/scrape
@@ -284,7 +285,7 @@ class BrandingTypographyFontFamilies(BaseModel):
     ]
 
 
-class BrandingTypographyFontSizes(BaseModel):
+class BrandingTypographyFontSizes(PackModel):
     """Font sizes for different text levels.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/scrape
@@ -304,7 +305,7 @@ class BrandingTypographyFontSizes(BaseModel):
     ]
 
 
-class BrandingTypographyFontWeights(BaseModel):
+class BrandingTypographyFontWeights(PackModel):
     """Font weight definitions.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/scrape
@@ -324,7 +325,7 @@ class BrandingTypographyFontWeights(BaseModel):
     ]
 
 
-class BrandingTypographyLineHeights(BaseModel):
+class BrandingTypographyLineHeights(PackModel):
     """Line height values for different text types.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/scrape
@@ -338,7 +339,7 @@ class BrandingTypographyLineHeights(BaseModel):
     ]
 
 
-class BrandingTypography(BaseModel):
+class BrandingTypography(PackModel):
     """Detailed typography information extracted from the page.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/scrape
@@ -366,7 +367,7 @@ class BrandingTypography(BaseModel):
     ]
 
 
-class BrandingButtonStyle(BaseModel):
+class BrandingButtonStyle(PackModel):
     """Primary button styles.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/scrape
@@ -383,7 +384,7 @@ class BrandingButtonStyle(BaseModel):
     ]
 
 
-class BrandingButtonSecondaryStyle(BaseModel):
+class BrandingButtonSecondaryStyle(PackModel):
     """Secondary button styles.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/scrape
@@ -403,7 +404,7 @@ class BrandingButtonSecondaryStyle(BaseModel):
     ]
 
 
-class BrandingComponents(BaseModel):
+class BrandingComponents(PackModel):
     """UI component styles extracted from the page.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/scrape
@@ -424,7 +425,7 @@ class BrandingComponents(BaseModel):
     ]
 
 
-class BrandingSpacing(BaseModel):
+class BrandingSpacing(PackModel):
     """Spacing and layout information extracted from the page.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/scrape
@@ -446,7 +447,7 @@ class BrandingSpacing(BaseModel):
     ]
 
 
-class BrandingImages(BaseModel):
+class BrandingImages(PackModel):
     """Brand images extracted from the page.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/scrape
@@ -463,7 +464,7 @@ class BrandingImages(BaseModel):
     ]
 
 
-class BrandingResult(BaseModel):
+class BrandingResult(PackModel):
     """Branding information extracted from the page when the 'branding' format is requested.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/scrape
@@ -530,7 +531,7 @@ class BrandingResult(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class ScrapeData(BaseModel):
+class ScrapeData(PackModel):
     """All content and metadata extracted from the scraped page.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/scrape
@@ -611,7 +612,7 @@ class ScrapeData(BaseModel):
     ]
 
 
-class ScrapeResponse(BaseModel):
+class ScrapeResponse(PackModel):
     """Root response from the Firecrawl POST /scrape endpoint.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/scrape

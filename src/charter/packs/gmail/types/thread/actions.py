@@ -3,15 +3,16 @@
 
 from typing import Annotated, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Body, Path, Query
+from charter.types.model import PackModel
 
 from .._common import PAGE_TOKEN_DESCRIPTION, USER_ID_DESCRIPTION
 from .models import Format
 
 
-class ThreadsListRequest(BaseModel):
+class ThreadsListRequest(PackModel):
     """Input schema for the Gmail `users.threads.list` endpoint.
 
     API: https://developers.google.com/gmail/api/reference/rest/v1/users.threads/list
@@ -69,7 +70,7 @@ class ThreadsListRequest(BaseModel):
     ]
 
 
-class ThreadsGetRequest(BaseModel):
+class ThreadsGetRequest(PackModel):
     """Input schema for the Gmail `users.threads.get` endpoint.
 
     API: https://developers.google.com/gmail/api/reference/rest/v1/users.threads/get
@@ -109,7 +110,7 @@ class ThreadsGetRequest(BaseModel):
     ]
 
 
-class ModifyThreadRequest(BaseModel):
+class ModifyThreadRequest(PackModel):
     """
     Request body for Gmail `users.threads.modify` endpoint.
 
@@ -128,7 +129,7 @@ class ModifyThreadRequest(BaseModel):
     )
 
 
-class ThreadsModifyRequest(BaseModel):
+class ThreadsModifyRequest(PackModel):
     """Input schema for the Gmail `users.threads.modify` endpoint.
 
     Modifies the labels applied to the thread. This applies to all messages in
@@ -165,7 +166,7 @@ class ThreadsModifyRequest(BaseModel):
     }
 
 
-class ThreadsTrashRequest(BaseModel):
+class ThreadsTrashRequest(PackModel):
     """Input schema for the Gmail `users.threads.trash` endpoint.
 
     Moves the specified thread to the trash. Any messages that belong to the
@@ -190,7 +191,7 @@ class ThreadsTrashRequest(BaseModel):
     ]
 
 
-class ThreadsUntrashRequest(BaseModel):
+class ThreadsUntrashRequest(PackModel):
     """Input schema for the Gmail `users.threads.untrash` endpoint.
 
     Removes the specified thread from the trash. Any messages that belong to
@@ -215,7 +216,7 @@ class ThreadsUntrashRequest(BaseModel):
     ]
 
 
-class ThreadsDeleteRequest(BaseModel):
+class ThreadsDeleteRequest(PackModel):
     """Input schema for the Gmail `users.threads.delete` endpoint.
 
     Immediately and permanently deletes the specified thread. Any messages that

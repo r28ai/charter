@@ -11,9 +11,10 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Query
+from charter.types.model import PackModel
 
 ABOUT_FIELDS = (
     "Required. The `fields` parameter must be set. To return the exact fields "
@@ -21,7 +22,7 @@ ABOUT_FIELDS = (
 )
 
 
-class AboutGetRequest(BaseModel):
+class AboutGetRequest(PackModel):
     """
     Gets information about the user, the user's Drive, and system capabilities.
     Required: The `fields` parameter must be set.

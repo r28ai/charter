@@ -11,9 +11,10 @@ from __future__ import annotations
 
 from typing import Annotated, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Mode
+from charter.types.model import PackModel
 
 PermissionType = Literal["user", "group", "domain", "anyone"]
 PermissionRole = Literal[
@@ -29,7 +30,7 @@ PermissionView = Literal["published", "metadata"]
 PermissionDetailsType = Literal["file", "member"]
 
 
-class PermissionDetails(BaseModel):
+class PermissionDetails(PackModel):
     """
     Details of whether the permissions on this item are inherited or are
     directly on this item.
@@ -84,7 +85,7 @@ class PermissionDetails(BaseModel):
     ] = None
 
 
-class TeamDrivePermissionDetails(BaseModel):
+class TeamDrivePermissionDetails(PackModel):
     """
     Deprecated: Output only. Use `permissionDetails` instead.
 
@@ -125,7 +126,7 @@ class TeamDrivePermissionDetails(BaseModel):
     ] = None
 
 
-class Permission(BaseModel):
+class Permission(PackModel):
     """
     A permission for a file. A permission grants a user, group, domain, or the
     world access to a file or a folder hierarchy.

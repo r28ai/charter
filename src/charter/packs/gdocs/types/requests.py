@@ -25,7 +25,9 @@ from __future__ import annotations
 
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
+
+from charter.types.model import PackModel
 
 # =========================
 # Enums (Literal aliases)
@@ -78,7 +80,7 @@ SectionType = Literal["SECTION_TYPE_UNSPECIFIED", "CONTINUOUS", "NEXT_PAGE", "NE
 # =========================
 
 
-class TabsCriteria(BaseModel):
+class TabsCriteria(PackModel):
     """A criteria that specifies in which tabs a request executes.
 
     API Reference: https://developers.google.com/workspace/docs/api/reference/rest/v1/documents/request#TabsCriteria
@@ -89,7 +91,7 @@ class TabsCriteria(BaseModel):
     )
 
 
-class SubstringMatchCriteria(BaseModel):
+class SubstringMatchCriteria(PackModel):
     """Finds text in the document matching this substring.
 
     API Reference: https://developers.google.com/workspace/docs/api/reference/rest/v1/documents/request#SubstringMatchCriteria
@@ -105,7 +107,7 @@ class SubstringMatchCriteria(BaseModel):
     )
 
 
-class Location(BaseModel):
+class Location(PackModel):
     """A particular location in the document.
 
     API Reference: https://developers.google.com/workspace/docs/api/reference/rest/v1/documents/request#Location
@@ -125,7 +127,7 @@ class Location(BaseModel):
     )
 
 
-class EndOfSegmentLocation(BaseModel):
+class EndOfSegmentLocation(PackModel):
     """Location at the end of a body, header, footer or footnote.
 
     API Reference: https://developers.google.com/workspace/docs/api/reference/rest/v1/documents/request#EndOfSegmentLocation
@@ -141,7 +143,7 @@ class EndOfSegmentLocation(BaseModel):
     )
 
 
-class Range(BaseModel):
+class Range(PackModel):
     """The start and end indices of text in the document.
 
     NOTE: The official docs reference the Range type, but its full schema is not present in the scraped page. The essential fields are included here.
@@ -166,7 +168,7 @@ class Range(BaseModel):
 # ------------------------------------------------------------------
 
 
-class TextStyle(BaseModel):
+class TextStyle(PackModel):
     """Text styling information.
 
     The full TextStyle schema is extensive. The subset below contains the most
@@ -182,7 +184,7 @@ class TextStyle(BaseModel):
     model_config = {"extra": "allow"}
 
 
-class ParagraphStyle(BaseModel):
+class ParagraphStyle(PackModel):
     """Paragraph styling information (partial)."""
 
     alignment: Optional[str] = Field(
@@ -192,14 +194,14 @@ class ParagraphStyle(BaseModel):
     model_config = {"extra": "allow"}
 
 
-class Size(BaseModel):
+class Size(PackModel):
     """Represents the width & height of an object."""
 
     width: Optional[float] = Field(default=None, description="Width in points.")
     height: Optional[float] = Field(default=None, description="Height in points.")
 
 
-class TableCellLocation(BaseModel):
+class TableCellLocation(PackModel):
     """Location of a single cell within a table."""
 
     table_start_location: Location = Field(
@@ -209,7 +211,7 @@ class TableCellLocation(BaseModel):
     column_index: int = Field(..., description="The zero-based column index.")
 
 
-class TableRange(BaseModel):
+class TableRange(PackModel):
     """A rectangular (or L-shaped) set of table cells."""
 
     table_cell_location: TableCellLocation = Field(
@@ -219,7 +221,7 @@ class TableRange(BaseModel):
     column_span: int = Field(..., description="The column span of the table range.")
 
 
-class TableColumnProperties(BaseModel):
+class TableColumnProperties(PackModel):
     """Properties of a column in a table (partial)."""
 
     width: Optional[float] = Field(default=None, description="Column width in points.")
@@ -227,7 +229,7 @@ class TableColumnProperties(BaseModel):
     model_config = {"extra": "allow"}
 
 
-class TableCellStyle(BaseModel):
+class TableCellStyle(PackModel):
     """Styling for a table cell (partial)."""
 
     background_color: Optional[str] = Field(
@@ -237,7 +239,7 @@ class TableCellStyle(BaseModel):
     model_config = {"extra": "allow"}
 
 
-class TableRowStyle(BaseModel):
+class TableRowStyle(PackModel):
     """Styling for a table row (partial)."""
 
     min_row_height: Optional[float] = Field(
@@ -247,7 +249,7 @@ class TableRowStyle(BaseModel):
     model_config = {"extra": "allow"}
 
 
-class DocumentStyle(BaseModel):
+class DocumentStyle(PackModel):
     """Overall document styling (partial)."""
 
     background: Optional[str] = Field(default=None, description="Background color as a hex string.")
@@ -255,7 +257,7 @@ class DocumentStyle(BaseModel):
     model_config = {"extra": "allow"}
 
 
-class SectionStyle(BaseModel):
+class SectionStyle(PackModel):
     """Styling for a section (partial)."""
 
     margin_left: Optional[float] = Field(default=None, description="Left margin in points.")
@@ -268,7 +270,7 @@ class SectionStyle(BaseModel):
 # ==================================
 
 
-class ReplaceAllTextRequest(BaseModel):
+class ReplaceAllTextRequest(PackModel):
     replace_text: str = Field(..., description="The text that will replace the matched text.")
     tabs_criteria: Optional[TabsCriteria] = Field(
         default=None,
@@ -279,7 +281,7 @@ class ReplaceAllTextRequest(BaseModel):
     )
 
 
-class InsertTextRequest(BaseModel):
+class InsertTextRequest(PackModel):
     text: str = Field(..., description="The text to be inserted.")
     location: Optional[Location] = Field(
         None, description="Inserts the text at a specific index in the document."
@@ -298,29 +300,29 @@ class InsertTextRequest(BaseModel):
         return self
 
 
-class UpdateTextStyleRequest(BaseModel):
+class UpdateTextStyleRequest(PackModel):
     text_style: TextStyle = Field(..., description="The styles to set on the text.")
     fields: str = Field(..., description="The fields that should be updated.")
     range: Range = Field(..., description="The range of text to style.")
 
 
-class CreateParagraphBulletsRequest(BaseModel):
+class CreateParagraphBulletsRequest(PackModel):
     range: Range = Field(..., description="The range to apply the bullet preset to.")
     bullet_preset: BulletGlyphPreset = Field(
         ..., description="The kinds of bullet glyphs to be used."
     )
 
 
-class DeleteParagraphBulletsRequest(BaseModel):
+class DeleteParagraphBulletsRequest(PackModel):
     range: Range = Field(..., description="The range to delete bullets from.")
 
 
-class CreateNamedRangeRequest(BaseModel):
+class CreateNamedRangeRequest(PackModel):
     name: str = Field(..., description="The name of the NamedRange.")
     range: Range = Field(..., description="The range to apply the name to.")
 
 
-class DeleteNamedRangeRequest(BaseModel):
+class DeleteNamedRangeRequest(PackModel):
     tabs_criteria: Optional[TabsCriteria] = Field(
         default=None,
         description="Optional. The criteria used to specify which tab(s) the range deletion should occur in.",
@@ -335,17 +337,17 @@ class DeleteNamedRangeRequest(BaseModel):
         return self
 
 
-class UpdateParagraphStyleRequest(BaseModel):
+class UpdateParagraphStyleRequest(PackModel):
     paragraph_style: ParagraphStyle = Field(..., description="The styles to set on the paragraphs.")
     fields: str = Field(..., description="The fields that should be updated.")
     range: Range = Field(..., description="The range overlapping the paragraphs to style.")
 
 
-class DeleteContentRangeRequest(BaseModel):
+class DeleteContentRangeRequest(PackModel):
     range: Range = Field(..., description="The range of content to delete.")
 
 
-class InsertInlineImageRequest(BaseModel):
+class InsertInlineImageRequest(PackModel):
     uri: str = Field(..., description="The image URI.")
     object_size: Optional[Size] = Field(
         default=None, description="The size that the image should appear as in the document."
@@ -367,7 +369,7 @@ class InsertInlineImageRequest(BaseModel):
         return self
 
 
-class InsertTableRequest(BaseModel):
+class InsertTableRequest(PackModel):
     rows: int = Field(..., description="The number of rows in the table.")
     columns: int = Field(..., description="The number of columns in the table.")
     location: Optional[Location] = Field(
@@ -387,7 +389,7 @@ class InsertTableRequest(BaseModel):
         return self
 
 
-class InsertTableRowRequest(BaseModel):
+class InsertTableRowRequest(PackModel):
     table_cell_location: TableCellLocation = Field(
         ..., description="The reference table cell location from which rows will be inserted."
     )
@@ -396,7 +398,7 @@ class InsertTableRowRequest(BaseModel):
     )
 
 
-class InsertTableColumnRequest(BaseModel):
+class InsertTableColumnRequest(PackModel):
     table_cell_location: TableCellLocation = Field(
         ..., description="The reference table cell location from which columns will be inserted."
     )
@@ -405,19 +407,19 @@ class InsertTableColumnRequest(BaseModel):
     )
 
 
-class DeleteTableRowRequest(BaseModel):
+class DeleteTableRowRequest(PackModel):
     table_cell_location: TableCellLocation = Field(
         ..., description="The reference table cell location from which the row will be deleted."
     )
 
 
-class DeleteTableColumnRequest(BaseModel):
+class DeleteTableColumnRequest(PackModel):
     table_cell_location: TableCellLocation = Field(
         ..., description="The reference table cell location from which the column will be deleted."
     )
 
 
-class InsertPageBreakRequest(BaseModel):
+class InsertPageBreakRequest(PackModel):
     location: Optional[Location] = Field(
         None, description="Inserts the page break at a specific index in the document."
     )
@@ -434,14 +436,14 @@ class InsertPageBreakRequest(BaseModel):
         return self
 
 
-class DeletePositionedObjectRequest(BaseModel):
+class DeletePositionedObjectRequest(PackModel):
     object_id: str = Field(..., description="The ID of the positioned object to delete.")
     tab_id: Optional[str] = Field(
         default=None, description="The tab that the positioned object to delete is in."
     )
 
 
-class UpdateTableColumnPropertiesRequest(BaseModel):
+class UpdateTableColumnPropertiesRequest(PackModel):
     table_start_location: Location = Field(
         ..., description="The location where the table starts in the document."
     )
@@ -455,7 +457,7 @@ class UpdateTableColumnPropertiesRequest(BaseModel):
     fields: str = Field(..., description="The fields that should be updated.")
 
 
-class UpdateTableCellStyleRequest(BaseModel):
+class UpdateTableCellStyleRequest(PackModel):
     table_cell_style: TableCellStyle = Field(
         ..., description="The style to set on the table cells."
     )
@@ -477,7 +479,7 @@ class UpdateTableCellStyleRequest(BaseModel):
         return self
 
 
-class UpdateTableRowStyleRequest(BaseModel):
+class UpdateTableRowStyleRequest(PackModel):
     table_start_location: Location = Field(
         ..., description="The location where the table starts in the document."
     )
@@ -489,7 +491,7 @@ class UpdateTableRowStyleRequest(BaseModel):
     fields: str = Field(..., description="The fields that should be updated.")
 
 
-class ReplaceImageRequest(BaseModel):
+class ReplaceImageRequest(PackModel):
     image_object_id: str = Field(
         ..., description="The ID of the existing image that will be replaced."
     )
@@ -502,7 +504,7 @@ class ReplaceImageRequest(BaseModel):
     )
 
 
-class UpdateDocumentStyleRequest(BaseModel):
+class UpdateDocumentStyleRequest(PackModel):
     document_style: DocumentStyle = Field(..., description="The styles to set on the document.")
     fields: str = Field(..., description="The fields that should be updated.")
     tab_id: Optional[str] = Field(
@@ -510,19 +512,19 @@ class UpdateDocumentStyleRequest(BaseModel):
     )
 
 
-class MergeTableCellsRequest(BaseModel):
+class MergeTableCellsRequest(PackModel):
     table_range: TableRange = Field(
         ..., description="The table range specifying which cells of the table to merge."
     )
 
 
-class UnmergeTableCellsRequest(BaseModel):
+class UnmergeTableCellsRequest(PackModel):
     table_range: TableRange = Field(
         ..., description="The table range specifying which cells of the table to unmerge."
     )
 
 
-class CreateHeaderRequest(BaseModel):
+class CreateHeaderRequest(PackModel):
     type: HeaderFooterType = Field(..., description="The type of header to create.")
     section_break_location: Optional[Location] = Field(
         default=None,
@@ -530,7 +532,7 @@ class CreateHeaderRequest(BaseModel):
     )
 
 
-class CreateFooterRequest(BaseModel):
+class CreateFooterRequest(PackModel):
     type: HeaderFooterType = Field(..., description="The type of footer to create.")
     section_break_location: Optional[Location] = Field(
         default=None,
@@ -538,7 +540,7 @@ class CreateFooterRequest(BaseModel):
     )
 
 
-class CreateFootnoteRequest(BaseModel):
+class CreateFootnoteRequest(PackModel):
     location: Optional[Location] = Field(
         None, description="Inserts the footnote reference at a specific index in the document."
     )
@@ -555,7 +557,7 @@ class CreateFootnoteRequest(BaseModel):
         return self
 
 
-class ReplaceNamedRangeContentRequest(BaseModel):
+class ReplaceNamedRangeContentRequest(PackModel):
     tabs_criteria: Optional[TabsCriteria] = Field(
         default=None,
         description="Optional. The criteria used to specify in which tabs the replacement occurs.",
@@ -579,13 +581,13 @@ class ReplaceNamedRangeContentRequest(BaseModel):
         return self
 
 
-class UpdateSectionStyleRequest(BaseModel):
+class UpdateSectionStyleRequest(PackModel):
     range: Range = Field(..., description="The range overlapping the sections to style.")
     section_style: SectionStyle = Field(..., description="The styles to be set on the section.")
     fields: str = Field(..., description="The fields that should be updated.")
 
 
-class InsertSectionBreakRequest(BaseModel):
+class InsertSectionBreakRequest(PackModel):
     section_type: SectionType = Field(..., description="The type of section to insert.")
     location: Optional[Location] = Field(
         None,
@@ -604,21 +606,21 @@ class InsertSectionBreakRequest(BaseModel):
         return self
 
 
-class DeleteHeaderRequest(BaseModel):
+class DeleteHeaderRequest(PackModel):
     header_id: str = Field(..., description="The id of the header to delete.")
     tab_id: Optional[str] = Field(
         default=None, description="The tab containing the header to delete."
     )
 
 
-class DeleteFooterRequest(BaseModel):
+class DeleteFooterRequest(PackModel):
     footer_id: str = Field(..., description="The id of the footer to delete.")
     tab_id: Optional[str] = Field(
         default=None, description="The tab that contains the footer to delete."
     )
 
 
-class PinTableHeaderRowsRequest(BaseModel):
+class PinTableHeaderRowsRequest(PackModel):
     table_start_location: Location = Field(
         ..., description="The location where the table starts in the document."
     )
@@ -633,7 +635,7 @@ class PinTableHeaderRowsRequest(BaseModel):
 # ======================================================
 
 
-class Request(BaseModel):
+class Request(PackModel):
     """A single update to apply to a document.
 
     API Reference: https://developers.google.com/workspace/docs/api/reference/rest/v1/documents/request#Request

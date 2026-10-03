@@ -14,10 +14,11 @@ from __future__ import annotations
 
 from typing import Annotated, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.granola.types.common import CURSOR_DESCRIPTION
 from charter.types import Query
+from charter.types.model import PackModel
 
 __all__ = ["AuditListRequest"]
 
@@ -27,7 +28,7 @@ __all__ = ["AuditListRequest"]
 _RETENTION = "Must fall within the one-year retention window; an earlier date is rejected."
 
 
-class AuditListRequest(BaseModel):
+class AuditListRequest(PackModel):
     """List audit events, filtered by action and by when they happened.
 
     Events come back in ``collected_at`` order rather than ``occurred_at``

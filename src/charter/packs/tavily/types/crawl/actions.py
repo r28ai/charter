@@ -10,15 +10,16 @@ from __future__ import annotations
 
 from typing import Annotated, List, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.packs.tavily.types.common import ContentFormat, ExtractDepth
 from charter.types import Body
+from charter.types.model import PackModel
 
 __all__ = ["CrawlRequest"]
 
 
-class CrawlRequest(BaseModel):
+class CrawlRequest(PackModel):
     """Graph-based website traversal with built-in extraction.
 
     API Reference: https://docs.tavily.com/documentation/api-reference/endpoint/crawl

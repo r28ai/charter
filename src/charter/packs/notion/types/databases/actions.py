@@ -16,11 +16,12 @@ from __future__ import annotations
 
 from typing import Annotated, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.packs.notion.types.common import Cover, Icon, RichText
 from charter.packs.notion.types.data_sources.models import PropertyConfiguration
 from charter.types import Body, ConflictsWith, Path
+from charter.types.model import PackModel
 
 __all__ = [
     "DatabasesCreateRequest",
@@ -31,7 +32,7 @@ __all__ = [
 DATABASE_ID = "The ID of the database."
 
 
-class DatabaseParent(BaseModel):
+class DatabaseParent(PackModel):
     """Where a database lives.
 
     A database sits on a page or at the top level of the workspace.
@@ -53,7 +54,7 @@ class DatabaseParent(BaseModel):
         return self
 
 
-class InitialDataSource(BaseModel):
+class InitialDataSource(PackModel):
     """The first data source created alongside a new database.
 
     A database needs at least one table, and this is it.
@@ -70,7 +71,7 @@ class InitialDataSource(BaseModel):
     )
 
 
-class DatabaseCreateBody(BaseModel):
+class DatabaseCreateBody(PackModel):
     """The body of a create-database request.
 
     API Reference: https://developers.notion.com/reference/create-a-database
@@ -112,7 +113,7 @@ class DatabaseCreateBody(BaseModel):
     cover: Optional[Cover] = Field(None, description="The database's cover image.")
 
 
-class DatabasesCreateRequest(BaseModel):
+class DatabasesCreateRequest(PackModel):
     """Create a database.
 
     API Reference: https://developers.notion.com/reference/create-a-database
@@ -121,7 +122,7 @@ class DatabasesCreateRequest(BaseModel):
     body: Annotated[DatabaseCreateBody, Field(..., description="The database to create."), Body()]
 
 
-class DatabasesRetrieveRequest(BaseModel):
+class DatabasesRetrieveRequest(PackModel):
     """Retrieve a database and the data sources it contains.
 
     The columns are on the data sources, not here — follow the returned
@@ -133,7 +134,7 @@ class DatabasesRetrieveRequest(BaseModel):
     database_id: Annotated[str, Field(..., description=DATABASE_ID), Path()]
 
 
-class DatabaseUpdateBody(BaseModel):
+class DatabaseUpdateBody(PackModel):
     """The body of an update-database request.
 
     API Reference: https://developers.notion.com/reference/update-a-database
@@ -165,7 +166,7 @@ class DatabaseUpdateBody(BaseModel):
     )
 
 
-class DatabasesUpdateRequest(BaseModel):
+class DatabasesUpdateRequest(PackModel):
     """Update a database's metadata, or move it.
 
     API Reference: https://developers.notion.com/reference/update-a-database

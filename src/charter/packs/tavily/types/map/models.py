@@ -10,13 +10,14 @@ from __future__ import annotations
 
 from typing import Annotated, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.tavily.types.common import Usage
 from charter.types import Mode
+from charter.types.model import PackModel
 
 
-class MapResponse(BaseModel):
+class MapResponse(PackModel):
     """Root response from Tavily POST /map.
 
     API Reference: https://docs.tavily.com/documentation/api-reference/endpoint/map

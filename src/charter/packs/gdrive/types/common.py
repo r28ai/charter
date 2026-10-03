@@ -11,12 +11,13 @@ from __future__ import annotations
 
 from typing import Annotated, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Mode
+from charter.types.model import PackModel
 
 
-class User(BaseModel):
+class User(PackModel):
     """
     Information about a Drive user.
 

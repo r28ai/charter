@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Annotated, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.notion.types.common import Icon, PaginatedQuery, Parent, RichText
 from charter.packs.notion.types.data_sources.models import (
@@ -21,6 +21,7 @@ from charter.packs.notion.types.data_sources.models import (
     Sort,
 )
 from charter.types import Body, Path, Query
+from charter.types.model import PackModel
 
 __all__ = [
     "DataSourcesCreateRequest",
@@ -34,7 +35,7 @@ DATA_SOURCE_ID = "The ID of the data source."
 TITLE = "The title of the data source, as it appears in Notion."
 
 
-class DataSourceCreateBody(BaseModel):
+class DataSourceCreateBody(PackModel):
     """The body of a create-data-source request.
 
     API Reference: https://developers.notion.com/reference/create-a-data-source
@@ -58,7 +59,7 @@ class DataSourceCreateBody(BaseModel):
     icon: Optional[Icon] = Field(None, description="The data source's icon.")
 
 
-class DataSourcesCreateRequest(BaseModel):
+class DataSourcesCreateRequest(PackModel):
     """Add a data source to an existing database.
 
     API Reference: https://developers.notion.com/reference/create-a-data-source
@@ -69,7 +70,7 @@ class DataSourcesCreateRequest(BaseModel):
     ]
 
 
-class DataSourcesRetrieveRequest(BaseModel):
+class DataSourcesRetrieveRequest(PackModel):
     """Retrieve a data source, including its property schema.
 
     This returns the *schema*, not the rows. Use `data_sources_query` for those.
@@ -80,7 +81,7 @@ class DataSourcesRetrieveRequest(BaseModel):
     data_source_id: Annotated[str, Field(..., description=DATA_SOURCE_ID), Path()]
 
 
-class DataSourceParent(BaseModel):
+class DataSourceParent(PackModel):
     """The database a data source belongs to.
 
     API Reference: https://developers.notion.com/reference/update-a-data-source
@@ -92,7 +93,7 @@ class DataSourceParent(BaseModel):
     )
 
 
-class DataSourceUpdateBody(BaseModel):
+class DataSourceUpdateBody(PackModel):
     """The body of an update-data-source request.
 
     API Reference: https://developers.notion.com/reference/update-a-data-source
@@ -117,7 +118,7 @@ class DataSourceUpdateBody(BaseModel):
     in_trash: Optional[bool] = Field(None, description="Whether the data source is in the trash.")
 
 
-class DataSourcesUpdateRequest(BaseModel):
+class DataSourcesUpdateRequest(PackModel):
     """Update a data source's title, icon or column schema.
 
     API Reference: https://developers.notion.com/reference/update-a-data-source
@@ -127,7 +128,7 @@ class DataSourcesUpdateRequest(BaseModel):
     body: Annotated[DataSourceUpdateBody, Field(..., description="The fields to change."), Body()]
 
 
-class DataSourceQueryBody(BaseModel):
+class DataSourceQueryBody(PackModel):
     """The body of a query request.
 
     API Reference: https://developers.notion.com/reference/query-a-data-source
@@ -162,7 +163,7 @@ class DataSourceQueryBody(BaseModel):
     )
 
 
-class DataSourcesQueryRequest(BaseModel):
+class DataSourcesQueryRequest(PackModel):
     """Query a data source for its rows.
 
     API Reference: https://developers.notion.com/reference/query-a-data-source

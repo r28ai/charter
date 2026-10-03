@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Annotated, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
+from pydantic import ConfigDict, Field, model_serializer, model_validator
 
 from charter.packs.tavily.types.common import (
     CitationFormat,
@@ -18,6 +18,7 @@ from charter.packs.tavily.types.common import (
     ResearchModel,
 )
 from charter.types import Body, Path, Query, WireName
+from charter.types.model import PackModel, resolve_forward_refs
 
 __all__ = [
     "ResearchCreateRequest",
@@ -30,7 +31,7 @@ __all__ = [
 OutputSchemaPropertyType = Literal["object", "string", "integer", "number", "array"]
 
 
-class OutputSchemaProperty(BaseModel):
+class OutputSchemaProperty(PackModel):
     """One property in a research ``output_schema``.
 
     API Reference: https://docs.tavily.com/documentation/api-reference/endpoint/research
@@ -59,7 +60,7 @@ class OutputSchemaProperty(BaseModel):
         return self
 
 
-class OutputSchema(BaseModel):
+class OutputSchema(PackModel):
     """JSON Schema defining structured research output.
 
     API Reference: https://docs.tavily.com/documentation/api-reference/endpoint/research
@@ -75,7 +76,7 @@ class OutputSchema(BaseModel):
     )
 
 
-class ResearchFile(BaseModel):
+class ResearchFile(PackModel):
     """A file attached as an additional research source.
 
     API Reference: https://docs.tavily.com/documentation/api-reference/endpoint/research
@@ -110,7 +111,7 @@ class ResearchFile(BaseModel):
         return self
 
 
-class ResearchCreateRequest(BaseModel):
+class ResearchCreateRequest(PackModel):
     """Create an async research task that searches, analyzes sources, and generates a cited report.
 
     Poll results with ``research_get``. SSE streaming via ``stream=true`` is not
@@ -188,7 +189,7 @@ class ResearchCreateRequest(BaseModel):
     ]
 
 
-class ResearchGetRequest(BaseModel):
+class ResearchGetRequest(PackModel):
     """Retrieve the status and results of a research task.
 
     API Reference: https://docs.tavily.com/documentation/api-reference/endpoint/research-get
@@ -209,4 +210,4 @@ class ResearchGetRequest(BaseModel):
     ]
 
 
-OutputSchemaProperty.model_rebuild()
+resolve_forward_refs(OutputSchemaProperty)

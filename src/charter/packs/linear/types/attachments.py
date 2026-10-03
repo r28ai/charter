@@ -23,11 +23,12 @@ from __future__ import annotations
 
 from typing import Annotated, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.linear.types.common import JSONObject, PageVariables, PaginationOrderBy
 from charter.packs.linear.types.filters import AttachmentFilter
 from charter.types import Body
+from charter.types.model import PackModel
 
 __all__ = [
     "AttachmentsListRequest",
@@ -53,7 +54,7 @@ class AttachmentsListVariables(PageVariables):
     )
 
 
-class AttachmentsListRequest(BaseModel):
+class AttachmentsListRequest(PackModel):
     """List attachments."""
 
     variables: Annotated[
@@ -63,13 +64,13 @@ class AttachmentsListRequest(BaseModel):
     ]
 
 
-class AttachmentGetVariables(BaseModel):
+class AttachmentGetVariables(PackModel):
     """Variables for the ``attachment`` query."""
 
     id: str = Field(..., description="The attachment's UUID.")
 
 
-class AttachmentGetRequest(BaseModel):
+class AttachmentGetRequest(PackModel):
     """Get one attachment."""
 
     variables: Annotated[
@@ -85,7 +86,7 @@ class AttachmentsForUrlVariables(PageVariables):
     url: str = Field(..., description="The external URL to look up.")
 
 
-class AttachmentsForUrlRequest(BaseModel):
+class AttachmentsForUrlRequest(PackModel):
     """Find the attachments that link to a given URL."""
 
     variables: Annotated[
@@ -95,7 +96,7 @@ class AttachmentsForUrlRequest(BaseModel):
     ]
 
 
-class AttachmentCreateInput(BaseModel):
+class AttachmentCreateInput(PackModel):
     """The input to ``attachmentCreate``.
 
     Creating an attachment whose ``url`` is already attached to the issue
@@ -125,13 +126,13 @@ class AttachmentCreateInput(BaseModel):
     )
 
 
-class AttachmentCreateVariables(BaseModel):
+class AttachmentCreateVariables(PackModel):
     """Variables for the ``attachmentCreate`` mutation."""
 
     input: AttachmentCreateInput = Field(..., description="The attachment to create.")
 
 
-class AttachmentCreateRequest(BaseModel):
+class AttachmentCreateRequest(PackModel):
     """Link an issue to something outside Linear."""
 
     variables: Annotated[
@@ -141,7 +142,7 @@ class AttachmentCreateRequest(BaseModel):
     ]
 
 
-class AttachmentUpdateInput(BaseModel):
+class AttachmentUpdateInput(PackModel):
     """The fields ``attachmentUpdate`` changes.
 
     ``title`` is required — Linear declares it non-null on this input.
@@ -155,14 +156,14 @@ class AttachmentUpdateInput(BaseModel):
     )
 
 
-class AttachmentUpdateVariables(BaseModel):
+class AttachmentUpdateVariables(PackModel):
     """Variables for the ``attachmentUpdate`` mutation."""
 
     id: str = Field(..., description="The attachment's UUID.")
     input: AttachmentUpdateInput = Field(..., description="The fields to change.")
 
 
-class AttachmentUpdateRequest(BaseModel):
+class AttachmentUpdateRequest(PackModel):
     """Update an attachment."""
 
     variables: Annotated[
@@ -172,13 +173,13 @@ class AttachmentUpdateRequest(BaseModel):
     ]
 
 
-class AttachmentDeleteVariables(BaseModel):
+class AttachmentDeleteVariables(PackModel):
     """Variables for the ``attachmentDelete`` mutation."""
 
     id: str = Field(..., description="The attachment's UUID.")
 
 
-class AttachmentDeleteRequest(BaseModel):
+class AttachmentDeleteRequest(PackModel):
     """Remove an attachment."""
 
     variables: Annotated[

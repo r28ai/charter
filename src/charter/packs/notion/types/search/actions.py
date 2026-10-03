@@ -11,14 +11,15 @@ from __future__ import annotations
 
 from typing import Annotated, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.types import Body
+from charter.types.model import PackModel
 
 __all__ = ["SearchRequest"]
 
 
-class SearchSort(BaseModel):
+class SearchSort(PackModel):
     """How to order search results.
 
     Either by when a result was last edited, or by relevance to the query.
@@ -47,7 +48,7 @@ class SearchSort(BaseModel):
         return self
 
 
-class SearchFilter(BaseModel):
+class SearchFilter(PackModel):
     """Which kinds of object a search returns.
 
     API Reference: https://developers.notion.com/reference/post-search
@@ -72,7 +73,7 @@ class SearchFilter(BaseModel):
         return self
 
 
-class SearchBody(BaseModel):
+class SearchBody(PackModel):
     """The body of a search request.
 
     API Reference: https://developers.notion.com/reference/post-search
@@ -97,7 +98,7 @@ class SearchBody(BaseModel):
     )
 
 
-class SearchRequest(BaseModel):
+class SearchRequest(PackModel):
     """Search the pages and data sources the integration can see.
 
     Titles only: this does not search page content, and it returns nothing that

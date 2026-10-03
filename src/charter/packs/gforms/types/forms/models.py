@@ -24,10 +24,11 @@ from __future__ import annotations
 
 from typing import Annotated, List, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.packs.gforms.types.feedback import Feedback
 from charter.types import ConflictsWith, Mode
+from charter.types.model import PackModel
 
 __all__ = [
     "Alignment",
@@ -151,7 +152,7 @@ API Reference: https://developers.google.com/workspace/forms/api/reference/rest/
 # -----------------------------------------------------
 
 
-class MediaProperties(BaseModel):
+class MediaProperties(PackModel):
     """Properties of the media.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms#MediaProperties
@@ -177,7 +178,7 @@ class MediaProperties(BaseModel):
     )
 
 
-class Image(BaseModel):
+class Image(PackModel):
     """Data representing an image.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms#Image
@@ -218,7 +219,7 @@ class Image(BaseModel):
     ] = None
 
 
-class Video(BaseModel):
+class Video(PackModel):
     """Data representing a video.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms#Video
@@ -239,7 +240,7 @@ class Video(BaseModel):
 # -----------------------------------------------------
 
 
-class Option(BaseModel):
+class Option(PackModel):
     """An option for a Choice question.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms#Option
@@ -281,7 +282,7 @@ class Option(BaseModel):
     )
 
 
-class ChoiceQuestion(BaseModel):
+class ChoiceQuestion(PackModel):
     """A radio/checkbox/dropdown question.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms#ChoiceQuestion
@@ -307,7 +308,7 @@ class ChoiceQuestion(BaseModel):
     )
 
 
-class TextQuestion(BaseModel):
+class TextQuestion(PackModel):
     """A text-based question.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms#TextQuestion
@@ -322,7 +323,7 @@ class TextQuestion(BaseModel):
     )
 
 
-class ScaleQuestion(BaseModel):
+class ScaleQuestion(PackModel):
     """A scale question. The user has a range of numeric values to choose from.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms#ScaleQuestion
@@ -346,7 +347,7 @@ class ScaleQuestion(BaseModel):
     )
 
 
-class DateQuestion(BaseModel):
+class DateQuestion(PackModel):
     """A date question. Date questions default to just month + day.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms#DateQuestion
@@ -362,7 +363,7 @@ class DateQuestion(BaseModel):
     )
 
 
-class TimeQuestion(BaseModel):
+class TimeQuestion(PackModel):
     """A time question.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms#TimeQuestion
@@ -376,7 +377,7 @@ class TimeQuestion(BaseModel):
     )
 
 
-class FileUploadQuestion(BaseModel):
+class FileUploadQuestion(PackModel):
     """A file upload question.
 
     The API currently does not support creating file upload questions; one that
@@ -408,7 +409,7 @@ class FileUploadQuestion(BaseModel):
     )
 
 
-class RowQuestion(BaseModel):
+class RowQuestion(PackModel):
     """Configuration for a question that is part of a question group.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms#RowQuestion
@@ -420,7 +421,7 @@ class RowQuestion(BaseModel):
     )
 
 
-class RatingQuestion(BaseModel):
+class RatingQuestion(PackModel):
     """A rating question. The user has a range of icons to choose from.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms#RatingQuestion
@@ -441,7 +442,7 @@ class RatingQuestion(BaseModel):
 # -----------------------------------------------------
 
 
-class CorrectAnswer(BaseModel):
+class CorrectAnswer(PackModel):
     """A single correct answer for a question.
 
     For multiple-valued (``CHECKBOX``) questions, several ``CorrectAnswer``s may
@@ -459,7 +460,7 @@ class CorrectAnswer(BaseModel):
     )
 
 
-class CorrectAnswers(BaseModel):
+class CorrectAnswers(PackModel):
     """The answer key for a question.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms#CorrectAnswers
@@ -478,7 +479,7 @@ class CorrectAnswers(BaseModel):
     )
 
 
-class Grading(BaseModel):
+class Grading(PackModel):
     """Grading for a single question.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms#Grading
@@ -555,7 +556,7 @@ _ITEM_KINDS = (
 )
 
 
-class Question(BaseModel):
+class Question(PackModel):
     """Any question. The specific type of question is known by its ``kind``.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms#Question
@@ -624,7 +625,7 @@ class Question(BaseModel):
         return self
 
 
-class QuestionItem(BaseModel):
+class QuestionItem(PackModel):
     """A form item containing a single question.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms#QuestionItem
@@ -640,7 +641,7 @@ class QuestionItem(BaseModel):
     )
 
 
-class Grid(BaseModel):
+class Grid(PackModel):
     """A grid of choices (radio or check boxes) with each row constituting a
     separate question. Each row has the same choices, which are shown as the
     columns.
@@ -665,7 +666,7 @@ class Grid(BaseModel):
     )
 
 
-class QuestionGroupItem(BaseModel):
+class QuestionGroupItem(PackModel):
     """Defines a question that comprises multiple questions grouped together.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms#QuestionGroupItem
@@ -699,7 +700,7 @@ class QuestionGroupItem(BaseModel):
         return self
 
 
-class PageBreakItem(BaseModel):
+class PageBreakItem(PackModel):
     """A page break. The title and description of this item are shown at the top
     of the new page.
 
@@ -709,7 +710,7 @@ class PageBreakItem(BaseModel):
     """
 
 
-class TextItem(BaseModel):
+class TextItem(PackModel):
     """A text item.
 
     This type has no fields.
@@ -718,7 +719,7 @@ class TextItem(BaseModel):
     """
 
 
-class ImageItem(BaseModel):
+class ImageItem(PackModel):
     """An item containing an image.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms#ImageItem
@@ -730,7 +731,7 @@ class ImageItem(BaseModel):
     )
 
 
-class VideoItem(BaseModel):
+class VideoItem(PackModel):
     """An item containing a video.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms#VideoItem
@@ -746,7 +747,7 @@ class VideoItem(BaseModel):
     )
 
 
-class Item(BaseModel):
+class Item(PackModel):
     """A single item of the form. ``kind`` defines which kind of item it is.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms#Item
@@ -808,7 +809,7 @@ class Item(BaseModel):
 # -----------------------------------------------------
 
 
-class QuizSettings(BaseModel):
+class QuizSettings(PackModel):
     """Settings related to quiz forms and grading.
 
     These must be updated with the ``UpdateSettingsRequest``.
@@ -826,7 +827,7 @@ class QuizSettings(BaseModel):
     )
 
 
-class FormSettings(BaseModel):
+class FormSettings(PackModel):
     """A form's settings.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms#FormSettings
@@ -846,7 +847,7 @@ class FormSettings(BaseModel):
     )
 
 
-class Info(BaseModel):
+class Info(PackModel):
     """The general information for a form.
 
     One resource, two operations that disagree about it. ``forms.create``
@@ -887,7 +888,7 @@ class Info(BaseModel):
     ] = None
 
 
-class PublishState(BaseModel):
+class PublishState(PackModel):
     """The publishing state of a form.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms#PublishState
@@ -916,7 +917,7 @@ class PublishState(BaseModel):
         return self
 
 
-class PublishSettings(BaseModel):
+class PublishSettings(PackModel):
     """The publishing settings of a form.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms#PublishSettings
@@ -933,7 +934,7 @@ class PublishSettings(BaseModel):
     )
 
 
-class Form(BaseModel):
+class Form(PackModel):
     """A Google Forms document.
 
     A form is created in Drive, and deleting a form or changing its access

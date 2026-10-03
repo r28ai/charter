@@ -1212,9 +1212,15 @@ def partial_of(
     # create_model reads the calling frame for __module__, which would be this
     # one: a pack's model would report charter.execution.schema as its home.
     caller = sys._getframe(1).f_globals.get("__name__", model.__module__)
+    # A partial of a pack's model is built on first use, as the model is, rather
+    # than at the import that declares it.
+    from charter.types.model import PackModel
+
+    base = PackModel if issubclass(model, PackModel) else None
 
     return create_model(
         name or f"Partial{model.__name__}",
+        __base__=base,
         __doc__=doc or f"{model.__name__}, with every field optional.",
         __module__=caller,
         __validators__=_carry_validators(model, set(fields)),

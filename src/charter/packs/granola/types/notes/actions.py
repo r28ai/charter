@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.granola.types.common import (
     CURSOR_DESCRIPTION,
@@ -23,6 +23,7 @@ from charter.packs.granola.types.common import (
     NOTE_ID_PATTERN,
 )
 from charter.types import Path, Query
+from charter.types.model import PackModel
 
 __all__ = [
     "NotesListRequest",
@@ -37,7 +38,7 @@ _NOTE_ID_DESCRIPTION = (
 )
 
 
-class NotesListRequest(BaseModel):
+class NotesListRequest(PackModel):
     """List the meeting notes this API key can reach.
 
     Only notes that already have a generated AI summary and transcript are
@@ -116,7 +117,7 @@ class NotesListRequest(BaseModel):
     ]
 
 
-class NotesGetRequest(BaseModel):
+class NotesGetRequest(PackModel):
     """Retrieve one note, with its summary, attendees and calendar event.
 
     ``include="transcript"`` adds the transcript inline. A transcript too large
@@ -147,7 +148,7 @@ class NotesGetRequest(BaseModel):
     ]
 
 
-class NotesTranscriptGetRequest(BaseModel):
+class NotesTranscriptGetRequest(PackModel):
     """Read a meeting transcript a page at a time.
 
     The way to read a transcript that ``notes_get`` refused to inline, and the

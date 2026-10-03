@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Annotated, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 
 from charter.packs.gsheets.types.spreadsheets.models import (
     BandedRange,
@@ -40,9 +40,10 @@ from charter.packs.gsheets.types.spreadsheets.models import (
     Table,
 )
 from charter.types import Mode
+from charter.types.model import PackModel
 
 
-class AddBandingResponse(BaseModel):
+class AddBandingResponse(PackModel):
     """
     The result of adding a banded range.
 
@@ -55,7 +56,7 @@ class AddBandingResponse(BaseModel):
     )
 
 
-class AddChartResponse(BaseModel):
+class AddChartResponse(PackModel):
     """
     The result of adding a chart to a spreadsheet.
 
@@ -68,7 +69,7 @@ class AddChartResponse(BaseModel):
     )
 
 
-class AddDataSourceResponse(BaseModel):
+class AddDataSourceResponse(PackModel):
     """
     The result of adding a data source.
 
@@ -86,7 +87,7 @@ class AddDataSourceResponse(BaseModel):
     )
 
 
-class AddDimensionGroupResponse(BaseModel):
+class AddDimensionGroupResponse(PackModel):
     """
     The result of adding a group.
 
@@ -99,7 +100,7 @@ class AddDimensionGroupResponse(BaseModel):
     )
 
 
-class AddFilterViewResponse(BaseModel):
+class AddFilterViewResponse(PackModel):
     """
     The result of adding a filter view.
 
@@ -112,7 +113,7 @@ class AddFilterViewResponse(BaseModel):
     )
 
 
-class AddNamedRangeResponse(BaseModel):
+class AddNamedRangeResponse(PackModel):
     """
     The result of adding a named range.
 
@@ -125,7 +126,7 @@ class AddNamedRangeResponse(BaseModel):
     )
 
 
-class AddProtectedRangeResponse(BaseModel):
+class AddProtectedRangeResponse(PackModel):
     """
     The result of adding a new protected range.
 
@@ -138,7 +139,7 @@ class AddProtectedRangeResponse(BaseModel):
     )
 
 
-class AddSheetResponse(BaseModel):
+class AddSheetResponse(PackModel):
     """
     The result of adding a sheet.
 
@@ -151,7 +152,7 @@ class AddSheetResponse(BaseModel):
     )
 
 
-class AddSlicerResponse(BaseModel):
+class AddSlicerResponse(PackModel):
     """
     The result of adding a slicer to a spreadsheet.
 
@@ -164,7 +165,7 @@ class AddSlicerResponse(BaseModel):
     )
 
 
-class AddTableResponse(BaseModel):
+class AddTableResponse(PackModel):
     """
     The result of adding a table.
 
@@ -178,7 +179,7 @@ class AddTableResponse(BaseModel):
     ] = None
 
 
-class CancelDataSourceRefreshResponse(BaseModel):
+class CancelDataSourceRefreshResponse(PackModel):
     """
     The response from cancelling one or multiple data source object refreshes.
 
@@ -191,7 +192,7 @@ class CancelDataSourceRefreshResponse(BaseModel):
     )
 
 
-class CancelDataSourceRefreshStatus(BaseModel):
+class CancelDataSourceRefreshStatus(PackModel):
     """
     The status of cancelling a single data source object refresh.
 
@@ -209,7 +210,7 @@ class CancelDataSourceRefreshStatus(BaseModel):
     )
 
 
-class CreateDeveloperMetadataResponse(BaseModel):
+class CreateDeveloperMetadataResponse(PackModel):
     """
     The response from creating developer metadata.
 
@@ -222,7 +223,7 @@ class CreateDeveloperMetadataResponse(BaseModel):
     )
 
 
-class DeleteConditionalFormatRuleResponse(BaseModel):
+class DeleteConditionalFormatRuleResponse(PackModel):
     """
     The result of deleting a conditional format rule.
 
@@ -235,7 +236,7 @@ class DeleteConditionalFormatRuleResponse(BaseModel):
     )
 
 
-class DeleteDeveloperMetadataResponse(BaseModel):
+class DeleteDeveloperMetadataResponse(PackModel):
     """
     The response from deleting developer metadata.
 
@@ -248,7 +249,7 @@ class DeleteDeveloperMetadataResponse(BaseModel):
     )
 
 
-class DeleteDimensionGroupResponse(BaseModel):
+class DeleteDimensionGroupResponse(PackModel):
     """
     The result of deleting a group.
 
@@ -261,7 +262,7 @@ class DeleteDimensionGroupResponse(BaseModel):
     )
 
 
-class DeleteDuplicatesResponse(BaseModel):
+class DeleteDuplicatesResponse(PackModel):
     """
     The result of removing duplicates in a range.
 
@@ -274,7 +275,7 @@ class DeleteDuplicatesResponse(BaseModel):
     )
 
 
-class DuplicateFilterViewResponse(BaseModel):
+class DuplicateFilterViewResponse(PackModel):
     """
     The result of a filter view being duplicated.
 
@@ -287,7 +288,7 @@ class DuplicateFilterViewResponse(BaseModel):
     )
 
 
-class DuplicateSheetResponse(BaseModel):
+class DuplicateSheetResponse(PackModel):
     """
     The result of duplicating a sheet.
 
@@ -300,7 +301,7 @@ class DuplicateSheetResponse(BaseModel):
     )
 
 
-class FindReplaceResponse(BaseModel):
+class FindReplaceResponse(PackModel):
     """
     The result of the find/replace.
 
@@ -333,7 +334,7 @@ class FindReplaceResponse(BaseModel):
     )
 
 
-class RefreshCancellationStatus(BaseModel):
+class RefreshCancellationStatus(PackModel):
     """
     The status of a refresh cancellation. You can send a cancel request to explicitly cancel one or multiple data source object refreshes.
 
@@ -351,7 +352,7 @@ class RefreshCancellationStatus(BaseModel):
     )
 
 
-class RefreshDataSourceObjectExecutionStatus(BaseModel):
+class RefreshDataSourceObjectExecutionStatus(PackModel):
     """
     The execution status of refreshing one data source object.
 
@@ -369,7 +370,7 @@ class RefreshDataSourceObjectExecutionStatus(BaseModel):
     )
 
 
-class RefreshDataSourceResponse(BaseModel):
+class RefreshDataSourceResponse(PackModel):
     """
     The response from refreshing one or multiple data source objects.
 
@@ -382,7 +383,7 @@ class RefreshDataSourceResponse(BaseModel):
     )
 
 
-class TrimWhitespaceResponse(BaseModel):
+class TrimWhitespaceResponse(PackModel):
     """
     The result of trimming whitespace in cells.
 
@@ -395,7 +396,7 @@ class TrimWhitespaceResponse(BaseModel):
     )
 
 
-class UpdateConditionalFormatRuleResponse(BaseModel):
+class UpdateConditionalFormatRuleResponse(PackModel):
     """
     The result of updating a conditional format rule.
 
@@ -423,7 +424,7 @@ class UpdateConditionalFormatRuleResponse(BaseModel):
     )
 
 
-class UpdateDataSourceResponse(BaseModel):
+class UpdateDataSourceResponse(PackModel):
     """
     The response from updating data source.
 
@@ -441,7 +442,7 @@ class UpdateDataSourceResponse(BaseModel):
     )
 
 
-class UpdateDeveloperMetadataResponse(BaseModel):
+class UpdateDeveloperMetadataResponse(PackModel):
     """
     The response from updating developer metadata.
 
@@ -454,7 +455,7 @@ class UpdateDeveloperMetadataResponse(BaseModel):
     )
 
 
-class UpdateEmbeddedObjectPositionResponse(BaseModel):
+class UpdateEmbeddedObjectPositionResponse(PackModel):
     """
     The result of updating an embedded object's position.
 
@@ -467,7 +468,7 @@ class UpdateEmbeddedObjectPositionResponse(BaseModel):
     )
 
 
-class InsertCommentResponse(BaseModel):
+class InsertCommentResponse(PackModel):
     """
     The result of creating a comment.
 
@@ -483,7 +484,7 @@ class InsertCommentResponse(BaseModel):
     )
 
 
-class AddCommentReplyResponse(BaseModel):
+class AddCommentReplyResponse(PackModel):
     """
     The result of creating a reply.
 
@@ -499,7 +500,7 @@ class AddCommentReplyResponse(BaseModel):
     )
 
 
-class Response(BaseModel):
+class Response(PackModel):
     """
     A single response from an update.
 
@@ -620,7 +621,7 @@ class Response(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class BatchUpdateSpreadsheetResponse(BaseModel):
+class BatchUpdateSpreadsheetResponse(PackModel):
     """
     The reply for batch updating a spreadsheet.
 

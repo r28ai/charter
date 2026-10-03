@@ -10,12 +10,13 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Body, Gloss
+from charter.types.model import PackModel
 
 
-class MessageMetadata(BaseModel):
+class MessageMetadata(PackModel):
     """Application-specific metadata attached to a message.
 
     API Reference: https://docs.slack.dev/reference/methods/chat.postmessage
@@ -27,7 +28,7 @@ class MessageMetadata(BaseModel):
     )
 
 
-class ChatPostMessageRequest(BaseModel):
+class ChatPostMessageRequest(PackModel):
     """Input schema for Slack `chat.postMessage`.
 
     Sends a message to a channel.
@@ -182,7 +183,7 @@ class ChatPostMessageRequest(BaseModel):
     ]
 
 
-class ChatUpdateRequest(BaseModel):
+class ChatUpdateRequest(PackModel):
     """Input schema for Slack `chat.update`.
 
     Updates a message. Only messages posted by the authenticated user or bot can
@@ -248,7 +249,7 @@ class ChatUpdateRequest(BaseModel):
     ]
 
 
-class ChatDeleteRequest(BaseModel):
+class ChatDeleteRequest(PackModel):
     """Input schema for Slack `chat.delete`.
 
     Deletes a message. A bot token may only delete messages posted by that bot.
@@ -271,7 +272,7 @@ class ChatDeleteRequest(BaseModel):
     ]
 
 
-class ChatPostEphemeralRequest(BaseModel):
+class ChatPostEphemeralRequest(PackModel):
     """Input schema for Slack `chat.postEphemeral`.
 
     An ephemeral message is visible to one person in a channel and disappears when
@@ -301,7 +302,7 @@ class ChatPostEphemeralRequest(BaseModel):
     ]
 
 
-class ChatScheduleMessageRequest(BaseModel):
+class ChatScheduleMessageRequest(PackModel):
     """Input schema for Slack `chat.scheduleMessage`.
 
     The returned `scheduled_message_id` is what cancels it later.

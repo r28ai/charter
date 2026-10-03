@@ -21,9 +21,10 @@ from __future__ import annotations
 
 from typing import Annotated, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Mode
+from charter.types.model import PackModel
 
 __all__ = [
     "NOTE_ID_PATTERN",
@@ -53,7 +54,7 @@ WEBHOOK_ENDPOINT_ID_PATTERN = r"^whe_[a-zA-Z0-9]{14}$"
 CURSOR_DESCRIPTION = "The cursor to continue from"
 
 
-class User(BaseModel):
+class User(PackModel):
     """A person Granola knows about: a note's owner, an attendee, a creator.
 
     API Reference: https://docs.granola.ai/api-reference/get-note
@@ -71,7 +72,7 @@ class User(BaseModel):
     ]
 
 
-class Folder(BaseModel):
+class Folder(PackModel):
     """A folder, as it appears in a listing and in a note's membership.
 
     ``parent_folder_id`` is the whole of the hierarchy: a folder names its
@@ -106,7 +107,7 @@ class Folder(BaseModel):
     ]
 
 
-class Speaker(BaseModel):
+class Speaker(PackModel):
     """Who said one line of a transcript, to whatever resolution Granola has.
 
     Four fields, and which of them arrive depends on the platform the meeting
@@ -175,7 +176,7 @@ class Speaker(BaseModel):
     ]
 
 
-class TranscriptItem(BaseModel):
+class TranscriptItem(PackModel):
     """One line of a meeting transcript.
 
     The same shape whether it arrives inline from ``notes_get`` or a page at a
@@ -206,7 +207,7 @@ class TranscriptItem(BaseModel):
     ]
 
 
-class CursorPage(BaseModel):
+class CursorPage(PackModel):
     """The two fields every paginated Granola response ends with.
 
     ``hasMore`` is the only camelCase key in the API. It is authoritative:

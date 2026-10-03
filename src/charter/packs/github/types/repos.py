@@ -11,10 +11,11 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.packs.github.types.common import GitHubListRequest, RepoRequest, SortDirection
 from charter.types import Body, Format, Path, Query
+from charter.types.model import PackModel
 
 __all__ = [
     "ReposGetRequest",
@@ -250,7 +251,7 @@ class ReposListCommitsRequest(RepoRequest, GitHubListRequest):
     ]
 
 
-class CommitIdentity(BaseModel):
+class CommitIdentity(PackModel):
     """Who a contents-endpoint commit is attributed to.
 
     GitHub answers 422 if either field is missing — "You must provide values for

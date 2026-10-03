@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Annotated, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.packs.notion.types.blocks.models import Block
 from charter.packs.notion.types.common import (
@@ -24,6 +24,7 @@ from charter.packs.notion.types.common import (
 )
 from charter.packs.notion.types.pages.models import PagePropertyValue
 from charter.types import Body, ConflictsWith, Mode, Path, Query
+from charter.types.model import PackModel
 
 __all__ = [
     "PagesCreateRequest",
@@ -44,7 +45,7 @@ PROPERTIES = (
 )
 
 
-class PageCreateBody(BaseModel):
+class PageCreateBody(PackModel):
     """The body of a create-page request.
 
     Content can arrive three ways and only one at a time: as `children` blocks,
@@ -130,7 +131,7 @@ class PageCreateBody(BaseModel):
     )
 
 
-class PagesCreateRequest(BaseModel):
+class PagesCreateRequest(PackModel):
     """Create a page.
 
     API Reference: https://developers.notion.com/reference/post-page
@@ -151,7 +152,7 @@ class PagesCreateRequest(BaseModel):
     ]
 
 
-class PagesRetrieveRequest(BaseModel):
+class PagesRetrieveRequest(PackModel):
     """Retrieve a page.
 
     API Reference: https://developers.notion.com/reference/retrieve-a-page
@@ -172,7 +173,7 @@ class PagesRetrieveRequest(BaseModel):
     ]
 
 
-class PageUpdateBody(BaseModel):
+class PageUpdateBody(PackModel):
     """The body of an update-page request.
 
     Every field is optional: anything omitted is left unchanged. A page's parent
@@ -213,7 +214,7 @@ class PageUpdateBody(BaseModel):
     )
 
 
-class PagesUpdateRequest(BaseModel):
+class PagesUpdateRequest(PackModel):
     """Update a page's properties, icon, cover or trash state.
 
     API Reference: https://developers.notion.com/reference/patch-page
@@ -235,7 +236,7 @@ class PagesUpdateRequest(BaseModel):
     ]
 
 
-class PageMoveBody(BaseModel):
+class PageMoveBody(PackModel):
     """The body of a move-page request.
 
     API Reference: https://developers.notion.com/reference/move-page
@@ -244,7 +245,7 @@ class PageMoveBody(BaseModel):
     parent: Parent = Field(..., description="Where to move the page to.")
 
 
-class PagesMoveRequest(BaseModel):
+class PagesMoveRequest(PackModel):
     """Move a page under a different parent.
 
     The update endpoint cannot change a parent; this is the one that can.
@@ -256,7 +257,7 @@ class PagesMoveRequest(BaseModel):
     body: Annotated[PageMoveBody, Field(..., description="The new parent."), Body()]
 
 
-class PagesRetrievePropertyItemRequest(BaseModel):
+class PagesRetrievePropertyItemRequest(PackModel):
     """Retrieve one property value of a page, in full.
 
     A page object truncates the list-valued properties — title, rich text,
@@ -288,7 +289,7 @@ class PagesRetrievePropertyItemRequest(BaseModel):
     ]
 
 
-class PagesRetrieveMarkdownRequest(BaseModel):
+class PagesRetrieveMarkdownRequest(PackModel):
     """Retrieve a page's content as Markdown.
 
     Notion renders the block tree itself, which is the cheap way to read a page:
@@ -311,7 +312,7 @@ class PagesRetrieveMarkdownRequest(BaseModel):
     ]
 
 
-class ContentUpdate(BaseModel):
+class ContentUpdate(PackModel):
     """One search-and-replace over a page's Markdown.
 
     API Reference: https://developers.notion.com/reference/update-page-markdown
@@ -327,7 +328,7 @@ class ContentUpdate(BaseModel):
     new_str: str = Field(..., description="What to put in its place.")
 
 
-class UpdateContentOp(BaseModel):
+class UpdateContentOp(PackModel):
     """Edit parts of a page, leaving the rest alone.
 
     API Reference: https://developers.notion.com/reference/update-page-markdown
@@ -346,7 +347,7 @@ class UpdateContentOp(BaseModel):
     )
 
 
-class ReplaceContentOp(BaseModel):
+class ReplaceContentOp(PackModel):
     """Replace a page's entire content.
 
     API Reference: https://developers.notion.com/reference/update-page-markdown
@@ -363,7 +364,7 @@ class ReplaceContentOp(BaseModel):
     )
 
 
-class InsertPosition(BaseModel):
+class InsertPosition(PackModel):
     """Which end of the page content is inserted at.
 
     API Reference: https://developers.notion.com/reference/update-page-markdown
@@ -374,7 +375,7 @@ class InsertPosition(BaseModel):
     )
 
 
-class InsertContentOp(BaseModel):
+class InsertContentOp(PackModel):
     """Add content without touching what is there.
 
     Deprecated by Notion in favour of `update_content`.
@@ -399,7 +400,7 @@ class InsertContentOp(BaseModel):
     )
 
 
-class ReplaceContentRangeOp(BaseModel):
+class ReplaceContentRangeOp(PackModel):
     """Replace one stretch of a page.
 
     Deprecated by Notion in favour of `update_content`.
@@ -418,7 +419,7 @@ class ReplaceContentRangeOp(BaseModel):
     )
 
 
-class PageMarkdownUpdateBody(BaseModel):
+class PageMarkdownUpdateBody(PackModel):
     """The body of an update-page-markdown request.
 
     This is not a single field of Markdown: it is one of four operations, named
@@ -466,7 +467,7 @@ class PageMarkdownUpdateBody(BaseModel):
         )
 
 
-class PagesUpdateMarkdownRequest(BaseModel):
+class PagesUpdateMarkdownRequest(PackModel):
     """Replace a page's content with Markdown.
 
     API Reference: https://developers.notion.com/reference/update-page-markdown

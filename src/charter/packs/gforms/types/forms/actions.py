@@ -15,11 +15,12 @@ from __future__ import annotations
 
 from typing import Annotated, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.gforms.types.forms.models import Info, PublishSettings
 from charter.packs.gforms.types.forms.requests import Request, WriteControl
 from charter.types import Body, FieldMask, Format, Path, Query
+from charter.types.model import PackModel
 
 __all__ = [
     "FormsCreateBody",
@@ -32,7 +33,7 @@ __all__ = [
 ]
 
 
-class FormsCreateBody(BaseModel):
+class FormsCreateBody(PackModel):
     """The body of a create-form request.
 
     Google's reference says this body is a ``Form`` and then says, in the same
@@ -55,7 +56,7 @@ class FormsCreateBody(BaseModel):
     )
 
 
-class FormsCreateRequest(BaseModel):
+class FormsCreateRequest(PackModel):
     """Create a new form using the title given in the provided form message in
     the request.
 
@@ -81,7 +82,7 @@ class FormsCreateRequest(BaseModel):
     ]
 
 
-class FormsGetRequest(BaseModel):
+class FormsGetRequest(PackModel):
     """Get a form.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms/get
@@ -100,7 +101,7 @@ class FormsGetRequest(BaseModel):
     ]
 
 
-class BatchUpdateFormBody(BaseModel):
+class BatchUpdateFormBody(PackModel):
     """The body of a batch-update request.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms/batchUpdate#body.request_body
@@ -126,7 +127,7 @@ class BatchUpdateFormBody(BaseModel):
     )
 
 
-class FormsBatchUpdateRequest(BaseModel):
+class FormsBatchUpdateRequest(PackModel):
     """Change the form with a batch of updates.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms/batchUpdate
@@ -144,7 +145,7 @@ class FormsBatchUpdateRequest(BaseModel):
     ]
 
 
-class SetPublishSettingsBody(BaseModel):
+class SetPublishSettingsBody(PackModel):
     """The body of a set-publish-settings request.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms/setPublishSettings#body.request_body
@@ -169,7 +170,7 @@ class SetPublishSettingsBody(BaseModel):
     ] = None
 
 
-class FormsSetPublishSettingsRequest(BaseModel):
+class FormsSetPublishSettingsRequest(PackModel):
     """Updates the publish settings of a form.
 
     Legacy forms aren't supported because they don't have the

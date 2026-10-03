@@ -29,7 +29,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated, List, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.packs.github.types.common import (
     GitHubListRequest,
@@ -37,6 +37,7 @@ from charter.packs.github.types.common import (
     SortDirection,
 )
 from charter.types import Body, Path, Query
+from charter.types.model import PackModel
 
 __all__ = [
     "NOTIFICATIONS_PER_PAGE_MAX",
@@ -67,7 +68,7 @@ __all__ = [
 NOTIFICATIONS_PER_PAGE_MAX = 50
 
 
-class NotificationsListRequest(BaseModel):
+class NotificationsListRequest(PackModel):
     """List the authenticated user's notifications, most recently updated first.
 
     The trigger for an agent that waits rather than polls a repository: a
@@ -144,7 +145,7 @@ class NotificationsListRequest(BaseModel):
     ]
 
 
-class NotificationsMarkReadRequest(BaseModel):
+class NotificationsMarkReadRequest(PackModel):
     """Mark notifications as read — all of them, or everything up to a time.
 
     GitHub answers 205 when it finished the job and **202 when it did not**:
@@ -177,7 +178,7 @@ class NotificationsMarkReadRequest(BaseModel):
     ]
 
 
-class _ThreadId(BaseModel):
+class _ThreadId(PackModel):
     thread_id: Annotated[
         int,
         Field(..., description="The unique identifier of the notification thread."),
@@ -729,7 +730,7 @@ class SecretScanningListAlertsRequest(RepoRequest, GitHubListRequest):
         return self
 
 
-class RateLimitGetRequest(BaseModel):
+class RateLimitGetRequest(PackModel):
     """Read the rate limit budget, without spending any of it.
 
     GitHub does not count this request against the limit it reports, which makes

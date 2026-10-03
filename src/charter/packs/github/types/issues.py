@@ -11,10 +11,11 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.github.types.common import GitHubListRequest, RepoRequest, SortDirection
 from charter.types import Body, Path, Query
+from charter.types.model import PackModel
 
 __all__ = [
     "IssuesListForRepoRequest",
@@ -156,7 +157,7 @@ class IssuesGetRequest(RepoRequest):
     ]
 
 
-class IssueCreateBody(BaseModel):
+class IssueCreateBody(PackModel):
     """The body of a create-issue request.
 
     API Reference: https://docs.github.com/en/rest/issues/issues#create-an-issue
@@ -191,7 +192,7 @@ class IssuesCreateRequest(RepoRequest):
     ]
 
 
-class IssueUpdateBody(BaseModel):
+class IssueUpdateBody(PackModel):
     """The body of an update-issue request.
 
     Every field is optional; anything omitted is left unchanged. Note that
@@ -251,7 +252,7 @@ class IssuesUpdateRequest(RepoRequest):
     ]
 
 
-class CommentCreateBody(BaseModel):
+class CommentCreateBody(PackModel):
     """The body of a create-comment request.
 
     API Reference: https://docs.github.com/en/rest/issues/comments#create-an-issue-comment

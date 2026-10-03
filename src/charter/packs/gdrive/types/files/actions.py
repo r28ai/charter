@@ -15,9 +15,10 @@ from __future__ import annotations
 
 from typing import Annotated, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.types import Body, Mode, Path, Query
+from charter.types.model import PackModel
 
 from .._shared import (
     FILE_ID,
@@ -98,7 +99,7 @@ ALT = (
 EMPTY_TRASH_DRIVE_ID = "If set, empties the trash of the provided shared drive."
 
 
-class FilesListRequest(BaseModel):
+class FilesListRequest(PackModel):
     """
     Lists the user's files. This method accepts the `q` parameter, which is a
     search query combining one or more search terms. This method returns all
@@ -155,7 +156,7 @@ class FilesListRequest(BaseModel):
         return self
 
 
-class FilesGetRequest(BaseModel):
+class FilesGetRequest(PackModel):
     """
     Gets a file's metadata or content by ID. If you provide the URL parameter
     `alt=media`, then the response includes the file contents in the response
@@ -175,7 +176,7 @@ class FilesGetRequest(BaseModel):
     alt: Annotated[Optional[Alt], Field(None, description=ALT), Query()] = None
 
 
-class FilesExportRequest(BaseModel):
+class FilesExportRequest(PackModel):
     """
     Exports a Google Workspace document to the requested MIME type and returns
     exported byte content. Note that the exported content is limited to 10 MB.
@@ -187,7 +188,7 @@ class FilesExportRequest(BaseModel):
     mime_type: Annotated[str, Field(..., description=EXPORT_MIME_TYPE), Query()]
 
 
-class FilesCreateRequest(BaseModel):
+class FilesCreateRequest(PackModel):
     """
     Creates a file. This pack sends metadata only — a folder, a Google Doc, or
     an empty blob. Media upload (`/upload/drive/v3/files`) is not expressed;
@@ -225,7 +226,7 @@ class FilesCreateRequest(BaseModel):
     enforce_single_parent: EnforceSingleParent = None
 
 
-class FilesUpdateRequest(BaseModel):
+class FilesUpdateRequest(PackModel):
     """
     Updates a file's metadata, content, or both. When calling this method, only
     populate fields in the request that you want to modify. When updating
@@ -265,7 +266,7 @@ class FilesUpdateRequest(BaseModel):
     enforce_single_parent: EnforceSingleParent = None
 
 
-class FilesCopyRequest(BaseModel):
+class FilesCopyRequest(PackModel):
     """
     Creates a copy of a file and applies any requested updates with patch
     semantics.
@@ -301,7 +302,7 @@ class FilesCopyRequest(BaseModel):
     enforce_single_parent: EnforceSingleParent = None
 
 
-class FilesDeleteRequest(BaseModel):
+class FilesDeleteRequest(PackModel):
     """
     Permanently deletes a file owned by the user without moving it to the trash.
     If the file belongs to a shared drive, the user must be an `organizer` on
@@ -320,7 +321,7 @@ class FilesDeleteRequest(BaseModel):
     enforce_single_parent: EnforceSingleParent = None
 
 
-class FilesEmptyTrashRequest(BaseModel):
+class FilesEmptyTrashRequest(PackModel):
     """
     Permanently deletes all of the user's trashed files.
 

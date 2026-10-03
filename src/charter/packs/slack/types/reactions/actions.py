@@ -10,12 +10,13 @@ from __future__ import annotations
 
 from typing import Annotated, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Body, Query
+from charter.types.model import PackModel
 
 
-class ReactionsAddRequest(BaseModel):
+class ReactionsAddRequest(PackModel):
     """Input schema for Slack `reactions.add`.
 
     Adds an emoji reaction to a message.
@@ -46,7 +47,7 @@ class ReactionsAddRequest(BaseModel):
     ]
 
 
-class ReactionsRemoveRequest(BaseModel):
+class ReactionsRemoveRequest(PackModel):
     """Input schema for Slack `reactions.remove`.
 
     Answers a bare `{"ok": true}` with no entity attached, unlike most of Slack.
@@ -71,7 +72,7 @@ class ReactionsRemoveRequest(BaseModel):
     ]
 
 
-class ReactionsGetRequest(BaseModel):
+class ReactionsGetRequest(PackModel):
     """Input schema for Slack `reactions.get`.
 
     The only GET among the methods this pack adds, so its arguments go in the

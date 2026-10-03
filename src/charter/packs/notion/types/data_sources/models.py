@@ -23,9 +23,10 @@ from __future__ import annotations
 
 from typing import Any, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field, model_serializer, model_validator
+from pydantic import Field, model_serializer, model_validator
 
 from charter.packs.notion.types.common import SelectColor, exactly_one_of
+from charter.types.model import PackModel, resolve_forward_refs
 
 __all__ = [
     "RelativeDate",
@@ -129,7 +130,7 @@ _PROPERTY_TYPES = (
 )
 
 
-class EmptyCondition(BaseModel):
+class EmptyCondition(PackModel):
     """A condition that needs no argument, such as ``past_week``.
 
     Send an empty object: Notion reads the key, not the value.
@@ -143,7 +144,7 @@ class EmptyCondition(BaseModel):
 # -----------------------------------------------------
 
 
-class ExistenceCondition(BaseModel):
+class ExistenceCondition(PackModel):
     """Whether a property has any value at all.
 
     Available on every filterable type; it is the whole of the ``files`` filter.
@@ -194,7 +195,7 @@ class NumberCondition(ExistenceCondition):
     less_than_or_equal_to: Optional[float] = Field(None, description="An inclusive upper bound.")
 
 
-class CheckboxCondition(BaseModel):
+class CheckboxCondition(PackModel):
     """Conditions on a checkbox property.
 
     A checkbox is always either checked or not, so it has no emptiness check.
@@ -315,7 +316,7 @@ class RelationCondition(ExistenceCondition):
     )
 
 
-class FormulaCondition(BaseModel):
+class FormulaCondition(PackModel):
     """Conditions on a formula property, applied to the formula's result.
 
     Which field to use depends on what the formula returns.
@@ -337,7 +338,7 @@ class FormulaCondition(BaseModel):
     )
 
 
-class RollupSubCondition(BaseModel):
+class RollupSubCondition(PackModel):
     """A condition applied to each value a rollup gathers.
 
     API Reference: https://developers.notion.com/reference/post-database-query-filter#rollup
@@ -357,7 +358,7 @@ class RollupSubCondition(BaseModel):
     files: Optional[ExistenceCondition] = Field(None, description="A files condition.")
 
 
-class RollupCondition(BaseModel):
+class RollupCondition(PackModel):
     """Conditions on a rollup property.
 
     ``any``, ``none`` and ``every`` quantify over the gathered values; ``date``
@@ -383,7 +384,7 @@ class RollupCondition(BaseModel):
     )
 
 
-class VerificationCondition(BaseModel):
+class VerificationCondition(PackModel):
     """Conditions on a verification property, for pages in a wiki database.
 
     API Reference: https://developers.notion.com/reference/post-database-query-filter
@@ -399,7 +400,7 @@ class VerificationCondition(BaseModel):
 # -----------------------------------------------------
 
 
-class Filter(BaseModel):
+class Filter(PackModel):
     """Which rows a query returns.
 
     A filter is one of three things, and the validator below holds it to exactly
@@ -538,7 +539,7 @@ class Filter(BaseModel):
         return data
 
 
-class Sort(BaseModel):
+class Sort(PackModel):
     """How to order the rows a query returns.
 
     Sort by a property, or by one of the two timestamps — one or the other.
@@ -566,7 +567,7 @@ class Sort(BaseModel):
 # -----------------------------------------------------
 
 
-class SelectOption(BaseModel):
+class SelectOption(PackModel):
     """One option of a select or multi-select column.
 
     API Reference: https://developers.notion.com/reference/property-object#select
@@ -599,7 +600,7 @@ class StatusOption(SelectOption):
     )
 
 
-class SelectConfig(BaseModel):
+class SelectConfig(PackModel):
     """The options of a select or multi-select column.
 
     API Reference: https://developers.notion.com/reference/property-object#select
@@ -610,7 +611,7 @@ class SelectConfig(BaseModel):
     )
 
 
-class StatusConfig(BaseModel):
+class StatusConfig(PackModel):
     """The options of a status column.
 
     API Reference: https://developers.notion.com/reference/property-object#status
@@ -621,7 +622,7 @@ class StatusConfig(BaseModel):
     )
 
 
-class NumberConfig(BaseModel):
+class NumberConfig(PackModel):
     """How a number column is displayed.
 
     API Reference: https://developers.notion.com/reference/property-object#number
@@ -638,7 +639,7 @@ class NumberConfig(BaseModel):
     )
 
 
-class FormulaConfig(BaseModel):
+class FormulaConfig(PackModel):
     """The expression a formula column evaluates.
 
     API Reference: https://developers.notion.com/reference/property-object#formula
@@ -649,11 +650,11 @@ class FormulaConfig(BaseModel):
     )
 
 
-class SinglePropertyRelation(BaseModel):
+class SinglePropertyRelation(PackModel):
     """A relation that does not show up on the related data source."""
 
 
-class DualPropertyRelation(BaseModel):
+class DualPropertyRelation(PackModel):
     """A relation mirrored by a property on the related data source.
 
     API Reference: https://developers.notion.com/reference/property-object#relation
@@ -667,7 +668,7 @@ class DualPropertyRelation(BaseModel):
     )
 
 
-class RelationConfig(BaseModel):
+class RelationConfig(PackModel):
     """Which data source a relation column points at, and whether it is mirrored.
 
     API Reference: https://developers.notion.com/reference/property-object#relation
@@ -696,7 +697,7 @@ class RelationConfig(BaseModel):
         return exactly_one_of(self, "type", ("single_property", "dual_property"))
 
 
-class RollupConfig(BaseModel):
+class RollupConfig(PackModel):
     """What a rollup column gathers and how it aggregates it.
 
     Name the relation and the property either both by name or both by ID.
@@ -729,7 +730,7 @@ class RollupConfig(BaseModel):
     )
 
 
-class UniqueIdConfig(BaseModel):
+class UniqueIdConfig(PackModel):
     """The prefix shown before an auto-incrementing ID.
 
     API Reference: https://developers.notion.com/reference/property-object#unique-id
@@ -740,7 +741,7 @@ class UniqueIdConfig(BaseModel):
     )
 
 
-class EmptyConfig(BaseModel):
+class EmptyConfig(PackModel):
     """A column type with nothing to configure.
 
     Most types are like this: the type is the whole configuration. Send an
@@ -750,7 +751,7 @@ class EmptyConfig(BaseModel):
     """
 
 
-class PropertyConfiguration(BaseModel):
+class PropertyConfiguration(PackModel):
     """One column of a data source.
 
     Exactly one of the type fields is set, and it decides the column's type.
@@ -864,4 +865,4 @@ class PropertyUpdate(PropertyConfiguration):
         return self
 
 
-Filter.model_rebuild()
+resolve_forward_refs(Filter)

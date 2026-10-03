@@ -10,10 +10,11 @@ from __future__ import annotations
 
 from typing import Annotated, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.firecrawl.types.common import ScrapeOptionsNested, Webhook
 from charter.types import Body, Path, WireName
+from charter.types.model import PackModel
 
 __all__ = [
     "CrawlRequest",
@@ -25,7 +26,7 @@ __all__ = [
 ]
 
 
-class CrawlRequest(BaseModel):
+class CrawlRequest(PackModel):
     """Recursively crawl a website and scrape each page.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/crawl
@@ -155,7 +156,7 @@ class CrawlRequest(BaseModel):
     ]
 
 
-class CrawlStatusRequest(BaseModel):
+class CrawlStatusRequest(PackModel):
     """Get the status of a crawl job.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/crawl-get
@@ -164,7 +165,7 @@ class CrawlStatusRequest(BaseModel):
     id: Annotated[str, Field(..., description="The ID of the crawl job"), Path()]
 
 
-class CrawlCancelRequest(BaseModel):
+class CrawlCancelRequest(PackModel):
     """Cancel a crawl job.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/crawl-delete
@@ -173,7 +174,7 @@ class CrawlCancelRequest(BaseModel):
     id: Annotated[str, Field(..., description="The ID of the crawl job"), Path()]
 
 
-class CrawlErrorsRequest(BaseModel):
+class CrawlErrorsRequest(PackModel):
     """Get errors from a crawl job.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/crawl-get-errors
@@ -182,7 +183,7 @@ class CrawlErrorsRequest(BaseModel):
     id: Annotated[str, Field(..., description="The ID of the crawl job"), Path()]
 
 
-class CrawlParamsPreviewRequest(BaseModel):
+class CrawlParamsPreviewRequest(PackModel):
     """Preview crawl parameters generated from a natural language prompt.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/crawl-params-preview
@@ -200,7 +201,7 @@ class CrawlParamsPreviewRequest(BaseModel):
     ]
 
 
-class CrawlActiveRequest(BaseModel):
+class CrawlActiveRequest(PackModel):
     """Get all active crawls for the authenticated team.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/crawl-active

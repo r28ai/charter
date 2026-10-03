@@ -3,10 +3,11 @@
 
 from typing import Annotated, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.firecrawl.types.common import ScrapeOptionsNested, ThreatProtectionOverride
 from charter.types import Body, ConflictsWith, Gloss, Path, WireName
+from charter.types.model import PackModel
 
 __all__ = [
     "SearchSource",
@@ -18,7 +19,7 @@ __all__ = [
 ]
 
 
-class SearchSource(BaseModel):
+class SearchSource(PackModel):
     """A source to search. Determines which result arrays appear in the response.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/search
@@ -42,7 +43,7 @@ class SearchSource(BaseModel):
     )
 
 
-class SearchCategory(BaseModel):
+class SearchCategory(PackModel):
     """A category to filter search results by.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/search
@@ -54,7 +55,7 @@ class SearchCategory(BaseModel):
     ]
 
 
-class SearchRequest(BaseModel):
+class SearchRequest(PackModel):
     """Search the web using Firecrawl's /search endpoint.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/search
@@ -196,7 +197,7 @@ class SearchRequest(BaseModel):
     ]
 
 
-class ValuableSource(BaseModel):
+class ValuableSource(PackModel):
     """A search result source marked as valuable in feedback."""
 
     url: str = Field(..., description="URL of the valuable source.")
@@ -205,7 +206,7 @@ class ValuableSource(BaseModel):
     )
 
 
-class MissingContent(BaseModel):
+class MissingContent(PackModel):
     """Content the search results failed to cover."""
 
     topic: str = Field(
@@ -216,7 +217,7 @@ class MissingContent(BaseModel):
     )
 
 
-class SearchFeedbackRequest(BaseModel):
+class SearchFeedbackRequest(PackModel):
     """Submit feedback for a search job.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/search-feedback

@@ -16,9 +16,10 @@ from __future__ import annotations
 
 from typing import Annotated, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Body, Path, Query
+from charter.types.model import PackModel
 
 from ..spreadsheets.models import DataFilter, Dimension
 from .models import (
@@ -103,7 +104,7 @@ _SpreadsheetIdWrite = Annotated[str, Field(..., description=SPREADSHEET_ID_WRITE
 # ──────────────────────────────────────────────────────────
 
 
-class SpreadsheetsValuesGetRequest(BaseModel):
+class SpreadsheetsValuesGetRequest(PackModel):
     """
     Returns a range of values from a spreadsheet. The caller must specify the
     spreadsheet ID and a range.
@@ -137,7 +138,7 @@ class SpreadsheetsValuesGetRequest(BaseModel):
     ]
 
 
-class SpreadsheetsValuesBatchGetRequest(BaseModel):
+class SpreadsheetsValuesBatchGetRequest(PackModel):
     """
     Returns one or more ranges of values from a spreadsheet. The caller must
     specify the spreadsheet ID and one or more ranges.
@@ -172,7 +173,7 @@ class SpreadsheetsValuesBatchGetRequest(BaseModel):
     ]
 
 
-class SpreadsheetsValuesBatchGetByDataFilterRequest(BaseModel):
+class SpreadsheetsValuesBatchGetByDataFilterRequest(PackModel):
     """
     Returns one or more ranges of values that match the specified data filters.
     The caller must specify the spreadsheet ID and one or more DataFilters.
@@ -217,7 +218,7 @@ class SpreadsheetsValuesBatchGetByDataFilterRequest(BaseModel):
 # ──────────────────────────────────────────────────────────
 
 
-class SpreadsheetsValuesUpdateRequest(BaseModel):
+class SpreadsheetsValuesUpdateRequest(PackModel):
     """
     Sets values in a range of a spreadsheet. The caller must specify the
     spreadsheet ID, range, and a valueInputOption.
@@ -258,7 +259,7 @@ class SpreadsheetsValuesUpdateRequest(BaseModel):
     ]
 
 
-class SpreadsheetsValuesAppendRequest(BaseModel):
+class SpreadsheetsValuesAppendRequest(PackModel):
     """
     Appends values to a spreadsheet. The input range is used to search for existing
     data and find a "table" within that range. Values will be appended to the next
@@ -316,7 +317,7 @@ class SpreadsheetsValuesAppendRequest(BaseModel):
     ]
 
 
-class SpreadsheetsValuesBatchUpdateRequest(BaseModel):
+class SpreadsheetsValuesBatchUpdateRequest(PackModel):
     """
     Sets values in one or more ranges of a spreadsheet. The caller must specify
     the spreadsheet ID, a valueInputOption, and one or more ValueRanges.
@@ -359,7 +360,7 @@ class SpreadsheetsValuesBatchUpdateRequest(BaseModel):
     ]
 
 
-class SpreadsheetsValuesBatchUpdateByDataFilterRequest(BaseModel):
+class SpreadsheetsValuesBatchUpdateByDataFilterRequest(PackModel):
     """
     Sets values in one or more ranges of a spreadsheet. The caller must specify
     the spreadsheet ID, a valueInputOption, and one or more DataFilterValueRanges.
@@ -408,7 +409,7 @@ class SpreadsheetsValuesBatchUpdateByDataFilterRequest(BaseModel):
 # ──────────────────────────────────────────────────────────
 
 
-class SpreadsheetsValuesClearRequest(BaseModel):
+class SpreadsheetsValuesClearRequest(PackModel):
     """
     Clears values from a spreadsheet. The caller must specify the spreadsheet ID
     and range. Only values are cleared -- all other properties of the cell (such
@@ -428,7 +429,7 @@ class SpreadsheetsValuesClearRequest(BaseModel):
     ]
 
 
-class SpreadsheetsValuesBatchClearRequest(BaseModel):
+class SpreadsheetsValuesBatchClearRequest(PackModel):
     """
     Clears one or more ranges of values from a spreadsheet. The caller must
     specify the spreadsheet ID and one or more ranges. Only values are cleared --
@@ -450,7 +451,7 @@ class SpreadsheetsValuesBatchClearRequest(BaseModel):
     ]
 
 
-class SpreadsheetsValuesBatchClearByDataFilterRequest(BaseModel):
+class SpreadsheetsValuesBatchClearByDataFilterRequest(PackModel):
     """
     Clears one or more ranges of values from a spreadsheet. The caller must
     specify the spreadsheet ID and one or more DataFilters. Ranges matching any

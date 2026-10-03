@@ -23,9 +23,10 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.types import Mode, Query
+from charter.types.model import PackModel
 
 __all__ = [
     "NotionColor",
@@ -148,7 +149,7 @@ def exactly_one_of(model: Any, discriminator: str, variants: tuple) -> Any:
 # -----------------------------------------------------
 
 
-class Annotations(BaseModel):
+class Annotations(PackModel):
     """The styling applied to one run of rich text.
 
     Every field is optional; Notion applies the default (off, and ``default``
@@ -171,7 +172,7 @@ class Annotations(BaseModel):
     )
 
 
-class TextLink(BaseModel):
+class TextLink(PackModel):
     """The link on a text run.
 
     API Reference: https://developers.notion.com/reference/rich-text#text
@@ -184,7 +185,7 @@ class TextLink(BaseModel):
     )
 
 
-class TextContent(BaseModel):
+class TextContent(PackModel):
     """A literal run of text.
 
     API Reference: https://developers.notion.com/reference/rich-text#text
@@ -207,7 +208,7 @@ class TextContent(BaseModel):
     )
 
 
-class EquationContent(BaseModel):
+class EquationContent(PackModel):
     """An inline LaTeX equation.
 
     API Reference: https://developers.notion.com/reference/rich-text#equation
@@ -220,7 +221,7 @@ class EquationContent(BaseModel):
     )
 
 
-class DateValue(BaseModel):
+class DateValue(PackModel):
     """A date, or a date range, with an optional time zone.
 
     API Reference: https://developers.notion.com/reference/page-property-values#date
@@ -250,7 +251,7 @@ class DateValue(BaseModel):
     )
 
 
-class PageRef(BaseModel):
+class PageRef(PackModel):
     """A reference to a page by ID.
 
     API Reference: https://developers.notion.com/reference/rich-text#mention
@@ -259,7 +260,7 @@ class PageRef(BaseModel):
     id: str = Field(..., description="The ID of the page.")
 
 
-class DatabaseRef(BaseModel):
+class DatabaseRef(PackModel):
     """A reference to a database by ID.
 
     API Reference: https://developers.notion.com/reference/rich-text#mention
@@ -268,7 +269,7 @@ class DatabaseRef(BaseModel):
     id: str = Field(..., description="The ID of the database.")
 
 
-class LinkPreviewRef(BaseModel):
+class LinkPreviewRef(PackModel):
     """A mention of a third-party URL that Notion renders as a preview.
 
     API Reference: https://developers.notion.com/reference/rich-text#mention
@@ -277,7 +278,7 @@ class LinkPreviewRef(BaseModel):
     url: str = Field(..., max_length=2000, description="The URL of the link preview.")
 
 
-class TemplateMention(BaseModel):
+class TemplateMention(PackModel):
     """A placeholder that resolves when a template is instantiated.
 
     API Reference: https://developers.notion.com/reference/rich-text#mention
@@ -294,7 +295,7 @@ class TemplateMention(BaseModel):
     )
 
 
-class PartialUser(BaseModel):
+class PartialUser(PackModel):
     """A user, referenced by ID.
 
     Notion returns a fuller object than this — a name, an avatar, and an email
@@ -309,7 +310,7 @@ class PartialUser(BaseModel):
     id: str = Field(..., description="The ID of the user.")
 
 
-class Mention(BaseModel):
+class Mention(PackModel):
     """An inline reference to something else in the workspace.
 
     API Reference: https://developers.notion.com/reference/rich-text#mention
@@ -336,7 +337,7 @@ class Mention(BaseModel):
         )
 
 
-class RichText(BaseModel):
+class RichText(PackModel):
     """One run of styled text.
 
     Notion has no plain-string text anywhere: a title, a paragraph, a table cell
@@ -392,7 +393,7 @@ class RichText(BaseModel):
 # -----------------------------------------------------
 
 
-class ExternalFileData(BaseModel):
+class ExternalFileData(PackModel):
     """A file Notion links to but does not host.
 
     API Reference: https://developers.notion.com/reference/file-object#external-files
@@ -408,7 +409,7 @@ class ExternalFileData(BaseModel):
     )
 
 
-class NotionHostedFileData(BaseModel):
+class NotionHostedFileData(PackModel):
     """A file Notion hosts, returned with a signed URL that expires.
 
     Never accepted on write: to attach a file to Notion, upload it through the
@@ -431,7 +432,7 @@ class NotionHostedFileData(BaseModel):
     )
 
 
-class FileUploadRef(BaseModel):
+class FileUploadRef(PackModel):
     """A completed file upload, by ID.
 
     This is how a file becomes Notion-hosted content: create a file upload, send
@@ -443,7 +444,7 @@ class FileUploadRef(BaseModel):
     id: str = Field(..., description="The ID of a completed File Upload object.")
 
 
-class FileObject(BaseModel):
+class FileObject(PackModel):
     """A file, either linked externally or hosted by Notion.
 
     API Reference: https://developers.notion.com/reference/file-object
@@ -483,7 +484,7 @@ class FileObject(BaseModel):
         return exactly_one_of(self, "type", ("external", "file_upload", "file"))
 
 
-class CustomEmojiData(BaseModel):
+class CustomEmojiData(PackModel):
     """A workspace's own uploaded emoji.
 
     API Reference: https://developers.notion.com/reference/emoji-object
@@ -502,7 +503,7 @@ class CustomEmojiData(BaseModel):
     ]
 
 
-class NotionIconData(BaseModel):
+class NotionIconData(PackModel):
     """One of Notion's own built-in icons.
 
     API Reference: https://developers.notion.com/reference/page
@@ -512,7 +513,7 @@ class NotionIconData(BaseModel):
     color: Optional[str] = Field(None, description="The color applied to the icon.")
 
 
-class Icon(BaseModel):
+class Icon(PackModel):
     """A page, database or callout icon.
 
     Five shapes, one of which is set. Pass ``None`` for the whole object on an
@@ -551,7 +552,7 @@ class Icon(BaseModel):
         )
 
 
-class Cover(BaseModel):
+class Cover(PackModel):
     """A page or database cover image.
 
     Unlike an icon, a cover is always an image: no emoji shape is accepted.
@@ -584,7 +585,7 @@ class Cover(BaseModel):
 # -----------------------------------------------------
 
 
-class Parent(BaseModel):
+class Parent(PackModel):
     """What an object lives under.
 
     Which shapes are accepted depends on what is being created: a page takes a
@@ -672,7 +673,7 @@ PAGE_SIZE = (
 )
 
 
-class PaginatedQuery(BaseModel):
+class PaginatedQuery(PackModel):
     """The two pagination parameters every GET list endpoint takes as query.
 
     API Reference: https://developers.notion.com/reference/intro#pagination
@@ -686,7 +687,7 @@ class PaginatedQuery(BaseModel):
     ]
 
 
-class PaginatedBody(BaseModel):
+class PaginatedBody(PackModel):
     """The same two parameters, where the endpoint is a POST and takes a body.
 
     Notion's search and data source query take their filters in a body, so their
@@ -704,7 +705,7 @@ class PaginatedBody(BaseModel):
 # -----------------------------------------------------
 
 
-class AfterBlockRef(BaseModel):
+class AfterBlockRef(PackModel):
     """The block that new content is inserted after.
 
     API Reference: https://developers.notion.com/reference/patch-block-children
@@ -713,7 +714,7 @@ class AfterBlockRef(BaseModel):
     id: str = Field(..., description="The ID of the existing block to insert after.")
 
 
-class Position(BaseModel):
+class Position(PackModel):
     """Where new blocks are placed among a parent's existing children.
 
     Replaces the ``after`` parameter, which earlier API versions took on block
@@ -739,7 +740,7 @@ class Position(BaseModel):
         return self
 
 
-class Template(BaseModel):
+class Template(PackModel):
     """The template a new or updated page is built from.
 
     API Reference: https://developers.notion.com/reference/post-page

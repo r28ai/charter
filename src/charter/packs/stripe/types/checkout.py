@@ -13,9 +13,10 @@ from __future__ import annotations
 
 from typing import Annotated, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.types import Body, Gloss
+from charter.types.model import PackModel
 
 __all__ = ["CheckoutMode", "UiMode", "LineItem", "CheckoutSessionsCreateRequest"]
 
@@ -29,7 +30,7 @@ UiMode = Literal["hosted_page", "embedded_page", "form", "elements"]
 _IN_PAGE_UI_MODES = ("embedded_page", "elements", "form")
 
 
-class LineItem(BaseModel):
+class LineItem(PackModel):
     """One item the customer is purchasing.
 
     API Reference: https://docs.stripe.com/api/checkout/sessions/create
@@ -45,7 +46,7 @@ class LineItem(BaseModel):
     )
 
 
-class CheckoutSessionsCreateRequest(BaseModel):
+class CheckoutSessionsCreateRequest(PackModel):
     """Input schema for Stripe `POST /v1/checkout/sessions`.
 
     API Reference: https://docs.stripe.com/api/checkout/sessions/create

@@ -19,11 +19,12 @@ from __future__ import annotations
 
 from typing import Annotated, List, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.packs.linear.types.common import PageVariables
 from charter.packs.linear.types.filters import CommentFilter
 from charter.types import Body
+from charter.types.model import PackModel
 
 __all__ = [
     "CommentsListRequest",
@@ -65,7 +66,7 @@ class CommentsListVariables(PageVariables):
     )
 
 
-class CommentsListRequest(BaseModel):
+class CommentsListRequest(PackModel):
     """Read comments."""
 
     variables: Annotated[
@@ -75,7 +76,7 @@ class CommentsListRequest(BaseModel):
     ]
 
 
-class CommentGetVariables(BaseModel):
+class CommentGetVariables(PackModel):
     """Variables for the ``comment`` query."""
 
     id: Optional[str] = Field(None, description="The comment's UUID.")
@@ -90,7 +91,7 @@ class CommentGetVariables(BaseModel):
         return self
 
 
-class CommentGetRequest(BaseModel):
+class CommentGetRequest(PackModel):
     """Get one comment."""
 
     variables: Annotated[
@@ -100,7 +101,7 @@ class CommentGetRequest(BaseModel):
     ]
 
 
-class CommentCreateInput(BaseModel):
+class CommentCreateInput(PackModel):
     """The input to ``commentCreate``.
 
     Exactly one parent must be given. A comment belongs to an issue, a project,
@@ -178,13 +179,13 @@ class CommentCreateInput(BaseModel):
         return self
 
 
-class CommentCreateVariables(BaseModel):
+class CommentCreateVariables(PackModel):
     """Variables for the ``commentCreate`` mutation."""
 
     input: CommentCreateInput = Field(..., description="The comment to post.")
 
 
-class CommentCreateRequest(BaseModel):
+class CommentCreateRequest(PackModel):
     """Post a comment."""
 
     variables: Annotated[
@@ -194,7 +195,7 @@ class CommentCreateRequest(BaseModel):
     ]
 
 
-class CommentUpdateInput(BaseModel):
+class CommentUpdateInput(PackModel):
     """The fields ``commentUpdate`` changes. All optional."""
 
     body: Optional[str] = Field(None, description="The comment content in markdown format.")
@@ -214,14 +215,14 @@ class CommentUpdateInput(BaseModel):
         return self
 
 
-class CommentUpdateVariables(BaseModel):
+class CommentUpdateVariables(PackModel):
     """Variables for the ``commentUpdate`` mutation."""
 
     id: str = Field(..., description="The comment's UUID.")
     input: CommentUpdateInput = Field(..., description="The fields to change.")
 
 
-class CommentUpdateRequest(BaseModel):
+class CommentUpdateRequest(PackModel):
     """Edit a comment."""
 
     variables: Annotated[
@@ -231,13 +232,13 @@ class CommentUpdateRequest(BaseModel):
     ]
 
 
-class CommentDeleteVariables(BaseModel):
+class CommentDeleteVariables(PackModel):
     """Variables for the ``commentDelete`` mutation."""
 
     id: str = Field(..., description="The comment's UUID.")
 
 
-class CommentDeleteRequest(BaseModel):
+class CommentDeleteRequest(PackModel):
     """Delete a comment."""
 
     variables: Annotated[
@@ -247,7 +248,7 @@ class CommentDeleteRequest(BaseModel):
     ]
 
 
-class CommentResolveVariables(BaseModel):
+class CommentResolveVariables(PackModel):
     """Variables for the ``commentResolve`` mutation."""
 
     id: str = Field(..., description="The UUID of the comment thread to resolve.")
@@ -256,7 +257,7 @@ class CommentResolveVariables(BaseModel):
     )
 
 
-class CommentResolveRequest(BaseModel):
+class CommentResolveRequest(PackModel):
     """Mark a comment thread resolved."""
 
     variables: Annotated[
@@ -266,13 +267,13 @@ class CommentResolveRequest(BaseModel):
     ]
 
 
-class CommentUnresolveVariables(BaseModel):
+class CommentUnresolveVariables(PackModel):
     """Variables for the ``commentUnresolve`` mutation."""
 
     id: str = Field(..., description="The UUID of the comment thread to reopen.")
 
 
-class CommentUnresolveRequest(BaseModel):
+class CommentUnresolveRequest(PackModel):
     """Reopen a resolved comment thread."""
 
     variables: Annotated[
@@ -294,7 +295,7 @@ _REACTION_TARGETS = (
 )
 
 
-class ReactionCreateInput(BaseModel):
+class ReactionCreateInput(PackModel):
     """The input to ``reactionCreate``.
 
     Exactly one target must be given, the same way a comment takes exactly one
@@ -336,13 +337,13 @@ class ReactionCreateInput(BaseModel):
         return self
 
 
-class ReactionCreateVariables(BaseModel):
+class ReactionCreateVariables(PackModel):
     """Variables for the ``reactionCreate`` mutation."""
 
     input: ReactionCreateInput = Field(..., description="The reaction to add.")
 
 
-class ReactionCreateRequest(BaseModel):
+class ReactionCreateRequest(PackModel):
     """React to a comment, issue or update."""
 
     variables: Annotated[
@@ -352,13 +353,13 @@ class ReactionCreateRequest(BaseModel):
     ]
 
 
-class ReactionDeleteVariables(BaseModel):
+class ReactionDeleteVariables(PackModel):
     """Variables for the ``reactionDelete`` mutation."""
 
     id: str = Field(..., description="The reaction's UUID.")
 
 
-class ReactionDeleteRequest(BaseModel):
+class ReactionDeleteRequest(PackModel):
     """Remove a reaction."""
 
     variables: Annotated[

@@ -19,10 +19,11 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.gforms.types.forms.models import Form, PublishSettings
 from charter.packs.gforms.types.forms.requests import WriteControl
+from charter.types.model import PackModel
 
 __all__ = [
     "CreateItemResponse",
@@ -32,7 +33,7 @@ __all__ = [
 ]
 
 
-class CreateItemResponse(BaseModel):
+class CreateItemResponse(PackModel):
     """The result of creating an item.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms/batchUpdate#CreateItemResponse
@@ -51,7 +52,7 @@ class CreateItemResponse(BaseModel):
     )
 
 
-class Response(BaseModel):
+class Response(PackModel):
     """A single response from an update.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms/batchUpdate#Response
@@ -63,7 +64,7 @@ class Response(BaseModel):
     )
 
 
-class BatchUpdateFormResponse(BaseModel):
+class BatchUpdateFormResponse(PackModel):
     """Response to a BatchUpdateFormRequest.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms/batchUpdate#body.BatchUpdateFormResponse
@@ -90,7 +91,7 @@ class BatchUpdateFormResponse(BaseModel):
     )
 
 
-class SetPublishSettingsResponse(BaseModel):
+class SetPublishSettingsResponse(PackModel):
     """The response of a SetPublishSettings request.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms/setPublishSettings#body.SetPublishSettingsResponse

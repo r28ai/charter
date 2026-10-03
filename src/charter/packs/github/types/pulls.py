@@ -11,10 +11,11 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated, List, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.packs.github.types.common import GitHubListRequest, RepoRequest, SortDirection
 from charter.types import Body, Path, Query
+from charter.types.model import PackModel
 
 __all__ = [
     "PullsListRequest",
@@ -146,7 +147,7 @@ class PullsGetDiffRequest(RepoRequest):
     ]
 
 
-class PullCreateBody(BaseModel):
+class PullCreateBody(PackModel):
     """The body of a create-pull-request request.
 
     Exactly one of ``title`` or ``issue`` is required: ``title`` opens a new pull
@@ -323,7 +324,7 @@ class PullsMergeRequest(_PullNumber):
     ]
 
 
-class ReviewComment(BaseModel):
+class ReviewComment(PackModel):
     """One inline comment left as part of a review.
 
     `position` is not offered: GitHub deprecated it in 2022 in favour of `line`.

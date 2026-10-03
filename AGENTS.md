@@ -190,6 +190,19 @@ generate and 0.01s to copy, and the copy is deliberate because adapters hand
 nothing. Profile before changing anything here — the answer has been
 `schema_paths` both times it has been asked.
 
+**Import is the other place, and it is per model, not per tool.** Pydantic
+builds a model when its class statement runs, so importing a pack once built all
+of its models: 5.2s of the 5.9s the engineering family took to list its 59
+tools, most of it in Linear's filters, Notion's blocks and pages and Sheets'
+models, and Codex — which starts its turn
+before its servers have listed tools — saw none. Every pack model is now a
+`PackModel` (`charter.types.model`), deferred until first use, which halves it.
+What is left is the recursive modules' `resolve_forward_refs`: a model whose
+fields name a class defined later must be rebuilt to resolve them, and with
+pydantic's public API a rebuild is a full build of the whole cycle. Linear's
+filters need 40 of those. Resolving fields without building exists only as a
+pydantic internal whose shape changed in 2.13; do not reach for it.
+
 **The store is shared, so it is threaded.** A pack factory owns one
 `SchemaStore`, every tool it builds reads it, and views are derived on first use
 — so the readers are whichever threads reach those tools. Two rules follow, and

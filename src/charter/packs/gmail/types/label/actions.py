@@ -3,16 +3,17 @@
 
 from typing import Annotated
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter import partial_of
 from charter.types import Body, Path
+from charter.types.model import PackModel
 
 from .._common import USER_ID_DESCRIPTION
 from .models import Label
 
 
-class LabelsListRequest(BaseModel):
+class LabelsListRequest(PackModel):
     """Input schema for Gmail `users.labels.list` endpoint.
 
     Lists all labels in the user's mailbox.
@@ -30,7 +31,7 @@ class LabelsListRequest(BaseModel):
     ]
 
 
-class LabelsGetRequest(BaseModel):
+class LabelsGetRequest(PackModel):
     """Input schema for Gmail `users.labels.get` endpoint.
 
     Gets the specified label.
@@ -53,7 +54,7 @@ class LabelsGetRequest(BaseModel):
     ]
 
 
-class LabelsCreateRequest(BaseModel):
+class LabelsCreateRequest(PackModel):
     """Input schema for Gmail `users.labels.create` endpoint.
 
     Creates a new label.
@@ -100,7 +101,7 @@ PatchLabelRequest = partial_of(
 )
 
 
-class LabelsUpdateRequest(BaseModel):
+class LabelsUpdateRequest(PackModel):
     """Input schema for Gmail `users.labels.update` endpoint.
 
     Updates the specified label. The label is replaced by what is sent, so send
@@ -136,7 +137,7 @@ class LabelsUpdateRequest(BaseModel):
     }
 
 
-class LabelsPatchRequest(BaseModel):
+class LabelsPatchRequest(PackModel):
     """Input schema for Gmail `users.labels.patch` endpoint.
 
     Patch the specified label. Fields left out keep the value they have.
@@ -174,7 +175,7 @@ class LabelsPatchRequest(BaseModel):
     }
 
 
-class LabelsDeleteRequest(BaseModel):
+class LabelsDeleteRequest(PackModel):
     """Input schema for Gmail `users.labels.delete` endpoint.
 
     Immediately and permanently deletes the specified label and removes it from

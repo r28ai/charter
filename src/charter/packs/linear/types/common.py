@@ -27,7 +27,9 @@ from __future__ import annotations
 
 from typing import Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from charter.types.model import PackModel, resolve_forward_refs
 
 __all__ = [
     "StringComparator",
@@ -122,7 +124,7 @@ ReleaseStageType = Literal["canceled", "completed", "planned", "started"]
 JSONObject = Dict[str, Union[str, int, float]]
 
 
-class StringComparator(BaseModel):
+class StringComparator(PackModel):
     """String comparators for a Linear filter.
 
     Comparators on the same object combine with AND. Every operator Linear's
@@ -182,7 +184,7 @@ class NullableStringComparator(StringComparator):
     )
 
 
-class IdComparator(BaseModel):
+class IdComparator(PackModel):
     """UUID comparators for a Linear filter.
 
     API Reference: https://linear.app/developers/filtering
@@ -194,7 +196,7 @@ class IdComparator(BaseModel):
     nin: Optional[List[str]] = Field(None, description="Is not one of the given UUIDs.")
 
 
-class NumberComparator(BaseModel):
+class NumberComparator(PackModel):
     """Numeric comparators for a Linear filter.
 
     API Reference: https://linear.app/developers/filtering
@@ -218,7 +220,7 @@ class NullableNumberComparator(NumberComparator):
     )
 
 
-class DateComparator(BaseModel):
+class DateComparator(PackModel):
     """Date comparators for a Linear filter.
 
     Values are ISO 8601 timestamps, such as ``2026-09-13T00:00:00.000Z``.
@@ -244,7 +246,7 @@ class NullableDateComparator(DateComparator):
     )
 
 
-class BooleanComparator(BaseModel):
+class BooleanComparator(PackModel):
     """Boolean comparators for a Linear filter.
 
     API Reference: https://linear.app/developers/filtering
@@ -254,7 +256,7 @@ class BooleanComparator(BaseModel):
     neq: Optional[bool] = Field(None, description="Does not equal the given value.")
 
 
-class PageVariables(BaseModel):
+class PageVariables(PackModel):
     """The Relay pagination arguments every Linear connection accepts.
 
     API Reference: https://linear.app/developers/pagination
@@ -274,7 +276,7 @@ class PageVariables(BaseModel):
     )
 
 
-class ContentComparator(BaseModel):
+class ContentComparator(PackModel):
     """Substring comparators for a searchable-content field.
 
     Narrower than :class:`StringComparator`: Linear only offers containment
@@ -287,7 +289,7 @@ class ContentComparator(BaseModel):
     not_contains: Optional[str] = Field(None, description="Does not contain the given substring.")
 
 
-class RelationExistsComparator(BaseModel):
+class RelationExistsComparator(PackModel):
     """Whether a relationship exists at all.
 
     Used for the ``has*Relations`` filters — "is this issue blocked by
@@ -302,7 +304,7 @@ class RelationExistsComparator(BaseModel):
     )
 
 
-class EstimateComparator(BaseModel):
+class EstimateComparator(PackModel):
     """Comparators for an issue estimate.
 
     A numeric comparator that also composes: ``and_``/``or_`` take lists of
@@ -330,7 +332,7 @@ class EstimateComparator(BaseModel):
     )
 
 
-class SlaStatusComparator(BaseModel):
+class SlaStatusComparator(PackModel):
     """Comparators for an issue's SLA status.
 
     API Reference: https://linear.app/developers/filtering
@@ -343,7 +345,7 @@ class SlaStatusComparator(BaseModel):
     null: Optional[bool] = Field(None, description="True to match only where no SLA applies.")
 
 
-class CyclePeriodComparator(BaseModel):
+class CyclePeriodComparator(PackModel):
     """Comparators for which cycle period something falls in.
 
     API Reference: https://linear.app/developers/filtering
@@ -358,7 +360,7 @@ class CyclePeriodComparator(BaseModel):
     )
 
 
-class TeamVisibilityComparator(BaseModel):
+class TeamVisibilityComparator(PackModel):
     """Comparators for a team's visibility.
 
     API Reference: https://linear.app/developers/filtering
@@ -385,7 +387,7 @@ class NullableTimelessDateComparator(NullableDateComparator):
     """
 
 
-class SubTypeComparator(BaseModel):
+class SubTypeComparator(PackModel):
     """Comparators for a source subtype string that may be null.
 
     API Reference: https://linear.app/developers/filtering
@@ -398,7 +400,7 @@ class SubTypeComparator(BaseModel):
     null: Optional[bool] = Field(None, description="True to match only where the subtype is unset.")
 
 
-class WorkflowDefinitionIdComparator(BaseModel):
+class WorkflowDefinitionIdComparator(PackModel):
     """Comparators for the workflow definition that created an issue.
 
     API Reference: https://linear.app/developers/filtering
@@ -413,7 +415,7 @@ class WorkflowDefinitionIdComparator(BaseModel):
     )
 
 
-class SourceMetadataComparator(BaseModel):
+class SourceMetadataComparator(PackModel):
     """Comparators for how an issue was created — an integration, intake, or not.
 
     Salesforce-specific metadata is marked ``[INTERNAL]`` in Linear's schema
@@ -437,7 +439,7 @@ class SourceMetadataComparator(BaseModel):
     )
 
 
-class ReleasePipelineTypeComparator(BaseModel):
+class ReleasePipelineTypeComparator(PackModel):
     """Comparators for a release pipeline's type.
 
     API Reference: https://linear.app/developers/filtering
@@ -452,7 +454,7 @@ class ReleasePipelineTypeComparator(BaseModel):
     null: Optional[bool] = Field(None, description="True to match only where the type is unset.")
 
 
-class ReleaseStageTypeComparator(BaseModel):
+class ReleaseStageTypeComparator(PackModel):
     """Comparators for a release stage's type.
 
     API Reference: https://linear.app/developers/filtering
@@ -467,7 +469,7 @@ class ReleaseStageTypeComparator(BaseModel):
     null: Optional[bool] = Field(None, description="True to match only where the type is unset.")
 
 
-class DurationComparator(BaseModel):
+class DurationComparator(PackModel):
     """Comparators for a measured duration, in seconds.
 
     Linear derives these from an issue's history — how long it sat in triage,
@@ -489,4 +491,4 @@ class DurationComparator(BaseModel):
     )
 
 
-EstimateComparator.model_rebuild()
+resolve_forward_refs(EstimateComparator)

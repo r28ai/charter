@@ -10,16 +10,17 @@ from __future__ import annotations
 
 from typing import Annotated, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Query, WireName
+from charter.types.model import PackModel
 
 __all__ = ["DeveloperSearchRequest"]
 
 DeveloperResultType = Literal["doc", "issue", "pull_request", "readme"]
 
 
-class DeveloperSearchRequest(BaseModel):
+class DeveloperSearchRequest(PackModel):
     """Search the Firecrawl developer index for docs, issues, pull requests, and readmes.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/developer-search

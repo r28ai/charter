@@ -10,22 +10,23 @@ from __future__ import annotations
 
 from typing import Annotated, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.tavily.types.common import LogEndpoint, OrgUsageDepth
 from charter.types import Body
+from charter.types.model import PackModel
 
 __all__ = ["UsageGetRequest", "LogsRequest", "OrgUsageRequest"]
 
 
-class UsageGetRequest(BaseModel):
+class UsageGetRequest(PackModel):
     """Get API key and account usage for the current billing cycle.
 
     API Reference: https://docs.tavily.com/documentation/api-reference/endpoint/usage
     """
 
 
-class LogsRequest(BaseModel):
+class LogsRequest(PackModel):
     """Retrieve per-request usage logs for API keys under your account.
 
     Requires an active paid plan or pay-as-you-go enabled. Log entries never
@@ -80,7 +81,7 @@ class LogsRequest(BaseModel):
     ]
 
 
-class OrgUsageRequest(BaseModel):
+class OrgUsageRequest(PackModel):
     """Retrieve organization-wide usage, PayGo cost, and request counts.
 
     Authenticate with the organization owner's personal API key, not an

@@ -16,8 +16,11 @@ said so as a known limit; they are here now, and
 ``test_a_boolean_composition_survives_to_the_wire`` holds them in place.
 
 Pydantic needs the self-reference declared as a string annotation and the model
-rebuilt afterwards, which is what the ``model_rebuild()`` calls at the bottom
-are for.
+rebuilt afterwards, which is what :func:`~charter.types.model.resolve_forward_refs`
+at the bottom is for. It rebuilds only the models whose fields did not resolve
+at definition — 40 of the 61 — and leaves the rest to build on first use. Each
+rebuild regenerates the whole cycle, so rebuilding all 61 here was the largest
+single cost of importing the pack.
 
 API Reference: https://linear.app/developers/filtering
 """
@@ -26,7 +29,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.linear.types.common import (
     BooleanComparator,
@@ -48,6 +51,7 @@ from charter.packs.linear.types.common import (
     StringComparator,
     TeamVisibilityComparator,
 )
+from charter.types.model import PackModel, resolve_forward_refs
 
 __all__ = [
     "IssueFilter",
@@ -100,7 +104,7 @@ _NULL_REL = "Filter based on the existence of the relation."
 _LENGTH = "Comparator for the collection length."
 
 
-class UserFilter(BaseModel):
+class UserFilter(PackModel):
     """A filter over users, or over a user-valued field such as ``assignee``.
 
     API Reference: https://linear.app/developers/filtering
@@ -152,7 +156,7 @@ class UserFilter(BaseModel):
     )
 
 
-class TeamFilter(BaseModel):
+class TeamFilter(PackModel):
     """A filter over teams, or over an issue's ``team``.
 
     API Reference: https://linear.app/developers/filtering
@@ -202,7 +206,7 @@ class TeamFilter(BaseModel):
     )
 
 
-class WorkflowStateFilter(BaseModel):
+class WorkflowStateFilter(PackModel):
     """A filter over workflow states, or over an issue's ``state``.
 
     API Reference: https://linear.app/developers/filtering
@@ -243,7 +247,7 @@ class WorkflowStateFilter(BaseModel):
     )
 
 
-class IssueLabelFilter(BaseModel):
+class IssueLabelFilter(PackModel):
     """A filter over labels.
 
     API Reference: https://linear.app/developers/filtering
@@ -280,7 +284,7 @@ class IssueLabelFilter(BaseModel):
     )
 
 
-class CycleFilter(BaseModel):
+class CycleFilter(PackModel):
     """A filter over cycles, or over an issue's ``cycle``.
 
     API Reference: https://linear.app/developers/filtering
@@ -336,7 +340,7 @@ class CycleFilter(BaseModel):
     )
 
 
-class ProjectMilestoneFilter(BaseModel):
+class ProjectMilestoneFilter(PackModel):
     """A filter over project milestones.
 
     API Reference: https://linear.app/developers/filtering
@@ -364,7 +368,7 @@ class ProjectMilestoneFilter(BaseModel):
     )
 
 
-class ProjectFilter(BaseModel):
+class ProjectFilter(PackModel):
     """A filter over projects, or over an issue's ``project``.
 
     Linear's schema still has a ``roadmaps`` collection here; it is not
@@ -491,7 +495,7 @@ class ProjectFilter(BaseModel):
     )
 
 
-class IssueFilter(BaseModel):
+class IssueFilter(PackModel):
     """A filter over issues. Conditions on the same object combine with AND.
 
     Every sendable field Linear's ``IssueFilter`` accepts is here, including
@@ -664,7 +668,7 @@ class IssueFilter(BaseModel):
     or_: Optional[List[IssueFilter]] = Field(None, description=_OR)
 
 
-class CommentFilter(BaseModel):
+class CommentFilter(PackModel):
     """A filter over comments. Conditions combine with AND.
 
     API Reference: https://linear.app/developers/filtering
@@ -715,7 +719,7 @@ class CommentFilter(BaseModel):
     )
 
 
-class InitiativeFilter(BaseModel):
+class InitiativeFilter(PackModel):
     """A filter over initiatives.
 
     API Reference: https://linear.app/developers/filtering
@@ -790,7 +794,7 @@ class InitiativeFilter(BaseModel):
     )
 
 
-class DocumentFilter(BaseModel):
+class DocumentFilter(PackModel):
     """A filter over documents.
 
     API Reference: https://linear.app/developers/filtering
@@ -838,7 +842,7 @@ class DocumentFilter(BaseModel):
     )
 
 
-class AttachmentFilter(BaseModel):
+class AttachmentFilter(PackModel):
     """A filter over attachments.
 
     API Reference: https://linear.app/developers/filtering
@@ -869,7 +873,7 @@ class AttachmentFilter(BaseModel):
     )
 
 
-class CustomerFilter(BaseModel):
+class CustomerFilter(PackModel):
     """A filter over customers.
 
     API Reference: https://linear.app/developers/managing-customers
@@ -916,7 +920,7 @@ class CustomerFilter(BaseModel):
     )
 
 
-class CustomerNeedFilter(BaseModel):
+class CustomerNeedFilter(PackModel):
     """A filter over customer requests.
 
     API Reference: https://linear.app/developers/managing-customers
@@ -952,7 +956,7 @@ class CustomerNeedFilter(BaseModel):
     )
 
 
-class TemplateFilter(BaseModel):
+class TemplateFilter(PackModel):
     """A filter over templates.
 
     API Reference: https://linear.app/developers/graphql
@@ -983,7 +987,7 @@ class TemplateFilter(BaseModel):
     )
 
 
-class ProjectUpdateFilter(BaseModel):
+class ProjectUpdateFilter(PackModel):
     """A filter over project status updates.
 
     API Reference: https://linear.app/developers/graphql
@@ -1007,7 +1011,7 @@ class ProjectUpdateFilter(BaseModel):
     or_: Optional[List[ProjectUpdateFilter]] = Field(None, description=_OR)
 
 
-class ProjectStatusFilter(BaseModel):
+class ProjectStatusFilter(PackModel):
     """A filter over project statuses.
 
     API Reference: https://linear.app/developers/filtering
@@ -1046,7 +1050,7 @@ class ProjectStatusFilter(BaseModel):
     or_: Optional[List[ProjectStatusFilter]] = Field(None, description=_OR)
 
 
-class CustomerStatusFilter(BaseModel):
+class CustomerStatusFilter(PackModel):
     """A filter over customer statuses.
 
     API Reference: https://linear.app/developers/managing-customers
@@ -1078,7 +1082,7 @@ class CustomerStatusFilter(BaseModel):
     or_: Optional[List[CustomerStatusFilter]] = Field(None, description=_OR)
 
 
-class CustomerTierFilter(BaseModel):
+class CustomerTierFilter(PackModel):
     """A filter over customer tiers.
 
     API Reference: https://linear.app/developers/managing-customers
@@ -1107,7 +1111,7 @@ class CustomerTierFilter(BaseModel):
     or_: Optional[List[CustomerTierFilter]] = Field(None, description=_OR)
 
 
-class ReactionFilter(BaseModel):
+class ReactionFilter(PackModel):
     """A filter over reactions.
 
     API Reference: https://linear.app/developers/filtering
@@ -1130,7 +1134,7 @@ class ReactionFilter(BaseModel):
     or_: Optional[List[ReactionFilter]] = Field(None, description=_OR)
 
 
-class ActivityFilter(BaseModel):
+class ActivityFilter(PackModel):
     """A filter over an issue's activity entries.
 
     API Reference: https://linear.app/developers/filtering
@@ -1150,7 +1154,7 @@ class ActivityFilter(BaseModel):
     or_: Optional[List[ActivityFilter]] = Field(None, description=_OR)
 
 
-class InitiativeLabelFilter(BaseModel):
+class InitiativeLabelFilter(PackModel):
     """A filter over initiative labels.
 
     API Reference: https://linear.app/developers/filtering
@@ -1177,7 +1181,7 @@ class InitiativeLabelFilter(BaseModel):
     or_: Optional[List[InitiativeLabelFilter]] = Field(None, description=_OR)
 
 
-class InitiativeUpdatesFilter(BaseModel):
+class InitiativeUpdatesFilter(PackModel):
     """A filter over initiative status updates as a collection.
 
     API Reference: https://linear.app/developers/filtering
@@ -1194,7 +1198,7 @@ class InitiativeUpdatesFilter(BaseModel):
     or_: Optional[List[InitiativeUpdatesFilter]] = Field(None, description=_OR)
 
 
-class ProjectLabelFilter(BaseModel):
+class ProjectLabelFilter(PackModel):
     """A filter over project labels.
 
     API Reference: https://linear.app/developers/filtering
@@ -1221,7 +1225,7 @@ class ProjectLabelFilter(BaseModel):
     or_: Optional[List[ProjectLabelFilter]] = Field(None, description=_OR)
 
 
-class ProjectUpdatesFilter(BaseModel):
+class ProjectUpdatesFilter(PackModel):
     """A filter over a project's status-update collection.
 
     Distinct from :class:`ProjectUpdateFilter`, which filters one update.
@@ -1243,7 +1247,7 @@ class ProjectUpdatesFilter(BaseModel):
     or_: Optional[List[ProjectUpdatesFilter]] = Field(None, description=_OR)
 
 
-class ReleaseStageFilter(BaseModel):
+class ReleaseStageFilter(PackModel):
     """A filter over release stages.
 
     API Reference: https://linear.app/developers/filtering
@@ -1264,7 +1268,7 @@ class ReleaseStageFilter(BaseModel):
     or_: Optional[List[ReleaseStageFilter]] = Field(None, description=_OR)
 
 
-class ReleasePipelineFilter(BaseModel):
+class ReleasePipelineFilter(PackModel):
     """A filter over release pipelines.
 
     API Reference: https://linear.app/developers/filtering
@@ -1291,7 +1295,7 @@ class ReleasePipelineFilter(BaseModel):
     or_: Optional[List[ReleasePipelineFilter]] = Field(None, description=_OR)
 
 
-class ReleaseFilter(BaseModel):
+class ReleaseFilter(PackModel):
     """A filter over releases.
 
     Modelled so issue and document filters can constrain by release. This pack
@@ -1331,7 +1335,7 @@ class ReleaseFilter(BaseModel):
     or_: Optional[List[ReleaseFilter]] = Field(None, description=_OR)
 
 
-class DocumentContentFilter(BaseModel):
+class DocumentContentFilter(PackModel):
     """A filter over document content a comment can hang off.
 
     API Reference: https://linear.app/developers/filtering
@@ -1367,7 +1371,7 @@ class DocumentContentFilter(BaseModel):
     or_: Optional[List[DocumentContentFilter]] = Field(None, description=_OR)
 
 
-class FeedItemFilter(BaseModel):
+class FeedItemFilter(PackModel):
     """A filter over feed items, used by saved views.
 
     API Reference: https://linear.app/developers/filtering
@@ -1754,7 +1758,7 @@ class NullableProjectUpdateFilter(ProjectUpdateFilter):
     or_: Optional[List[NullableProjectUpdateFilter]] = Field(None, description=_OR)
 
 
-class NullableInitiativeUpdateFilter(BaseModel):
+class NullableInitiativeUpdateFilter(PackModel):
     """A filter over initiative status updates that may be unset."""
 
     id: Optional[IdComparator] = Field(None, description="Comparator for the identifier.")
@@ -1788,7 +1792,7 @@ class NullableDocumentContentFilter(DocumentContentFilter):
 
 # The filters above reference themselves and each other, so the forward
 # references are resolved once, here, after every class exists.
-for _model in (
+resolve_forward_refs(
     UserFilter,
     TeamFilter,
     WorkflowStateFilter,
@@ -1849,5 +1853,4 @@ for _model in (
     NullableProjectUpdateFilter,
     NullableInitiativeUpdateFilter,
     NullableDocumentContentFilter,
-):
-    _model.model_rebuild()
+)

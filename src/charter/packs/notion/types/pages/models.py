@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from typing import Annotated, List, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.packs.notion.types.common import (
     DateValue,
@@ -31,6 +31,7 @@ from charter.packs.notion.types.common import (
     SelectColor,
 )
 from charter.types import Mode
+from charter.types.model import PackModel
 
 __all__ = [
     "SelectValue",
@@ -45,7 +46,7 @@ __all__ = [
 ]
 
 
-class SelectValue(BaseModel):
+class SelectValue(PackModel):
     """One chosen option of a select or multi-select property.
 
     Name it or reference it by ID; naming an option that does not exist yet
@@ -83,7 +84,7 @@ class SelectValue(BaseModel):
         return self
 
 
-class StatusValue(BaseModel):
+class StatusValue(PackModel):
     """The current status of a page in a status property.
 
     Unlike a select, a status option cannot be created by naming it: the set of
@@ -120,7 +121,7 @@ class StatusValue(BaseModel):
         return self
 
 
-class RelationRef(BaseModel):
+class RelationRef(PackModel):
     """One related page, referenced by ID.
 
     API Reference: https://developers.notion.com/reference/page-property-values#relation
@@ -129,7 +130,7 @@ class RelationRef(BaseModel):
     id: str = Field(..., description="The ID of the related page.")
 
 
-class VerificationValue(BaseModel):
+class VerificationValue(PackModel):
     """The verification state of a page in a wiki database.
 
     Only available on pages in a wiki database.
@@ -158,7 +159,7 @@ class VerificationValue(BaseModel):
     ]
 
 
-class UniqueIdValue(BaseModel):
+class UniqueIdValue(PackModel):
     """The auto-incrementing ID Notion assigns a page in a database.
 
     Computed by Notion and never accepted on write.
@@ -172,7 +173,7 @@ class UniqueIdValue(BaseModel):
     )
 
 
-class FormulaValue(BaseModel):
+class FormulaValue(PackModel):
     """The result of a formula property.
 
     Computed by Notion from the formula on the database schema, and never
@@ -223,7 +224,7 @@ API Reference: https://developers.notion.com/reference/page-property-values#roll
 """
 
 
-class RollupValue(BaseModel):
+class RollupValue(PackModel):
     """The result of a rollup property.
 
     Computed by Notion from a relation and never accepted on write — the
@@ -250,7 +251,7 @@ class RollupValue(BaseModel):
     )
 
 
-class PagePropertyValue(BaseModel):
+class PagePropertyValue(PackModel):
     """One entry in a page's ``properties`` map.
 
     Exactly one field is set, and which one is decided by the type of the

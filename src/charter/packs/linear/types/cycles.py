@@ -16,11 +16,12 @@ from __future__ import annotations
 
 from typing import Annotated, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.packs.linear.types.common import PageVariables, PaginationOrderBy
 from charter.packs.linear.types.filters import CycleFilter
 from charter.types import Body
+from charter.types.model import PackModel
 
 __all__ = [
     "CyclesListRequest",
@@ -48,7 +49,7 @@ class CyclesListVariables(PageVariables):
     )
 
 
-class CyclesListRequest(BaseModel):
+class CyclesListRequest(PackModel):
     """List cycles."""
 
     variables: Annotated[
@@ -58,13 +59,13 @@ class CyclesListRequest(BaseModel):
     ]
 
 
-class CycleGetVariables(BaseModel):
+class CycleGetVariables(PackModel):
     """Variables for the ``cycle`` query."""
 
     id: str = Field(..., description="The cycle's UUID.")
 
 
-class CycleGetRequest(BaseModel):
+class CycleGetRequest(PackModel):
     """Get one cycle."""
 
     variables: Annotated[
@@ -74,7 +75,7 @@ class CycleGetRequest(BaseModel):
     ]
 
 
-class CycleUpdateInput(BaseModel):
+class CycleUpdateInput(PackModel):
     """The fields ``cycleUpdate`` changes. All optional."""
 
     name: Optional[str] = Field(None, description="The custom name of the cycle.")
@@ -97,14 +98,14 @@ class CycleUpdateInput(BaseModel):
         return self
 
 
-class CycleUpdateVariables(BaseModel):
+class CycleUpdateVariables(PackModel):
     """Variables for the ``cycleUpdate`` mutation."""
 
     id: str = Field(..., description="The cycle's UUID.")
     input: CycleUpdateInput = Field(..., description="The fields to change.")
 
 
-class CycleUpdateRequest(BaseModel):
+class CycleUpdateRequest(PackModel):
     """Update a cycle."""
 
     variables: Annotated[
@@ -114,13 +115,13 @@ class CycleUpdateRequest(BaseModel):
     ]
 
 
-class CycleArchiveVariables(BaseModel):
+class CycleArchiveVariables(PackModel):
     """Variables for the ``cycleArchive`` mutation."""
 
     id: str = Field(..., description="The cycle's UUID.")
 
 
-class CycleArchiveRequest(BaseModel):
+class CycleArchiveRequest(PackModel):
     """Archive a cycle."""
 
     variables: Annotated[
@@ -130,13 +131,13 @@ class CycleArchiveRequest(BaseModel):
     ]
 
 
-class CycleStartUpcomingCycleTodayVariables(BaseModel):
+class CycleStartUpcomingCycleTodayVariables(PackModel):
     """Variables for the ``cycleStartUpcomingCycleToday`` mutation."""
 
     id: str = Field(..., description="The UUID of the upcoming cycle to start today.")
 
 
-class CycleStartUpcomingCycleTodayRequest(BaseModel):
+class CycleStartUpcomingCycleTodayRequest(PackModel):
     """Start a team's next cycle today rather than on its scheduled date."""
 
     variables: Annotated[

@@ -17,11 +17,12 @@ from __future__ import annotations
 
 from typing import Annotated, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.packs.linear.types.common import PageVariables, PaginationOrderBy
 from charter.packs.linear.types.filters import IssueLabelFilter
 from charter.types import Body
+from charter.types.model import PackModel
 
 __all__ = [
     "IssueLabelsListRequest",
@@ -47,7 +48,7 @@ class IssueLabelsListVariables(PageVariables):
     )
 
 
-class IssueLabelsListRequest(BaseModel):
+class IssueLabelsListRequest(PackModel):
     """List issue labels."""
 
     variables: Annotated[
@@ -57,13 +58,13 @@ class IssueLabelsListRequest(BaseModel):
     ]
 
 
-class IssueLabelGetVariables(BaseModel):
+class IssueLabelGetVariables(PackModel):
     """Variables for the ``issueLabel`` query."""
 
     id: str = Field(..., description="The label's UUID.")
 
 
-class IssueLabelGetRequest(BaseModel):
+class IssueLabelGetRequest(PackModel):
     """Get one issue label."""
 
     variables: Annotated[
@@ -73,7 +74,7 @@ class IssueLabelGetRequest(BaseModel):
     ]
 
 
-class IssueLabelCreateInput(BaseModel):
+class IssueLabelCreateInput(PackModel):
     """The input to ``issueLabelCreate``."""
 
     name: str = Field(..., description="The name of the label.")
@@ -106,13 +107,13 @@ class IssueLabelCreateInput(BaseModel):
     )
 
 
-class IssueLabelCreateVariables(BaseModel):
+class IssueLabelCreateVariables(PackModel):
     """Variables for the ``issueLabelCreate`` mutation."""
 
     input: IssueLabelCreateInput = Field(..., description="The label to create.")
 
 
-class IssueLabelCreateRequest(BaseModel):
+class IssueLabelCreateRequest(PackModel):
     """Create a label."""
 
     variables: Annotated[
@@ -122,7 +123,7 @@ class IssueLabelCreateRequest(BaseModel):
     ]
 
 
-class IssueLabelUpdateInput(BaseModel):
+class IssueLabelUpdateInput(PackModel):
     """The fields ``issueLabelUpdate`` changes. All optional."""
 
     name: Optional[str] = Field(None, description="The name of the label.")
@@ -150,14 +151,14 @@ class IssueLabelUpdateInput(BaseModel):
         return self
 
 
-class IssueLabelUpdateVariables(BaseModel):
+class IssueLabelUpdateVariables(PackModel):
     """Variables for the ``issueLabelUpdate`` mutation."""
 
     id: str = Field(..., description="The label's UUID.")
     input: IssueLabelUpdateInput = Field(..., description="The fields to change.")
 
 
-class IssueLabelUpdateRequest(BaseModel):
+class IssueLabelUpdateRequest(PackModel):
     """Update a label."""
 
     variables: Annotated[
@@ -167,13 +168,13 @@ class IssueLabelUpdateRequest(BaseModel):
     ]
 
 
-class IssueLabelDeleteVariables(BaseModel):
+class IssueLabelDeleteVariables(PackModel):
     """Variables for the ``issueLabelDelete`` mutation."""
 
     id: str = Field(..., description="The label's UUID.")
 
 
-class IssueLabelDeleteRequest(BaseModel):
+class IssueLabelDeleteRequest(PackModel):
     """Delete a label."""
 
     variables: Annotated[
@@ -194,7 +195,7 @@ class ProjectLabelsListVariables(PageVariables):
     )
 
 
-class ProjectLabelsListRequest(BaseModel):
+class ProjectLabelsListRequest(PackModel):
     """List the labels that tag projects."""
 
     variables: Annotated[

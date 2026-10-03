@@ -3,13 +3,14 @@
 
 from typing import Annotated, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.firecrawl.types.common import AuditMetadata, ThreatProtectionOverride
 from charter.types import Body, Gloss
+from charter.types.model import PackModel
 
 
-class MapLocation(BaseModel):
+class MapLocation(PackModel):
     """Location settings applied to the map request.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/map
@@ -26,7 +27,7 @@ class MapLocation(BaseModel):
     )
 
 
-class MapRequest(BaseModel):
+class MapRequest(PackModel):
     """Request schema for the Firecrawl POST /map endpoint.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/map

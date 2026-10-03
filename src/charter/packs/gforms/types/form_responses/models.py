@@ -18,10 +18,11 @@ from __future__ import annotations
 
 from typing import Annotated, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.gforms.types.feedback import Feedback
 from charter.types import Mode
+from charter.types.model import PackModel
 
 __all__ = [
     "TextAnswer",
@@ -35,7 +36,7 @@ __all__ = [
 ]
 
 
-class TextAnswer(BaseModel):
+class TextAnswer(PackModel):
     """An answer to a question represented as text.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms.responses#TextAnswer
@@ -65,7 +66,7 @@ class TextAnswer(BaseModel):
     ] = None
 
 
-class TextAnswers(BaseModel):
+class TextAnswers(PackModel):
     """A question's answers as text.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms.responses#TextAnswers
@@ -84,7 +85,7 @@ class TextAnswers(BaseModel):
     ] = None
 
 
-class FileUploadAnswer(BaseModel):
+class FileUploadAnswer(PackModel):
     """Info for a single file submitted to a file upload question.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms.responses#FileUploadAnswer
@@ -115,7 +116,7 @@ class FileUploadAnswer(BaseModel):
     ] = None
 
 
-class FileUploadAnswers(BaseModel):
+class FileUploadAnswers(PackModel):
     """All submitted files for a FileUpload question.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms.responses#FileUploadAnswers
@@ -131,7 +132,7 @@ class FileUploadAnswers(BaseModel):
     ] = None
 
 
-class Grade(BaseModel):
+class Grade(PackModel):
     """Grade information associated with a respondent's answer to a question.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms.responses#Grade
@@ -167,7 +168,7 @@ class Grade(BaseModel):
     ] = None
 
 
-class Answer(BaseModel):
+class Answer(PackModel):
     """The submitted answer for a question.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms.responses#Answer
@@ -204,7 +205,7 @@ class Answer(BaseModel):
     ] = None
 
 
-class FormResponse(BaseModel):
+class FormResponse(PackModel):
     """A form response.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms.responses#FormResponse
@@ -277,7 +278,7 @@ class FormResponse(BaseModel):
     ] = None
 
 
-class ListFormResponsesResponse(BaseModel):
+class ListFormResponsesResponse(PackModel):
     """Response to a ListFormResponsesRequest.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms.responses/list#body.ListFormResponsesResponse

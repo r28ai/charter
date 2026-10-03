@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Annotated, List, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.packs.linear.types.common import (
     PRIORITY_DESCRIPTION,
@@ -25,6 +25,7 @@ from charter.packs.linear.types.common import (
 )
 from charter.packs.linear.types.filters import IssueFilter
 from charter.types import Body
+from charter.types.model import PackModel
 
 __all__ = [
     "IssuesListRequest",
@@ -73,7 +74,7 @@ class IssuesListVariables(PageVariables):
     )
 
 
-class IssuesListRequest(BaseModel):
+class IssuesListRequest(PackModel):
     """List issues, optionally filtered.
 
     API Reference: https://linear.app/developers/filtering
@@ -86,7 +87,7 @@ class IssuesListRequest(BaseModel):
     ]
 
 
-class IssueGetVariables(BaseModel):
+class IssueGetVariables(PackModel):
     """Variables for the ``issue`` query."""
 
     id: str = Field(
@@ -97,7 +98,7 @@ class IssueGetVariables(BaseModel):
     )
 
 
-class IssueGetRequest(BaseModel):
+class IssueGetRequest(PackModel):
     """Get one issue, with its comments."""
 
     variables: Annotated[
@@ -112,7 +113,7 @@ class IssueGetRequest(BaseModel):
 # -----------------------------------------------------
 
 
-class IssueCreateInput(BaseModel):
+class IssueCreateInput(PackModel):
     """The input to ``issueCreate``.
 
     API Reference: https://linear.app/developers/graphql
@@ -240,13 +241,13 @@ class IssueCreateInput(BaseModel):
     )
 
 
-class IssueCreateVariables(BaseModel):
+class IssueCreateVariables(PackModel):
     """Variables for the ``issueCreate`` mutation."""
 
     input: IssueCreateInput = Field(..., description="The issue to create.")
 
 
-class IssueCreateRequest(BaseModel):
+class IssueCreateRequest(PackModel):
     """Create an issue."""
 
     variables: Annotated[
@@ -256,7 +257,7 @@ class IssueCreateRequest(BaseModel):
     ]
 
 
-class IssueUpdateInput(BaseModel):
+class IssueUpdateInput(PackModel):
     """The input to ``issueUpdate``. Every field is optional.
 
     Labels can be changed two ways, and they mean different things:
@@ -376,14 +377,14 @@ class IssueUpdateInput(BaseModel):
         return self
 
 
-class IssueUpdateVariables(BaseModel):
+class IssueUpdateVariables(PackModel):
     """Variables for the ``issueUpdate`` mutation."""
 
     id: str = Field(..., description="UUID or identifier of the issue to update.")
     input: IssueUpdateInput = Field(..., description="The fields to change.")
 
 
-class IssueUpdateRequest(BaseModel):
+class IssueUpdateRequest(PackModel):
     """Update an issue."""
 
     variables: Annotated[
@@ -393,7 +394,7 @@ class IssueUpdateRequest(BaseModel):
     ]
 
 
-class IssueBatchUpdateVariables(BaseModel):
+class IssueBatchUpdateVariables(PackModel):
     """Variables for the ``issueBatchUpdate`` mutation."""
 
     ids: List[str] = Field(
@@ -406,7 +407,7 @@ class IssueBatchUpdateVariables(BaseModel):
     )
 
 
-class IssueBatchUpdateRequest(BaseModel):
+class IssueBatchUpdateRequest(PackModel):
     """Apply the same change to many issues at once."""
 
     variables: Annotated[
@@ -421,7 +422,7 @@ class IssueBatchUpdateRequest(BaseModel):
 # -----------------------------------------------------
 
 
-class IssueDeleteVariables(BaseModel):
+class IssueDeleteVariables(PackModel):
     """Variables for the ``issueDelete`` mutation.
 
     Linear's delete is a *trash*, not an erasure: the issue leaves the active
@@ -440,7 +441,7 @@ class IssueDeleteVariables(BaseModel):
     )
 
 
-class IssueDeleteRequest(BaseModel):
+class IssueDeleteRequest(PackModel):
     """Move an issue to the trash, or permanently delete it."""
 
     variables: Annotated[
@@ -450,7 +451,7 @@ class IssueDeleteRequest(BaseModel):
     ]
 
 
-class IssueArchiveVariables(BaseModel):
+class IssueArchiveVariables(PackModel):
     """Variables for the ``issueArchive`` mutation."""
 
     id: str = Field(..., description="The issue's UUID.")
@@ -463,7 +464,7 @@ class IssueArchiveVariables(BaseModel):
     )
 
 
-class IssueArchiveRequest(BaseModel):
+class IssueArchiveRequest(PackModel):
     """Archive an issue."""
 
     variables: Annotated[
@@ -473,13 +474,13 @@ class IssueArchiveRequest(BaseModel):
     ]
 
 
-class IssueUnarchiveVariables(BaseModel):
+class IssueUnarchiveVariables(PackModel):
     """Variables for the ``issueUnarchive`` mutation."""
 
     id: str = Field(..., description="The issue's UUID.")
 
 
-class IssueUnarchiveRequest(BaseModel):
+class IssueUnarchiveRequest(PackModel):
     """Restore an archived issue."""
 
     variables: Annotated[
@@ -494,14 +495,14 @@ class IssueUnarchiveRequest(BaseModel):
 # -----------------------------------------------------
 
 
-class IssueLabelLinkVariables(BaseModel):
+class IssueLabelLinkVariables(PackModel):
     """Variables for ``issueAddLabel`` and ``issueRemoveLabel``."""
 
     id: str = Field(..., description="The issue's UUID.")
     label_id: str = Field(..., description="The label's UUID.")
 
 
-class IssueAddLabelRequest(BaseModel):
+class IssueAddLabelRequest(PackModel):
     """Add one label to an issue."""
 
     variables: Annotated[
@@ -511,7 +512,7 @@ class IssueAddLabelRequest(BaseModel):
     ]
 
 
-class IssueRemoveLabelRequest(BaseModel):
+class IssueRemoveLabelRequest(PackModel):
     """Remove one label from an issue."""
 
     variables: Annotated[
@@ -521,7 +522,7 @@ class IssueRemoveLabelRequest(BaseModel):
     ]
 
 
-class IssueSubscriptionVariables(BaseModel):
+class IssueSubscriptionVariables(PackModel):
     """Variables for ``issueSubscribe`` and ``issueUnsubscribe``.
 
     The user is named by UUID or by email; giving neither acts on the
@@ -547,7 +548,7 @@ class IssueSubscriptionVariables(BaseModel):
         return self
 
 
-class IssueSubscribeRequest(BaseModel):
+class IssueSubscribeRequest(PackModel):
     """Subscribe a user to an issue's updates."""
 
     variables: Annotated[
@@ -557,7 +558,7 @@ class IssueSubscribeRequest(BaseModel):
     ]
 
 
-class IssueUnsubscribeRequest(BaseModel):
+class IssueUnsubscribeRequest(PackModel):
     """Unsubscribe a user from an issue's updates."""
 
     variables: Annotated[
@@ -583,7 +584,7 @@ class IssueRelationsListVariables(PageVariables):
     )
 
 
-class IssueRelationsListRequest(BaseModel):
+class IssueRelationsListRequest(PackModel):
     """List the links between issues."""
 
     variables: Annotated[
@@ -593,13 +594,13 @@ class IssueRelationsListRequest(BaseModel):
     ]
 
 
-class IssueRelationGetVariables(BaseModel):
+class IssueRelationGetVariables(PackModel):
     """Variables for the ``issueRelation`` query."""
 
     id: str = Field(..., description="The relation's UUID.")
 
 
-class IssueRelationGetRequest(BaseModel):
+class IssueRelationGetRequest(PackModel):
     """Get one issue relation."""
 
     variables: Annotated[
@@ -609,7 +610,7 @@ class IssueRelationGetRequest(BaseModel):
     ]
 
 
-class IssueRelationCreateInput(BaseModel):
+class IssueRelationCreateInput(PackModel):
     """The input to ``issueRelationCreate``.
 
     ``blocks`` and ``duplicate`` are directional: the issue in ``issue_id`` is
@@ -627,13 +628,13 @@ class IssueRelationCreateInput(BaseModel):
     )
 
 
-class IssueRelationCreateVariables(BaseModel):
+class IssueRelationCreateVariables(PackModel):
     """Variables for the ``issueRelationCreate`` mutation."""
 
     input: IssueRelationCreateInput = Field(..., description="The relation to create.")
 
 
-class IssueRelationCreateRequest(BaseModel):
+class IssueRelationCreateRequest(PackModel):
     """Link two issues."""
 
     variables: Annotated[
@@ -643,7 +644,7 @@ class IssueRelationCreateRequest(BaseModel):
     ]
 
 
-class IssueRelationUpdateInput(BaseModel):
+class IssueRelationUpdateInput(PackModel):
     """The fields ``issueRelationUpdate`` changes. All optional."""
 
     issue_id: Optional[str] = Field(
@@ -663,14 +664,14 @@ class IssueRelationUpdateInput(BaseModel):
         return self
 
 
-class IssueRelationUpdateVariables(BaseModel):
+class IssueRelationUpdateVariables(PackModel):
     """Variables for the ``issueRelationUpdate`` mutation."""
 
     id: str = Field(..., description="The relation's UUID.")
     input: IssueRelationUpdateInput = Field(..., description="The fields to change.")
 
 
-class IssueRelationUpdateRequest(BaseModel):
+class IssueRelationUpdateRequest(PackModel):
     """Change how two issues are linked."""
 
     variables: Annotated[
@@ -680,13 +681,13 @@ class IssueRelationUpdateRequest(BaseModel):
     ]
 
 
-class IssueRelationDeleteVariables(BaseModel):
+class IssueRelationDeleteVariables(PackModel):
     """Variables for the ``issueRelationDelete`` mutation."""
 
     id: str = Field(..., description="The relation's UUID.")
 
 
-class IssueRelationDeleteRequest(BaseModel):
+class IssueRelationDeleteRequest(PackModel):
     """Unlink two issues."""
 
     variables: Annotated[

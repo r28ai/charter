@@ -11,14 +11,15 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Path
+from charter.types.model import PackModel
 
 __all__ = ["AsyncTasksRetrieveRequest"]
 
 
-class AsyncTasksRetrieveRequest(BaseModel):
+class AsyncTasksRetrieveRequest(PackModel):
     """Check on work Notion took in the background.
 
     Creating a page from a large Markdown body with `allow_async` answers 202

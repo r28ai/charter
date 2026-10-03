@@ -14,16 +14,17 @@ from __future__ import annotations
 
 from typing import Annotated, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Mode
+from charter.types.model import PackModel
 
 # ---------------------------------------------------------------------------
 # Metadata
 # ---------------------------------------------------------------------------
 
 
-class SearchResultMetadata(BaseModel):
+class SearchResultMetadata(PackModel):
     """Metadata associated with a scraped search result page.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/search
@@ -67,7 +68,7 @@ class SearchResultMetadata(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class WebResult(BaseModel):
+class WebResult(PackModel):
     """A single web search result, optionally with scraped content.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/search
@@ -119,7 +120,7 @@ class WebResult(BaseModel):
     ]
 
 
-class ImageResult(BaseModel):
+class ImageResult(PackModel):
     """A single image search result.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/search
@@ -147,7 +148,7 @@ class ImageResult(BaseModel):
     ]
 
 
-class NewsResult(BaseModel):
+class NewsResult(PackModel):
     """A single news search result, optionally with scraped content.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/search
@@ -211,7 +212,7 @@ class NewsResult(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class SearchData(BaseModel):
+class SearchData(PackModel):
     """Container for all search result arrays, keyed by source type.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/search
@@ -243,7 +244,7 @@ class SearchData(BaseModel):
     ]
 
 
-class SearchResponse(BaseModel):
+class SearchResponse(PackModel):
     """Root response from the Firecrawl POST /search endpoint.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/search

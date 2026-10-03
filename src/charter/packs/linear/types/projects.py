@@ -28,7 +28,7 @@ from __future__ import annotations
 
 from typing import Annotated, List, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.packs.linear.types.common import (
     Day,
@@ -42,6 +42,7 @@ from charter.packs.linear.types.filters import (
     ProjectUpdateFilter,
 )
 from charter.types import Body
+from charter.types.model import PackModel
 
 __all__ = [
     "ProjectsListRequest",
@@ -94,7 +95,7 @@ class ProjectsListVariables(PageVariables):
     )
 
 
-class ProjectsListRequest(BaseModel):
+class ProjectsListRequest(PackModel):
     """List projects in the workspace."""
 
     variables: Annotated[
@@ -104,13 +105,13 @@ class ProjectsListRequest(BaseModel):
     ]
 
 
-class ProjectGetVariables(BaseModel):
+class ProjectGetVariables(PackModel):
     """Variables for the ``project`` query."""
 
     id: str = Field(..., description="The project's UUID, or the slug from its URL.")
 
 
-class ProjectGetRequest(BaseModel):
+class ProjectGetRequest(PackModel):
     """Get one project."""
 
     variables: Annotated[
@@ -120,7 +121,7 @@ class ProjectGetRequest(BaseModel):
     ]
 
 
-class ProjectCreateInput(BaseModel):
+class ProjectCreateInput(PackModel):
     """The input to ``projectCreate``."""
 
     name: str = Field(..., description="The name of the project.")
@@ -203,13 +204,13 @@ class ProjectCreateInput(BaseModel):
     )
 
 
-class ProjectCreateVariables(BaseModel):
+class ProjectCreateVariables(PackModel):
     """Variables for the ``projectCreate`` mutation."""
 
     input: ProjectCreateInput = Field(..., description="The project to create.")
 
 
-class ProjectCreateRequest(BaseModel):
+class ProjectCreateRequest(PackModel):
     """Create a project."""
 
     variables: Annotated[
@@ -219,7 +220,7 @@ class ProjectCreateRequest(BaseModel):
     ]
 
 
-class ProjectUpdateInput(BaseModel):
+class ProjectUpdateInput(PackModel):
     """The fields the ``projectUpdate`` mutation changes. All optional.
 
     This edits the project. To post a status update *on* a project, use
@@ -344,14 +345,14 @@ class ProjectUpdateInput(BaseModel):
         return self
 
 
-class ProjectUpdateVariables(BaseModel):
+class ProjectUpdateVariables(PackModel):
     """Variables for the ``projectUpdate`` mutation."""
 
     id: str = Field(..., description="The project's UUID, or the slug from its URL.")
     input: ProjectUpdateInput = Field(..., description="The fields to change.")
 
 
-class ProjectUpdateRequest(BaseModel):
+class ProjectUpdateRequest(PackModel):
     """Update a project."""
 
     variables: Annotated[
@@ -361,13 +362,13 @@ class ProjectUpdateRequest(BaseModel):
     ]
 
 
-class ProjectDeleteVariables(BaseModel):
+class ProjectDeleteVariables(PackModel):
     """Variables for the ``projectDelete`` mutation."""
 
     id: str = Field(..., description="The project's UUID.")
 
 
-class ProjectDeleteRequest(BaseModel):
+class ProjectDeleteRequest(PackModel):
     """Move a project to the trash."""
 
     variables: Annotated[
@@ -377,13 +378,13 @@ class ProjectDeleteRequest(BaseModel):
     ]
 
 
-class ProjectUnarchiveVariables(BaseModel):
+class ProjectUnarchiveVariables(PackModel):
     """Variables for the ``projectUnarchive`` mutation."""
 
     id: str = Field(..., description="The project's UUID.")
 
 
-class ProjectUnarchiveRequest(BaseModel):
+class ProjectUnarchiveRequest(PackModel):
     """Restore a project from the trash."""
 
     variables: Annotated[
@@ -393,14 +394,14 @@ class ProjectUnarchiveRequest(BaseModel):
     ]
 
 
-class ProjectLabelLinkVariables(BaseModel):
+class ProjectLabelLinkVariables(PackModel):
     """Variables for ``projectAddLabel`` and ``projectRemoveLabel``."""
 
     id: str = Field(..., description="The project's UUID.")
     label_id: str = Field(..., description="The project label's UUID.")
 
 
-class ProjectAddLabelRequest(BaseModel):
+class ProjectAddLabelRequest(PackModel):
     """Add one label to a project."""
 
     variables: Annotated[
@@ -410,7 +411,7 @@ class ProjectAddLabelRequest(BaseModel):
     ]
 
 
-class ProjectRemoveLabelRequest(BaseModel):
+class ProjectRemoveLabelRequest(PackModel):
     """Remove one label from a project."""
 
     variables: Annotated[
@@ -420,7 +421,7 @@ class ProjectRemoveLabelRequest(BaseModel):
     ]
 
 
-class ProjectStatusesListRequest(BaseModel):
+class ProjectStatusesListRequest(PackModel):
     """List the statuses a project can be in."""
 
     variables: Annotated[
@@ -449,7 +450,7 @@ class ProjectMilestonesListVariables(PageVariables):
     )
 
 
-class ProjectMilestonesListRequest(BaseModel):
+class ProjectMilestonesListRequest(PackModel):
     """List project milestones."""
 
     variables: Annotated[
@@ -459,13 +460,13 @@ class ProjectMilestonesListRequest(BaseModel):
     ]
 
 
-class ProjectMilestoneGetVariables(BaseModel):
+class ProjectMilestoneGetVariables(PackModel):
     """Variables for the ``projectMilestone`` query."""
 
     id: str = Field(..., description="The milestone's UUID.")
 
 
-class ProjectMilestoneGetRequest(BaseModel):
+class ProjectMilestoneGetRequest(PackModel):
     """Get one project milestone."""
 
     variables: Annotated[
@@ -475,7 +476,7 @@ class ProjectMilestoneGetRequest(BaseModel):
     ]
 
 
-class ProjectMilestoneCreateInput(BaseModel):
+class ProjectMilestoneCreateInput(PackModel):
     """The input to ``projectMilestoneCreate``."""
 
     name: str = Field(..., description="The name of the project milestone.")
@@ -497,13 +498,13 @@ class ProjectMilestoneCreateInput(BaseModel):
     )
 
 
-class ProjectMilestoneCreateVariables(BaseModel):
+class ProjectMilestoneCreateVariables(PackModel):
     """Variables for the ``projectMilestoneCreate`` mutation."""
 
     input: ProjectMilestoneCreateInput = Field(..., description="The milestone to create.")
 
 
-class ProjectMilestoneCreateRequest(BaseModel):
+class ProjectMilestoneCreateRequest(PackModel):
     """Create a project milestone."""
 
     variables: Annotated[
@@ -513,7 +514,7 @@ class ProjectMilestoneCreateRequest(BaseModel):
     ]
 
 
-class ProjectMilestoneUpdateInput(BaseModel):
+class ProjectMilestoneUpdateInput(PackModel):
     """The fields ``projectMilestoneUpdate`` changes. All optional."""
 
     name: Optional[str] = Field(None, description="The name of the project milestone.")
@@ -537,14 +538,14 @@ class ProjectMilestoneUpdateInput(BaseModel):
         return self
 
 
-class ProjectMilestoneUpdateVariables(BaseModel):
+class ProjectMilestoneUpdateVariables(PackModel):
     """Variables for the ``projectMilestoneUpdate`` mutation."""
 
     id: str = Field(..., description="The milestone's UUID.")
     input: ProjectMilestoneUpdateInput = Field(..., description="The fields to change.")
 
 
-class ProjectMilestoneUpdateRequest(BaseModel):
+class ProjectMilestoneUpdateRequest(PackModel):
     """Update a project milestone."""
 
     variables: Annotated[
@@ -554,13 +555,13 @@ class ProjectMilestoneUpdateRequest(BaseModel):
     ]
 
 
-class ProjectMilestoneDeleteVariables(BaseModel):
+class ProjectMilestoneDeleteVariables(PackModel):
     """Variables for the ``projectMilestoneDelete`` mutation."""
 
     id: str = Field(..., description="The milestone's UUID.")
 
 
-class ProjectMilestoneDeleteRequest(BaseModel):
+class ProjectMilestoneDeleteRequest(PackModel):
     """Delete a project milestone."""
 
     variables: Annotated[
@@ -589,7 +590,7 @@ class ProjectUpdatesListVariables(PageVariables):
     )
 
 
-class ProjectUpdatesListRequest(BaseModel):
+class ProjectUpdatesListRequest(PackModel):
     """Read the status updates posted on projects."""
 
     variables: Annotated[
@@ -599,13 +600,13 @@ class ProjectUpdatesListRequest(BaseModel):
     ]
 
 
-class ProjectUpdateGetVariables(BaseModel):
+class ProjectUpdateGetVariables(PackModel):
     """Variables for the ``projectUpdate`` *query*."""
 
     id: str = Field(..., description="The status update's UUID.")
 
 
-class ProjectUpdateGetRequest(BaseModel):
+class ProjectUpdateGetRequest(PackModel):
     """Get one project status update."""
 
     variables: Annotated[
@@ -615,7 +616,7 @@ class ProjectUpdateGetRequest(BaseModel):
     ]
 
 
-class ProjectUpdateCreateInput(BaseModel):
+class ProjectUpdateCreateInput(PackModel):
     """The input to ``projectUpdateCreate`` — a status post on a project."""
 
     project_id: str = Field(..., description="The project to associate the project update with.")
@@ -635,13 +636,13 @@ class ProjectUpdateCreateInput(BaseModel):
     )
 
 
-class ProjectUpdateCreateVariables(BaseModel):
+class ProjectUpdateCreateVariables(PackModel):
     """Variables for the ``projectUpdateCreate`` mutation."""
 
     input: ProjectUpdateCreateInput = Field(..., description="The status update to post.")
 
 
-class ProjectUpdateCreateRequest(BaseModel):
+class ProjectUpdateCreateRequest(PackModel):
     """Post a status update on a project."""
 
     variables: Annotated[
@@ -651,7 +652,7 @@ class ProjectUpdateCreateRequest(BaseModel):
     ]
 
 
-class ProjectUpdateUpdateInput(BaseModel):
+class ProjectUpdateUpdateInput(PackModel):
     """The fields ``projectUpdateUpdate`` changes. All optional.
 
     Narrower than the create input: Linear accepts ``isDiffHidden`` when the
@@ -672,14 +673,14 @@ class ProjectUpdateUpdateInput(BaseModel):
         return self
 
 
-class ProjectUpdateUpdateVariables(BaseModel):
+class ProjectUpdateUpdateVariables(PackModel):
     """Variables for the ``projectUpdateUpdate`` mutation."""
 
     id: str = Field(..., description="The status update's UUID.")
     input: ProjectUpdateUpdateInput = Field(..., description="The fields to change.")
 
 
-class ProjectUpdateUpdateRequest(BaseModel):
+class ProjectUpdateUpdateRequest(PackModel):
     """Edit a project status update."""
 
     variables: Annotated[
@@ -689,13 +690,13 @@ class ProjectUpdateUpdateRequest(BaseModel):
     ]
 
 
-class ProjectUpdateArchiveVariables(BaseModel):
+class ProjectUpdateArchiveVariables(PackModel):
     """Variables for the ``projectUpdateArchive`` mutation."""
 
     id: str = Field(..., description="The status update's UUID.")
 
 
-class ProjectUpdateArchiveRequest(BaseModel):
+class ProjectUpdateArchiveRequest(PackModel):
     """Archive a project status update."""
 
     variables: Annotated[

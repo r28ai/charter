@@ -11,16 +11,17 @@ from __future__ import annotations
 
 from typing import Annotated, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Mode
+from charter.types.model import PackModel
 
 from ..common import User
 
 ReplyAction = Literal["resolve", "reopen"]
 
 
-class QuotedFileContent(BaseModel):
+class QuotedFileContent(PackModel):
     """
     The file content to which the comment refers, typically within the anchor
     region. For a text file, for example, this would be the text at the location
@@ -38,7 +39,7 @@ class QuotedFileContent(BaseModel):
     )
 
 
-class Reply(BaseModel):
+class Reply(PackModel):
     """
     A reply to a comment on a file. Some resource methods (such as
     `replies.update`) require a `replyId`. Use the `replies.list` method to
@@ -148,7 +149,7 @@ class Reply(BaseModel):
     ] = None
 
 
-class Comment(BaseModel):
+class Comment(PackModel):
     """
     A comment on a file. Some resource methods (such as `comments.update`)
     require a `commentId`. Use the `comments.list` method to retrieve the ID

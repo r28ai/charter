@@ -10,9 +10,10 @@ from __future__ import annotations
 
 from typing import Annotated, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Path, Query, WireName
+from charter.types.model import PackModel
 
 __all__ = [
     "ResearchPapersSearchRequest",
@@ -23,7 +24,7 @@ __all__ = [
 ResearchSimilarMode = Literal["similar", "citers", "references"]
 
 
-class ResearchPapersSearchRequest(BaseModel):
+class ResearchPapersSearchRequest(PackModel):
     """Search the research paper index.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/research-search-papers
@@ -65,7 +66,7 @@ class ResearchPapersSearchRequest(BaseModel):
     ]
 
 
-class ResearchPaperGetRequest(BaseModel):
+class ResearchPaperGetRequest(PackModel):
     """Inspect or read a paper from the research index.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/research-get-paper
@@ -99,7 +100,7 @@ class ResearchPaperGetRequest(BaseModel):
     ]
 
 
-class ResearchSimilarPapersRequest(BaseModel):
+class ResearchSimilarPapersRequest(PackModel):
     """Find related papers from the research index.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/research-related-papers

@@ -37,7 +37,7 @@ from __future__ import annotations
 
 from typing import Annotated, List, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.packs.notion.types.common import (
     ExternalFileData,
@@ -51,6 +51,7 @@ from charter.packs.notion.types.common import (
     exactly_one_of,
 )
 from charter.types import Mode
+from charter.types.model import PackModel
 
 __all__ = [
     "CodeLanguage",
@@ -197,7 +198,7 @@ NumberedListFormat = Literal["numbers", "letters", "roman"]
 # -----------------------------------------------------
 
 
-class SyncedFromRef(BaseModel):
+class SyncedFromRef(PackModel):
     """The original block a duplicate synced block mirrors.
 
     API Reference: https://developers.notion.com/reference/block#synced-block
@@ -221,7 +222,7 @@ class SyncedFromRef(BaseModel):
 # -----------------------------------------------------
 
 
-class TextBlockContent(BaseModel):
+class TextBlockContent(PackModel):
     """Rich text with a colour.
 
     The shape behind ``bulleted_list_item``, ``numbered_list_item``, ``quote``
@@ -311,7 +312,7 @@ class HeadingContent(TextBlockContent):
     )
 
 
-class TemplateContent(BaseModel):
+class TemplateContent(PackModel):
     """A template button and the blocks it duplicates.
 
     Deprecated by Notion in favour of database templates; still returned for
@@ -325,7 +326,7 @@ class TemplateContent(BaseModel):
     )
 
 
-class TableContent(BaseModel):
+class TableContent(PackModel):
     """A table, whose children are its rows.
 
     API Reference: https://developers.notion.com/reference/block#table
@@ -344,7 +345,7 @@ class TableContent(BaseModel):
     )
 
 
-class ColumnContent(BaseModel):
+class ColumnContent(PackModel):
     """One column of a column list.
 
     API Reference: https://developers.notion.com/reference/block#column-list-and-column
@@ -361,14 +362,14 @@ class ColumnContent(BaseModel):
     )
 
 
-class ColumnListContent(BaseModel):
+class ColumnListContent(PackModel):
     """A row of side-by-side columns.
 
     API Reference: https://developers.notion.com/reference/block#column-list-and-column
     """
 
 
-class SyncedBlockContent(BaseModel):
+class SyncedBlockContent(PackModel):
     """Content that appears in more than one place and stays in step.
 
     ``synced_from`` decides which half this is: ``null`` makes this the
@@ -387,7 +388,7 @@ class SyncedBlockContent(BaseModel):
     )
 
 
-class TabContent(BaseModel):
+class TabContent(PackModel):
     """A set of tabs, whose children are the tabs themselves.
 
     Each child is a ``paragraph`` block: its rich text is the tab's label and
@@ -397,7 +398,7 @@ class TabContent(BaseModel):
     """
 
 
-class MediaContent(BaseModel):
+class MediaContent(PackModel):
     """A file Notion embeds — an image, a video, an audio clip, a PDF or a file.
 
     Either link to it with ``external`` or attach an upload with
@@ -443,7 +444,7 @@ class FileBlockContent(MediaContent):
     )
 
 
-class CodeContent(BaseModel):
+class CodeContent(PackModel):
     """A code block.
 
     API Reference: https://developers.notion.com/reference/block#code
@@ -456,7 +457,7 @@ class CodeContent(BaseModel):
     )
 
 
-class EquationBlockContent(BaseModel):
+class EquationBlockContent(PackModel):
     """A standalone LaTeX equation, as its own block.
 
     Distinct from an inline equation, which is a rich text run.
@@ -467,7 +468,7 @@ class EquationBlockContent(BaseModel):
     expression: str = Field(..., description="A KaTeX compatible string.")
 
 
-class BookmarkContent(BaseModel):
+class BookmarkContent(PackModel):
     """A link rendered as a bookmark card.
 
     API Reference: https://developers.notion.com/reference/block#bookmark
@@ -479,7 +480,7 @@ class BookmarkContent(BaseModel):
     )
 
 
-class EmbedContent(BaseModel):
+class EmbedContent(PackModel):
     """Third-party content rendered inline.
 
     API Reference: https://developers.notion.com/reference/block#embed
@@ -503,7 +504,7 @@ class EmbedContent(BaseModel):
         return self
 
 
-class TableOfContentsContent(BaseModel):
+class TableOfContentsContent(PackModel):
     """A table of contents, built from the page's headings.
 
     API Reference: https://developers.notion.com/reference/block#table-of-contents
@@ -512,14 +513,14 @@ class TableOfContentsContent(BaseModel):
     color: Optional[NotionColor] = Field(None, description="The color of the block.")
 
 
-class EmptyContent(BaseModel):
+class EmptyContent(PackModel):
     """A block with no content of its own — a divider or a breadcrumb.
 
     API Reference: https://developers.notion.com/reference/block#divider
     """
 
 
-class LinkToPageContent(BaseModel):
+class LinkToPageContent(PackModel):
     """A link to another page, database or comment in the workspace.
 
     API Reference: https://developers.notion.com/reference/block#link-to-page
@@ -537,7 +538,7 @@ class LinkToPageContent(BaseModel):
         return exactly_one_of(self, "type", ("page_id", "database_id", "comment_id"))
 
 
-class TableRowContent(BaseModel):
+class TableRowContent(PackModel):
     """One row of a table.
 
     API Reference: https://developers.notion.com/reference/block#table-row
@@ -552,7 +553,7 @@ class TableRowContent(BaseModel):
     )
 
 
-class ChildPageContent(BaseModel):
+class ChildPageContent(PackModel):
     """A subpage, as it appears in its parent's content.
 
     Returned by a read. Create a subpage through the pages endpoint with this
@@ -564,7 +565,7 @@ class ChildPageContent(BaseModel):
     title: Optional[str] = Field(None, description="The page's title.")
 
 
-class ChildDatabaseContent(BaseModel):
+class ChildDatabaseContent(PackModel):
     """An inline database, as it appears in its parent's content.
 
     Returned by a read. Create one through the databases endpoint.
@@ -575,7 +576,7 @@ class ChildDatabaseContent(BaseModel):
     title: Optional[str] = Field(None, description="The database's title.")
 
 
-class LinkPreviewContent(BaseModel):
+class LinkPreviewContent(PackModel):
     """A rich preview of a third-party link.
 
     Returned, never accepted: Notion builds a link preview itself when someone
@@ -587,7 +588,7 @@ class LinkPreviewContent(BaseModel):
     url: Optional[str] = Field(None, description="The previewed link.")
 
 
-class UnsupportedContent(BaseModel):
+class UnsupportedContent(PackModel):
     """A block whose type the API does not model.
 
     API Reference: https://developers.notion.com/reference/block#unsupported
@@ -599,7 +600,7 @@ class UnsupportedContent(BaseModel):
 # -----------------------------------------------------
 
 
-class _BlockCommon(BaseModel):
+class _BlockCommon(PackModel):
     """What every block carries, whatever tier it sits at.
 
     The content fields themselves are declared per tier, since which kinds of

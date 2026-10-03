@@ -21,10 +21,11 @@ from __future__ import annotations
 
 from typing import Annotated, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.packs.notion.types.common import PaginatedQuery
 from charter.types import Body, Path, Query
+from charter.types.model import PackModel
 
 __all__ = [
     "FileUploadsCreateRequest",
@@ -36,7 +37,7 @@ __all__ = [
 FILE_UPLOAD_ID = "The ID of the file upload."
 
 
-class FileUploadCreateBody(BaseModel):
+class FileUploadCreateBody(PackModel):
     """The body of a create-file-upload request.
 
     Which fields are required depends on ``mode``:
@@ -105,7 +106,7 @@ class FileUploadCreateBody(BaseModel):
         return self
 
 
-class FileUploadsCreateRequest(BaseModel):
+class FileUploadsCreateRequest(PackModel):
     """Start a file upload.
 
     API Reference: https://developers.notion.com/reference/create-a-file-upload
@@ -121,7 +122,7 @@ class FileUploadsCreateRequest(BaseModel):
     ]
 
 
-class FileUploadsCompleteRequest(BaseModel):
+class FileUploadsCompleteRequest(PackModel):
     """Finish a multi-part upload, once every part has been sent.
 
     Only multi-part uploads need this. A single-part upload is complete when its
@@ -133,7 +134,7 @@ class FileUploadsCompleteRequest(BaseModel):
     file_upload_id: Annotated[str, Field(..., description=FILE_UPLOAD_ID), Path()]
 
 
-class FileUploadsRetrieveRequest(BaseModel):
+class FileUploadsRetrieveRequest(PackModel):
     """Retrieve a file upload, including its status.
 
     Worth polling after an `external_url` import: the upload is only attachable

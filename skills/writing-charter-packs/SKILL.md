@@ -111,6 +111,14 @@ Write the schema to match the documentation, not to be convenient:
   constraint first: `ge`/`le`/`pattern` and `ConflictsWith` are checked, and a
   gloss is only read.
 - Include the API reference URL in each model's docstring.
+- **Declare every model on `PackModel` (`charter.types.model`), not pydantic's
+  `BaseModel`.** It is built the first time it is used rather than when the pack
+  is imported, so a server serving five of your tools does not pay for the other
+  hundred. Where models refer to classes defined after them, end the module with
+  `resolve_forward_refs(A, B, ...)` rather than `A.model_rebuild()`: it rebuilds
+  only the models whose fields did not resolve, where `model_rebuild()` builds
+  every one in full. `test_every_pack_model_is_built_on_first_use` refuses a pack
+  model declared on `BaseModel`.
 
 **"This parameter cannot accompany that one" is a marker, not a validator.**
 Written as a validator the rule needs a list of the fields it covers, which is a

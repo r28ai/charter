@@ -533,7 +533,7 @@ run yourself that decides what goes out.
 
 A declaration can be wrong in a way no per-tool test notices: the call returns 200, the
 suite stays green, and the filter you declared was silently discarded on the way out. So
-nineteen properties that must hold for *every* pack are checked separately, without
+twenty properties that must hold for *every* pack are checked separately, without
 knowing anything about any particular API, and each one also runs against a pack broken
 on purpose in the specific way the bug it guards against broke it. Most were written
 after a bug rather than before one: four packs added in a single week produced six, five

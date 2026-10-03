@@ -15,10 +15,11 @@ from __future__ import annotations
 
 from typing import Annotated, List, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.packs.notion.types.common import PaginatedQuery, Parent, RichText
 from charter.types import Body, ConflictsWith, Path, Query
+from charter.types.model import PackModel
 
 __all__ = [
     "CommentsCreateRequest",
@@ -37,7 +38,7 @@ MARKDOWN = (
 )
 
 
-class CommentAttachment(BaseModel):
+class CommentAttachment(PackModel):
     """A file attached to a comment.
 
     API Reference: https://developers.notion.com/reference/create-a-comment
@@ -49,7 +50,7 @@ class CommentAttachment(BaseModel):
     type: Optional[Literal["file_upload"]] = Field(None, description="Always `file_upload`.")
 
 
-class CustomDisplayName(BaseModel):
+class CustomDisplayName(PackModel):
     """The name a custom-attributed comment is shown under.
 
     API Reference: https://developers.notion.com/reference/create-a-comment
@@ -58,7 +59,7 @@ class CustomDisplayName(BaseModel):
     name: str = Field(..., description="The display name to use.")
 
 
-class DisplayName(BaseModel):
+class DisplayName(PackModel):
     """Who the comment appears to be from.
 
     API Reference: https://developers.notion.com/reference/create-a-comment
@@ -84,7 +85,7 @@ class DisplayName(BaseModel):
         return self
 
 
-class CommentCreateBody(BaseModel):
+class CommentCreateBody(PackModel):
     """The body of a create-comment request.
 
     Either start a discussion — `parent` naming a page or block — or reply to
@@ -132,7 +133,7 @@ class CommentCreateBody(BaseModel):
         return self
 
 
-class CommentsCreateRequest(BaseModel):
+class CommentsCreateRequest(PackModel):
     """Add a comment to a page or block, or reply in a discussion.
 
     API Reference: https://developers.notion.com/reference/create-a-comment
@@ -157,7 +158,7 @@ class CommentsListRequest(PaginatedQuery):
     ]
 
 
-class CommentsRetrieveRequest(BaseModel):
+class CommentsRetrieveRequest(PackModel):
     """Retrieve a single comment.
 
     API Reference: https://developers.notion.com/reference/retrieve-comment
@@ -166,7 +167,7 @@ class CommentsRetrieveRequest(BaseModel):
     comment_id: Annotated[str, Field(..., description=COMMENT_ID), Path()]
 
 
-class CommentUpdateBody(BaseModel):
+class CommentUpdateBody(PackModel):
     """The body of an update-comment request.
 
     API Reference: https://developers.notion.com/reference/update-a-comment
@@ -180,7 +181,7 @@ class CommentUpdateBody(BaseModel):
     markdown: Optional[str] = Field(None, description=MARKDOWN)
 
 
-class CommentsUpdateRequest(BaseModel):
+class CommentsUpdateRequest(PackModel):
     """Edit a comment's content.
 
     API Reference: https://developers.notion.com/reference/update-a-comment
@@ -190,7 +191,7 @@ class CommentsUpdateRequest(BaseModel):
     body: Annotated[CommentUpdateBody, Field(..., description="The new content."), Body()]
 
 
-class CommentsDeleteRequest(BaseModel):
+class CommentsDeleteRequest(PackModel):
     """Delete a comment.
 
     API Reference: https://developers.notion.com/reference/delete-a-comment

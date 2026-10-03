@@ -5,9 +5,10 @@ from __future__ import annotations
 
 from typing import Annotated, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Format, Mode
+from charter.types.model import PackModel, resolve_forward_refs
 
 # Gmail's shared `Format` enum, which `users.messages.get` and `users.drafts.get`
 # both take. It is spelled `MessageFormat` here because `Format` in this module
@@ -16,7 +17,7 @@ from charter.types import Format, Mode
 MessageFormat = Literal["minimal", "full", "raw", "metadata"]
 
 
-class Header(BaseModel):
+class Header(PackModel):
     """A single header within an RFC-822 message part.
 
     API Reference: https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages#MessagePart
@@ -31,7 +32,7 @@ class Header(BaseModel):
     )
 
 
-class MessagePartBody(BaseModel):
+class MessagePartBody(PackModel):
     """
     The body of a single MIME message part.
 
@@ -74,7 +75,7 @@ class MessagePartBody(BaseModel):
     ]
 
 
-class MessagePart(BaseModel):
+class MessagePart(PackModel):
     """A single MIME message part."""
 
     partId: Annotated[
@@ -135,10 +136,10 @@ class MessagePart(BaseModel):
     ]
 
 
-MessagePart.model_rebuild()
+resolve_forward_refs(MessagePart)
 
 
-class ClassificationLabelFieldValue(BaseModel):
+class ClassificationLabelFieldValue(PackModel):
     """
     Field values for a classification label.
 
@@ -155,7 +156,7 @@ class ClassificationLabelFieldValue(BaseModel):
     )
 
 
-class ClassificationLabelValue(BaseModel):
+class ClassificationLabelValue(PackModel):
     """
     Classification Labels applied to the email message. Classification Labels are different from Gmail inbox labels.
     Only used for Google Workspace accounts. Learn more about classification labels: https://support.google.com/a/answer/9292382.
@@ -172,7 +173,7 @@ class ClassificationLabelValue(BaseModel):
     )
 
 
-class ListMessagesResponse(BaseModel):
+class ListMessagesResponse(PackModel):
     """
     Response model for users.messages.list.
 
@@ -199,7 +200,7 @@ class ListMessagesResponse(BaseModel):
     ]
 
 
-class Message(BaseModel):
+class Message(PackModel):
     """
     An email message.
 
@@ -283,4 +284,4 @@ class Message(BaseModel):
     ]
 
 
-ListMessagesResponse.model_rebuild()
+resolve_forward_refs(ListMessagesResponse)

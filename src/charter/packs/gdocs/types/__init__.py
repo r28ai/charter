@@ -14,10 +14,11 @@ from __future__ import annotations
 
 from typing import Annotated, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.gdocs.types.requests import Request
 from charter.types import Body, Path, Query
+from charter.types.model import PackModel
 
 __all__ = [
     "Request",
@@ -43,7 +44,7 @@ API Reference: https://developers.google.com/workspace/docs/api/reference/rest/v
 """
 
 
-class WriteControl(BaseModel):
+class WriteControl(PackModel):
     """Optimistic concurrency for a batch update.
 
     Set ``required_revision_id`` to make the write conditional: if the document
@@ -73,7 +74,7 @@ class WriteControl(BaseModel):
     )
 
 
-class DocumentsGetRequest(BaseModel):
+class DocumentsGetRequest(PackModel):
     """Fetch a document's content.
 
     API Reference: https://developers.google.com/workspace/docs/api/reference/rest/v1/documents/get
@@ -116,7 +117,7 @@ class DocumentsGetRequest(BaseModel):
     ]
 
 
-class DocumentsCreateBody(BaseModel):
+class DocumentsCreateBody(PackModel):
     """The body of a create-document request.
 
     Only ``title`` is honoured. Google's own reference is explicit about this:
@@ -137,7 +138,7 @@ class DocumentsCreateBody(BaseModel):
     )
 
 
-class DocumentsCreateRequest(BaseModel):
+class DocumentsCreateRequest(PackModel):
     """Create a blank document.
 
     API Reference: https://developers.google.com/workspace/docs/api/reference/rest/v1/documents/create
@@ -153,7 +154,7 @@ class DocumentsCreateRequest(BaseModel):
     ]
 
 
-class BatchUpdateBody(BaseModel):
+class BatchUpdateBody(PackModel):
     """The body of a batch-update request.
 
     API Reference: https://developers.google.com/workspace/docs/api/reference/rest/v1/documents/batchUpdate
@@ -178,7 +179,7 @@ class BatchUpdateBody(BaseModel):
     )
 
 
-class DocumentsBatchUpdateRequest(BaseModel):
+class DocumentsBatchUpdateRequest(PackModel):
     """Apply a list of edits to a document.
 
     API Reference: https://developers.google.com/workspace/docs/api/reference/rest/v1/documents/batchUpdate

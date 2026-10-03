@@ -10,10 +10,11 @@ from __future__ import annotations
 
 from typing import Annotated, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.firecrawl.types.common import ScrapeOptionsMixin, Webhook
 from charter.types import Body, Path, WireName
+from charter.types.model import PackModel
 
 __all__ = [
     "BatchScrapeRequest",
@@ -63,7 +64,7 @@ class BatchScrapeRequest(ScrapeOptionsMixin):
     ]
 
 
-class BatchScrapeStatusRequest(BaseModel):
+class BatchScrapeStatusRequest(PackModel):
     """Get the status of a batch scrape job.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/batch-scrape-get
@@ -72,7 +73,7 @@ class BatchScrapeStatusRequest(BaseModel):
     id: Annotated[str, Field(..., description="The ID of the batch scrape job"), Path()]
 
 
-class BatchScrapeCancelRequest(BaseModel):
+class BatchScrapeCancelRequest(PackModel):
     """Cancel a batch scrape job.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/batch-scrape-delete
@@ -81,7 +82,7 @@ class BatchScrapeCancelRequest(BaseModel):
     id: Annotated[str, Field(..., description="The ID of the batch scrape job"), Path()]
 
 
-class BatchScrapeErrorsRequest(BaseModel):
+class BatchScrapeErrorsRequest(PackModel):
     """Get errors from a batch scrape job.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/batch-scrape-get-errors

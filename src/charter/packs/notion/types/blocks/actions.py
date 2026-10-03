@@ -11,11 +11,12 @@ from __future__ import annotations
 
 from typing import Annotated, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.notion.types.blocks.models import Block, BlockColumnListContent
 from charter.packs.notion.types.common import PaginatedQuery, Position
 from charter.types import Body, Mode, Path
+from charter.types.model import PackModel
 
 __all__ = [
     "BlocksRetrieveRequest",
@@ -31,7 +32,7 @@ BLOCK_OR_PAGE_ID = (
 )
 
 
-class BlocksRetrieveRequest(BaseModel):
+class BlocksRetrieveRequest(PackModel):
     """Retrieve a block.
 
     API Reference: https://developers.notion.com/reference/retrieve-a-block
@@ -77,7 +78,7 @@ class BlockUpdateBody(Block):
     ]
 
 
-class BlocksUpdateRequest(BaseModel):
+class BlocksUpdateRequest(PackModel):
     """Update a block's content, or trash and restore it.
 
     API Reference: https://developers.notion.com/reference/update-a-block
@@ -87,7 +88,7 @@ class BlocksUpdateRequest(BaseModel):
     body: Annotated[BlockUpdateBody, Field(..., description="The content to replace."), Body()]
 
 
-class BlocksDeleteRequest(BaseModel):
+class BlocksDeleteRequest(PackModel):
     """Move a block to the trash.
 
     A soft delete: the block comes back with `in_trash` true and can be restored
@@ -111,7 +112,7 @@ class BlocksChildrenListRequest(PaginatedQuery):
     block_id: Annotated[str, Field(..., description=BLOCK_OR_PAGE_ID), Path()]
 
 
-class BlockChildrenAppendBody(BaseModel):
+class BlockChildrenAppendBody(PackModel):
     """The body of an append-children request.
 
     API Reference: https://developers.notion.com/reference/patch-block-children
@@ -134,7 +135,7 @@ class BlockChildrenAppendBody(BaseModel):
     )
 
 
-class BlocksChildrenAppendRequest(BaseModel):
+class BlocksChildrenAppendRequest(PackModel):
     """Append blocks to a block or a page.
 
     Append-only: this cannot move or reorder blocks that are already there.

@@ -306,8 +306,10 @@ def _check_schema_resolvable(
 
     A model whose annotations name something not in scope — a forward reference
     to a class that was renamed, a ``model_rebuild()`` the pack forgot — is left
-    by pydantic with ``__pydantic_complete__`` False, and it stays usable enough
-    to declare a tool with and unusable the moment anything asks for a schema.
+    by pydantic with its fields unresolved, and it stays usable enough to declare
+    a tool with and unusable the moment anything asks for a schema. Resolved
+    fields are the test, not a built model: a :class:`~charter.types.model.PackModel`
+    is built on first use, so at declaration it is unbuilt and still sound.
     That is the shape that once left 17 Linear tools unable to emit a schema at
     all, and it is cheap to see coming: walking the source models is a read of
     ``model_fields`` per model on the *graph*, where each appears once — 6.5ms
@@ -320,10 +322,11 @@ def _check_schema_resolvable(
     check is per tool, and a pack whose tools share a large graph pays for it
     once each: Linear's 145 tools re-walk the same filter graph and it comes to
     208ms rather than 6.5ms. Entries hold the class, so the id they are keyed by
-    cannot be recycled — and they never need invalidating, because
-    ``__pydantic_complete__`` only ever goes False to True.
+    cannot be recycled — and they never need invalidating, because resolved
+    fields only ever go from False to True.
     """
     from charter.types.errors import DeclarationError
+    from charter.types.model import fields_resolved
 
     stack: List[Type[BaseModel]] = [args_schema]
     # id -> the class, so an entry keeps alive the object its key is the address
@@ -335,7 +338,7 @@ def _check_schema_resolvable(
         if key in seen or (verified is not None and key in verified):
             continue
         seen[key] = model
-        if not getattr(model, "__pydantic_complete__", True):
+        if not fields_resolved(model):
             raise DeclarationError(
                 f"{name}: {model.__name__} cannot resolve its own annotations, so "
                 f"no view of this tool can be built. A forward reference names "

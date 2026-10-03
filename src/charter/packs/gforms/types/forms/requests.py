@@ -21,11 +21,12 @@ from __future__ import annotations
 
 from typing import Annotated, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
 
 from charter.execution.schema import partial_of
 from charter.packs.gforms.types.forms.models import FormSettings, Info, Item
 from charter.types import ConflictsWith, FieldMask, Format
+from charter.types.model import PackModel
 
 __all__ = [
     "Location",
@@ -50,7 +51,7 @@ _REQUEST_KINDS = (
 )
 
 
-class Location(BaseModel):
+class Location(PackModel):
     """A specific location in a form.
 
     ``index`` is the sole member of the required ``where`` union, so it is
@@ -85,7 +86,7 @@ class Location(BaseModel):
 UpdateFormInfo = partial_of(Info, name="UpdateFormInfo")
 
 
-class UpdateFormInfoRequest(BaseModel):
+class UpdateFormInfoRequest(PackModel):
     """Update Form's Info.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms/batchUpdate#UpdateFormInfoRequest
@@ -110,7 +111,7 @@ class UpdateFormInfoRequest(BaseModel):
     ]
 
 
-class UpdateSettingsRequest(BaseModel):
+class UpdateSettingsRequest(PackModel):
     """Update Form's ``FormSettings``.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms/batchUpdate#UpdateSettingsRequest
@@ -135,7 +136,7 @@ class UpdateSettingsRequest(BaseModel):
     ]
 
 
-class CreateItemRequest(BaseModel):
+class CreateItemRequest(PackModel):
     """Create an item in a form.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms/batchUpdate#CreateItemRequest
@@ -151,7 +152,7 @@ class CreateItemRequest(BaseModel):
     )
 
 
-class MoveItemRequest(BaseModel):
+class MoveItemRequest(PackModel):
     """Move an item in a form.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms/batchUpdate#MoveItemRequest
@@ -167,7 +168,7 @@ class MoveItemRequest(BaseModel):
     )
 
 
-class DeleteItemRequest(BaseModel):
+class DeleteItemRequest(PackModel):
     """Delete an item in a form.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms/batchUpdate#DeleteItemRequest
@@ -179,7 +180,7 @@ class DeleteItemRequest(BaseModel):
     )
 
 
-class UpdateItemRequest(BaseModel):
+class UpdateItemRequest(PackModel):
     """Update an item in a form.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms/batchUpdate#UpdateItemRequest
@@ -214,7 +215,7 @@ class UpdateItemRequest(BaseModel):
     ]
 
 
-class WriteControl(BaseModel):
+class WriteControl(PackModel):
     """Provides control over how write requests are executed.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms/batchUpdate#WriteControl
@@ -257,7 +258,7 @@ class WriteControl(BaseModel):
     ] = None
 
 
-class Request(BaseModel):
+class Request(PackModel):
     """The kinds of update requests that can be made.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms/batchUpdate#Request

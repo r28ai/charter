@@ -10,9 +10,10 @@ from __future__ import annotations
 
 from typing import Annotated, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Body, Path
+from charter.types.model import PackModel
 
 __all__ = [
     "ScrapeInteractRequest",
@@ -20,7 +21,7 @@ __all__ = [
 ]
 
 
-class ScrapeInteractRequest(BaseModel):
+class ScrapeInteractRequest(PackModel):
     """Execute code in the browser sandbox associated with a scrape job.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/scrape-interact
@@ -62,7 +63,7 @@ class ScrapeInteractRequest(BaseModel):
     ]
 
 
-class ScrapeInteractStopRequest(BaseModel):
+class ScrapeInteractStopRequest(PackModel):
     """Stop the interactive browser session associated with a scrape job.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/scrape-interact-delete

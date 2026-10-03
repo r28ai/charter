@@ -11,10 +11,11 @@ from __future__ import annotations
 
 from typing import Annotated, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.execution.schema import partial_of
 from charter.types import Body, Mode, Path, Query
+from charter.types.model import PackModel
 
 from .._shared import (
     FILE_OR_DRIVE_ID,
@@ -50,7 +51,7 @@ PAGE_SIZE = (
 REMOVE_EXPIRATION = "Whether to remove the expiration date."
 
 
-class PermissionsCreateRequest(BaseModel):
+class PermissionsCreateRequest(PackModel):
     """
     Creates a permission for a file or shared drive.
 
@@ -98,7 +99,7 @@ class PermissionsCreateRequest(BaseModel):
         return self
 
 
-class PermissionsListRequest(BaseModel):
+class PermissionsListRequest(PackModel):
     """
     Lists a file's or shared drive's permissions.
 
@@ -116,7 +117,7 @@ class PermissionsListRequest(BaseModel):
     supports_team_drives: SupportsTeamDrives = None
 
 
-class PermissionsGetRequest(BaseModel):
+class PermissionsGetRequest(PackModel):
     """
     Gets a permission by ID.
 
@@ -144,7 +145,7 @@ PatchPermission = partial_of(
 )
 
 
-class PermissionsUpdateRequest(BaseModel):
+class PermissionsUpdateRequest(PackModel):
     """
     Updates a permission with patch semantics.
 
@@ -177,7 +178,7 @@ class PermissionsUpdateRequest(BaseModel):
     enforce_expansive_access: EnforceExpansiveAccess = None
 
 
-class PermissionsDeleteRequest(BaseModel):
+class PermissionsDeleteRequest(PackModel):
     """
     Deletes a permission.
 

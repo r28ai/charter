@@ -19,11 +19,12 @@ from __future__ import annotations
 
 from typing import Annotated, List, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.packs.linear.types.common import PageVariables, PaginationOrderBy
 from charter.packs.linear.types.filters import CustomerFilter, CustomerNeedFilter
 from charter.types import Body
+from charter.types.model import PackModel
 
 __all__ = [
     "CustomersListRequest",
@@ -54,7 +55,7 @@ class CustomersListVariables(PageVariables):
     )
 
 
-class CustomersListRequest(BaseModel):
+class CustomersListRequest(PackModel):
     """List customers."""
 
     variables: Annotated[
@@ -64,13 +65,13 @@ class CustomersListRequest(BaseModel):
     ]
 
 
-class CustomerGetVariables(BaseModel):
+class CustomerGetVariables(PackModel):
     """Variables for the ``customer`` query."""
 
     id: str = Field(..., description="The customer's UUID.")
 
 
-class CustomerGetRequest(BaseModel):
+class CustomerGetRequest(PackModel):
     """Get one customer."""
 
     variables: Annotated[
@@ -80,7 +81,7 @@ class CustomerGetRequest(BaseModel):
     ]
 
 
-class CustomerCreateInput(BaseModel):
+class CustomerCreateInput(PackModel):
     """The input to ``customerCreate``."""
 
     name: str = Field(..., description="The name of the customer.")
@@ -120,13 +121,13 @@ class CustomerCreateInput(BaseModel):
     )
 
 
-class CustomerCreateVariables(BaseModel):
+class CustomerCreateVariables(PackModel):
     """Variables for the ``customerCreate`` mutation."""
 
     input: CustomerCreateInput = Field(..., description="The customer to create.")
 
 
-class CustomerCreateRequest(BaseModel):
+class CustomerCreateRequest(PackModel):
     """Create a customer."""
 
     variables: Annotated[
@@ -136,7 +137,7 @@ class CustomerCreateRequest(BaseModel):
     ]
 
 
-class CustomerUpdateInput(BaseModel):
+class CustomerUpdateInput(PackModel):
     """The fields ``customerUpdate`` changes. All optional."""
 
     name: Optional[str] = Field(None, description="The name of the customer.")
@@ -178,14 +179,14 @@ class CustomerUpdateInput(BaseModel):
         return self
 
 
-class CustomerUpdateVariables(BaseModel):
+class CustomerUpdateVariables(PackModel):
     """Variables for the ``customerUpdate`` mutation."""
 
     id: str = Field(..., description="The customer's UUID.")
     input: CustomerUpdateInput = Field(..., description="The fields to change.")
 
 
-class CustomerUpdateRequest(BaseModel):
+class CustomerUpdateRequest(PackModel):
     """Update a customer."""
 
     variables: Annotated[
@@ -195,13 +196,13 @@ class CustomerUpdateRequest(BaseModel):
     ]
 
 
-class CustomerDeleteVariables(BaseModel):
+class CustomerDeleteVariables(PackModel):
     """Variables for the ``customerDelete`` mutation."""
 
     id: str = Field(..., description="The customer's UUID.")
 
 
-class CustomerDeleteRequest(BaseModel):
+class CustomerDeleteRequest(PackModel):
     """Delete a customer."""
 
     variables: Annotated[
@@ -225,7 +226,7 @@ class CustomerNeedsListVariables(PageVariables):
     )
 
 
-class CustomerNeedsListRequest(BaseModel):
+class CustomerNeedsListRequest(PackModel):
     """List customer requests."""
 
     variables: Annotated[
@@ -235,7 +236,7 @@ class CustomerNeedsListRequest(BaseModel):
     ]
 
 
-class CustomerNeedCreateInput(BaseModel):
+class CustomerNeedCreateInput(PackModel):
     """The input to ``customerNeedCreate``.
 
     The customer is named by UUID or by the id it carries in an external system;
@@ -289,13 +290,13 @@ class CustomerNeedCreateInput(BaseModel):
         return self
 
 
-class CustomerNeedCreateVariables(BaseModel):
+class CustomerNeedCreateVariables(PackModel):
     """Variables for the ``customerNeedCreate`` mutation."""
 
     input: CustomerNeedCreateInput = Field(..., description="The request to record.")
 
 
-class CustomerNeedCreateRequest(BaseModel):
+class CustomerNeedCreateRequest(PackModel):
     """Record a customer request."""
 
     variables: Annotated[
@@ -305,7 +306,7 @@ class CustomerNeedCreateRequest(BaseModel):
     ]
 
 
-class CustomerNeedUpdateInput(BaseModel):
+class CustomerNeedUpdateInput(PackModel):
     """The fields ``customerNeedUpdate`` changes. All optional."""
 
     body: Optional[str] = Field(None, description="The content of the need in markdown format.")
@@ -364,14 +365,14 @@ class CustomerNeedUpdateInput(BaseModel):
         return self
 
 
-class CustomerNeedUpdateVariables(BaseModel):
+class CustomerNeedUpdateVariables(PackModel):
     """Variables for the ``customerNeedUpdate`` mutation."""
 
     id: str = Field(..., description="The request's UUID.")
     input: CustomerNeedUpdateInput = Field(..., description="The fields to change.")
 
 
-class CustomerNeedUpdateRequest(BaseModel):
+class CustomerNeedUpdateRequest(PackModel):
     """Update a customer request."""
 
     variables: Annotated[
@@ -381,13 +382,13 @@ class CustomerNeedUpdateRequest(BaseModel):
     ]
 
 
-class CustomerNeedDeleteVariables(BaseModel):
+class CustomerNeedDeleteVariables(PackModel):
     """Variables for the ``customerNeedDelete`` mutation."""
 
     id: str = Field(..., description="The request's UUID.")
 
 
-class CustomerNeedDeleteRequest(BaseModel):
+class CustomerNeedDeleteRequest(PackModel):
     """Delete a customer request."""
 
     variables: Annotated[
@@ -397,7 +398,7 @@ class CustomerNeedDeleteRequest(BaseModel):
     ]
 
 
-class CustomerStatusesListRequest(BaseModel):
+class CustomerStatusesListRequest(PackModel):
     """List the statuses a customer can be in."""
 
     variables: Annotated[
@@ -407,7 +408,7 @@ class CustomerStatusesListRequest(BaseModel):
     ]
 
 
-class CustomerTiersListRequest(BaseModel):
+class CustomerTiersListRequest(PackModel):
     """List the tiers a customer can be assigned to."""
 
     variables: Annotated[

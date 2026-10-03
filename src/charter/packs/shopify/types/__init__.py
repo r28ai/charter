@@ -27,9 +27,10 @@ from __future__ import annotations
 from typing import Annotated, Any, Dict, List, Literal, Optional
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.types import Body, Gloss
+from charter.types.model import PackModel
 
 __all__ = [
     "ShopGetRequest",
@@ -102,7 +103,7 @@ CustomerSortKeys = Literal["CREATED_AT", "ID", "LOCATION", "NAME", "RELEVANCE", 
 _GID = "A Shopify global ID, of the form `gid://shopify/{kind}/1234567890`."
 
 
-class ConnectionVariables(BaseModel):
+class ConnectionVariables(PackModel):
     """The arguments every Shopify connection accepts.
 
     API Reference: https://shopify.dev/docs/api/usage/pagination-graphql
@@ -131,11 +132,11 @@ class ConnectionVariables(BaseModel):
 # -----------------------------------------------------
 
 
-class ShopGetVariables(BaseModel):
+class ShopGetVariables(PackModel):
     """``shop`` takes no arguments."""
 
 
-class ShopGetRequest(BaseModel):
+class ShopGetRequest(PackModel):
     """Get the store's own details."""
 
     variables: Annotated[
@@ -169,7 +170,7 @@ class ProductsListVariables(ConnectionVariables):
     )
 
 
-class ProductsListRequest(BaseModel):
+class ProductsListRequest(PackModel):
     """List products."""
 
     variables: Annotated[
@@ -179,13 +180,13 @@ class ProductsListRequest(BaseModel):
     ]
 
 
-class ProductGetVariables(BaseModel):
+class ProductGetVariables(PackModel):
     """Variables for the ``product`` query."""
 
     id: str = Field(..., description=_GID.format(kind="Product"))
 
 
-class ProductGetRequest(BaseModel):
+class ProductGetRequest(PackModel):
     """Get one product, with its variants."""
 
     variables: Annotated[
@@ -195,7 +196,7 @@ class ProductGetRequest(BaseModel):
     ]
 
 
-class ProductCreateInput(BaseModel):
+class ProductCreateInput(PackModel):
     """The input to ``productCreate``.
 
     Note that Shopify creates products unpublished: a new product is not visible
@@ -224,7 +225,7 @@ class ProductCreateInput(BaseModel):
     )
 
 
-class ProductCreateVariables(BaseModel):
+class ProductCreateVariables(PackModel):
     """Variables for the ``productCreate`` mutation.
 
     The argument is named ``product``, not ``input`` — Shopify renamed it, and
@@ -234,7 +235,7 @@ class ProductCreateVariables(BaseModel):
     product: ProductCreateInput = Field(..., description="The product to create.")
 
 
-class ProductCreateRequest(BaseModel):
+class ProductCreateRequest(PackModel):
     """Create a product."""
 
     variables: Annotated[
@@ -244,7 +245,7 @@ class ProductCreateRequest(BaseModel):
     ]
 
 
-class ProductUpdateInput(BaseModel):
+class ProductUpdateInput(PackModel):
     """The input to ``productUpdate``. Only ``id`` is required.
 
     API Reference: https://shopify.dev/docs/api/admin-graphql/latest/mutations/productUpdate
@@ -274,13 +275,13 @@ class ProductUpdateInput(BaseModel):
         return self
 
 
-class ProductUpdateVariables(BaseModel):
+class ProductUpdateVariables(PackModel):
     """Variables for the ``productUpdate`` mutation."""
 
     product: ProductUpdateInput = Field(..., description="The product changes.")
 
 
-class ProductUpdateRequest(BaseModel):
+class ProductUpdateRequest(PackModel):
     """Update a product."""
 
     variables: Annotated[
@@ -324,7 +325,7 @@ class OrdersListVariables(ConnectionVariables):
     )
 
 
-class OrdersListRequest(BaseModel):
+class OrdersListRequest(PackModel):
     """List orders."""
 
     variables: Annotated[
@@ -334,13 +335,13 @@ class OrdersListRequest(BaseModel):
     ]
 
 
-class OrderGetVariables(BaseModel):
+class OrderGetVariables(PackModel):
     """Variables for the ``order`` query."""
 
     id: str = Field(..., description=_GID.format(kind="Order"))
 
 
-class OrderGetRequest(BaseModel):
+class OrderGetRequest(PackModel):
     """Get one order, with its line items and shipping address."""
 
     variables: Annotated[
@@ -373,7 +374,7 @@ class CustomersListVariables(ConnectionVariables):
     )
 
 
-class CustomersListRequest(BaseModel):
+class CustomersListRequest(PackModel):
     """List customers."""
 
     variables: Annotated[
@@ -383,13 +384,13 @@ class CustomersListRequest(BaseModel):
     ]
 
 
-class CustomerGetVariables(BaseModel):
+class CustomerGetVariables(PackModel):
     """Variables for the ``customer`` query."""
 
     id: str = Field(..., description=_GID.format(kind="Customer"))
 
 
-class CustomerGetRequest(BaseModel):
+class CustomerGetRequest(PackModel):
     """Get one customer, with lifetime spend and default address."""
 
     variables: Annotated[
@@ -399,7 +400,7 @@ class CustomerGetRequest(BaseModel):
     ]
 
 
-class CustomerInput(BaseModel):
+class CustomerInput(PackModel):
     """The input to ``customerCreate``.
 
     API Reference: https://shopify.dev/docs/api/admin-graphql/latest/mutations/customerCreate
@@ -428,13 +429,13 @@ class CustomerInput(BaseModel):
         return self
 
 
-class CustomerCreateVariables(BaseModel):
+class CustomerCreateVariables(PackModel):
     """Variables for the ``customerCreate`` mutation."""
 
     input: CustomerInput = Field(..., description="The customer to create.")
 
 
-class CustomerCreateRequest(BaseModel):
+class CustomerCreateRequest(PackModel):
     """Create a customer."""
 
     variables: Annotated[
@@ -449,7 +450,7 @@ class CustomerCreateRequest(BaseModel):
 # -----------------------------------------------------
 
 
-class CustomerUpdateInput(BaseModel):
+class CustomerUpdateInput(PackModel):
     """The input to ``customerUpdate``.
 
     Not :class:`CustomerInput`, for two reasons that both made the update tool
@@ -476,7 +477,7 @@ class CustomerUpdateInput(BaseModel):
     )
 
 
-class CustomerUpdateVariables(BaseModel):
+class CustomerUpdateVariables(PackModel):
     """Variables for the ``customerUpdate`` mutation."""
 
     input: CustomerUpdateInput = Field(
@@ -484,7 +485,7 @@ class CustomerUpdateVariables(BaseModel):
     )
 
 
-class CustomerUpdateRequest(BaseModel):
+class CustomerUpdateRequest(PackModel):
     """Update a customer."""
 
     variables: Annotated[
@@ -494,14 +495,14 @@ class CustomerUpdateRequest(BaseModel):
     ]
 
 
-class OrderFulfillmentOrdersVariables(BaseModel):
+class OrderFulfillmentOrdersVariables(PackModel):
     """Variables for reading an order's fulfillment orders."""
 
     id: str = Field(..., description="The order's global ID, `gid://shopify/Order/...`.")
     first: int = Field(10, ge=1, le=50, description="How many fulfillment orders to read.")
 
 
-class OrderFulfillmentOrdersRequest(BaseModel):
+class OrderFulfillmentOrdersRequest(PackModel):
     """Resolve an order into the fulfillment orders a fulfillment can name."""
 
     variables: Annotated[
@@ -511,7 +512,7 @@ class OrderFulfillmentOrdersRequest(BaseModel):
     ]
 
 
-class FulfillmentOrderLineItem(BaseModel):
+class FulfillmentOrderLineItem(PackModel):
     """One line of a fulfillment order, when fulfilling it only in part."""
 
     id: str = Field(
@@ -520,7 +521,7 @@ class FulfillmentOrderLineItem(BaseModel):
     quantity: int = Field(..., ge=1, description="How many units to fulfil.")
 
 
-class FulfillmentOrderLineItems(BaseModel):
+class FulfillmentOrderLineItems(PackModel):
     """One fulfillment order, whole or in part.
 
     Omit `fulfillment_order_line_items` and Shopify fulfils the whole fulfillment
@@ -536,7 +537,7 @@ class FulfillmentOrderLineItems(BaseModel):
     )
 
 
-class FulfillmentTracking(BaseModel):
+class FulfillmentTracking(PackModel):
     """Where the customer can follow the parcel."""
 
     company: Optional[str] = Field(None, description="The carrier's name.")
@@ -544,7 +545,7 @@ class FulfillmentTracking(BaseModel):
     url: Optional[str] = Field(None, description="A tracking URL.")
 
 
-class FulfillmentInput(BaseModel):
+class FulfillmentInput(PackModel):
     """What to fulfil, and whether to tell the customer.
 
     Every fulfillment order named here must belong to the same order and be
@@ -563,14 +564,14 @@ class FulfillmentInput(BaseModel):
     )
 
 
-class FulfillmentCreateVariables(BaseModel):
+class FulfillmentCreateVariables(PackModel):
     """Variables for the ``fulfillmentCreate`` mutation."""
 
     fulfillment: FulfillmentInput = Field(..., description="What to fulfil.")
     message: Optional[str] = Field(None, description="A message recorded against the fulfillment.")
 
 
-class FulfillmentCreateRequest(BaseModel):
+class FulfillmentCreateRequest(PackModel):
     """Fulfil one or more fulfillment orders."""
 
     variables: Annotated[
@@ -603,7 +604,7 @@ InventoryAdjustReason = Literal[
 ]
 
 
-class InventoryChange(BaseModel):
+class InventoryChange(PackModel):
     """One stock movement, relative to what is there now.
 
     ``change_from_quantity`` makes this a compare-and-set rather than a blind
@@ -641,7 +642,7 @@ class InventoryChange(BaseModel):
     )
 
 
-class InventoryAdjustInput(BaseModel):
+class InventoryAdjustInput(PackModel):
     """A relative stock adjustment.
 
     This moves stock by a delta. Setting an absolute count is a different Shopify
@@ -661,7 +662,7 @@ class InventoryAdjustInput(BaseModel):
     )
 
 
-class InventoryAdjustVariables(BaseModel):
+class InventoryAdjustVariables(PackModel):
     """Variables for ``inventoryAdjustQuantities``, including its idempotency key."""
 
     input: InventoryAdjustInput = Field(..., description="The adjustment to apply.")
@@ -674,7 +675,7 @@ class InventoryAdjustVariables(BaseModel):
     )
 
 
-class InventoryAdjustRequest(BaseModel):
+class InventoryAdjustRequest(PackModel):
     """Move stock by a delta."""
 
     variables: Annotated[
@@ -684,7 +685,7 @@ class InventoryAdjustRequest(BaseModel):
     ]
 
 
-class VariantInventoryLevelVariables(BaseModel):
+class VariantInventoryLevelVariables(PackModel):
     """Variables for reading one variant's stock at one location."""
 
     id: str = Field(..., description="The variant's global ID, `gid://shopify/ProductVariant/...`.")
@@ -701,7 +702,7 @@ class VariantInventoryLevelVariables(BaseModel):
     )
 
 
-class VariantInventoryLevelRequest(BaseModel):
+class VariantInventoryLevelRequest(PackModel):
     """Read a variant's stock at one location."""
 
     variables: Annotated[
@@ -721,7 +722,7 @@ class LocationsVariables(ConnectionVariables):
     )
 
 
-class LocationsRequest(BaseModel):
+class LocationsRequest(PackModel):
     """List the store's locations."""
 
     variables: Annotated[
@@ -731,19 +732,19 @@ class LocationsRequest(BaseModel):
     ]
 
 
-class OrderIdInput(BaseModel):
+class OrderIdInput(PackModel):
     """The single-field input `orderClose` and `orderOpen` share."""
 
     id: str = Field(..., description="The order's global ID, `gid://shopify/Order/...`.")
 
 
-class OrderStateVariables(BaseModel):
+class OrderStateVariables(PackModel):
     """Variables for ``orderClose`` and ``orderOpen``."""
 
     input: OrderIdInput = Field(..., description="The order to change.")
 
 
-class OrderCloseRequest(BaseModel):
+class OrderCloseRequest(PackModel):
     """Close an order, marking it done."""
 
     variables: Annotated[
@@ -753,7 +754,7 @@ class OrderCloseRequest(BaseModel):
     ]
 
 
-class OrderOpenRequest(BaseModel):
+class OrderOpenRequest(PackModel):
     """Reopen a closed order."""
 
     variables: Annotated[
@@ -766,7 +767,7 @@ class OrderOpenRequest(BaseModel):
 OrderCancelReason = Literal["CUSTOMER", "DECLINED", "FRAUD", "INVENTORY", "OTHER", "STAFF"]
 
 
-class OrderCancelVariables(BaseModel):
+class OrderCancelVariables(PackModel):
     """Variables for ``orderCancel``.
 
     `restock` is not optional in Shopify's schema, so cancelling always states
@@ -784,7 +785,7 @@ class OrderCancelVariables(BaseModel):
     )
 
 
-class OrderCancelRequest(BaseModel):
+class OrderCancelRequest(PackModel):
     """Cancel an order."""
 
     variables: Annotated[
@@ -794,7 +795,7 @@ class OrderCancelRequest(BaseModel):
     ]
 
 
-class DraftOrderCreateVariables(BaseModel):
+class DraftOrderCreateVariables(PackModel):
     """Variables for ``draftOrderCreate``."""
 
     input: Dict[str, Any] = Field(
@@ -807,7 +808,7 @@ class DraftOrderCreateVariables(BaseModel):
     )
 
 
-class DraftOrderCreateRequest(BaseModel):
+class DraftOrderCreateRequest(PackModel):
     """Create a draft order."""
 
     variables: Annotated[
@@ -817,7 +818,7 @@ class DraftOrderCreateRequest(BaseModel):
     ]
 
 
-class DraftOrderCompleteVariables(BaseModel):
+class DraftOrderCompleteVariables(PackModel):
     """Variables for ``draftOrderComplete``."""
 
     id: str = Field(..., description="The draft order's global ID.")
@@ -827,7 +828,7 @@ class DraftOrderCompleteVariables(BaseModel):
     source_name: Optional[str] = Field(None, description="Where the resulting order came from.")
 
 
-class DraftOrderCompleteRequest(BaseModel):
+class DraftOrderCompleteRequest(PackModel):
     """Turn a draft order into a real one."""
 
     variables: Annotated[
@@ -837,14 +838,14 @@ class DraftOrderCompleteRequest(BaseModel):
     ]
 
 
-class VariantOptionValue(BaseModel):
+class VariantOptionValue(PackModel):
     """One option value that distinguishes a variant, such as Size / Large."""
 
     name: str = Field(..., description="The value, such as 'Large'.")
     option_name: str = Field(..., description="The option it belongs to, such as 'Size'.")
 
 
-class VariantInventoryItem(BaseModel):
+class VariantInventoryItem(PackModel):
     """The variant fields Shopify moved onto the inventory item.
 
     `sku` lives here rather than on the variant, which is the most common thing to
@@ -857,7 +858,7 @@ class VariantInventoryItem(BaseModel):
     )
 
 
-class ProductVariantBulkInput(BaseModel):
+class ProductVariantBulkInput(PackModel):
     """One variant to add to a product."""
 
     option_values: List[VariantOptionValue] = Field(
@@ -889,7 +890,7 @@ class ProductVariantBulkInput(BaseModel):
 ProductVariantsBulkCreateStrategy = Literal["DEFAULT", "REMOVE_STANDALONE_VARIANT"]
 
 
-class ProductVariantsBulkCreateVariables(BaseModel):
+class ProductVariantsBulkCreateVariables(PackModel):
     """Variables for ``productVariantsBulkCreate``."""
 
     product_id: str = Field(
@@ -907,7 +908,7 @@ class ProductVariantsBulkCreateVariables(BaseModel):
     )
 
 
-class ProductVariantsBulkCreateRequest(BaseModel):
+class ProductVariantsBulkCreateRequest(PackModel):
     """Add variants to a product."""
 
     variables: Annotated[

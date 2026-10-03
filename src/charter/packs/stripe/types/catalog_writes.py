@@ -26,13 +26,14 @@ from __future__ import annotations
 
 from typing import Annotated, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.packs.stripe.types.common import StripeListRequest
 from charter.packs.stripe.types.invoices import _InvoiceTaxBehavior
 from charter.packs.stripe.types.payments import CreatedFilter
 from charter.packs.stripe.types.subscriptions import RecurringInterval
 from charter.types import Body, Gloss, Path, Query
+from charter.types.model import PackModel
 
 __all__ = [
     "CheckoutSessionStatus",
@@ -51,7 +52,7 @@ CheckoutSessionStatus = Literal["open", "complete", "expired"]
 PriceUsageType = Literal["licensed", "metered"]
 
 
-class _SessionId(BaseModel):
+class _SessionId(PackModel):
     session: Annotated[
         str,
         Field(..., description="The ID of the checkout session."),
@@ -123,7 +124,7 @@ class CheckoutSessionsLineItemsRequest(_SessionId, StripeListRequest):
     """
 
 
-class RecurringPrice(BaseModel):
+class RecurringPrice(PackModel):
     """What makes a price a subscription price rather than a one-off."""
 
     interval: RecurringInterval = Field(
@@ -146,7 +147,7 @@ class RecurringPrice(BaseModel):
     )
 
 
-class _ProductFields(BaseModel):
+class _ProductFields(PackModel):
     description: Annotated[
         Optional[str],
         Field(None, description="Customer-facing description of the product."),
@@ -211,7 +212,7 @@ class ProductsUpdateRequest(_ProductFields):
     ]
 
 
-class PricesCreateRequest(BaseModel):
+class PricesCreateRequest(PackModel):
     """Input schema for Stripe `POST /v1/prices`.
 
     Omit `recurring` for a one-off price. Setting it makes the price subscribable.
@@ -302,7 +303,7 @@ class PricesCreateRequest(BaseModel):
         return self
 
 
-class PricesUpdateRequest(BaseModel):
+class PricesUpdateRequest(PackModel):
     """Input schema for Stripe `POST /v1/prices/{price}`.
 
     Everything about what a price costs is fixed once it exists: no amount, no

@@ -10,10 +10,11 @@ from __future__ import annotations
 
 from typing import Annotated, Dict, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.packs.stripe.types.common import StripeListRequest
 from charter.types import Body, Gloss, Path, Query
+from charter.types.model import PackModel
 
 __all__ = [
     "RefundReason",
@@ -35,7 +36,7 @@ RefundReason = Literal["duplicate", "fraudulent", "requested_by_customer"]
 RefundStatus = Literal["pending", "requires_action", "succeeded", "failed", "canceled"]
 
 
-class CreatedFilter(BaseModel):
+class CreatedFilter(PackModel):
     """A Stripe date-range filter.
 
     Serialises as `created[gte]=1700000000&created[lt]=1800000000`. Stripe also
@@ -78,7 +79,7 @@ class PaymentIntentsListRequest(StripeListRequest):
     ]
 
 
-class PaymentIntentsRetrieveRequest(BaseModel):
+class PaymentIntentsRetrieveRequest(PackModel):
     """Input schema for Stripe `GET /v1/payment_intents/{payment_intent}`.
 
     API Reference: https://docs.stripe.com/api/payment_intents/retrieve
@@ -109,7 +110,7 @@ class ChargesListRequest(StripeListRequest):
     ]
 
 
-class RefundsCreateRequest(BaseModel):
+class RefundsCreateRequest(PackModel):
     """Input schema for Stripe `POST /v1/refunds`.
 
     Refunds a charge that has previously been created. Provide either `charge` or
@@ -179,7 +180,7 @@ class RefundsCreateRequest(BaseModel):
         return self
 
 
-class BalanceRetrieveRequest(BaseModel):
+class BalanceRetrieveRequest(PackModel):
     """Input schema for Stripe `GET /v1/balance`.
 
     Retrieves the current account balance, based on the authentication used.
@@ -215,7 +216,7 @@ class RefundsListRequest(StripeListRequest):
     ]
 
 
-class RefundsRetrieveRequest(BaseModel):
+class RefundsRetrieveRequest(PackModel):
     """Input schema for Stripe `GET /v1/refunds/{refund}`.
 
     The id is the whole request; Stripe documents no query parameters.

@@ -14,9 +14,10 @@ from __future__ import annotations
 
 from typing import Annotated, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Gloss, Path, Query
+from charter.types.model import PackModel
 
 __all__ = [
     "FormsResponsesGetRequest",
@@ -24,7 +25,7 @@ __all__ = [
 ]
 
 
-class FormsResponsesGetRequest(BaseModel):
+class FormsResponsesGetRequest(PackModel):
     """Get one response from the form.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms.responses/get
@@ -42,7 +43,7 @@ class FormsResponsesGetRequest(BaseModel):
     ]
 
 
-class FormsResponsesListRequest(BaseModel):
+class FormsResponsesListRequest(PackModel):
     """List a form's responses.
 
     API Reference: https://developers.google.com/workspace/forms/api/reference/rest/v1/forms.responses/list

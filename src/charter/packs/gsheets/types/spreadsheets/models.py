@@ -22,6 +22,7 @@ from typing import Annotated, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field, model_validator
 
 from charter.types import Mode
+from charter.types.model import PackModel, resolve_forward_refs
 
 # Enums
 
@@ -594,7 +595,7 @@ WrapStrategy = Literal[
 ]
 
 
-class BandedRange(BaseModel):
+class BandedRange(PackModel):
     """
     A banded (alternating colors) range in a sheet.
 
@@ -631,7 +632,7 @@ class BandedRange(BaseModel):
     ] = None
 
 
-class BandingProperties(BaseModel):
+class BandingProperties(PackModel):
     """
     Properties referring a single dimension (either row or column). If both BandedRange.row_properties and BandedRange.column_properties are set, the fill colors are applied to cells according to the following rules: * header_color and footer_color take priority over band colors. * first_band_color takes priority over second_band_color. * row_properties takes priority over column_properties. For example, the first row color takes priority over the first column color, but the first column color takes priority over the second row color. Similarly, the row header takes priority over the column header in the top left cell, but the column header takes priority over the first row color if the row header is not set.
 
@@ -695,7 +696,7 @@ class BandingProperties(BaseModel):
     )
 
 
-class BaselineValueFormat(BaseModel):
+class BaselineValueFormat(PackModel):
     """
     Formatting options for baseline value.
 
@@ -751,7 +752,7 @@ class BaselineValueFormat(BaseModel):
     ] = None
 
 
-class BasicChartAxis(BaseModel):
+class BasicChartAxis(PackModel):
     """
     An axis of the chart. A chart may not have more than one axis per axis position.
 
@@ -784,7 +785,7 @@ class BasicChartAxis(BaseModel):
     )
 
 
-class BasicChartDomain(BaseModel):
+class BasicChartDomain(PackModel):
     """
     The domain of a chart. For example, if charting stock prices over time, this would be the date.
 
@@ -802,7 +803,7 @@ class BasicChartDomain(BaseModel):
     )
 
 
-class BasicChartSeries(BaseModel):
+class BasicChartSeries(PackModel):
     """
     A single series of data in a chart. For example, if charting stock prices over time, multiple series may exist, one for the "Open Price", "High Price", "Low Price" and "Close Price".
 
@@ -859,7 +860,7 @@ class BasicChartSeries(BaseModel):
     )
 
 
-class BasicChartSpec(BaseModel):
+class BasicChartSpec(PackModel):
     """
     The specification for a basic chart. See BasicChartType for the list of charts this supports.
 
@@ -927,7 +928,7 @@ class BasicChartSpec(BaseModel):
     )
 
 
-class BasicFilter(BaseModel):
+class BasicFilter(PackModel):
     """
     The default filter associated with a sheet. For more information, see [Manage data visibility with filters](https://developers.google.com/workspace/sheets/api/guides/filters).
 
@@ -964,7 +965,7 @@ class BasicFilter(BaseModel):
     )
 
 
-class BasicSeriesDataPointStyleOverride(BaseModel):
+class BasicSeriesDataPointStyleOverride(PackModel):
     """
     Style override settings for a single series data point.
 
@@ -996,7 +997,7 @@ class BasicSeriesDataPointStyleOverride(BaseModel):
     )
 
 
-class BatchClearValuesByDataFilterResponse(BaseModel):
+class BatchClearValuesByDataFilterResponse(PackModel):
     """
     The response when clearing a range of values selected with DataFilters in a spreadsheet.
 
@@ -1014,7 +1015,7 @@ class BatchClearValuesByDataFilterResponse(BaseModel):
     )
 
 
-class BigQueryDataSourceSpec(BaseModel):
+class BigQueryDataSourceSpec(PackModel):
     """
     The specification of a BigQuery data source that's connected to a sheet.
 
@@ -1046,7 +1047,7 @@ class BigQueryDataSourceSpec(BaseModel):
         return self
 
 
-class BigQueryQuerySpec(BaseModel):
+class BigQueryQuerySpec(PackModel):
     """
     Specifies a custom BigQuery query.
 
@@ -1059,7 +1060,7 @@ class BigQueryQuerySpec(BaseModel):
     )
 
 
-class BigQueryTableSpec(BaseModel):
+class BigQueryTableSpec(PackModel):
     """
     Specifies a BigQuery table definition. Only [native tables](https://cloud.google.com/bigquery/docs/tables-intro) are allowed.
 
@@ -1082,7 +1083,7 @@ class BigQueryTableSpec(BaseModel):
     )
 
 
-class BooleanCondition(BaseModel):
+class BooleanCondition(PackModel):
     """
     A condition that can evaluate to true or false. BooleanConditions are used by conditional formatting, data validation, and the criteria in filters.
 
@@ -1100,7 +1101,7 @@ class BooleanCondition(BaseModel):
     )
 
 
-class BooleanRule(BaseModel):
+class BooleanRule(PackModel):
     """
     A rule that may or may not match, depending on the condition.
 
@@ -1118,7 +1119,7 @@ class BooleanRule(BaseModel):
     )
 
 
-class Border(BaseModel):
+class Border(PackModel):
     """
     A border along a cell.
 
@@ -1151,7 +1152,7 @@ class Border(BaseModel):
     ] = None
 
 
-class Borders(BaseModel):
+class Borders(PackModel):
     """
     The borders of the cell.
 
@@ -1179,7 +1180,7 @@ class Borders(BaseModel):
     )
 
 
-class BubbleChartSpec(BaseModel):
+class BubbleChartSpec(PackModel):
     """
     A bubble chart.
 
@@ -1251,7 +1252,7 @@ class BubbleChartSpec(BaseModel):
     )
 
 
-class CandlestickChartSpec(BaseModel):
+class CandlestickChartSpec(PackModel):
     """
     A candlestick chart.
 
@@ -1269,7 +1270,7 @@ class CandlestickChartSpec(BaseModel):
     )
 
 
-class CandlestickData(BaseModel):
+class CandlestickData(PackModel):
     """
     The Candlestick chart data, each containing the low, open, close, and high values for a series.
 
@@ -1297,7 +1298,7 @@ class CandlestickData(BaseModel):
     )
 
 
-class CandlestickDomain(BaseModel):
+class CandlestickDomain(PackModel):
     """
     The domain of a CandlestickChart.
 
@@ -1315,7 +1316,7 @@ class CandlestickDomain(BaseModel):
     )
 
 
-class CandlestickSeries(BaseModel):
+class CandlestickSeries(PackModel):
     """
     The series of a CandlestickData.
 
@@ -1328,7 +1329,7 @@ class CandlestickSeries(BaseModel):
     )
 
 
-class CellData(BaseModel):
+class CellData(PackModel):
     """
     Data about a specific cell.
 
@@ -1421,7 +1422,7 @@ class CellData(BaseModel):
     ] = None
 
 
-class CellFormat(BaseModel):
+class CellFormat(PackModel):
     """
     The format of a cell.
 
@@ -1493,7 +1494,7 @@ class CellFormat(BaseModel):
     )
 
 
-class ChartAxisViewWindowOptions(BaseModel):
+class ChartAxisViewWindowOptions(PackModel):
     """
     The options that define a "view window" for a chart (such as the visible values in an axis).
 
@@ -1516,7 +1517,7 @@ class ChartAxisViewWindowOptions(BaseModel):
     )
 
 
-class ChartCustomNumberFormatOptions(BaseModel):
+class ChartCustomNumberFormatOptions(PackModel):
     """
     Custom number formatting options for chart attributes.
 
@@ -1534,7 +1535,7 @@ class ChartCustomNumberFormatOptions(BaseModel):
     )
 
 
-class ChartData(BaseModel):
+class ChartData(PackModel):
     """
     The data included in a domain or series.
 
@@ -1576,7 +1577,7 @@ class ChartData(BaseModel):
         return self
 
 
-class ChartDateTimeRule(BaseModel):
+class ChartDateTimeRule(PackModel):
     """
     Allows you to organize the date-time values in a source data column into buckets based on selected parts of their date or time values.
 
@@ -1589,7 +1590,7 @@ class ChartDateTimeRule(BaseModel):
     )
 
 
-class ChartGroupRule(BaseModel):
+class ChartGroupRule(PackModel):
     """
     An optional setting on the ChartData of the domain of a data source chart that defines buckets for the values in the domain rather than breaking out each individual value. For example, when plotting a data source chart, you can specify a histogram rule on the domain (it should only contain numeric values), grouping its values into buckets. Any values of a chart series that fall into the same bucket are aggregated based on the aggregate_type.
 
@@ -1616,7 +1617,7 @@ class ChartGroupRule(BaseModel):
         return self
 
 
-class ChartHistogramRule(BaseModel):
+class ChartHistogramRule(PackModel):
     """
     Allows you to organize numeric values in a source data column into buckets of constant size.
 
@@ -1639,7 +1640,7 @@ class ChartHistogramRule(BaseModel):
     )
 
 
-class ChartSourceRange(BaseModel):
+class ChartSourceRange(PackModel):
     """
     Source ranges for a chart.
 
@@ -1652,7 +1653,7 @@ class ChartSourceRange(BaseModel):
     )
 
 
-class ChartSpec(BaseModel):
+class ChartSpec(PackModel):
     """
     The specifications of a chart.
 
@@ -1807,7 +1808,7 @@ class ChartSpec(BaseModel):
         return self
 
 
-class Chip(BaseModel):
+class Chip(PackModel):
     """
     The Smart Chip.
 
@@ -1836,7 +1837,7 @@ class Chip(BaseModel):
         return self
 
 
-class ChipRun(BaseModel):
+class ChipRun(PackModel):
     """
     The run of a chip. The chip continues until the start index of the next run.
 
@@ -1854,7 +1855,7 @@ class ChipRun(BaseModel):
     )
 
 
-class Color(BaseModel):
+class Color(PackModel):
     """
     Represents a color in the RGBA color space. This representation is designed for simplicity of conversion to and from color representations in various languages over compactness. For example, the fields of this representation can be trivially provided to the constructor of `java.awt.Color` in Java; it can also be trivially provided to UIColor's `+colorWithRed:green:blue:alpha` method in iOS; and, with just a little work, it can be easily formatted into a CSS `rgba()` string in JavaScript. This reference page doesn't have information about the absolute color space that should be used to interpret the RGB value—for example, sRGB, Adobe RGB, DCI-P3, and BT.2020. By default, applications should assume the sRGB color space. When color equality needs to be decided, implementations, unless documented otherwise, treat two colors as equal if all their red, green, blue, and alpha values each differ by at most `1e-5`. Example (Java): import com.google.type.Color; // ... public static java.awt.Color fromProto(Color protocolor) { float alpha = protocolor.hasAlpha() ? protocolor.getAlpha().getValue() : 1.0; return new java.awt.Color( protocolor.getRed(), protocolor.getGreen(), protocolor.getBlue(), alpha); } public static Color toProto(java.awt.Color color) { float red = (float) color.getRed(); float green = (float) color.getGreen(); float blue = (float) color.getBlue(); float denominator = 255.0; Color.Builder resultBuilder = Color .newBuilder() .setRed(red / denominator) .setGreen(green / denominator) .setBlue(blue / denominator); int alpha = color.getAlpha(); if (alpha != 255) { result.setAlpha( FloatValue .newBuilder() .setValue(((float) alpha) / denominator) .build()); } return resultBuilder.build(); } // ... Example (iOS / Obj-C): // ... static UIColor* fromProto(Color* protocolor) { float red = [protocolor red]; float green = [protocolor green]; float blue = [protocolor blue]; FloatValue* alpha_wrapper = [protocolor alpha]; float alpha = 1.0; if (alpha_wrapper != nil) { alpha = [alpha_wrapper value]; } return [UIColor colorWithRed:red green:green blue:blue alpha:alpha]; } static Color* toProto(UIColor* color) { CGFloat red, green, blue, alpha; if (![color getRed:&red green:&green blue:&blue alpha:&alpha]) { return nil; } Color* result = [[Color alloc] init]; [result setRed:red]; [result setGreen:green]; [result setBlue:blue]; if (alpha <= 0.9999) { [result setAlpha:floatWrapperWithValue(alpha)]; } [result autorelease]; return result; } // ... Example (JavaScript): // ... var protoToCssColor = function(rgb_color) { var redFrac = rgb_color.red || 0.0; var greenFrac = rgb_color.green || 0.0; var blueFrac = rgb_color.blue || 0.0; var red = Math.floor(redFrac * 255); var green = Math.floor(greenFrac * 255); var blue = Math.floor(blueFrac * 255); if (!('alpha' in rgb_color)) { return rgbToCssColor(red, green, blue); } var alphaFrac = rgb_color.alpha.value || 0.0; var rgbParams = [red, green, blue].join(','); return ['rgba(', rgbParams, ',', alphaFrac, ')'].join(''); }; var rgbToCssColor = function(red, green, blue) { var rgbNumber = new Number((red << 16) | (green << 8) | blue); var hexString = rgbNumber.toString(16); var missingZeros = 6 - hexString.length; var resultBuilder = ['#']; for (var i = 0; i < missingZeros; i++) { resultBuilder.push('0'); } resultBuilder.push(hexString); return resultBuilder.join(''); }; // ...
 
@@ -1882,7 +1883,7 @@ class Color(BaseModel):
     )
 
 
-class ColorStyle(BaseModel):
+class ColorStyle(PackModel):
     """
     A color value.
 
@@ -1909,7 +1910,7 @@ class ColorStyle(BaseModel):
         return self
 
 
-class ConditionValue(BaseModel):
+class ConditionValue(PackModel):
     """
     The value of the condition.
 
@@ -1938,7 +1939,7 @@ class ConditionValue(BaseModel):
         return self
 
 
-class ConditionalFormatRule(BaseModel):
+class ConditionalFormatRule(PackModel):
     """
     A rule describing a conditional format.
 
@@ -1970,7 +1971,7 @@ class ConditionalFormatRule(BaseModel):
         return self
 
 
-class DataExecutionStatus(BaseModel):
+class DataExecutionStatus(PackModel):
     """
     The data execution status. A data execution is created to sync a data source object with the latest data from a DataSource. It is usually scheduled to run at background, you can check its state to tell if an execution completes There are several scenarios where a data execution is triggered to run: * Adding a data source creates an associated data source sheet as well as a data execution to sync the data from the data source to the sheet. * Updating a data source creates a data execution to refresh the associated data source sheet similarly. * You can send refresh request to explicitly refresh one or multiple data source objects.
 
@@ -1998,7 +1999,7 @@ class DataExecutionStatus(BaseModel):
     )
 
 
-class DataFilter(BaseModel):
+class DataFilter(PackModel):
     """
     Filter that describes what data should be selected or returned from a request. For more information, see [Read, write, and search metadata](https://developers.google.com/workspace/sheets/api/guides/metadata).
 
@@ -2034,7 +2035,7 @@ class DataFilter(BaseModel):
         return self
 
 
-class DataLabel(BaseModel):
+class DataLabel(PackModel):
     """
     Settings for one set of data labels. Data labels are annotations that appear next to a set of data, such as the points on a line chart, and provide additional information about what the data represents, such as a text representation of the value behind that point on the graph.
 
@@ -2062,7 +2063,7 @@ class DataLabel(BaseModel):
     )
 
 
-class DataSource(BaseModel):
+class DataSource(PackModel):
     """
     Information about an external data source in the spreadsheet.
 
@@ -2090,7 +2091,7 @@ class DataSource(BaseModel):
     )
 
 
-class DataSourceChartProperties(BaseModel):
+class DataSourceChartProperties(PackModel):
     """
     Properties of a data source chart.
 
@@ -2109,7 +2110,7 @@ class DataSourceChartProperties(BaseModel):
     ] = None
 
 
-class DataSourceColumn(BaseModel):
+class DataSourceColumn(PackModel):
     """
     A column in a data source.
 
@@ -2127,7 +2128,7 @@ class DataSourceColumn(BaseModel):
     )
 
 
-class DataSourceColumnReference(BaseModel):
+class DataSourceColumnReference(PackModel):
     """
     An unique identifier that references a data source column.
 
@@ -2140,7 +2141,7 @@ class DataSourceColumnReference(BaseModel):
     )
 
 
-class DataSourceFormula(BaseModel):
+class DataSourceFormula(PackModel):
     """
     A data source formula.
 
@@ -2159,7 +2160,7 @@ class DataSourceFormula(BaseModel):
     ] = None
 
 
-class DataSourceParameter(BaseModel):
+class DataSourceParameter(PackModel):
     """
     A parameter in a data source's query. The parameter allows the user to pass in values from the spreadsheet into a query.
 
@@ -2191,7 +2192,7 @@ class DataSourceParameter(BaseModel):
         return self
 
 
-class DataSourceRefreshDailySchedule(BaseModel):
+class DataSourceRefreshDailySchedule(PackModel):
     """
     A schedule for data to refresh every day in a given time interval.
 
@@ -2204,7 +2205,7 @@ class DataSourceRefreshDailySchedule(BaseModel):
     )
 
 
-class DataSourceRefreshMonthlySchedule(BaseModel):
+class DataSourceRefreshMonthlySchedule(PackModel):
     """
     A monthly schedule for data to refresh on specific days in the month in a given time interval.
 
@@ -2222,7 +2223,7 @@ class DataSourceRefreshMonthlySchedule(BaseModel):
     )
 
 
-class DataSourceRefreshSchedule(BaseModel):
+class DataSourceRefreshSchedule(PackModel):
     """
     Schedule for refreshing the data source. Data sources in the spreadsheet are refreshed within a time interval. You can specify the start time by clicking the Scheduled Refresh button in the Sheets editor, but the interval is fixed at 4 hours. For example, if you specify a start time of 8 AM , the refresh will take place between 8 AM and 12 PM every day.
 
@@ -2274,7 +2275,7 @@ class DataSourceRefreshSchedule(BaseModel):
         return self
 
 
-class DataSourceRefreshWeeklySchedule(BaseModel):
+class DataSourceRefreshWeeklySchedule(PackModel):
     """
     A weekly schedule for data to refresh on specific days in a given time interval.
 
@@ -2292,7 +2293,7 @@ class DataSourceRefreshWeeklySchedule(BaseModel):
     )
 
 
-class DataSourceSheetProperties(BaseModel):
+class DataSourceSheetProperties(PackModel):
     """
     Additional properties of a DATA_SOURCE sheet.
 
@@ -2315,7 +2316,7 @@ class DataSourceSheetProperties(BaseModel):
     )
 
 
-class DataSourceSpec(BaseModel):
+class DataSourceSpec(PackModel):
     """
     This specifies the details of the data source. For example, for BigQuery, this specifies information about the BigQuery source.
 
@@ -2345,7 +2346,7 @@ class DataSourceSpec(BaseModel):
         return self
 
 
-class DataSourceTable(BaseModel):
+class DataSourceTable(PackModel):
     """
     A data source table, which allows the user to import a static table of data from the DataSource into Sheets. This is also known as "Extract" in the Sheets editor.
 
@@ -2389,7 +2390,7 @@ class DataSourceTable(BaseModel):
     )
 
 
-class DataValidationRule(BaseModel):
+class DataValidationRule(PackModel):
     """
     A data validation rule.
 
@@ -2417,7 +2418,7 @@ class DataValidationRule(BaseModel):
     )
 
 
-class DateTimeRule(BaseModel):
+class DateTimeRule(PackModel):
     """
     Allows you to organize the date-time values in a source data column into buckets based on selected parts of their date or time values. For example, consider a pivot table showing sales transactions by date: +----------+--------------+ | Date | SUM of Sales | +----------+--------------+ | 1/1/2017 | $621.14 | | 2/3/2017 | $708.84 | | 5/8/2017 | $326.84 | ... +----------+--------------+ Applying a date-time group rule with a DateTimeRuleType of YEAR_MONTH results in the following pivot table. +--------------+--------------+ | Grouped Date | SUM of Sales | +--------------+--------------+ | 2017-Jan | $53,731.78 | | 2017-Feb | $83,475.32 | | 2017-Mar | $94,385.05 | ... +--------------+--------------+
 
@@ -2430,7 +2431,7 @@ class DateTimeRule(BaseModel):
     )
 
 
-class DeveloperMetadata(BaseModel):
+class DeveloperMetadata(PackModel):
     """
     Developer metadata associated with a location or object in a spreadsheet. For more information, see [Read, write, and search metadata](https://developers.google.com/workspace/sheets/api/guides/metadata). Developer metadata may be used to associate arbitrary data with various parts of a spreadsheet and it will remain associated at those locations as they move around and the spreadsheet is edited. For example, if developer metadata is associated with row 5 and another row is then subsequently inserted above row 5, that original metadata is still associated with the row it was first associated with (what is now row 6). If the associated object is deleted then its metadata is deleted too.
 
@@ -2463,7 +2464,7 @@ class DeveloperMetadata(BaseModel):
     )
 
 
-class DeveloperMetadataLocation(BaseModel):
+class DeveloperMetadataLocation(PackModel):
     """
     A location where metadata may be associated in a spreadsheet.
 
@@ -2508,7 +2509,7 @@ class DeveloperMetadataLocation(BaseModel):
         return self
 
 
-class DeveloperMetadataLookup(BaseModel):
+class DeveloperMetadataLookup(PackModel):
     """
     Selects DeveloperMetadata that matches all of the specified fields. For example, if only a metadata ID is specified this considers the DeveloperMetadata with that particular unique ID. If a metadata key is specified, this considers all developer metadata with that key. If a key, visibility, and location type are all specified, this considers all developer metadata with that key and visibility that are associated with a location of that type. In general, this selects all DeveloperMetadata that match the intersection of all the specified fields; any field or combination of fields may be specified.
 
@@ -2565,7 +2566,7 @@ class DeveloperMetadataLookup(BaseModel):
         return self
 
 
-class DimensionGroup(BaseModel):
+class DimensionGroup(PackModel):
     """
     A group over an interval of rows or columns on a sheet, which can contain or be contained within other groups. A group can be collapsed or expanded as a unit on the sheet.
 
@@ -2588,7 +2589,7 @@ class DimensionGroup(BaseModel):
     )
 
 
-class DimensionProperties(BaseModel):
+class DimensionProperties(PackModel):
     """
     Properties about a dimension.
 
@@ -2629,7 +2630,7 @@ class DimensionProperties(BaseModel):
     )
 
 
-class DimensionRange(BaseModel):
+class DimensionRange(PackModel):
     """
     A range along a single dimension on a sheet. All indexes are zero-based. Indexes are half open: the start index is inclusive and the end index is exclusive. Missing indexes indicate the range is unbounded on that side.
 
@@ -2657,7 +2658,7 @@ class DimensionRange(BaseModel):
     )
 
 
-class Editors(BaseModel):
+class Editors(PackModel):
     """
     The editors of a protected range.
 
@@ -2680,7 +2681,7 @@ class Editors(BaseModel):
     )
 
 
-class EmbeddedChart(BaseModel):
+class EmbeddedChart(PackModel):
     """
     A chart embedded in a sheet.
 
@@ -2708,7 +2709,7 @@ class EmbeddedChart(BaseModel):
     )
 
 
-class EmbeddedObjectBorder(BaseModel):
+class EmbeddedObjectBorder(PackModel):
     """
     A border along an embedded object.
 
@@ -2727,7 +2728,7 @@ class EmbeddedObjectBorder(BaseModel):
     )
 
 
-class EmbeddedObjectPosition(BaseModel):
+class EmbeddedObjectPosition(PackModel):
     """
     The position of an embedded object such as a chart.
 
@@ -2762,7 +2763,7 @@ class EmbeddedObjectPosition(BaseModel):
         return self
 
 
-class ErrorValue(BaseModel):
+class ErrorValue(PackModel):
     """
     An error in a cell.
 
@@ -2780,7 +2781,7 @@ class ErrorValue(BaseModel):
     )
 
 
-class ExtendedValue(BaseModel):
+class ExtendedValue(PackModel):
     """
     The kinds of value that a cell in a spreadsheet can have.
 
@@ -2827,7 +2828,7 @@ class ExtendedValue(BaseModel):
         return self
 
 
-class FilterCriteria(BaseModel):
+class FilterCriteria(PackModel):
     """
     Criteria for showing or hiding rows in a filter or filter view.
 
@@ -2873,7 +2874,7 @@ class FilterCriteria(BaseModel):
     ] = None
 
 
-class FilterSpec(BaseModel):
+class FilterSpec(PackModel):
     """
     The filter criteria associated with a specific column.
 
@@ -2909,7 +2910,7 @@ class FilterSpec(BaseModel):
         return self
 
 
-class FilterView(BaseModel):
+class FilterView(PackModel):
     """
     A filter view. For more information, see [Manage data visibility with filters](https://developers.google.com/workspace/sheets/api/guides/filters).
 
@@ -2961,7 +2962,7 @@ class FilterView(BaseModel):
     )
 
 
-class GradientRule(BaseModel):
+class GradientRule(PackModel):
     """
     A rule that applies a gradient color scale format, based on the interpolation points listed. The format of a cell will vary based on its contents as compared to the values of the interpolation points.
 
@@ -2984,7 +2985,7 @@ class GradientRule(BaseModel):
     )
 
 
-class GridCoordinate(BaseModel):
+class GridCoordinate(PackModel):
     """
     A coordinate in a sheet. All indexes are zero-based.
 
@@ -3007,7 +3008,7 @@ class GridCoordinate(BaseModel):
     )
 
 
-class GridData(BaseModel):
+class GridData(PackModel):
     """
     Data in the grid, as well as metadata about the dimensions.
 
@@ -3040,7 +3041,7 @@ class GridData(BaseModel):
     )
 
 
-class GridProperties(BaseModel):
+class GridProperties(PackModel):
     """
     Properties of a grid.
 
@@ -3083,7 +3084,7 @@ class GridProperties(BaseModel):
     )
 
 
-class GridRange(BaseModel):
+class GridRange(PackModel):
     """
     A range on a sheet. All indexes are zero-based. Indexes are half open, i.e. the start index is inclusive and the end index is exclusive -- [start_index, end_index). Missing indexes indicate the range is unbounded on that side. For example, if `"Sheet1"` is sheet ID 123456, then: `Sheet1!A1:A1 == sheet_id: 123456, start_row_index: 0, end_row_index: 1, start_column_index: 0, end_column_index: 1` `Sheet1!A3:B4 == sheet_id: 123456, start_row_index: 2, end_row_index: 4, start_column_index: 0, end_column_index: 2` `Sheet1!A:B == sheet_id: 123456, start_column_index: 0, end_column_index: 2` `Sheet1!A5:B == sheet_id: 123456, start_row_index: 4, start_column_index: 0, end_column_index: 2` `Sheet1 == sheet_id: 123456` The start index must always be less than or equal to the end index. If the start index equals the end index, then the range is empty. Empty ranges are typically not meaningful and are usually rendered in the UI as `#REF!`.
 
@@ -3116,7 +3117,7 @@ class GridRange(BaseModel):
     )
 
 
-class HistogramChartSpec(BaseModel):
+class HistogramChartSpec(PackModel):
     """
     A histogram chart. A histogram chart groups data items into bins, displaying each bin as a column of stacked items. Histograms are used to display the distribution of a dataset. Each column of items represents a range into which those items fall. The number of bins can be chosen automatically or specified explicitly.
 
@@ -3151,7 +3152,7 @@ class HistogramChartSpec(BaseModel):
     )
 
 
-class HistogramRule(BaseModel):
+class HistogramRule(PackModel):
     """
     Allows you to organize the numeric values in a source data column into buckets of a constant size. All values from HistogramRule.start to HistogramRule.end are placed into groups of size HistogramRule.interval. In addition, all values below HistogramRule.start are placed in one group, and all values above HistogramRule.end are placed in another. Only HistogramRule.interval is required, though if HistogramRule.start and HistogramRule.end are both provided, HistogramRule.start must be less than HistogramRule.end. For example, a pivot table showing average purchase amount by age that has 50+ rows: +-----+-------------------+ | Age | AVERAGE of Amount | +-----+-------------------+ | 16 | $27.13 | | 17 | $5.24 | | 18 | $20.15 | ... +-----+-------------------+ could be turned into a pivot table that looks like the one below by applying a histogram group rule with a HistogramRule.start of 25, an HistogramRule.interval of 20, and an HistogramRule.end of 65. +-------------+-------------------+ | Grouped Age | AVERAGE of Amount | +-------------+-------------------+ | < 25 | $19.34 | | 25-45 | $31.43 | | 45-65 | $35.87 | | > 65 | $27.55 | +-------------+-------------------+ | Grand Total | $29.12 | +-------------+-------------------+
 
@@ -3174,7 +3175,7 @@ class HistogramRule(BaseModel):
     )
 
 
-class HistogramSeries(BaseModel):
+class HistogramSeries(PackModel):
     """
     A histogram series containing the series color and data.
 
@@ -3201,7 +3202,7 @@ class HistogramSeries(BaseModel):
     )
 
 
-class InterpolationPoint(BaseModel):
+class InterpolationPoint(PackModel):
     """
     A single interpolation point on a gradient conditional format. These pin the gradient color scale according to the color, type and value chosen.
 
@@ -3233,7 +3234,7 @@ class InterpolationPoint(BaseModel):
     )
 
 
-class Interval(BaseModel):
+class Interval(PackModel):
     """
     Represents a time interval, encoded as a Timestamp start (inclusive) and a Timestamp end (exclusive). The start must be less than or equal to the end. When the start equals the end, the interval is empty (matches no time). When both start and end are unspecified, the interval matches any time.
 
@@ -3251,7 +3252,7 @@ class Interval(BaseModel):
     )
 
 
-class IterativeCalculationSettings(BaseModel):
+class IterativeCalculationSettings(PackModel):
     """
     Settings to control how circular dependencies are resolved with iterative calculation.
 
@@ -3269,7 +3270,7 @@ class IterativeCalculationSettings(BaseModel):
     )
 
 
-class KeyValueFormat(BaseModel):
+class KeyValueFormat(PackModel):
     """
     Formatting options for key value.
 
@@ -3287,7 +3288,7 @@ class KeyValueFormat(BaseModel):
     )
 
 
-class LineStyle(BaseModel):
+class LineStyle(PackModel):
     """
     Properties that describe the style of a line.
 
@@ -3305,7 +3306,7 @@ class LineStyle(BaseModel):
     )
 
 
-class Link(BaseModel):
+class Link(PackModel):
     """
     An external or local reference.
 
@@ -3318,7 +3319,7 @@ class Link(BaseModel):
     )
 
 
-class LookerDataSourceSpec(BaseModel):
+class LookerDataSourceSpec(PackModel):
     """
     The specification of a Looker data source.
 
@@ -3341,7 +3342,7 @@ class LookerDataSourceSpec(BaseModel):
     )
 
 
-class ManualRule(BaseModel):
+class ManualRule(PackModel):
     """
     Allows you to manually organize the values in a source data column into buckets with names of your choosing. For example, a pivot table that aggregates population by state: +-------+-------------------+ | State | SUM of Population | +-------+-------------------+ | AK | 0.7 | | AL | 4.8 | | AR | 2.9 | ... +-------+-------------------+ could be turned into a pivot table that aggregates population by time zone by providing a list of groups (for example, groupName = 'Central', items = ['AL', 'AR', 'IA', ...]) to a manual group rule. Note that a similar effect could be achieved by adding a time zone column to the source data and adjusting the pivot table. +-----------+-------------------+ | Time Zone | SUM of Population | +-----------+-------------------+ | Central | 106.3 | | Eastern | 151.9 | | Mountain | 17.4 | ... +-----------+-------------------+
 
@@ -3354,7 +3355,7 @@ class ManualRule(BaseModel):
     )
 
 
-class ManualRuleGroup(BaseModel):
+class ManualRuleGroup(PackModel):
     """
     A group name and a list of items from the source data that should be placed in the group with this name.
 
@@ -3372,7 +3373,7 @@ class ManualRuleGroup(BaseModel):
     )
 
 
-class MatchedDeveloperMetadata(BaseModel):
+class MatchedDeveloperMetadata(PackModel):
     """
     A developer metadata entry and the data filters specified in the original request that matched it.
 
@@ -3390,7 +3391,7 @@ class MatchedDeveloperMetadata(BaseModel):
     )
 
 
-class NamedRange(BaseModel):
+class NamedRange(PackModel):
     """
     A named range.
 
@@ -3413,7 +3414,7 @@ class NamedRange(BaseModel):
     )
 
 
-class NumberFormat(BaseModel):
+class NumberFormat(PackModel):
     """
     The number format of a cell.
 
@@ -3431,7 +3432,7 @@ class NumberFormat(BaseModel):
     )
 
 
-class OrgChartSpec(BaseModel):
+class OrgChartSpec(PackModel):
     """
     An org chart. Org charts require a unique set of labels in labels and may optionally include parent_labels and tooltips. parent_labels contain, for each node, the label identifying the parent node. tooltips contain, for each node, an optional tooltip. For example, to describe an OrgChart with Alice as the CEO, Bob as the President (reporting to Alice) and Cathy as VP of Sales (also reporting to Alice), have labels contain "Alice", "Bob", "Cathy", parent_labels contain "", "Alice", "Alice" and tooltips contain "CEO", "President", "VP Sales".
 
@@ -3487,7 +3488,7 @@ class OrgChartSpec(BaseModel):
     )
 
 
-class OverlayPosition(BaseModel):
+class OverlayPosition(PackModel):
     """
     The location an object is overlaid on top of a grid.
 
@@ -3520,7 +3521,7 @@ class OverlayPosition(BaseModel):
     )
 
 
-class Padding(BaseModel):
+class Padding(PackModel):
     """
     The amount of padding around the cell, in pixels. When updating padding, every field must be specified.
 
@@ -3548,7 +3549,7 @@ class Padding(BaseModel):
     )
 
 
-class PersonProperties(BaseModel):
+class PersonProperties(PackModel):
     """
     Properties specific to a linked person.
 
@@ -3566,7 +3567,7 @@ class PersonProperties(BaseModel):
     )
 
 
-class PieChartSpec(BaseModel):
+class PieChartSpec(PackModel):
     """
     A pie chart.
 
@@ -3599,7 +3600,7 @@ class PieChartSpec(BaseModel):
     )
 
 
-class PivotFilterCriteria(BaseModel):
+class PivotFilterCriteria(PackModel):
     """
     Criteria for showing/hiding rows in a pivot table.
 
@@ -3622,7 +3623,7 @@ class PivotFilterCriteria(BaseModel):
     )
 
 
-class PivotFilterSpec(BaseModel):
+class PivotFilterSpec(PackModel):
     """
     The pivot table filter criteria associated with a specific source column offset.
 
@@ -3658,7 +3659,7 @@ class PivotFilterSpec(BaseModel):
         return self
 
 
-class PivotGroup(BaseModel):
+class PivotGroup(PackModel):
     """
     A single grouping (either row or column) in a pivot table.
 
@@ -3729,7 +3730,7 @@ class PivotGroup(BaseModel):
         return self
 
 
-class PivotGroupLimit(BaseModel):
+class PivotGroupLimit(PackModel):
     """
     The count limit on rows or columns in the pivot group.
 
@@ -3747,7 +3748,7 @@ class PivotGroupLimit(BaseModel):
     )
 
 
-class PivotGroupRule(BaseModel):
+class PivotGroupRule(PackModel):
     """
     An optional setting on a PivotGroup that defines buckets for the values in the source data column rather than breaking out each individual value. Only one PivotGroup with a group rule may be added for each column in the source data, though on any given column you may add both a PivotGroup that has a rule and a PivotGroup that does not.
 
@@ -3783,7 +3784,7 @@ class PivotGroupRule(BaseModel):
         return self
 
 
-class PivotGroupSortValueBucket(BaseModel):
+class PivotGroupSortValueBucket(PackModel):
     """
     Information about which values in a pivot group should be used for sorting.
 
@@ -3801,7 +3802,7 @@ class PivotGroupSortValueBucket(BaseModel):
     )
 
 
-class PivotGroupValueMetadata(BaseModel):
+class PivotGroupValueMetadata(PackModel):
     """
     Metadata about a value in a pivot grouping.
 
@@ -3819,7 +3820,7 @@ class PivotGroupValueMetadata(BaseModel):
     )
 
 
-class PivotTable(BaseModel):
+class PivotTable(PackModel):
     """
     A pivot table.
 
@@ -3889,7 +3890,7 @@ class PivotTable(BaseModel):
         return self
 
 
-class PivotValue(BaseModel):
+class PivotValue(PackModel):
     """
     The definition of how a value in a pivot table should be calculated.
 
@@ -3940,7 +3941,7 @@ class PivotValue(BaseModel):
         return self
 
 
-class PointStyle(BaseModel):
+class PointStyle(PackModel):
     """
     The style of a point on the chart.
 
@@ -3958,7 +3959,7 @@ class PointStyle(BaseModel):
     )
 
 
-class ProtectedRange(BaseModel):
+class ProtectedRange(PackModel):
     """
     A protected range.
 
@@ -4016,7 +4017,7 @@ class ProtectedRange(BaseModel):
     )
 
 
-class RichLinkProperties(BaseModel):
+class RichLinkProperties(PackModel):
     """
     Properties of a link to a Google resource (such as a file in Drive, a YouTube video, a Maps address, or a Calendar event). Only Drive files can be written as chips. All other rich link types are read only. URIs cannot exceed 2000 bytes when writing. NOTE: Writing Drive file chips requires at least one of the `drive.file`, `drive.readonly`, or `drive` OAuth scopes.
 
@@ -4038,7 +4039,7 @@ class RichLinkProperties(BaseModel):
     )
 
 
-class RowData(BaseModel):
+class RowData(PackModel):
     """
     Data about each cell in a row.
 
@@ -4051,7 +4052,7 @@ class RowData(BaseModel):
     )
 
 
-class ScorecardChartSpec(BaseModel):
+class ScorecardChartSpec(PackModel):
     """
     A scorecard chart. Scorecard charts are used to highlight key performance indicators, known as KPIs, on the spreadsheet. A scorecard chart can represent things like total sales, average cost, or a top selling item. You can specify a single data value, or aggregate over a range of data. Percentage or absolute difference from a baseline value can be highlighted, like changes over time.
 
@@ -4099,7 +4100,7 @@ class ScorecardChartSpec(BaseModel):
     )
 
 
-class SearchDeveloperMetadataRequest(BaseModel):
+class SearchDeveloperMetadataRequest(PackModel):
     """
     A request to retrieve all developer metadata matching the set of specified criteria.
 
@@ -4112,7 +4113,7 @@ class SearchDeveloperMetadataRequest(BaseModel):
     )
 
 
-class SearchDeveloperMetadataResponse(BaseModel):
+class SearchDeveloperMetadataResponse(PackModel):
     """
     A reply to a developer metadata search request.
 
@@ -4125,7 +4126,7 @@ class SearchDeveloperMetadataResponse(BaseModel):
     )
 
 
-class Sheet(BaseModel):
+class Sheet(PackModel):
     """
     A sheet in a spreadsheet.
 
@@ -4208,7 +4209,7 @@ class Sheet(BaseModel):
     )
 
 
-class SheetProperties(BaseModel):
+class SheetProperties(PackModel):
     """
     Properties of a sheet.
 
@@ -4275,7 +4276,7 @@ class SheetProperties(BaseModel):
     )
 
 
-class Slicer(BaseModel):
+class Slicer(PackModel):
     """
     A slicer in a sheet.
 
@@ -4298,7 +4299,7 @@ class Slicer(BaseModel):
     )
 
 
-class SlicerSpec(BaseModel):
+class SlicerSpec(PackModel):
     """
     The specifications of a slicer.
 
@@ -4355,7 +4356,7 @@ class SlicerSpec(BaseModel):
     )
 
 
-class SortSpec(BaseModel):
+class SortSpec(PackModel):
     """
     A sort order associated with a specific column or row.
 
@@ -4419,7 +4420,7 @@ class SortSpec(BaseModel):
         return self
 
 
-class Spreadsheet(BaseModel):
+class Spreadsheet(PackModel):
     """
     Resource that represents a spreadsheet.
 
@@ -4486,7 +4487,7 @@ class Spreadsheet(BaseModel):
     ] = None
 
 
-class SpreadsheetProperties(BaseModel):
+class SpreadsheetProperties(PackModel):
     """
     Properties of a spreadsheet.
 
@@ -4538,7 +4539,7 @@ class SpreadsheetProperties(BaseModel):
     )
 
 
-class SpreadsheetTheme(BaseModel):
+class SpreadsheetTheme(PackModel):
     """
     Represents spreadsheet theme
 
@@ -4556,7 +4557,7 @@ class SpreadsheetTheme(BaseModel):
     )
 
 
-class Table(BaseModel):
+class Table(PackModel):
     """
     A table.
 
@@ -4589,7 +4590,7 @@ class Table(BaseModel):
     )
 
 
-class TableColumnDataValidationRule(BaseModel):
+class TableColumnDataValidationRule(PackModel):
     """
     A data validation rule for a column in a table.
 
@@ -4602,7 +4603,7 @@ class TableColumnDataValidationRule(BaseModel):
     )
 
 
-class TableColumnProperties(BaseModel):
+class TableColumnProperties(PackModel):
     """
     The table column.
 
@@ -4630,7 +4631,7 @@ class TableColumnProperties(BaseModel):
     )
 
 
-class TableRowsProperties(BaseModel):
+class TableRowsProperties(PackModel):
     """
     The table row properties.
 
@@ -4658,7 +4659,7 @@ class TableRowsProperties(BaseModel):
     )
 
 
-class TextFormat(BaseModel):
+class TextFormat(PackModel):
     """
     The format of a run of text in a cell. Absent values indicate that the field isn't specified.
 
@@ -4715,7 +4716,7 @@ class TextFormat(BaseModel):
     ] = None
 
 
-class TextFormatRun(BaseModel):
+class TextFormatRun(PackModel):
     """
     A run of a text format. The format of this run continues until the start index of the next run. When updating, all fields must be set.
 
@@ -4733,7 +4734,7 @@ class TextFormatRun(BaseModel):
     )
 
 
-class TextPosition(BaseModel):
+class TextPosition(PackModel):
     """
     Position settings for text.
 
@@ -4746,7 +4747,7 @@ class TextPosition(BaseModel):
     )
 
 
-class TextRotation(BaseModel):
+class TextRotation(PackModel):
     """
     The rotation applied to text in a cell.
 
@@ -4771,7 +4772,7 @@ class TextRotation(BaseModel):
         return self
 
 
-class ThemeColorPair(BaseModel):
+class ThemeColorPair(PackModel):
     """
     A pair mapping a spreadsheet theme color type to the concrete color it represents.
 
@@ -4789,7 +4790,7 @@ class ThemeColorPair(BaseModel):
     )
 
 
-class TimeOfDay(BaseModel):
+class TimeOfDay(PackModel):
     """
     Represents a time of day. The date and time zone are either not significant or are specified elsewhere. An API may choose to allow leap seconds. Related types are google.type.Date and `google.protobuf.Timestamp`.
 
@@ -4817,7 +4818,7 @@ class TimeOfDay(BaseModel):
     )
 
 
-class TreemapChartColorScale(BaseModel):
+class TreemapChartColorScale(PackModel):
     """
     A color scale for a treemap chart.
 
@@ -4881,7 +4882,7 @@ class TreemapChartColorScale(BaseModel):
     )
 
 
-class TreemapChartSpec(BaseModel):
+class TreemapChartSpec(PackModel):
     """
     A Treemap chart.
 
@@ -4958,7 +4959,7 @@ class TreemapChartSpec(BaseModel):
     )
 
 
-class WaterfallChartColumnStyle(BaseModel):
+class WaterfallChartColumnStyle(PackModel):
     """
     Styles for a waterfall chart column.
 
@@ -4982,7 +4983,7 @@ class WaterfallChartColumnStyle(BaseModel):
     )
 
 
-class WaterfallChartCustomSubtotal(BaseModel):
+class WaterfallChartCustomSubtotal(PackModel):
     """
     A custom subtotal column for a waterfall chart series.
 
@@ -5005,7 +5006,7 @@ class WaterfallChartCustomSubtotal(BaseModel):
     )
 
 
-class WaterfallChartDomain(BaseModel):
+class WaterfallChartDomain(PackModel):
     """
     The domain of a waterfall chart.
 
@@ -5023,7 +5024,7 @@ class WaterfallChartDomain(BaseModel):
     )
 
 
-class WaterfallChartSeries(BaseModel):
+class WaterfallChartSeries(PackModel):
     """
     A single series of data for a waterfall chart.
 
@@ -5066,7 +5067,7 @@ class WaterfallChartSeries(BaseModel):
     )
 
 
-class WaterfallChartSpec(BaseModel):
+class WaterfallChartSpec(PackModel):
     """
     A waterfall chart.
 
@@ -5109,7 +5110,7 @@ class WaterfallChartSpec(BaseModel):
     )
 
 
-class PostAuthor(BaseModel):
+class PostAuthor(PackModel):
     """
     Represents a user who authored a comment post.
 
@@ -5142,7 +5143,7 @@ class PostAuthor(BaseModel):
     )
 
 
-class Post(BaseModel):
+class Post(PackModel):
     """
     A post on a comment thread: the head post or a reply.
 
@@ -5238,7 +5239,7 @@ class Post(BaseModel):
     )
 
 
-class CommentAnchor(BaseModel):
+class CommentAnchor(PackModel):
     """
     A location in the spreadsheet that is tied to a CommentThread with the same
     anchorId. Note: Multiple anchors may refer to the same location.
@@ -5260,7 +5261,7 @@ class CommentAnchor(BaseModel):
     )
 
 
-class CommentThread(BaseModel):
+class CommentThread(PackModel):
     """
     Represents a single comment thread inside a spreadsheet.
 
@@ -5296,7 +5297,7 @@ class CommentThread(BaseModel):
     )
 
 
-class DataSourceObjectReference(BaseModel):
+class DataSourceObjectReference(PackModel):
     """
     Reference to a data source object.
 
@@ -5346,7 +5347,7 @@ class DataSourceObjectReference(BaseModel):
         return self
 
 
-class DataSourceObjectReferences(BaseModel):
+class DataSourceObjectReferences(PackModel):
     """
     A list of references to data source objects.
 
@@ -5360,14 +5361,16 @@ class DataSourceObjectReferences(BaseModel):
 
 
 def _rebuild_forward_refs() -> None:
-    for obj in list(globals().values()):
-        if (
-            isinstance(obj, type)
+    resolve_forward_refs(
+        *(
+            obj
+            for obj in list(globals().values())
+            if isinstance(obj, type)
             and issubclass(obj, BaseModel)
             and obj is not BaseModel
             and obj.__module__ == __name__
-        ):
-            obj.model_rebuild()
+        )
+    )
 
 
 _rebuild_forward_refs()

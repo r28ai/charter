@@ -10,12 +10,13 @@ from __future__ import annotations
 
 from typing import Annotated, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.types import Body, Gloss, Query
+from charter.types.model import PackModel
 
 
-class ConversationsListRequest(BaseModel):
+class ConversationsListRequest(PackModel):
     """Input schema for Slack `conversations.list`.
 
     Lists all channels in a Slack team.
@@ -80,7 +81,7 @@ class ConversationsListRequest(BaseModel):
     ]
 
 
-class ConversationsHistoryRequest(BaseModel):
+class ConversationsHistoryRequest(PackModel):
     """Input schema for Slack `conversations.history`.
 
     Fetches a conversation's history of messages and events.
@@ -167,7 +168,7 @@ class ConversationsHistoryRequest(BaseModel):
     ]
 
 
-class ConversationsRepliesRequest(BaseModel):
+class ConversationsRepliesRequest(PackModel):
     """Input schema for Slack `conversations.replies`.
 
     Retrieves a thread of messages posted to a conversation.
@@ -265,7 +266,7 @@ class ConversationsRepliesRequest(BaseModel):
     ]
 
 
-class ConversationsOpenRequest(BaseModel):
+class ConversationsOpenRequest(PackModel):
     """Input schema for Slack `conversations.open`.
 
     Opening a direct message is how an agent reaches a person rather than a
@@ -324,7 +325,7 @@ class ConversationsOpenRequest(BaseModel):
         return self
 
 
-class ConversationsCreateRequest(BaseModel):
+class ConversationsCreateRequest(PackModel):
     """Input schema for Slack `conversations.create`.
 
     API Reference: https://docs.slack.dev/reference/methods/conversations.create
@@ -348,7 +349,7 @@ class ConversationsCreateRequest(BaseModel):
     ]
 
 
-class ConversationsInviteRequest(BaseModel):
+class ConversationsInviteRequest(PackModel):
     """Input schema for Slack `conversations.invite`.
 
     With `force` set, Slack can answer `ok: true` alongside a list of the users it
@@ -376,7 +377,7 @@ class ConversationsInviteRequest(BaseModel):
     ]
 
 
-class ConversationsJoinRequest(BaseModel):
+class ConversationsJoinRequest(PackModel):
     """Input schema for Slack `conversations.join`.
 
     Joining a channel the bot is already in succeeds and adds a warning.

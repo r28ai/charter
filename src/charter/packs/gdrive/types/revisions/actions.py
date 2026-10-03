@@ -11,9 +11,10 @@ from __future__ import annotations
 
 from typing import Annotated, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Path, Query
+from charter.types.model import PackModel
 
 from .._shared import FILE_ID, AcknowledgeAbuse, PageToken
 
@@ -25,7 +26,7 @@ PAGE_SIZE = (
 )
 
 
-class RevisionsListRequest(BaseModel):
+class RevisionsListRequest(PackModel):
     """
     Lists a file's revisions.
 
@@ -46,7 +47,7 @@ class RevisionsListRequest(BaseModel):
     page_token: PageToken = None
 
 
-class RevisionsGetRequest(BaseModel):
+class RevisionsGetRequest(PackModel):
     """
     Gets a revision's metadata or content by ID.
 

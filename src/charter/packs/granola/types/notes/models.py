@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Annotated, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.granola.types.common import (
     CursorPage,
@@ -23,6 +23,7 @@ from charter.packs.granola.types.common import (
     User,
 )
 from charter.types import Mode
+from charter.types.model import PackModel
 
 __all__ = [
     "CalendarInvitee",
@@ -34,7 +35,7 @@ __all__ = [
 ]
 
 
-class CalendarInvitee(BaseModel):
+class CalendarInvitee(PackModel):
     """Someone invited to the meeting, by email alone.
 
     Distinct from an attendee: an invitee is who the calendar event was sent to,
@@ -50,7 +51,7 @@ class CalendarInvitee(BaseModel):
     ]
 
 
-class CalendarEvent(BaseModel):
+class CalendarEvent(PackModel):
     """The calendar event a note was taken against, when there was one.
 
     Null on a note taken outside a scheduled meeting. Every field inside is
@@ -92,7 +93,7 @@ class CalendarEvent(BaseModel):
     ]
 
 
-class NoteSummary(BaseModel):
+class NoteSummary(PackModel):
     """A note as it appears in a listing: what it is, who owns it, when.
 
     Deliberately smaller than :class:`Note` — no summary, no transcript, no
@@ -134,7 +135,7 @@ class NoteSummary(BaseModel):
     ]
 
 
-class Note(BaseModel):
+class Note(PackModel):
     """One note in full.
 
     The summary arrives twice, as ``summary_text`` and ``summary_markdown``, and

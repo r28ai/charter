@@ -10,9 +10,10 @@ from __future__ import annotations
 
 from typing import Annotated, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Body, Query
+from charter.types.model import PackModel
 
 __all__ = [
     "ActivityListRequest",
@@ -42,7 +43,7 @@ ThreatProtectionMode = Literal["off", "normal"]
 ThreatProtectionFailurePolicy = Literal["open", "closed"]
 
 
-class ActivityListRequest(BaseModel):
+class ActivityListRequest(PackModel):
     """List recent API activity for the authenticated team.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/team-activity
@@ -73,14 +74,14 @@ class ActivityListRequest(BaseModel):
     ]
 
 
-class CreditUsageGetRequest(BaseModel):
+class CreditUsageGetRequest(PackModel):
     """Get remaining credits for the authenticated team.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/team-credit-usage
     """
 
 
-class HistoricalCreditUsageGetRequest(BaseModel):
+class HistoricalCreditUsageGetRequest(PackModel):
     """Get historical credit usage for the authenticated team.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/team-credit-usage-historical
@@ -93,21 +94,21 @@ class HistoricalCreditUsageGetRequest(BaseModel):
     ]
 
 
-class QueueStatusGetRequest(BaseModel):
+class QueueStatusGetRequest(PackModel):
     """Get metrics about the team's scrape queue.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/team-queue-status
     """
 
 
-class TokenUsageGetRequest(BaseModel):
+class TokenUsageGetRequest(PackModel):
     """Get remaining extract tokens for the authenticated team.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/team-token-usage
     """
 
 
-class HistoricalTokenUsageGetRequest(BaseModel):
+class HistoricalTokenUsageGetRequest(PackModel):
     """Get historical extract token usage for the authenticated team.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/team-token-usage-historical
@@ -120,14 +121,14 @@ class HistoricalTokenUsageGetRequest(BaseModel):
     ]
 
 
-class ThreatProtectionGetRequest(BaseModel):
+class ThreatProtectionGetRequest(PackModel):
     """Get the team's threat protection policy.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/team-threat-protection-get
     """
 
 
-class ThreatProtectionUpdateRequest(BaseModel):
+class ThreatProtectionUpdateRequest(PackModel):
     """Update the team's threat protection policy.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/team-threat-protection-update

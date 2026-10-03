@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import Annotated, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.packs.linear.types.common import (
     InitiativeTab,
@@ -35,6 +35,7 @@ from charter.packs.linear.types.filters import (
     ProjectFilter,
 )
 from charter.types import Body
+from charter.types.model import PackModel
 
 __all__ = [
     "NotificationsListRequest",
@@ -106,7 +107,7 @@ class NotificationsListVariables(PageVariables):
     )
 
 
-class NotificationsListRequest(BaseModel):
+class NotificationsListRequest(PackModel):
     """Read the authenticated user's notifications."""
 
     variables: Annotated[
@@ -116,13 +117,13 @@ class NotificationsListRequest(BaseModel):
     ]
 
 
-class NotificationGetVariables(BaseModel):
+class NotificationGetVariables(PackModel):
     """Variables for the ``notification`` query."""
 
     id: str = Field(..., description="The notification's UUID.")
 
 
-class NotificationGetRequest(BaseModel):
+class NotificationGetRequest(PackModel):
     """Get one notification."""
 
     variables: Annotated[
@@ -132,7 +133,7 @@ class NotificationGetRequest(BaseModel):
     ]
 
 
-class NotificationUpdateInput(BaseModel):
+class NotificationUpdateInput(PackModel):
     """The fields ``notificationUpdate`` changes. All optional.
 
     Marking one read is ``read_at`` set to a timestamp; marking it unread is the
@@ -164,14 +165,14 @@ class NotificationUpdateInput(BaseModel):
         return self
 
 
-class NotificationUpdateVariables(BaseModel):
+class NotificationUpdateVariables(PackModel):
     """Variables for the ``notificationUpdate`` mutation."""
 
     id: str = Field(..., description="The notification's UUID.")
     input: NotificationUpdateInput = Field(..., description="The fields to change.")
 
 
-class NotificationUpdateRequest(BaseModel):
+class NotificationUpdateRequest(PackModel):
     """Mark a notification read, or snooze it."""
 
     variables: Annotated[
@@ -181,13 +182,13 @@ class NotificationUpdateRequest(BaseModel):
     ]
 
 
-class NotificationIdVariables(BaseModel):
+class NotificationIdVariables(PackModel):
     """Variables for the notification mutations that take only an id."""
 
     id: str = Field(..., description="The notification's UUID.")
 
 
-class NotificationArchiveRequest(BaseModel):
+class NotificationArchiveRequest(PackModel):
     """Archive a notification."""
 
     variables: Annotated[
@@ -197,7 +198,7 @@ class NotificationArchiveRequest(BaseModel):
     ]
 
 
-class NotificationUnarchiveRequest(BaseModel):
+class NotificationUnarchiveRequest(PackModel):
     """Restore an archived notification."""
 
     variables: Annotated[
@@ -207,7 +208,7 @@ class NotificationUnarchiveRequest(BaseModel):
     ]
 
 
-class NotificationEntityInput(BaseModel):
+class NotificationEntityInput(PackModel):
     """Which thing's notifications to act on.
 
     Exactly one must be given.
@@ -237,7 +238,7 @@ class NotificationEntityInput(BaseModel):
         return self
 
 
-class NotificationMarkReadAllVariables(BaseModel):
+class NotificationMarkReadAllVariables(PackModel):
     """Variables for the ``notificationMarkReadAll`` mutation.
 
     This is not "mark my whole inbox read". Linear scopes it to one entity —
@@ -255,7 +256,7 @@ class NotificationMarkReadAllVariables(BaseModel):
     )
 
 
-class NotificationMarkReadAllRequest(BaseModel):
+class NotificationMarkReadAllRequest(PackModel):
     """Mark every notification on one issue, project or initiative as read."""
 
     variables: Annotated[
@@ -270,7 +271,7 @@ class NotificationMarkReadAllRequest(BaseModel):
 # -----------------------------------------------------
 
 
-class FavoritesListRequest(BaseModel):
+class FavoritesListRequest(PackModel):
     """List what the authenticated user has starred."""
 
     variables: Annotated[
@@ -280,7 +281,7 @@ class FavoritesListRequest(BaseModel):
     ]
 
 
-class FavoriteCreateInput(BaseModel):
+class FavoriteCreateInput(PackModel):
     """The input to ``favoriteCreate``.
 
     Exactly one target must be given.
@@ -372,13 +373,13 @@ class FavoriteCreateInput(BaseModel):
         return self
 
 
-class FavoriteCreateVariables(BaseModel):
+class FavoriteCreateVariables(PackModel):
     """Variables for the ``favoriteCreate`` mutation."""
 
     input: FavoriteCreateInput = Field(..., description="What to favorite.")
 
 
-class FavoriteCreateRequest(BaseModel):
+class FavoriteCreateRequest(PackModel):
     """Star an issue, project, document, view or team."""
 
     variables: Annotated[
@@ -388,7 +389,7 @@ class FavoriteCreateRequest(BaseModel):
     ]
 
 
-class FavoriteUpdateInput(BaseModel):
+class FavoriteUpdateInput(PackModel):
     """The fields ``favoriteUpdate`` changes. All optional."""
 
     folder_name: Optional[str] = Field(None, description="The name of the favorite folder.")
@@ -406,14 +407,14 @@ class FavoriteUpdateInput(BaseModel):
         return self
 
 
-class FavoriteUpdateVariables(BaseModel):
+class FavoriteUpdateVariables(PackModel):
     """Variables for the ``favoriteUpdate`` mutation."""
 
     id: str = Field(..., description="The favorite's UUID.")
     input: FavoriteUpdateInput = Field(..., description="The fields to change.")
 
 
-class FavoriteUpdateRequest(BaseModel):
+class FavoriteUpdateRequest(PackModel):
     """Move a favorite, or rename its folder."""
 
     variables: Annotated[
@@ -423,13 +424,13 @@ class FavoriteUpdateRequest(BaseModel):
     ]
 
 
-class FavoriteDeleteVariables(BaseModel):
+class FavoriteDeleteVariables(PackModel):
     """Variables for the ``favoriteDelete`` mutation."""
 
     id: str = Field(..., description="The favorite's UUID.")
 
 
-class FavoriteDeleteRequest(BaseModel):
+class FavoriteDeleteRequest(PackModel):
     """Unstar something."""
 
     variables: Annotated[
@@ -455,7 +456,7 @@ class CustomViewsListVariables(PageVariables):
     )
 
 
-class CustomViewsListRequest(BaseModel):
+class CustomViewsListRequest(PackModel):
     """List the workspace's saved views."""
 
     variables: Annotated[
@@ -465,13 +466,13 @@ class CustomViewsListRequest(BaseModel):
     ]
 
 
-class CustomViewGetVariables(BaseModel):
+class CustomViewGetVariables(PackModel):
     """Variables for the ``customView`` query."""
 
     id: str = Field(..., description="The view's UUID.")
 
 
-class CustomViewGetRequest(BaseModel):
+class CustomViewGetRequest(PackModel):
     """Get one saved view, with the filter it holds."""
 
     variables: Annotated[
@@ -481,7 +482,7 @@ class CustomViewGetRequest(BaseModel):
     ]
 
 
-class CustomViewCreateInput(BaseModel):
+class CustomViewCreateInput(PackModel):
     """The input to ``customViewCreate``.
 
     ``filter_data`` is an ``IssueFilter`` — the same type ``issues_list``
@@ -530,13 +531,13 @@ class CustomViewCreateInput(BaseModel):
     )
 
 
-class CustomViewCreateVariables(BaseModel):
+class CustomViewCreateVariables(PackModel):
     """Variables for the ``customViewCreate`` mutation."""
 
     input: CustomViewCreateInput = Field(..., description="The view to create.")
 
 
-class CustomViewCreateRequest(BaseModel):
+class CustomViewCreateRequest(PackModel):
     """Save a filter as a view."""
 
     variables: Annotated[
@@ -546,13 +547,13 @@ class CustomViewCreateRequest(BaseModel):
     ]
 
 
-class CustomViewDeleteVariables(BaseModel):
+class CustomViewDeleteVariables(PackModel):
     """Variables for the ``customViewDelete`` mutation."""
 
     id: str = Field(..., description="The view's UUID.")
 
 
-class CustomViewDeleteRequest(BaseModel):
+class CustomViewDeleteRequest(PackModel):
     """Delete a saved view."""
 
     variables: Annotated[

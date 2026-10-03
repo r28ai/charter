@@ -5,9 +5,10 @@ from __future__ import annotations
 
 from typing import Annotated, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Format, Value
+from charter.types.model import PackModel
 
 from ..spreadsheets.models import (
     DataFilter,
@@ -23,7 +24,7 @@ InsertDataOption = Literal["OVERWRITE", "INSERT_ROWS"]
 ValueInputOption = Literal["INPUT_VALUE_OPTION_UNSPECIFIED", "RAW", "USER_ENTERED"]
 
 
-class ValueRange(BaseModel):
+class ValueRange(PackModel):
     """
     Data within a range of the spreadsheet.
 
@@ -71,7 +72,7 @@ class ValueRange(BaseModel):
     ] = None
 
 
-class DataFilterValueRange(BaseModel):
+class DataFilterValueRange(PackModel):
     """
     A range of values whose location is specified by a DataFilter.
 
@@ -102,7 +103,7 @@ class DataFilterValueRange(BaseModel):
     ] = None
 
 
-class UpdateValuesResponse(BaseModel):
+class UpdateValuesResponse(PackModel):
     """
     The response when updating a range of values in a spreadsheet.
 
@@ -138,7 +139,7 @@ class UpdateValuesResponse(BaseModel):
     )
 
 
-class AppendValuesResponse(BaseModel):
+class AppendValuesResponse(PackModel):
     """
     The response when values are appended to a spreadsheet.
 
@@ -162,7 +163,7 @@ class AppendValuesResponse(BaseModel):
     )
 
 
-class ClearValuesResponse(BaseModel):
+class ClearValuesResponse(PackModel):
     """
     The response when clearing a range of values in a spreadsheet.
 
@@ -183,7 +184,7 @@ class ClearValuesResponse(BaseModel):
     )
 
 
-class BatchGetValuesResponse(BaseModel):
+class BatchGetValuesResponse(PackModel):
     """
     The response when retrieving more than one range of values in a spreadsheet.
 
@@ -203,7 +204,7 @@ class BatchGetValuesResponse(BaseModel):
     )
 
 
-class BatchClearValuesResponse(BaseModel):
+class BatchClearValuesResponse(PackModel):
     """
     The response when clearing a range of values in a spreadsheet.
 
@@ -224,7 +225,7 @@ class BatchClearValuesResponse(BaseModel):
     )
 
 
-class BatchUpdateValuesResponse(BaseModel):
+class BatchUpdateValuesResponse(PackModel):
     """
     The response when updating a range of values in a spreadsheet.
 
@@ -260,7 +261,7 @@ class BatchUpdateValuesResponse(BaseModel):
     )
 
 
-class MatchedValueRange(BaseModel):
+class MatchedValueRange(PackModel):
     """
     A value range that was matched by one or more data filters.
 
@@ -277,7 +278,7 @@ class MatchedValueRange(BaseModel):
     )
 
 
-class BatchGetValuesByDataFilterResponse(BaseModel):
+class BatchGetValuesByDataFilterResponse(PackModel):
     """
     The response when retrieving more than one range of values in a spreadsheet
     selected by DataFilters.
@@ -295,7 +296,7 @@ class BatchGetValuesByDataFilterResponse(BaseModel):
     )
 
 
-class UpdateValuesByDataFilterResponse(BaseModel):
+class UpdateValuesByDataFilterResponse(PackModel):
     """
     The response when updating a range of values by a data filter in a spreadsheet.
 
@@ -332,7 +333,7 @@ class UpdateValuesByDataFilterResponse(BaseModel):
     )
 
 
-class BatchUpdateValuesByDataFilterResponse(BaseModel):
+class BatchUpdateValuesByDataFilterResponse(PackModel):
     """
     The response when updating a range of values in a spreadsheet.
 

@@ -8,12 +8,12 @@ https://docs.github.com/en/rest/users
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from charter.types.model import PackModel
 
 __all__ = ["UsersGetAuthenticatedRequest"]
 
 
-class UsersGetAuthenticatedRequest(BaseModel):
+class UsersGetAuthenticatedRequest(PackModel):
     """Get the authenticated user.
 
     This endpoint takes no parameters, so the schema has none. Useful to resolve

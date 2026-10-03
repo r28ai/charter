@@ -10,13 +10,14 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.tavily.types.common import SearchImage, Usage
 from charter.types import Mode
+from charter.types.model import PackModel
 
 
-class SearchResult(BaseModel):
+class SearchResult(PackModel):
     """A single search result sorted by relevancy.
 
     API Reference: https://docs.tavily.com/documentation/api-reference/endpoint/search
@@ -61,7 +62,7 @@ class SearchResult(BaseModel):
     ]
 
 
-class SearchResponse(BaseModel):
+class SearchResponse(PackModel):
     """Root response from Tavily POST /search.
 
     API Reference: https://docs.tavily.com/documentation/api-reference/endpoint/search

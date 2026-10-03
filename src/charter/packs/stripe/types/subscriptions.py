@@ -32,9 +32,10 @@ from __future__ import annotations
 
 from typing import Annotated, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.types import Body, Gloss, Path
+from charter.types.model import PackModel
 
 __all__ = [
     "CollectionMethod",
@@ -101,7 +102,7 @@ PaymentBehaviorOnUpdate = Literal[
 _MAX_ITEMS = 20
 
 
-class SubscriptionDiscount(BaseModel):
+class SubscriptionDiscount(PackModel):
     """One discount, on the subscription or on a single item.
 
     Stripe has no top-level `coupon` or `promotion_code` parameter on either endpoint.
@@ -113,7 +114,7 @@ class SubscriptionDiscount(BaseModel):
     promotion_code: Optional[str] = Field(None, description="The ID of a promotion code to apply.")
 
 
-class PriceRecurring(BaseModel):
+class PriceRecurring(PackModel):
     """How often an inline price bills."""
 
     interval: RecurringInterval = Field(
@@ -128,7 +129,7 @@ class PriceRecurring(BaseModel):
     )
 
 
-class SubscriptionPriceData(BaseModel):
+class SubscriptionPriceData(PackModel):
     """An inline price, created with the subscription rather than looked up."""
 
     currency: str = Field(..., description="Three-letter lowercase ISO currency code.")
@@ -181,7 +182,7 @@ class SubscriptionPriceData(BaseModel):
         return self
 
 
-class _SubscriptionItemCommon(BaseModel):
+class _SubscriptionItemCommon(PackModel):
     """The item fields both create and update accept."""
 
     price: Optional[str] = Field(None, description="The ID of the price object.")
@@ -254,7 +255,7 @@ class SubscriptionItemUpdate(_SubscriptionItemCommon):
         return self
 
 
-class CancellationDetails(BaseModel):
+class CancellationDetails(PackModel):
     """Why the subscription was cancelled.
 
     Recorded on the subscription; it does not change what Stripe bills.
@@ -271,7 +272,7 @@ class CancellationDetails(BaseModel):
     )
 
 
-class _SubscriptionWriteCommon(BaseModel):
+class _SubscriptionWriteCommon(PackModel):
     """Parameters create and update spell identically."""
 
     description: Annotated[
@@ -547,7 +548,7 @@ class SubscriptionsUpdateRequest(_SubscriptionWriteCommon):
     ]
 
 
-class SubscriptionsCancelRequest(BaseModel):
+class SubscriptionsCancelRequest(PackModel):
     """Input schema for Stripe `DELETE /v1/subscriptions/{subscription}`.
 
     Cancels immediately. Once cancelled the subscription is largely immutable: only

@@ -5,9 +5,10 @@ from __future__ import annotations
 
 from typing import Annotated, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Mode
+from charter.types.model import PackModel
 
 # All five values calendarList documents. `writerWithoutPrivateAccess` was
 # missing, and the field's own description listed it — so a model reading the
@@ -38,7 +39,7 @@ ConferenceSolutionType = Literal[
 # ──────────────────────────────────────────────────────────
 
 
-class DefaultReminder(BaseModel):
+class DefaultReminder(PackModel):
     """Default reminder for events on this calendar."""
 
     method: Literal["email", "popup"] = Field(
@@ -62,7 +63,7 @@ class DefaultReminder(BaseModel):
     )
 
 
-class Notification(BaseModel):
+class Notification(PackModel):
     """Notification configuration for a calendar."""
 
     type: NotificationType = Field(
@@ -87,7 +88,7 @@ class Notification(BaseModel):
     )
 
 
-class NotificationSettings(BaseModel):
+class NotificationSettings(PackModel):
     """The notifications that the authenticated user is receiving for this calendar."""
 
     notifications: Optional[List[Notification]] = Field(
@@ -96,7 +97,7 @@ class NotificationSettings(BaseModel):
     )
 
 
-class ConferenceProperties(BaseModel):
+class ConferenceProperties(PackModel):
     """Conferencing properties for this calendar, for example what types of conferences are allowed."""
 
     allowed_conference_solution_types: Optional[List[ConferenceSolutionType]] = Field(
@@ -113,7 +114,7 @@ class ConferenceProperties(BaseModel):
 # ──────────────────────────────────────────────────────────
 
 
-class CalendarListEntry(BaseModel):
+class CalendarListEntry(PackModel):
     """Single calendar in a user's calendar list.
 
     API Reference: https://developers.google.com/workspace/calendar/api/v3/reference/calendarList#resource
@@ -264,7 +265,7 @@ class CalendarListEntry(BaseModel):
 # ──────────────────────────────────────────────────────────
 
 
-class CalendarListResponse(BaseModel):
+class CalendarListResponse(PackModel):
     """Response model for CalendarList: list."""
 
     kind: Annotated[

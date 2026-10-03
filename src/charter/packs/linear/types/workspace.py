@@ -22,11 +22,12 @@ from __future__ import annotations
 
 from typing import Annotated, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.packs.linear.types.common import PageVariables, PaginationOrderBy
 from charter.packs.linear.types.filters import TeamFilter, UserFilter, WorkflowStateFilter
 from charter.types import Body
+from charter.types.model import PackModel
 
 __all__ = [
     "ViewerRequest",
@@ -63,11 +64,11 @@ _STATE_TYPE_DESCRIPTION = (
 )
 
 
-class NoVariables(BaseModel):
+class NoVariables(PackModel):
     """A query that takes no arguments."""
 
 
-class ViewerRequest(BaseModel):
+class ViewerRequest(PackModel):
     """Get the authenticated user.
 
     API Reference: https://linear.app/developers/graphql
@@ -80,7 +81,7 @@ class ViewerRequest(BaseModel):
     ]
 
 
-class OrganizationRequest(BaseModel):
+class OrganizationRequest(PackModel):
     """Get the workspace itself.
 
     API Reference: https://linear.app/developers/graphql
@@ -110,7 +111,7 @@ class TeamsListVariables(PageVariables):
     )
 
 
-class TeamsListRequest(BaseModel):
+class TeamsListRequest(PackModel):
     """List the workspace's teams. Use this to resolve a team key to its UUID."""
 
     variables: Annotated[
@@ -120,13 +121,13 @@ class TeamsListRequest(BaseModel):
     ]
 
 
-class TeamGetVariables(BaseModel):
+class TeamGetVariables(PackModel):
     """Variables for the ``team`` query."""
 
     id: str = Field(..., description="The team's UUID, or its key such as 'ENG'.")
 
 
-class TeamGetRequest(BaseModel):
+class TeamGetRequest(PackModel):
     """Get one team."""
 
     variables: Annotated[
@@ -156,7 +157,7 @@ class UsersListVariables(PageVariables):
     )
 
 
-class UsersListRequest(BaseModel):
+class UsersListRequest(PackModel):
     """List workspace members. Use this to resolve a name to an assignee UUID."""
 
     variables: Annotated[
@@ -166,7 +167,7 @@ class UsersListRequest(BaseModel):
     ]
 
 
-class UserGetVariables(BaseModel):
+class UserGetVariables(PackModel):
     """Variables for the ``user`` query."""
 
     id: str = Field(
@@ -175,7 +176,7 @@ class UserGetVariables(BaseModel):
     )
 
 
-class UserGetRequest(BaseModel):
+class UserGetRequest(PackModel):
     """Get one workspace member."""
 
     variables: Annotated[
@@ -204,7 +205,7 @@ class WorkflowStatesListVariables(PageVariables):
     )
 
 
-class WorkflowStatesListRequest(BaseModel):
+class WorkflowStatesListRequest(PackModel):
     """List workflow states — the statuses an issue can be moved between."""
 
     variables: Annotated[
@@ -214,13 +215,13 @@ class WorkflowStatesListRequest(BaseModel):
     ]
 
 
-class WorkflowStateGetVariables(BaseModel):
+class WorkflowStateGetVariables(PackModel):
     """Variables for the ``workflowState`` query."""
 
     id: str = Field(..., description="The state's UUID.")
 
 
-class WorkflowStateGetRequest(BaseModel):
+class WorkflowStateGetRequest(PackModel):
     """Get one workflow state."""
 
     variables: Annotated[
@@ -230,7 +231,7 @@ class WorkflowStateGetRequest(BaseModel):
     ]
 
 
-class WorkflowStateCreateInput(BaseModel):
+class WorkflowStateCreateInput(PackModel):
     """The input to ``workflowStateCreate``."""
 
     name: str = Field(..., description="The name of the state.")
@@ -251,13 +252,13 @@ class WorkflowStateCreateInput(BaseModel):
     )
 
 
-class WorkflowStateCreateVariables(BaseModel):
+class WorkflowStateCreateVariables(PackModel):
     """Variables for the ``workflowStateCreate`` mutation."""
 
     input: WorkflowStateCreateInput = Field(..., description="The state to create.")
 
 
-class WorkflowStateCreateRequest(BaseModel):
+class WorkflowStateCreateRequest(PackModel):
     """Create a workflow state."""
 
     variables: Annotated[
@@ -267,7 +268,7 @@ class WorkflowStateCreateRequest(BaseModel):
     ]
 
 
-class WorkflowStateUpdateInput(BaseModel):
+class WorkflowStateUpdateInput(PackModel):
     """The fields ``workflowStateUpdate`` changes. All optional.
 
     The state's ``type`` and its team are fixed at creation; Linear's update
@@ -290,14 +291,14 @@ class WorkflowStateUpdateInput(BaseModel):
         return self
 
 
-class WorkflowStateUpdateVariables(BaseModel):
+class WorkflowStateUpdateVariables(PackModel):
     """Variables for the ``workflowStateUpdate`` mutation."""
 
     id: str = Field(..., description="The state's UUID.")
     input: WorkflowStateUpdateInput = Field(..., description="The fields to change.")
 
 
-class WorkflowStateUpdateRequest(BaseModel):
+class WorkflowStateUpdateRequest(PackModel):
     """Update a workflow state."""
 
     variables: Annotated[
@@ -307,13 +308,13 @@ class WorkflowStateUpdateRequest(BaseModel):
     ]
 
 
-class WorkflowStateArchiveVariables(BaseModel):
+class WorkflowStateArchiveVariables(PackModel):
     """Variables for the ``workflowStateArchive`` mutation."""
 
     id: str = Field(..., description="The state's UUID.")
 
 
-class WorkflowStateArchiveRequest(BaseModel):
+class WorkflowStateArchiveRequest(PackModel):
     """Archive a workflow state."""
 
     variables: Annotated[
@@ -339,7 +340,7 @@ class TeamMembershipsListVariables(PageVariables):
     )
 
 
-class TeamMembershipsListRequest(BaseModel):
+class TeamMembershipsListRequest(PackModel):
     """List who belongs to which team."""
 
     variables: Annotated[
@@ -349,13 +350,13 @@ class TeamMembershipsListRequest(BaseModel):
     ]
 
 
-class TeamMembershipGetVariables(BaseModel):
+class TeamMembershipGetVariables(PackModel):
     """Variables for the ``teamMembership`` query."""
 
     id: str = Field(..., description="The membership's UUID.")
 
 
-class TeamMembershipGetRequest(BaseModel):
+class TeamMembershipGetRequest(PackModel):
     """Get one team membership."""
 
     variables: Annotated[
@@ -365,7 +366,7 @@ class TeamMembershipGetRequest(BaseModel):
     ]
 
 
-class TeamMembershipCreateInput(BaseModel):
+class TeamMembershipCreateInput(PackModel):
     """The input to ``teamMembershipCreate``."""
 
     team_id: str = Field(
@@ -386,13 +387,13 @@ class TeamMembershipCreateInput(BaseModel):
     )
 
 
-class TeamMembershipCreateVariables(BaseModel):
+class TeamMembershipCreateVariables(PackModel):
     """Variables for the ``teamMembershipCreate`` mutation."""
 
     input: TeamMembershipCreateInput = Field(..., description="The membership to create.")
 
 
-class TeamMembershipCreateRequest(BaseModel):
+class TeamMembershipCreateRequest(PackModel):
     """Add a member to a team."""
 
     variables: Annotated[
@@ -402,7 +403,7 @@ class TeamMembershipCreateRequest(BaseModel):
     ]
 
 
-class TeamMembershipUpdateInput(BaseModel):
+class TeamMembershipUpdateInput(PackModel):
     """The fields ``teamMembershipUpdate`` changes. All optional."""
 
     owner: Optional[bool] = Field(None, description="Whether the user is the owner of the team.")
@@ -417,14 +418,14 @@ class TeamMembershipUpdateInput(BaseModel):
         return self
 
 
-class TeamMembershipUpdateVariables(BaseModel):
+class TeamMembershipUpdateVariables(PackModel):
     """Variables for the ``teamMembershipUpdate`` mutation."""
 
     id: str = Field(..., description="The membership's UUID.")
     input: TeamMembershipUpdateInput = Field(..., description="The fields to change.")
 
 
-class TeamMembershipUpdateRequest(BaseModel):
+class TeamMembershipUpdateRequest(PackModel):
     """Change a team membership, such as making someone the team's owner."""
 
     variables: Annotated[
@@ -434,13 +435,13 @@ class TeamMembershipUpdateRequest(BaseModel):
     ]
 
 
-class TeamMembershipDeleteVariables(BaseModel):
+class TeamMembershipDeleteVariables(PackModel):
     """Variables for the ``teamMembershipDelete`` mutation."""
 
     id: str = Field(..., description="The membership's UUID.")
 
 
-class TeamMembershipDeleteRequest(BaseModel):
+class TeamMembershipDeleteRequest(PackModel):
     """Remove a member from a team."""
 
     variables: Annotated[

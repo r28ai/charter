@@ -3,10 +3,11 @@
 
 from typing import Annotated, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.firecrawl.types.common import ScrapeOptionsMixin
 from charter.types import Body, Path
+from charter.types.model import PackModel
 
 __all__ = ["ScrapeRequest", "ScrapeStatusRequest"]
 
@@ -32,7 +33,7 @@ class ScrapeRequest(ScrapeOptionsMixin):
     ]
 
 
-class ScrapeStatusRequest(BaseModel):
+class ScrapeStatusRequest(PackModel):
     """Get the status of a scrape job.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/scrape-get

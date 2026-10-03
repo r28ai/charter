@@ -10,9 +10,10 @@ from __future__ import annotations
 
 from typing import Annotated, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Body, Path, Query
+from charter.types.model import PackModel
 
 __all__ = [
     "InteractCreateRequest",
@@ -22,7 +23,7 @@ __all__ = [
 ]
 
 
-class InteractProfile(BaseModel):
+class InteractProfile(PackModel):
     """Persistent storage profile for interact sessions."""
 
     name: str = Field(
@@ -37,7 +38,7 @@ class InteractProfile(BaseModel):
     )
 
 
-class InteractCreateRequest(BaseModel):
+class InteractCreateRequest(PackModel):
     """Create a browser sandbox interact session.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/interact-create
@@ -78,7 +79,7 @@ class InteractCreateRequest(BaseModel):
     ]
 
 
-class InteractExecuteRequest(BaseModel):
+class InteractExecuteRequest(PackModel):
     """Execute code in an interact session.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/interact-execute
@@ -110,7 +111,7 @@ class InteractExecuteRequest(BaseModel):
     ]
 
 
-class InteractListRequest(BaseModel):
+class InteractListRequest(PackModel):
     """List interact sessions.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/interact-list
@@ -123,7 +124,7 @@ class InteractListRequest(BaseModel):
     ]
 
 
-class InteractDeleteRequest(BaseModel):
+class InteractDeleteRequest(PackModel):
     """Delete an interact session.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/interact-delete

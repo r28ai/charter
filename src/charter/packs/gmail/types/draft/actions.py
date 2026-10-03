@@ -3,16 +3,17 @@
 
 from typing import Annotated, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Body, Path, Query
+from charter.types.model import PackModel
 
 from .._common import PAGE_TOKEN_DESCRIPTION, USER_ID_DESCRIPTION
 from ..message.models import MessageFormat
 from .models import Draft
 
 
-class SendDraftRequest(BaseModel):
+class SendDraftRequest(PackModel):
     """Request body for Gmail `users.drafts.send`.
 
     The endpoint documents its body as a Draft, but the only field it reads is
@@ -27,7 +28,7 @@ class SendDraftRequest(BaseModel):
     id: str = Field(..., description="The immutable ID of the draft to send.")
 
 
-class DraftsCreateRequest(BaseModel):
+class DraftsCreateRequest(PackModel):
     """Input schema for Gmail `users.drafts.create` (save draft).
 
     API: https://developers.google.com/gmail/api/reference/rest/v1/users.drafts/create
@@ -49,7 +50,7 @@ class DraftsCreateRequest(BaseModel):
     ]
 
 
-class DraftsGetRequest(BaseModel):
+class DraftsGetRequest(PackModel):
     """Input schema for Gmail `users.drafts.get` endpoint.
 
     Gets the specified draft.
@@ -91,7 +92,7 @@ class DraftsGetRequest(BaseModel):
     ]
 
 
-class DraftsListRequest(BaseModel):
+class DraftsListRequest(PackModel):
     """Input schema for Gmail `users.drafts.list` endpoint.
 
     Lists the drafts in the user's mailbox.
@@ -153,7 +154,7 @@ class DraftsListRequest(BaseModel):
     ]
 
 
-class DraftsUpdateRequest(BaseModel):
+class DraftsUpdateRequest(PackModel):
     """Input schema for Gmail `users.drafts.update` endpoint.
 
     Replaces a draft's content. The new content is whole: whatever the saved
@@ -191,7 +192,7 @@ class DraftsUpdateRequest(BaseModel):
     }
 
 
-class DraftsDeleteRequest(BaseModel):
+class DraftsDeleteRequest(PackModel):
     """Input schema for Gmail `users.drafts.delete` endpoint.
 
     Immediately and permanently deletes the specified draft. Does not simply
@@ -216,7 +217,7 @@ class DraftsDeleteRequest(BaseModel):
     ]
 
 
-class DraftsSendRequest(BaseModel):
+class DraftsSendRequest(PackModel):
     """Input schema for Gmail `users.drafts.send` endpoint.
 
     Sends the specified, existing draft to the recipients in the To, Cc, and

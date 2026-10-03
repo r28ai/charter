@@ -31,11 +31,12 @@ from __future__ import annotations
 
 from typing import Annotated, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.stripe.types.common import StripeListRequest
 from charter.packs.stripe.types.payments import CreatedFilter
 from charter.types import Path, Query
+from charter.types.model import PackModel
 
 __all__ = [
     "PayoutStatusFilter",
@@ -126,7 +127,7 @@ class AccountsListRequest(StripeListRequest):
     created: Annotated[Optional[CreatedFilter], Field(None, description=_CREATED), Query()]
 
 
-class AccountsRetrieveRequest(BaseModel):
+class AccountsRetrieveRequest(PackModel):
     """Input schema for Stripe `GET /v1/accounts/{account}`.
 
     API Reference: https://docs.stripe.com/api/accounts/retrieve
@@ -163,7 +164,7 @@ class TransfersListRequest(StripeListRequest):
     created: Annotated[Optional[CreatedFilter], Field(None, description=_CREATED), Query()]
 
 
-class TransfersRetrieveRequest(BaseModel):
+class TransfersRetrieveRequest(PackModel):
     """Input schema for Stripe `GET /v1/transfers/{transfer}`.
 
     API Reference: https://docs.stripe.com/api/transfers/retrieve
@@ -216,7 +217,7 @@ class PayoutsListRequest(StripeListRequest):
     ]
 
 
-class PayoutsRetrieveRequest(BaseModel):
+class PayoutsRetrieveRequest(PackModel):
     """Input schema for Stripe `GET /v1/payouts/{payout}`.
 
     API Reference: https://docs.stripe.com/api/payouts/retrieve

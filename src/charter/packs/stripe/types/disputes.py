@@ -29,11 +29,12 @@ from __future__ import annotations
 
 from typing import Annotated, Dict, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.stripe.types.common import StripeListRequest
 from charter.packs.stripe.types.payments import CreatedFilter
 from charter.types import Body, Path, Query
+from charter.types.model import PackModel
 
 __all__ = [
     "DisputeEvidence",
@@ -46,7 +47,7 @@ __all__ = [
 _TEXT_LIMIT = 20_000
 
 
-class DisputeEvidence(BaseModel):
+class DisputeEvidence(PackModel):
     """The evidence fields an agent can actually write.
 
     Every field here is free text. The file-upload fields Stripe also accepts are
@@ -152,7 +153,7 @@ class DisputeEvidence(BaseModel):
     )
 
 
-class _DisputeId(BaseModel):
+class _DisputeId(PackModel):
     dispute: Annotated[
         str,
         Field(..., description="The ID of the dispute."),

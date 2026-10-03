@@ -36,6 +36,18 @@ here, with the migration in the same entry.
 
 ### Changed
 
+- **A pack's models are built the first time they are used, not when the pack
+  is imported.** Every model a pack declares is now a `PackModel`
+  (`charter.types.model`), which defers pydantic's build. Importing the packs the
+  engineering family serves, and building its 59 tools' schemas, went from 5.1s
+  to 3.1s (best of four each, alternating). Recursive modules end with
+  `resolve_forward_refs(...)`, which rebuilds only the models whose fields did
+  not resolve, dependencies first so each rebuild reuses the last: Sheets' went
+  from 0.94s to 0.22s. `partial_of` of a pack model is deferred too. The resolvability check at tool construction now reads resolved
+  fields rather than whether a model is built. On pydantic older than 2.11,
+  which cannot say a model's fields resolved without building it, models build
+  eagerly as before. Validation, serialization and schemas are unchanged.
+
 - **Breaking: `notion.pages_create` takes content as `markdown`, not blocks.**
   Notion accepts the same block tree under `children` and under its alias
   `content`, and the two were most of the tool: 15,787 tokens of schema, now

@@ -20,9 +20,10 @@ from datetime import date, datetime
 from typing import Annotated, Dict, List, Literal, Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.types import Mode, WireName
+from charter.types.model import PackModel
 
 # ──────────────────────────────────────────────────────────
 # Shared / Nested value objects
@@ -39,7 +40,7 @@ def _offset_label(delta) -> str:
     return f"{sign}{total // 3600:02d}:{(total % 3600) // 60:02d}"
 
 
-class EventDateTime(BaseModel):
+class EventDateTime(PackModel):
     """Represents the start or end of an event."""
 
     # Use Annotated + Field to dodge the recursion bug (see header comment).
@@ -129,7 +130,7 @@ class EventDateTime(BaseModel):
         )
 
 
-class Attachment(BaseModel):
+class Attachment(PackModel):
     file_url: str = Field(
         ...,
         description=(
@@ -162,7 +163,7 @@ class Attachment(BaseModel):
     ]
 
 
-class Attendee(BaseModel):
+class Attendee(PackModel):
     email: str = Field(
         ...,
         description=(
@@ -225,7 +226,7 @@ class Attendee(BaseModel):
     ]
 
 
-class BirthdayProperties(BaseModel):
+class BirthdayProperties(PackModel):
     contact: Annotated[
         Optional[str],
         Field(
@@ -256,7 +257,7 @@ class BirthdayProperties(BaseModel):
     )
 
 
-class Creator(BaseModel):
+class Creator(PackModel):
     """The creator of the event. Read-only."""
 
     display_name: Optional[str] = Field(None, description="The creator's name, if available.")
@@ -272,7 +273,7 @@ class Creator(BaseModel):
     ]
 
 
-class Organizer(BaseModel):
+class Organizer(PackModel):
     """The organizer of the event. Read-only, except when importing an event."""
 
     display_name: Optional[str] = Field(None, description="The organizer's name, if available.")
@@ -291,7 +292,7 @@ class Organizer(BaseModel):
     ]
 
 
-class ConferenceSolutionKey(BaseModel):
+class ConferenceSolutionKey(PackModel):
     type: Optional[Literal["eventHangout", "eventNamedHangout", "hangoutsMeet", "addOn"]] = Field(
         None,
         description=(
@@ -305,7 +306,7 @@ class ConferenceSolutionKey(BaseModel):
     )
 
 
-class ConferenceSolution(BaseModel):
+class ConferenceSolution(PackModel):
     """The conference solution, such as Google Meet."""
 
     icon_uri: Optional[str] = Field(None, description="The user-visible icon for this solution.")
@@ -318,7 +319,7 @@ class ConferenceSolution(BaseModel):
     )
 
 
-class CreateRequestStatus(BaseModel):
+class CreateRequestStatus(PackModel):
     """The status of the conference create request."""
 
     # Google marks it Read-only on the reference page, and `createRequest` is a
@@ -340,7 +341,7 @@ class CreateRequestStatus(BaseModel):
     ] = None
 
 
-class CreateRequest(BaseModel):
+class CreateRequest(PackModel):
     """A request to generate a new conference and attach it to the event."""
 
     conference_solution_key: Optional[ConferenceSolutionKey] = Field(
@@ -360,7 +361,7 @@ class CreateRequest(BaseModel):
     )
 
 
-class EntryPoint(BaseModel):
+class EntryPoint(PackModel):
     """Information about individual conference entry points, such as URLs or phone numbers."""
 
     access_code: Optional[str] = Field(
@@ -433,7 +434,7 @@ class EntryPoint(BaseModel):
     )
 
 
-class ConferenceData(BaseModel):
+class ConferenceData(PackModel):
     """The conference-related information, such as details of a Google Meet conference."""
 
     conference_id: Optional[str] = Field(
@@ -490,7 +491,7 @@ class ConferenceData(BaseModel):
     ]
 
 
-class FocusTimeProperties(BaseModel):
+class FocusTimeProperties(PackModel):
     """Focus Time event data. Used if eventType is focusTime."""
 
     auto_decline_mode: Optional[
@@ -518,7 +519,7 @@ class FocusTimeProperties(BaseModel):
     )
 
 
-class OutOfOfficeProperties(BaseModel):
+class OutOfOfficeProperties(PackModel):
     """Out of office event data. Used if eventType is outOfOffice."""
 
     auto_decline_mode: Optional[
@@ -542,7 +543,7 @@ class OutOfOfficeProperties(BaseModel):
     )
 
 
-class OfficeLocation(BaseModel):
+class OfficeLocation(PackModel):
     building_id: Optional[str] = Field(
         None,
         description="An optional building identifier. This should reference a building ID in the organization's Resources database.",
@@ -558,13 +559,13 @@ class OfficeLocation(BaseModel):
     )
 
 
-class CustomLocation(BaseModel):
+class CustomLocation(PackModel):
     label: Optional[str] = Field(
         None, description="An optional extra label for additional information."
     )
 
 
-class WorkingLocationProperties(BaseModel):
+class WorkingLocationProperties(PackModel):
     type: Literal["homeOffice", "officeLocation", "customLocation"] = Field(
         ...,
         description=(
@@ -590,7 +591,7 @@ class WorkingLocationProperties(BaseModel):
     )
 
 
-class ExtendedProperties(BaseModel):
+class ExtendedProperties(PackModel):
     private: Optional[Dict[str, str]] = Field(
         None,
         description="Properties that are private to the copy of the event that appears on this calendar.",
@@ -601,7 +602,7 @@ class ExtendedProperties(BaseModel):
     )
 
 
-class ReminderOverride(BaseModel):
+class ReminderOverride(PackModel):
     method: Literal["email", "popup"] = Field(
         ...,
         description=(
@@ -622,7 +623,7 @@ class ReminderOverride(BaseModel):
     )
 
 
-class Reminders(BaseModel):
+class Reminders(PackModel):
     use_default: Optional[bool] = Field(
         None,
         description="Whether the default reminders of the calendar apply to the event.",
@@ -639,7 +640,7 @@ class Reminders(BaseModel):
     ]
 
 
-class EventGadget(BaseModel):
+class EventGadget(PackModel):
     """A gadget that extends this event. Gadgets are deprecated; this structure is instead only used for returning birthday calendar metadata."""
 
     display: Optional[Literal["icon", "chip"]] = Field(
@@ -676,7 +677,7 @@ class EventGadget(BaseModel):
     )
 
 
-class Source(BaseModel):
+class Source(PackModel):
     title: Optional[str] = Field(
         None,
         description="Title of the source; for example a title of a web page or an email subject.",
@@ -692,7 +693,7 @@ class Source(BaseModel):
 # ──────────────────────────────────────────────────────────
 
 
-class Event(BaseModel):
+class Event(PackModel):
     """Google Calendar Event resource.
 
     API Reference: https://developers.google.com/workspace/calendar/api/v3/reference/events#resource

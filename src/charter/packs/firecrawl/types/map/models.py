@@ -14,12 +14,13 @@ from __future__ import annotations
 
 from typing import Annotated, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Mode
+from charter.types.model import PackModel
 
 
-class MapLink(BaseModel):
+class MapLink(PackModel):
     """A single URL entry returned by the map endpoint.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/map
@@ -42,7 +43,7 @@ class MapLink(BaseModel):
     ]
 
 
-class MapResponse(BaseModel):
+class MapResponse(PackModel):
     """Root response from the Firecrawl POST /map endpoint.
 
     API Reference: https://docs.firecrawl.dev/api-reference/endpoint/map

@@ -5,16 +5,17 @@ from __future__ import annotations
 
 from typing import Annotated, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Mode
+from charter.types.model import PackModel, resolve_forward_refs
 
 from ..message.models import Message
 
 Format = Literal["full", "metadata", "minimal"]
 
 
-class ListThreadsResponse(BaseModel):
+class ListThreadsResponse(PackModel):
     """
     Response model for users.threads.list.
 
@@ -41,7 +42,7 @@ class ListThreadsResponse(BaseModel):
     ]
 
 
-class Thread(BaseModel):
+class Thread(PackModel):
     """Gmail thread resource (conversation).
 
     API Reference: https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.threads#Thread
@@ -69,4 +70,4 @@ class Thread(BaseModel):
     ]
 
 
-ListThreadsResponse.model_rebuild()
+resolve_forward_refs(ListThreadsResponse)

@@ -10,15 +10,16 @@ from __future__ import annotations
 
 from typing import Annotated, List, Optional, Union
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.packs.tavily.types.common import ContentFormat, ExtractDepth
 from charter.types import Body
+from charter.types.model import PackModel
 
 __all__ = ["ExtractRequest"]
 
 
-class ExtractRequest(BaseModel):
+class ExtractRequest(PackModel):
     """Extract clean content from one or more URLs.
 
     API Reference: https://docs.tavily.com/documentation/api-reference/endpoint/extract

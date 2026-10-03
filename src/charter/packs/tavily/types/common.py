@@ -10,9 +10,10 @@ from __future__ import annotations
 
 from typing import Annotated, Literal, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Mode
+from charter.types.model import PackModel
 
 SearchDepth = Literal["advanced", "basic", "fast", "ultra-fast"]
 Topic = Literal["general", "news", "finance"]
@@ -198,7 +199,7 @@ Country = Literal[
 ]
 
 
-class Usage(BaseModel):
+class Usage(PackModel):
     """Credit usage returned when ``include_usage`` is requested.
 
     API Reference: https://docs.tavily.com/documentation/api-reference/endpoint/search
@@ -211,7 +212,7 @@ class Usage(BaseModel):
     ]
 
 
-class SearchImage(BaseModel):
+class SearchImage(PackModel):
     """An image attached to a search result or the top-level query.
 
     API Reference: https://docs.tavily.com/documentation/api-reference/endpoint/search

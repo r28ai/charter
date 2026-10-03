@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Annotated, List, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.packs.tavily.types.common import (
     Country,
@@ -22,11 +22,12 @@ from charter.packs.tavily.types.common import (
     Topic,
 )
 from charter.types import Body
+from charter.types.model import PackModel
 
 __all__ = ["SearchRequest"]
 
 
-class SearchRequest(BaseModel):
+class SearchRequest(PackModel):
     """Execute a real-time web search optimized for AI agents.
 
     API Reference: https://docs.tavily.com/documentation/api-reference/endpoint/search

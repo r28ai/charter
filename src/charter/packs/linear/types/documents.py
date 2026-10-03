@@ -15,11 +15,12 @@ from __future__ import annotations
 
 from typing import Annotated, List, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from charter.packs.linear.types.common import PageVariables, PaginationOrderBy
 from charter.packs.linear.types.filters import DocumentFilter
 from charter.types import Body
+from charter.types.model import PackModel
 
 __all__ = [
     "DocumentsListRequest",
@@ -45,7 +46,7 @@ class DocumentsListVariables(PageVariables):
     )
 
 
-class DocumentsListRequest(BaseModel):
+class DocumentsListRequest(PackModel):
     """List documents."""
 
     variables: Annotated[
@@ -55,13 +56,13 @@ class DocumentsListRequest(BaseModel):
     ]
 
 
-class DocumentGetVariables(BaseModel):
+class DocumentGetVariables(PackModel):
     """Variables for the ``document`` query."""
 
     id: str = Field(..., description="The document's UUID, or the slug from its URL.")
 
 
-class DocumentGetRequest(BaseModel):
+class DocumentGetRequest(PackModel):
     """Get one document, with its content."""
 
     variables: Annotated[
@@ -71,7 +72,7 @@ class DocumentGetRequest(BaseModel):
     ]
 
 
-class DocumentCreateInput(BaseModel):
+class DocumentCreateInput(PackModel):
     """The input to ``documentCreate``."""
 
     title: str = Field(..., description="The title of the document.")
@@ -102,13 +103,13 @@ class DocumentCreateInput(BaseModel):
     )
 
 
-class DocumentCreateVariables(BaseModel):
+class DocumentCreateVariables(PackModel):
     """Variables for the ``documentCreate`` mutation."""
 
     input: DocumentCreateInput = Field(..., description="The document to create.")
 
 
-class DocumentCreateRequest(BaseModel):
+class DocumentCreateRequest(PackModel):
     """Create a document."""
 
     variables: Annotated[
@@ -118,7 +119,7 @@ class DocumentCreateRequest(BaseModel):
     ]
 
 
-class DocumentUpdateInput(BaseModel):
+class DocumentUpdateInput(PackModel):
     """The fields ``documentUpdate`` changes. All optional."""
 
     title: Optional[str] = Field(None, description="The title of the document.")
@@ -159,14 +160,14 @@ class DocumentUpdateInput(BaseModel):
         return self
 
 
-class DocumentUpdateVariables(BaseModel):
+class DocumentUpdateVariables(PackModel):
     """Variables for the ``documentUpdate`` mutation."""
 
     id: str = Field(..., description="The document's UUID.")
     input: DocumentUpdateInput = Field(..., description="The fields to change.")
 
 
-class DocumentUpdateRequest(BaseModel):
+class DocumentUpdateRequest(PackModel):
     """Update a document."""
 
     variables: Annotated[
@@ -176,13 +177,13 @@ class DocumentUpdateRequest(BaseModel):
     ]
 
 
-class DocumentIdVariables(BaseModel):
+class DocumentIdVariables(PackModel):
     """Variables for the document mutations that take only an id."""
 
     id: str = Field(..., description="The document's UUID.")
 
 
-class DocumentDeleteRequest(BaseModel):
+class DocumentDeleteRequest(PackModel):
     """Move a document to the trash."""
 
     variables: Annotated[
@@ -192,7 +193,7 @@ class DocumentDeleteRequest(BaseModel):
     ]
 
 
-class DocumentUnarchiveRequest(BaseModel):
+class DocumentUnarchiveRequest(PackModel):
     """Restore a document from the trash."""
 
     variables: Annotated[

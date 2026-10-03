@@ -10,13 +10,14 @@ from __future__ import annotations
 
 from typing import Annotated, Any, List, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.tavily.types.common import ResearchStatus, Usage
 from charter.types import Mode
+from charter.types.model import PackModel
 
 
-class ResearchSource(BaseModel):
+class ResearchSource(PackModel):
     """A source cited in a completed research report.
 
     API Reference: https://docs.tavily.com/documentation/api-reference/endpoint/research-get
@@ -31,7 +32,7 @@ class ResearchSource(BaseModel):
     ]
 
 
-class ResearchCreateResponse(BaseModel):
+class ResearchCreateResponse(PackModel):
     """Response from Tavily POST /research (non-streaming).
 
     API Reference: https://docs.tavily.com/documentation/api-reference/endpoint/research
@@ -69,7 +70,7 @@ class ResearchCreateResponse(BaseModel):
     ]
 
 
-class ResearchGetResponse(BaseModel):
+class ResearchGetResponse(PackModel):
     """Response from Tavily GET /research/{request_id}.
 
     API Reference: https://docs.tavily.com/documentation/api-reference/endpoint/research-get

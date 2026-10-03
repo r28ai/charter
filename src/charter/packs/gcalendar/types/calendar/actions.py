@@ -17,14 +17,15 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.types import Path
+from charter.types.model import PackModel
 
 from .._shared import CALENDAR_ID
 
 
-class CalendarsGetRequest(BaseModel):
+class CalendarsGetRequest(PackModel):
     """Returns metadata for a calendar.
 
     API Reference: https://developers.google.com/workspace/calendar/api/v3/reference/calendars/get

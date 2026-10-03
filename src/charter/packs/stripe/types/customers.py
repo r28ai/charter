@@ -10,10 +10,11 @@ from __future__ import annotations
 
 from typing import Annotated, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.stripe.types.common import Address, StripeListRequest
 from charter.types import Body, Gloss, Path, Query
+from charter.types.model import PackModel
 
 __all__ = [
     "TaxExempt",
@@ -48,7 +49,7 @@ class CustomersListRequest(StripeListRequest):
     ]
 
 
-class CustomersRetrieveRequest(BaseModel):
+class CustomersRetrieveRequest(PackModel):
     """Input schema for Stripe `GET /v1/customers/{customer}`.
 
     API Reference: https://docs.stripe.com/api/customers/retrieve
@@ -61,7 +62,7 @@ class CustomersRetrieveRequest(BaseModel):
     ]
 
 
-class CustomerFields(BaseModel):
+class CustomerFields(PackModel):
     """The customer attributes both create and update accept.
 
     Split out because the two endpoints are *nearly* the same and the difference

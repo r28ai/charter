@@ -434,3 +434,19 @@ def test_the_packs_are_intact_after_every_mutation():
             ]
         )
     )
+
+
+def test_a_pack_model_built_at_import_is_caught(monkeypatch):
+    """A model declared on pydantic's BaseModel is built for every importer of the pack."""
+    import charter.packs.stripe.types as stripe_types
+
+    class Eager(BaseModel):
+        amount: int
+
+    Eager.__module__ = stripe_types.__name__
+    monkeypatch.setattr(stripe_types, "Eager", Eager, raising=False)
+    _must_fail(
+        conformance.test_every_pack_model_is_built_on_first_use,
+        "stripe",
+        because="a pack model built at import",
+    )

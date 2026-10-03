@@ -802,3 +802,41 @@ def test_no_pack_model_was_rewritten_by_its_own_llm_view():
         "the LLM view rewrote the annotations on the models it was built from:\n  "
         + "\n  ".join(sorted(set(corrupted))[:10])
     )
+
+
+def _models_declared_by(pack_name: str) -> Iterator[Type[BaseModel]]:
+    """Every model class a pack's own modules define, once each."""
+    package = PACKS[pack_name]
+    seen: Set[int] = set()
+    for module in {package, *_submodules(package)}:
+        for cls in vars(module).values():
+            if (
+                isinstance(cls, type)
+                and issubclass(cls, BaseModel)
+                and cls.__module__.startswith(f"charter.packs.{pack_name}")
+                and id(cls) not in seen
+            ):
+                seen.add(id(cls))
+                yield cls
+
+
+@pytest.mark.parametrize("pack_name", PACK_NAMES)
+def test_every_pack_model_is_built_on_first_use(pack_name):
+    """A model a pack declares is a ``PackModel``, so importing the pack builds none of them.
+
+    Built at definition, a pack's models were most of its import time: 5.2s of the
+    5.9s the engineering family took to list its 59 tools, and Codex — which starts
+    its turn while servers are still starting — saw none. One model declared on
+    ``BaseModel`` is one model built at import for every user of the pack, used or not.
+    """
+    from charter.types.model import PackModel
+
+    eager = sorted(
+        f"{cls.__module__}.{cls.__qualname__}"
+        for cls in _models_declared_by(pack_name)
+        if not issubclass(cls, PackModel)
+    )
+    assert not eager, (
+        f"{len(eager)} {pack_name} model(s) subclass BaseModel rather than PackModel, so "
+        "they are built when the pack is imported:\n  " + "\n  ".join(eager[:10])
+    )

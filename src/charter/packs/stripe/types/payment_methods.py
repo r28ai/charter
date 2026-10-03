@@ -20,10 +20,11 @@ from __future__ import annotations
 
 from typing import Annotated, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from charter.packs.stripe.types.common import StripeListRequest
 from charter.types import Body, Path, Query
+from charter.types.model import PackModel
 
 __all__ = [
     "AllowRedisplay",
@@ -62,7 +63,7 @@ _REDISPLAY_DESCRIPTION = (
 )
 
 
-class _PaymentMethodId(BaseModel):
+class _PaymentMethodId(PackModel):
     payment_method: Annotated[
         str,
         Field(..., description="The ID of the payment method."),
