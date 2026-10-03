@@ -188,7 +188,7 @@ values_batch_clear_by_data_filter = _sheets(
     quota_cost=1,
 )
 
-spreadsheets_create = _sheets(
+spreadsheets_create_full = _sheets(
     name="spreadsheets_create",
     args_schema=SpreadsheetsCreateRequest,
     method="POST",
@@ -197,6 +197,24 @@ spreadsheets_create = _sheets(
     action_label="Creates a new spreadsheet.",
     quota_cost=1,
     response_handler=extract_spreadsheet,
+)
+
+# The request body is the whole Spreadsheet resource, so the mirror offers every
+# chart, pivot table, banding and filter view a sheet can hold, at creation:
+# 31,961 tokens, the second-widest tool in any pack, 27,450 of them under
+# `sheets`. What a caller sets at creation is the shell - a title, a locale, the
+# sheets it starts with - and the grid is filled afterwards by the values tools
+# and `spreadsheets_batch_update`. Narrowed to that shell it is 2,532 tokens.
+# `spreadsheets_create_full` keeps the whole resource and is absent from `TOOLS`,
+# the way Linear's `*_full` twins are.
+spreadsheets_create = spreadsheets_create_full.derived(
+    name="spreadsheets_create",
+    keep={"spreadsheet.properties", "spreadsheet.sheets.properties"},
+    description=(
+        "Create a new spreadsheet. Set its title, locale and time zone, and the "
+        "sheets it starts with; write cell values afterwards with "
+        "`spreadsheets_values_update` or `spreadsheets_values_append`."
+    ),
 )
 
 spreadsheets_get = _sheets(

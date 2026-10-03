@@ -1,6 +1,6 @@
 ---
 title: "pages_create"
-description: "Create a page — as a subpage of another page, or as a row of a database by giving its `data_source_id` as the parent. Content comes as `children` blocks, as a `markdown` string Notion parses for you, or from a template: one of the three, never two."
+description: "Create a page — as a subpage of another page, or as a row of a database by giving its `data_source_id` as the parent. Content comes as a `markdown` string Notion parses into blocks, or from a template: one or the other, never both."
 tag: "POST"
 ---
 
@@ -19,22 +19,6 @@ result = asyncio.run(notion.pages_create.ainvoke({"body": ...}))
 <Note>
   Requires `Insert content`.
 </Note>
-
-<Warning>
-  This tool's JSON schema is 61 KB, because `body.children` carries 45 kinds of edit behind one method.
-  That is more context than most tasks. Narrow it at the call site
-  with [`Tool.derived`](/reference/tool#tool-derived):
-
-  ```python
-  narrowed = notion.pages_create.derived(
-      name="pages_create_narrowed",
-      keep={"body.children.object", "body.children.type", "body.children.code"},
-  )
-  ```
-
-  Three of the 45 are kept here. Which ones your agent needs is yours to pick. The tool underneath is unchanged.
-  See [Projections](/tools/projections).
-</Warning>
 
 ## Query parameters
 

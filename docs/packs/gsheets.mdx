@@ -307,10 +307,15 @@ receives `userEnteredValue,userEnteredFormat`. See [transforms](/tools/transform
     the URL is handled; the quoting for Sheets' grammar is yours.
   </Accordion>
 
-  <Accordion title="spreadsheets_create takes the whole spreadsheet object">
+  <Accordion title="spreadsheets_create makes the shell, not the contents">
     Its one argument is `spreadsheet`, the same resource `spreadsheets_get`
-    returns. Titles, sheet tabs and initial data all go inside it; there is no
-    flat `title` shortcut.
+    returns, narrowed to the spreadsheet's properties and each sheet's
+    properties: a title, a locale, a time zone and the tabs it starts with.
+    There is no flat `title` shortcut. Values go in afterwards with the values
+    tools, and formatting with `spreadsheets_batch_update`. The whole resource,
+    initial grid data and charts included, is 31,961 tokens of schema against
+    2,532, so it is on `gsheets.spreadsheets_create_full`, which `TOOLS` leaves
+    out.
   </Accordion>
 </AccordionGroup>
 

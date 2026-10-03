@@ -266,7 +266,7 @@ search = _notion(
 
 # ---------- pages ----------
 
-pages_create = _notion(
+pages_create_full = _notion(
     name="pages_create",
     scopes_override=INSERT,
     args_schema=PagesCreateRequest,
@@ -280,6 +280,26 @@ pages_create = _notion(
     ),
     action_label="Creates a Notion page.",
     response_handler=trim_page,
+)
+
+# Notion takes a new page's content three ways, and two of them are the same
+# block tree: `content` is an alias for `children`. That tree is most of this
+# tool - 15,787 tokens, and pruning either field alone saves 69, because the
+# other still holds every block type. `markdown` says the same thing in a string
+# Notion parses itself, so the narrowed tool offers that and the template, and
+# drops both block fields: 4,888 tokens, most of what is left being the page
+# properties a database row needs. `pages_create_full` keeps the blocks and is
+# absent from `TOOLS`; `blocks_children_append` still builds a tree block by
+# block on a page that exists.
+pages_create = pages_create_full.derived(
+    name="pages_create",
+    drop={"body.children", "body.content"},
+    description=(
+        "Create a page — as a subpage of another page, or as a row of a database "
+        "by giving its `data_source_id` as the parent. Content comes as a "
+        "`markdown` string Notion parses into blocks, or from a template: one or "
+        "the other, never both."
+    ),
 )
 
 pages_retrieve = _notion(

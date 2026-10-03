@@ -25,8 +25,24 @@ here, with the migration in the same entry.
   one expires. That is what keeps the MCP server working past its first day.
   The pair wins over `$SHOPIFY_ACCESS_TOKEN` when both are set. A store's
   older `shpat_` token, which does not expire, works as before.
-
 ### Changed
+
+- **Breaking: `notion.pages_create` takes content as `markdown`, not blocks.**
+  Notion accepts the same block tree under `children` and under its alias
+  `content`, and the two were most of the tool: 15,787 tokens of schema, now
+  4,888. Pass the page as a `markdown` string, which Notion parses into blocks
+  at any depth. `notion.pages_create_full` keeps both block fields and is left
+  out of `TOOLS`, the way Linear's `*_full` tools are; `blocks_children_append`
+  still builds a tree block by block on a page that exists.
+- **Breaking: `gsheets.spreadsheets_create` creates the shell.** The request is
+  the whole Spreadsheet resource, so it offered every chart, pivot table and
+  filter view at creation: 31,961 tokens, 27,450 of them under `sheets`. It now
+  takes the spreadsheet's properties and each sheet's properties, 2,532
+  tokens; values go in with the values tools afterwards.
+  `gsheets.spreadsheets_create_full` keeps the whole resource. Together the two
+  take the fifteen packs from 458,296 tokens of schema to 417,968.
+  `spreadsheets_batch_update` is unchanged: the pack-writing skill keeps a
+  oneof complete and leaves narrowing it to the deployment.
 
 - **The Shopify pack is built on `oauth_tool_factory`.** Its tools carry a
   `credential_provider` and `token_header="X-Shopify-Access-Token"` where they

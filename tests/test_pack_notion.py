@@ -108,7 +108,7 @@ async def test_a_post_sends_the_body_notion_documents():
     route = respx.post("https://api.notion.com/v1/pages").mock(
         return_value=httpx.Response(200, json={"object": "page", "id": "p1"})
     )
-    await notion.pages_create.ainvoke(
+    await notion.pages_create_full.ainvoke(
         {
             "body": {
                 "parent": {"data_source_id": "ds1"},
@@ -367,9 +367,31 @@ def test_a_block_type_must_name_the_content_it_carries():
         )
 
 
+def test_the_shipped_page_create_takes_markdown_not_blocks():
+    """`content` is an alias for `children`, so both go or neither saves anything."""
+    offered = notion.pages_create.paths(under="body")
+    assert "markdown" in offered
+    assert "children" not in offered and "content" not in offered
+    assert "children" in notion.pages_create_full.paths(under="body")
+    assert notion.pages_create in notion.TOOLS
+    assert notion.pages_create_full not in notion.TOOLS
+
+
+@respx.mock
+async def test_the_shipped_page_create_sends_markdown_as_written():
+    route = respx.post("https://api.notion.com/v1/pages").mock(
+        return_value=httpx.Response(200, json={"object": "page", "id": "p1"})
+    )
+    await notion.pages_create.ainvoke(
+        {"body": {"parent": {"page_id": "p0"}, "markdown": "# Plan\n\n- ship it"}}
+    )
+    body = json.loads(route.calls.last.request.content)
+    assert body == {"parent": {"page_id": "p0"}, "markdown": "# Plan\n\n- ship it"}
+
+
 def test_a_page_cannot_take_both_blocks_and_markdown():
     """Declared with ConflictsWith, so the runtime builds the check."""
-    schema = notion.pages_create.llm_schema()
+    schema = notion.pages_create_full.llm_schema()
     with pytest.raises(ValidationError, match="cannot be combined"):
         schema.model_validate(
             {

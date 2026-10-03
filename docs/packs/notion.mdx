@@ -410,9 +410,12 @@ top; a `table` cannot be a leaf, because a table is its rows.
 
 Deeper trees are built by appending to the blocks that come back.
 
-The same limit is why `pages_create` takes a `markdown` string as an
-alternative. Notion parses it server-side into blocks, at any depth, which is
-the shortest path from a document you already have to a page that holds it.
+The same limit is why `pages_create` takes a `markdown` string, and it is the
+only way the shipped tool takes content. Notion parses it server-side into
+blocks, at any depth, which is the shortest path from a document you already
+have to a page that holds it. Blocks built one by one go through
+`blocks_children_append` on the page once it exists, or through
+`notion.pages_create_full`, which accepts `children` and is left out of `TOOLS`.
 
 ## Querying a database
 
@@ -476,7 +479,10 @@ and session platform, the Views API and meeting notes are not modelled, and
 neither are the OAuth token endpoints, which belong to an authorization server
 rather than to a tool.
 
-**`pages_create` carries a large schema.** Every block type is reachable from
-it, which is 87KB of JSON schema. That is the cost of being able to write any
-block rather than the popular six. Narrow it at the point of use with
-[`Tool.derived`](/reference/tool#tool-derived) when an agent only needs a few.
+**The block tools carry a large schema.** Every block type is reachable from
+`blocks_children_append` and `blocks_update`, about 13,000 tokens each. That is
+the cost of being able to write any block rather than the popular six. Narrow
+them at the point of use with [`Tool.derived`](/reference/tool#tool-derived)
+when an agent only needs a few. `pages_create` offers `markdown` instead of
+blocks, which takes it from 15,787 tokens to 4,888; the block form is
+`notion.pages_create_full`.
