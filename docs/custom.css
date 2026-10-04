@@ -1037,6 +1037,12 @@ html.dark {
   margin: 0 0 88px;
 }
 
+@media (max-width: 767.98px) {
+  .agent-setup {
+    margin-bottom: 8px;
+  }
+}
+
 .agent-setup-btn,
 .agent-setup-read {
   display: inline-flex;
