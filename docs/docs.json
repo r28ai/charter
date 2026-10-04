@@ -886,6 +886,18 @@
                       "packs/stripe/checkout/checkout_sessions_create",
                       "packs/stripe/checkout/objects"
                     ]
+                  },
+                  {
+                    "group": "Search",
+                    "pages": [
+                      "packs/stripe/search/customers_search",
+                      "packs/stripe/search/charges_search",
+                      "packs/stripe/search/invoices_search",
+                      "packs/stripe/search/payment_intents_search",
+                      "packs/stripe/search/prices_search",
+                      "packs/stripe/search/products_search",
+                      "packs/stripe/search/subscriptions_search"
+                    ]
                   }
                 ]
               },
@@ -2615,6 +2627,34 @@
     {
       "source": "/packs/stripe/tools/balance_retrieve",
       "destination": "/packs/stripe/payments/balance_retrieve"
+    },
+    {
+      "source": "/packs/stripe/tools/customers_search",
+      "destination": "/packs/stripe/search/customers_search"
+    },
+    {
+      "source": "/packs/stripe/tools/charges_search",
+      "destination": "/packs/stripe/search/charges_search"
+    },
+    {
+      "source": "/packs/stripe/tools/invoices_search",
+      "destination": "/packs/stripe/search/invoices_search"
+    },
+    {
+      "source": "/packs/stripe/tools/payment_intents_search",
+      "destination": "/packs/stripe/search/payment_intents_search"
+    },
+    {
+      "source": "/packs/stripe/tools/prices_search",
+      "destination": "/packs/stripe/search/prices_search"
+    },
+    {
+      "source": "/packs/stripe/tools/products_search",
+      "destination": "/packs/stripe/search/products_search"
+    },
+    {
+      "source": "/packs/stripe/tools/subscriptions_search",
+      "destination": "/packs/stripe/search/subscriptions_search"
     },
     {
       "source": "/packs/linear/tools/viewer",

@@ -14,7 +14,10 @@ invariants they must preserve, because other things depend on them:
 * the ``data`` list and each object's ``id`` — Stripe's cursor is the last
   object's id (``data[-1].id``), so trimming ``id`` away would break pagination;
 * ``has_more`` — the paging signal, at the top level and on a subscription's
-  nested ``items``, where Stripe truncates at 20 without saying so anywhere else.
+  nested ``items``, where Stripe truncates at 20 without saying so anywhere else;
+* ``next_page`` on a search result — search pages with that token rather than
+  the last id, so it is the cursor there, and dropping it would end every
+  search walk after one page.
 
 Stripe reports errors with real HTTP status codes, so unlike Slack there is no
 success flag to check here; the runtime has already raised on a 4xx.
@@ -87,25 +90,48 @@ def _list_handler(
         return out
 
     async def handler(response: Dict[str, Any]) -> Dict[str, Any]:
-        if not isinstance(response, dict):
-            return response
-
-        # A retrieve endpoint returns a bare object rather than a list.
-        if response.get("object") != "list":
-            return one(response)
-
-        data: List[Dict[str, Any]] = [
-            one(item) for item in response.get("data") or [] if isinstance(item, dict)
-        ]
-        out: Dict[str, Any] = {"data": data}
-        # Preserve has_more even when False. Stripe's cursor is the last object's
-        # id, which is always present, so dropping a False has_more would leave
-        # pagination with nothing to stop on.
-        if "has_more" in response:
-            out["has_more"] = bool(response["has_more"])
-        return out
+        return _trim(response, one)
 
     return handler
+
+
+# The two envelopes Stripe wraps several objects in. A list endpoint answers
+# `list`; a search endpoint answers `search_result`, which carries the same
+# `data` and `has_more` plus its own cursor.
+# https://docs.stripe.com/api/pagination/search
+_COLLECTIONS = ("list", "search_result")
+
+
+def _trim(response: Any, one: Callable[[Dict[str, Any]], Dict[str, Any]]) -> Any:
+    """Apply ``one`` to a bare object, or to every object in a collection.
+
+    The envelope's paging fields are carried across untouched, so the declared
+    pagination reads the trimmed payload exactly as it would the raw one.
+    """
+    if not isinstance(response, dict):
+        return response
+
+    # A retrieve endpoint returns a bare object rather than a collection.
+    if response.get("object") not in _COLLECTIONS:
+        return one(response)
+
+    data: List[Dict[str, Any]] = [
+        one(item) for item in response.get("data") or [] if isinstance(item, dict)
+    ]
+    out: Dict[str, Any] = {"data": data}
+    # Preserve has_more even when False. Stripe's list cursor is the last
+    # object's id, which is always present, so dropping a False has_more would
+    # leave pagination with nothing to stop on.
+    if "has_more" in response:
+        out["has_more"] = bool(response["has_more"])
+    # Search's cursor is a token Stripe hands back, not an id it can be derived
+    # from. Null on the last page, and then there is nothing to carry.
+    if response.get("next_page"):
+        out["next_page"] = response["next_page"]
+    # Only present when the caller expanded it, and only accurate to 10,000.
+    if response.get("total_count") is not None:
+        out["total_count"] = response["total_count"]
+    return out
 
 
 _CUSTOMER_FIELDS = (
@@ -287,23 +313,10 @@ trim_prices = _list_handler(_PRICE_FIELDS)
 async def trim_subscriptions(response: Any) -> Any:
     """Trim a subscription or a list of them, keeping the billing period.
 
-    The list envelope (``data``, ``has_more``) is preserved so the declared
-    pagination keeps working, exactly as in :func:`_list_handler`.
+    The collection envelope is preserved so the declared pagination keeps
+    working, exactly as in :func:`_list_handler`.
     """
-    if not isinstance(response, dict):
-        return response
-
-    if response.get("object") != "list":
-        return _subscription(response)
-
-    out: Dict[str, Any] = {
-        "data": [
-            _subscription(item) for item in response.get("data") or [] if isinstance(item, dict)
-        ]
-    }
-    if "has_more" in response:
-        out["has_more"] = bool(response["has_more"])
-    return out
+    return _trim(response, _subscription)
 
 
 _INVOICE_FIELDS = (

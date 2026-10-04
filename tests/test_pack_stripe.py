@@ -32,8 +32,8 @@ def _form(request: httpx.Request) -> Dict[str, str]:
 # -----------------------------------------------------
 
 
-def test_pack_ships_fifty_nine_tools():
-    assert len(stripe.TOOLS) == 59
+def test_pack_ships_sixty_six_tools():
+    assert len(stripe.TOOLS) == 66
     assert all(isinstance(t, Tool) for t in stripe.TOOLS)
 
 
@@ -85,10 +85,29 @@ def test_the_list_tools_declare_the_derived_cursor():
         "invoice_items_list",
         "checkout_sessions_list",
         "checkout_sessions_line_items",
-    }
-    assert all(t.pagination is stripe.STRIPE_PAGINATION for t in stripe.TOOLS if t.pagination)
+    } | SEARCH_TOOLS
+    for tool in stripe.TOOLS:
+        if tool.pagination is None:
+            continue
+        expected = (
+            stripe.STRIPE_SEARCH_PAGINATION
+            if tool.name in SEARCH_TOOLS
+            else stripe.STRIPE_PAGINATION
+        )
+        assert tool.pagination is expected, tool.name
     assert stripe.STRIPE_PAGINATION.cursor_field == "data[-1].id"
     assert stripe.STRIPE_PAGINATION.cursor_param == "starting_after"
+
+
+SEARCH_TOOLS = {
+    "customers_search",
+    "charges_search",
+    "invoices_search",
+    "payment_intents_search",
+    "prices_search",
+    "products_search",
+    "subscriptions_search",
+}
 
 
 def test_headers_resolve_per_request():
@@ -1783,3 +1802,205 @@ async def test_checkout_create_is_trimmed_like_checkout_retrieve():
     assert result["payment_status"] == "unpaid"
     assert "custom_text" not in result
     assert "automatic_tax" not in result
+
+
+# -----------------------------------------------------
+# Search — the other cursor
+# -----------------------------------------------------
+
+
+def test_every_searchable_resource_has_a_search_tool():
+    """Stripe's OpenAPI document has exactly these seven `/v1/*/search` paths."""
+    searches = {t.name: t.url_template for t in stripe.TOOLS if t.name.endswith("_search")}
+    assert searches == {
+        "customers_search": "v1/customers/search",
+        "charges_search": "v1/charges/search",
+        "invoices_search": "v1/invoices/search",
+        "payment_intents_search": "v1/payment_intents/search",
+        "prices_search": "v1/prices/search",
+        "products_search": "v1/products/search",
+        "subscriptions_search": "v1/subscriptions/search",
+    }
+    for name in searches:
+        assert getattr(stripe, name).method == "GET"
+
+
+def test_search_takes_a_page_token_not_a_list_cursor():
+    """`starting_after` on a search is a parameter Stripe does not accept."""
+    for name in SEARCH_TOOLS:
+        fields = set(getattr(stripe, name).llm_schema().model_fields)
+        assert fields == {"query", "limit", "page"}, name
+    assert stripe.STRIPE_SEARCH_PAGINATION.cursor_field == "next_page"
+    assert stripe.STRIPE_SEARCH_PAGINATION.cursor_param == "page"
+    assert stripe.STRIPE_SEARCH_PAGINATION.more_field == "has_more"
+
+
+def test_each_search_tells_the_model_its_own_query_fields():
+    """The fields a query may name differ per resource; each schema says which."""
+    expected = {
+        "customers_search": ["email", "name", "phone"],
+        "charges_search": ["payment_method_details.{SOURCE}.last4", "disputed", "refunded"],
+        "invoices_search": ["number", "receipt_number", "total"],
+        "payment_intents_search": ["amount", "status"],
+        "prices_search": ["lookup_key", "product"],
+        "products_search": ["shippable", "url"],
+        "subscriptions_search": ["canceled_at", "status"],
+    }
+    for name, fields in expected.items():
+        schema = getattr(stripe, name).to_json_schema()["parameters"]
+        assert schema["required"] == ["query"], name
+        text = schema["properties"]["query"]["description"]
+        for field in fields:
+            assert field in text, (name, field)
+        # The syntax travels as a Gloss: in the model's view, not the wire schema.
+        assert "never both" in text, name
+        wire = getattr(stripe, name).args_schema.model_fields["query"].description
+        assert "never both" not in wire, name
+
+
+async def test_an_empty_query_is_refused_locally():
+    with pytest.raises(ToolValidationError):
+        await stripe.customers_search.ainvoke(query="")
+
+
+@respx.mock
+async def test_the_no_argument_search_sends_only_the_query():
+    """No limit is defaulted onto the wire: Stripe applies its own 10."""
+    route = respx.get(f"{API}v1/customers/search").mock(
+        return_value=httpx.Response(
+            200,
+            json={"object": "search_result", "data": [], "has_more": False, "next_page": None},
+        )
+    )
+    await stripe.customers_search.ainvoke(query="email~'amy' AND metadata['plan']:'pro'")
+
+    request = route.calls.last.request
+    assert dict(request.url.params) == {"query": "email~'amy' AND metadata['plan']:'pro'"}
+    # Brackets, quotes, tildes and spaces are all percent-encoded by the client.
+    assert b"metadata%5B" in request.url.query
+
+
+@respx.mock
+async def test_a_search_result_is_trimmed_as_a_collection_not_an_object():
+    """`search_result` is not `list`; read as a bare object it was one empty dict."""
+    respx.get(f"{API}v1/customers/search").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "object": "search_result",
+                "url": "/v1/customers/search",
+                "has_more": True,
+                "next_page": "WzE2ODA1Njk2MTYuMF0=",
+                "data": [
+                    {
+                        "id": "cus_1",
+                        "object": "customer",
+                        "email": "amy@example.com",
+                        "livemode": False,
+                        "invoice_prefix": "47D37F8F",
+                    }
+                ],
+            },
+        )
+    )
+    page = await stripe.customers_search.ainvoke(query="email~'amy'")
+    assert page == {
+        "data": [{"id": "cus_1", "email": "amy@example.com"}],
+        "has_more": True,
+        "next_page": "WzE2ODA1Njk2MTYuMF0=",
+    }
+
+
+@respx.mock
+async def test_search_pages_with_the_token_stripe_hands_back():
+    pages = [
+        {
+            "object": "search_result",
+            "has_more": True,
+            "next_page": "page_two_token",
+            "data": [{"id": "ch_1"}, {"id": "ch_2"}],
+        },
+        {"object": "search_result", "has_more": False, "next_page": None, "data": [{"id": "ch_3"}]},
+    ]
+    route = respx.get(f"{API}v1/charges/search").mock(
+        side_effect=[httpx.Response(200, json=p) for p in pages]
+    )
+
+    tool = stripe.charges_search
+    args: Optional[Dict[str, Any]] = {"query": "status:'succeeded'", "limit": 2}
+    seen = []
+    while args is not None:
+        page = await tool.ainvoke(args)
+        seen.extend(c["id"] for c in page["data"])
+        args = tool.pagination.next_page_args(page, args)
+
+    assert seen == ["ch_1", "ch_2", "ch_3"]
+    assert len(route.calls) == 2
+    second = dict(route.calls[-1].request.url.params)
+    assert second == {"query": "status:'succeeded'", "limit": "2", "page": "page_two_token"}
+    assert "starting_after" not in second
+
+
+@respx.mock
+async def test_the_last_search_page_ends_the_walk():
+    respx.get(f"{API}v1/products/search").mock(
+        return_value=httpx.Response(
+            200,
+            json={"object": "search_result", "has_more": False, "next_page": None, "data": []},
+        )
+    )
+    page = await stripe.products_search.ainvoke(query="active:'true'")
+    assert page == {"data": [], "has_more": False}
+    assert stripe.STRIPE_SEARCH_PAGINATION.next_page_args(page, {"query": "x"}) is None
+
+
+@respx.mock
+async def test_a_subscription_search_keeps_the_billing_period():
+    """The subscription handler has its own envelope code path; search reaches it too."""
+    respx.get(f"{API}v1/subscriptions/search").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "object": "search_result",
+                "has_more": False,
+                "next_page": None,
+                "data": [
+                    {
+                        "id": "sub_1",
+                        "status": "active",
+                        "items": {
+                            "data": [
+                                {
+                                    "price": {"id": "price_1", "unit_amount": 900},
+                                    "quantity": 1,
+                                    "current_period_start": 1700000000,
+                                    "current_period_end": 1702592000,
+                                }
+                            ]
+                        },
+                    }
+                ],
+            },
+        )
+    )
+    page = await stripe.subscriptions_search.ainvoke(query="status:'active'")
+    (sub,) = page["data"]
+    assert sub["current_period_end"] == 1702592000
+    assert page["has_more"] is False
+
+
+@respx.mock
+async def test_an_invalid_query_surfaces_stripes_own_message():
+    respx.get(f"{API}v1/customers/search").mock(
+        return_value=httpx.Response(
+            400,
+            json={
+                "error": {
+                    "type": "invalid_request_error",
+                    "message": "Field `nickname` is an unsupported search field for resource `customers`.",
+                }
+            },
+        )
+    )
+    with pytest.raises(APIError, match="unsupported search field"):
+        await stripe.customers_search.ainvoke(query="nickname:'x'")

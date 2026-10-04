@@ -7,6 +7,20 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Pre-1.0, minor versions may break the public API. Anything that does will say so
 here, with the migration in the same entry.
 
+## [Unreleased]
+
+### Added
+
+- **Stripe search: seven `*_search` tools**, one per resource Stripe can
+  search — customers, charges, invoices, payment intents, prices, products and
+  subscriptions. Each takes a `query` in Stripe's search language
+  (`email~'amy' AND metadata['plan']:'pro'`), and each schema names the fields
+  that resource accepts, so the model is not left guessing which ones exist.
+  Search pages with a token Stripe hands back, not the last object's id, so it
+  declares its own `STRIPE_SEARCH_PAGINATION` (`next_page` → `page`). The
+  response handlers now recognise the `search_result` envelope; before, a
+  search answer was read as a single object and trimmed down to nothing.
+
 ## [0.3.1] — 2026-10-04
 
 ### Added

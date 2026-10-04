@@ -66,6 +66,16 @@ from charter.packs.stripe.types.payments import (
     RefundsRetrieveRequest,
     RefundStatus,
 )
+from charter.packs.stripe.types.search import (
+    ChargesSearchRequest,
+    CustomersSearchRequest,
+    InvoicesSearchRequest,
+    PaymentIntentsSearchRequest,
+    PricesSearchRequest,
+    ProductsSearchRequest,
+    StripeSearchRequest,
+    SubscriptionsSearchRequest,
+)
 from charter.packs.stripe.types.subscriptions import (
     CancellationDetails,
     SubscriptionDiscount,
@@ -194,4 +204,15 @@ __all__ += [
     "ChargesRetrieveRequest",
     "CaptureMethod",
     "CancellationReason",
+]
+
+__all__ += [
+    "StripeSearchRequest",
+    "ChargesSearchRequest",
+    "CustomersSearchRequest",
+    "InvoicesSearchRequest",
+    "PaymentIntentsSearchRequest",
+    "PricesSearchRequest",
+    "ProductsSearchRequest",
+    "SubscriptionsSearchRequest",
 ]

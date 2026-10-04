@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Stripe — fifty-nine tools over the Stripe API.
+Stripe — sixty-six tools over the Stripe API.
 
     from charter.packs import stripe
 
@@ -24,6 +24,14 @@ schema serialises the way Stripe expects —
 **Its cursor is derived, not returned.** Where Slack and Google hand back an
 opaque token, Stripe's ``starting_after`` takes the *last object's id*. The
 pagination declaration reads ``data[-1].id`` for exactly that.
+
+**Search pages differently from list.** Seven resources answer
+``/v1/<resource>/search`` with a query in Stripe's own search language
+(``email~'amy' AND metadata['plan']:'pro'``). Its cursor *is* a token Stripe
+hands back, ``next_page``, sent as ``page`` — so search gets
+:data:`STRIPE_SEARCH_PAGINATION` rather than the list declaration. Search is
+also eventually consistent: Stripe indexes a write within about a minute, so
+the list tools stay the right way to read back something just written.
 
 **No envelope.** Unlike Slack, Stripe uses real HTTP status codes and puts the
 detail in ``error.message``, which the runtime already understands. Nothing to
@@ -98,6 +106,7 @@ from charter.packs.stripe.types import (
     BalanceTransactionsListRequest,
     ChargesListRequest,
     ChargesRetrieveRequest,
+    ChargesSearchRequest,
     CheckoutSessionsCreateRequest,
     CheckoutSessionsLineItemsRequest,
     CheckoutSessionsListRequest,
@@ -107,6 +116,7 @@ from charter.packs.stripe.types import (
     CustomersCreateRequest,
     CustomersListRequest,
     CustomersRetrieveRequest,
+    CustomersSearchRequest,
     CustomersUpdateRequest,
     DisputesCloseRequest,
     DisputesListRequest,
@@ -121,6 +131,7 @@ from charter.packs.stripe.types import (
     InvoicesListRequest,
     InvoicesMarkUncollectibleRequest,
     InvoicesRetrieveRequest,
+    InvoicesSearchRequest,
     InvoicesSendRequest,
     InvoicesUpdateRequest,
     InvoicesVoidRequest,
@@ -129,6 +140,7 @@ from charter.packs.stripe.types import (
     PaymentIntentsCreateRequest,
     PaymentIntentsListRequest,
     PaymentIntentsRetrieveRequest,
+    PaymentIntentsSearchRequest,
     PaymentMethodsAttachRequest,
     PaymentMethodsDetachRequest,
     PaymentMethodsListRequest,
@@ -137,9 +149,11 @@ from charter.packs.stripe.types import (
     PayoutsRetrieveRequest,
     PricesCreateRequest,
     PricesListRequest,
+    PricesSearchRequest,
     PricesUpdateRequest,
     ProductsCreateRequest,
     ProductsListRequest,
+    ProductsSearchRequest,
     ProductsUpdateRequest,
     RefundsCreateRequest,
     RefundsListRequest,
@@ -147,6 +161,7 @@ from charter.packs.stripe.types import (
     SubscriptionsCancelRequest,
     SubscriptionsCreateRequest,
     SubscriptionsListRequest,
+    SubscriptionsSearchRequest,
     SubscriptionsUpdateRequest,
     TransfersListRequest,
     TransfersRetrieveRequest,
@@ -171,6 +186,14 @@ STRIPE_HEADERS = {"Stripe-Version": API_VERSION}
 STRIPE_PAGINATION = Pagination(
     cursor_field="data[-1].id",
     cursor_param="starting_after",
+    more_field="has_more",
+)
+
+# Search hands back its cursor, where list derives one from the last id. Both
+# stop on `has_more`. https://docs.stripe.com/api/pagination/search
+STRIPE_SEARCH_PAGINATION = Pagination(
+    cursor_field="next_page",
+    cursor_param="page",
     more_field="has_more",
 )
 
@@ -913,6 +936,114 @@ charges_retrieve = _stripe(
 )
 
 
+# ---------- search ----------
+#
+# One tool per searchable resource, rather than one tool with a `resource`
+# argument: each resource accepts its own query fields, and a single schema
+# would have to describe all seven to the model on every call.
+
+_SEARCH_LAG = (
+    " Results can lag a write by up to a minute, so read back something just "
+    "written with the list or retrieve tool instead."
+)
+
+customers_search = _stripe(
+    name="customers_search",
+    args_schema=CustomersSearchRequest,
+    method="GET",
+    url_template="v1/customers/search",
+    description=(
+        "Search customers by email, name, phone, metadata or creation date, with "
+        "substring matching: email~'amy' finds amy@example.com." + _SEARCH_LAG
+    ),
+    action_label="Searches Stripe customers.",
+    response_handler=trim_customers,
+    pagination_override=STRIPE_SEARCH_PAGINATION,
+)
+
+charges_search = _stripe(
+    name="charges_search",
+    args_schema=ChargesSearchRequest,
+    method="GET",
+    url_template="v1/charges/search",
+    description=(
+        "Search charges by amount, status, customer, metadata, card last4 or brand, "
+        "refund or dispute state." + _SEARCH_LAG
+    ),
+    action_label="Searches Stripe charges.",
+    response_handler=trim_charges,
+    pagination_override=STRIPE_SEARCH_PAGINATION,
+)
+
+invoices_search = _stripe(
+    name="invoices_search",
+    args_schema=InvoicesSearchRequest,
+    method="GET",
+    url_template="v1/invoices/search",
+    description=(
+        "Search invoices by number, status, customer, subscription, total, metadata "
+        "or creation date." + _SEARCH_LAG
+    ),
+    action_label="Searches Stripe invoices.",
+    response_handler=trim_invoices,
+    pagination_override=STRIPE_SEARCH_PAGINATION,
+)
+
+payment_intents_search = _stripe(
+    name="payment_intents_search",
+    args_schema=PaymentIntentsSearchRequest,
+    method="GET",
+    url_template="v1/payment_intents/search",
+    description=(
+        "Search PaymentIntents by amount, currency, customer, status, metadata or "
+        "creation date." + _SEARCH_LAG
+    ),
+    action_label="Searches Stripe payments.",
+    response_handler=trim_payment_intents,
+    pagination_override=STRIPE_SEARCH_PAGINATION,
+)
+
+prices_search = _stripe(
+    name="prices_search",
+    args_schema=PricesSearchRequest,
+    method="GET",
+    url_template="v1/prices/search",
+    description=(
+        "Search prices by product, lookup_key, type, currency, active flag or "
+        "metadata." + _SEARCH_LAG
+    ),
+    action_label="Searches Stripe prices.",
+    response_handler=trim_prices,
+    pagination_override=STRIPE_SEARCH_PAGINATION,
+)
+
+products_search = _stripe(
+    name="products_search",
+    args_schema=ProductsSearchRequest,
+    method="GET",
+    url_template="v1/products/search",
+    description=(
+        "Search products by name, description, URL, active or shippable flag, or "
+        "metadata, with substring matching: name~'shirt'." + _SEARCH_LAG
+    ),
+    action_label="Searches Stripe products.",
+    response_handler=trim_products,
+    pagination_override=STRIPE_SEARCH_PAGINATION,
+)
+
+subscriptions_search = _stripe(
+    name="subscriptions_search",
+    args_schema=SubscriptionsSearchRequest,
+    method="GET",
+    url_template="v1/subscriptions/search",
+    description=(
+        "Search subscriptions by status, metadata, creation or cancellation date." + _SEARCH_LAG
+    ),
+    action_label="Searches Stripe subscriptions.",
+    response_handler=trim_subscriptions,
+    pagination_override=STRIPE_SEARCH_PAGINATION,
+)
+
 # ---------- account ----------
 
 balance_retrieve = _stripe(
@@ -985,6 +1116,13 @@ TOOLS: list[Tool] = [
     balance_transactions_list,
     checkout_sessions_create,
     balance_retrieve,
+    customers_search,
+    charges_search,
+    invoices_search,
+    payment_intents_search,
+    prices_search,
+    products_search,
+    subscriptions_search,
 ]
 
 __all__ = [
@@ -995,6 +1133,7 @@ __all__ = [
     "API_VERSION",
     "STRIPE_HEADERS",
     "STRIPE_PAGINATION",
+    "STRIPE_SEARCH_PAGINATION",
     "customers_list",
     "customers_retrieve",
     "customers_create",
@@ -1008,4 +1147,11 @@ __all__ = [
     "subscriptions_list",
     "checkout_sessions_create",
     "balance_retrieve",
+    "customers_search",
+    "charges_search",
+    "invoices_search",
+    "payment_intents_search",
+    "prices_search",
+    "products_search",
+    "subscriptions_search",
 ]

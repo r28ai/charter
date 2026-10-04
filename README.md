@@ -45,7 +45,7 @@ Runs in your process. No proxy, no per-call pricing, no telemetry.
 pip install charter-ai
 ```
 
-[550 tools across fifteen APIs](https://github.com/r28ai/charter#coverage) ship with
+[557 tools across fifteen APIs](https://github.com/r28ai/charter#coverage) ship with
 it, on two dependencies: `pydantic>=2.9,<3` and `httpx>=0.27,<1`. Packs never add more.
 The upper bounds are so a fresh install cannot silently resolve to pydantic 3.0 the day
 it ships.
@@ -503,7 +503,7 @@ which parameters an endpoint refuses together. Then
 | Google Forms | `charter.packs.gforms` | 6 | OAuth bearer | One resource, different fields on create and update |
 | Slack | `charter.packs.slack` | 18 | OAuth bearer | Rejected writes answer HTTP 200 |
 | GitHub | `charter.packs.github` | 139 | OAuth bearer | Three constant headers, one of them a pinned API version |
-| Stripe | `charter.packs.stripe` | 59 | API key | Form-encoded, bracketed query, DELETE with a body |
+| Stripe | `charter.packs.stripe` | 66 | API key | Form-encoded, bracketed query, DELETE with a body |
 | Linear | `charter.packs.linear` | 128 | API key | GraphQL, with the cursor nested inside the response |
 | Shopify | `charter.packs.shopify` | 22 | OAuth token | No fixed host, and every price is a nested `MoneyBag` |
 | Notion | `charter.packs.notion` | 35 | OAuth bearer | 100 blocks and two levels of children per write |

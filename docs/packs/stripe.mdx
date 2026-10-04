@@ -6,7 +6,7 @@ sidebarTitle: "Overview"
 
 {/* generated:summary start — do not edit by hand; run scripts/generate_pack_docs.py */}
 <div className="pack-summary">
-  <span><Visibility for="humans"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg></Visibility>59 tools</span>
+  <span><Visibility for="humans"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg></Visibility>66 tools</span>
   <span><Visibility for="humans"><svg viewBox="0 0 24 24"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4" /><path d="m21 2-9.6 9.6" /><circle cx="7.5" cy="15.5" r="5.5" /></svg></Visibility>API key</span>
 </div>
 {/* generated:summary end */}
@@ -90,7 +90,7 @@ from charter.packs import stripe
 stripe.configure(api_key=os.environ["STRIPE_API_KEY"])
 
 # The base URL, the casing, the envelope and the pagination are
-# already declared. 59 tools, ready to hand to a model:
+# already declared. 66 tools, ready to hand to a model:
 tools = stripe.TOOLS
 ```
 
@@ -102,6 +102,13 @@ tools = stripe.TOOLS
 A cursor belongs to the tool that returns it, so it is declared on that tool's builder call:
 
 ```python stripe_pagination.py
+# On customers_list, payment_intents_list, charges_list,
+# refunds_list, products_list, prices_list, subscriptions_list,
+# invoices_list, invoice_items_list, checkout_sessions_list,
+# checkout_sessions_line_items, payment_methods_list,
+# customer_payment_methods_list, disputes_list, accounts_list,
+# transfers_list, payouts_list, application_fees_list and
+# balance_transactions_list.
 customers_list = stripe_api_client(
     name="customers_list",
     args_schema=CustomersListRequest,
@@ -113,10 +120,25 @@ customers_list = stripe_api_client(
         more_field="has_more",
     ),
 )
+
+# On customers_search, charges_search, invoices_search,
+# payment_intents_search, prices_search, products_search and
+# subscriptions_search.
+customers_search = stripe_api_client(
+    name="customers_search",
+    args_schema=CustomersSearchRequest,
+    method="GET",
+    url_template="v1/customers/search",
+    pagination=Pagination(
+        cursor_field="next_page",
+        cursor_param="page",
+        more_field="has_more",
+    ),
+)
 ```
 
 <Note>
-Pagination is declared on `customers_list`, `payment_intents_list`, `charges_list`, `refunds_list`, `products_list`, `prices_list`, `subscriptions_list`, `invoices_list`, `invoice_items_list`, `checkout_sessions_list`, `checkout_sessions_line_items`, `payment_methods_list`, `customer_payment_methods_list`, `disputes_list`, `accounts_list`, `transfers_list`, `payouts_list`, `application_fees_list` and `balance_transactions_list`. The other 40 take no cursor.
+Pagination is declared on `customers_list`, `payment_intents_list`, `charges_list`, `refunds_list`, `products_list`, `prices_list`, `subscriptions_list`, `invoices_list`, `invoice_items_list`, `checkout_sessions_list`, `checkout_sessions_line_items`, `payment_methods_list`, `customer_payment_methods_list`, `disputes_list`, `accounts_list`, `transfers_list`, `payouts_list`, `application_fees_list`, `balance_transactions_list`, `customers_search`, `charges_search`, `invoices_search`, `payment_intents_search`, `prices_search`, `products_search` and `subscriptions_search`. The other 40 take no cursor.
 </Note>
 {/* generated:wire end */}
 
@@ -375,6 +397,35 @@ links to its parameters, its response and what it costs.
   <a className="tool-row" href="/packs/stripe/checkout/checkout_sessions_create">
     <span className="tool-row-head"><span className="tool-row-name">checkout_sessions_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
     <span className="tool-row-desc">Create a Checkout Session and get a hosted payment URL.</span>
+  </a>
+  <span className="tool-list-group">Search</span>
+  <a className="tool-row" href="/packs/stripe/search/customers_search">
+    <span className="tool-row-head"><span className="tool-row-name">customers_search</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Search customers by email, name, phone, metadata or creation date, with substring matching: email~'amy' finds amy@example.com.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/search/charges_search">
+    <span className="tool-row-head"><span className="tool-row-name">charges_search</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Search charges by amount, status, customer, metadata, card last4 or brand, refund or dispute state.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/search/invoices_search">
+    <span className="tool-row-head"><span className="tool-row-name">invoices_search</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Search invoices by number, status, customer, subscription, total, metadata or creation date.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/search/payment_intents_search">
+    <span className="tool-row-head"><span className="tool-row-name">payment_intents_search</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Search PaymentIntents by amount, currency, customer, status, metadata or creation date.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/search/prices_search">
+    <span className="tool-row-head"><span className="tool-row-name">prices_search</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Search prices by product, lookup_key, type, currency, active flag or metadata.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/search/products_search">
+    <span className="tool-row-head"><span className="tool-row-name">products_search</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Search products by name, description, URL, active or shippable flag, or metadata, with substring matching: name~'shirt'.</span>
+  </a>
+  <a className="tool-row" href="/packs/stripe/search/subscriptions_search">
+    <span className="tool-row-head"><span className="tool-row-name">subscriptions_search</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Search subscriptions by status, metadata, creation or cancellation date.</span>
   </a>
 </div>
 {/* generated:tools end */}
