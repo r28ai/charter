@@ -1833,7 +1833,7 @@ def test_search_takes_a_page_token_not_a_list_cursor():
     """`starting_after` on a search is a parameter Stripe does not accept."""
     for name in SEARCH_TOOLS:
         fields = set(getattr(stripe, name).llm_schema().model_fields)
-        assert fields == {"query", "limit", "page"}, name
+        assert fields == {"query", "limit", "page", "expand"}, name
     assert stripe.STRIPE_SEARCH_PAGINATION.cursor_field == "next_page"
     assert stripe.STRIPE_SEARCH_PAGINATION.cursor_param == "page"
     assert stripe.STRIPE_SEARCH_PAGINATION.more_field == "has_more"
@@ -2043,3 +2043,305 @@ async def test_an_invalid_query_surfaces_stripes_own_message():
     )
     with pytest.raises(APIError, match="unsupported search field"):
         await stripe.customers_search.ainvoke(query="nickname:'x'")
+
+
+# -----------------------------------------------------
+# Expanding a search — https://docs.stripe.com/expand
+# -----------------------------------------------------
+
+
+def test_expand_is_described_in_stripe_s_words_and_bounded_as_documented():
+    for name in SEARCH_TOOLS:
+        field = getattr(stripe, name).args_schema.model_fields["expand"]
+        assert field.description == "Specifies which fields in the response should be expanded."
+        llm = getattr(stripe, name).to_json_schema()["parameters"]["properties"]["expand"]
+        assert "total_count" in llm["description"]
+
+
+@respx.mock
+async def test_expand_goes_out_as_an_indexed_array():
+    """Stripe documents `expand[]=`; the indexed form is what its own libraries send."""
+    route = respx.get(f"{API}v1/charges/search").mock(
+        return_value=httpx.Response(
+            200, json={"object": "search_result", "data": [], "has_more": False}
+        )
+    )
+    await stripe.charges_search.ainvoke(
+        query="status:'succeeded'", expand=["total_count", "data.customer"]
+    )
+    assert dict(route.calls.last.request.url.params) == {
+        "query": "status:'succeeded'",
+        "expand[0]": "total_count",
+        "expand[1]": "data.customer",
+    }
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "data.payment_intent.customer.default_source.id",  # five levels
+        "data..customer",
+        "Data.customer",
+        "data.customer ",
+        "",
+    ],
+)
+async def test_an_expansion_stripe_would_refuse_is_refused_locally(path):
+    """'You cannot expand more than 4 levels of a property', said before the request."""
+    with pytest.raises(ToolValidationError):
+        await stripe.charges_search.ainvoke(query="status:'succeeded'", expand=[path])
+
+
+@respx.mock
+async def test_the_four_level_maximum_is_accepted():
+    respx.get(f"{API}v1/charges/search").mock(
+        return_value=httpx.Response(
+            200, json={"object": "search_result", "data": [], "has_more": False}
+        )
+    )
+    await stripe.charges_search.ainvoke(
+        query="status:'succeeded'", expand=["data.payment_intent.customer.default_source"]
+    )
+
+
+@respx.mock
+async def test_total_count_is_carried_and_a_zero_is_an_answer():
+    respx.get(f"{API}v1/customers/search").mock(
+        side_effect=[
+            httpx.Response(
+                200,
+                json={
+                    "object": "search_result",
+                    "data": [{"id": "cus_1"}],
+                    "has_more": True,
+                    "next_page": "p2",
+                    "total_count": 2412,
+                },
+            ),
+            httpx.Response(
+                200,
+                json={
+                    "object": "search_result",
+                    "data": [],
+                    "has_more": False,
+                    "next_page": None,
+                    "total_count": 0,
+                },
+            ),
+        ]
+    )
+    page = await stripe.customers_search.ainvoke(query="email~'amy'", expand=["total_count"])
+    assert page["total_count"] == 2412
+    page = await stripe.customers_search.ainvoke(query="email~'zzz'", expand=["total_count"])
+    assert page["total_count"] == 0
+
+
+@respx.mock
+async def test_an_expanded_object_survives_the_trim_without_its_empty_fields():
+    """The caller named it, so it is kept whole — minus nulls and markers."""
+    respx.get(f"{API}v1/charges/search").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "object": "search_result",
+                "has_more": False,
+                "data": [
+                    {
+                        "id": "ch_1",
+                        "object": "charge",
+                        "amount": 500,
+                        "customer": {
+                            "id": "cus_1",
+                            "object": "customer",
+                            "email": "amy@example.com",
+                            "phone": None,
+                            "livemode": False,
+                            "invoice_settings": {"default_payment_method": "pm_1"},
+                        },
+                        # Not in the charge projection at all; expanded, so kept.
+                        "balance_transaction": {
+                            "id": "txn_1",
+                            "object": "balance_transaction",
+                            "fee": 45,
+                            "net": 455,
+                            "source": None,
+                        },
+                    }
+                ],
+            },
+        )
+    )
+    page = await stripe.charges_search.ainvoke(
+        query="amount:500", expand=["data.customer", "data.balance_transaction"]
+    )
+    (charge,) = page["data"]
+    assert charge["customer"] == {
+        "id": "cus_1",
+        "email": "amy@example.com",
+        "invoice_settings": {"default_payment_method": "pm_1"},
+    }
+    assert charge["balance_transaction"] == {"id": "txn_1", "fee": 45, "net": 455}
+
+
+@respx.mock
+async def test_a_nested_expansion_is_compacted_at_every_level():
+    respx.get(f"{API}v1/charges/search").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "object": "search_result",
+                "has_more": False,
+                "data": [
+                    {
+                        "id": "ch_1",
+                        "payment_intent": {
+                            "id": "pi_1",
+                            "object": "payment_intent",
+                            "customer": {"id": "cus_1", "object": "customer", "name": None},
+                        },
+                    }
+                ],
+            },
+        )
+    )
+    page = await stripe.charges_search.ainvoke(
+        query="amount:500", expand=["data.payment_intent.customer"]
+    )
+    assert page["data"][0]["payment_intent"] == {"id": "pi_1", "customer": {"id": "cus_1"}}
+
+
+@respx.mock
+async def test_an_object_stripe_sends_unasked_is_not_mistaken_for_an_expansion():
+    """A subscription's `plan` arrives whole by default and repeats its items."""
+    respx.get(f"{API}v1/subscriptions/search").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "object": "search_result",
+                "has_more": False,
+                "data": [
+                    {
+                        "id": "sub_1",
+                        "status": "active",
+                        "plan": {"id": "price_1", "object": "plan", "amount": 900},
+                        "items": {"object": "list", "data": [], "has_more": False},
+                    }
+                ],
+            },
+        )
+    )
+    page = await stripe.subscriptions_search.ainvoke(query="status:'active'")
+    assert "plan" not in page["data"][0]
+
+
+@respx.mock
+async def test_nulls_inside_an_expanded_object_s_settings_go_too():
+    """Found live: an expanded customer's `invoice_settings` was four nulls."""
+    respx.get(f"{API}v1/payment_intents/search").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "object": "search_result",
+                "has_more": False,
+                "data": [
+                    {
+                        "id": "pi_1",
+                        "customer": {
+                            "id": "cus_1",
+                            "object": "customer",
+                            "invoice_settings": {
+                                "custom_fields": None,
+                                "default_payment_method": None,
+                                "footer": None,
+                                "rendering_options": None,
+                            },
+                            "preferred_locales": [],
+                            "balance": 0,
+                        },
+                    }
+                ],
+            },
+        )
+    )
+    page = await stripe.payment_intents_search.ainvoke(query="amount:1", expand=["data.customer"])
+    assert page["data"][0]["customer"] == {"id": "cus_1", "balance": 0}
+
+
+@respx.mock
+async def test_a_field_stripe_sends_only_when_expanded_is_kept():
+    """Found live: `data.currency_options` was accepted and then trimmed away.
+
+    These are not IDs turned into objects, so nothing about their shape says
+    they were asked for; that they are absent unless asked for is what does.
+    """
+    respx.get(f"{API}v1/prices/search").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "object": "search_result",
+                "has_more": False,
+                "data": [
+                    {
+                        "id": "price_1",
+                        "currency": "usd",
+                        "unit_amount": 777,
+                        "currency_options": {
+                            "eur": {
+                                "unit_amount": 700,
+                                "tax_behavior": "unspecified",
+                                "tiers": None,
+                            }
+                        },
+                    }
+                ],
+            },
+        )
+    )
+    page = await stripe.prices_search.ainvoke(
+        query="active:'true'", expand=["data.currency_options"]
+    )
+    assert page["data"][0]["currency_options"] == {
+        "eur": {"unit_amount": 700, "tax_behavior": "unspecified"}
+    }
+
+
+@respx.mock
+async def test_an_expanded_list_keeps_its_paging_flag_and_drops_its_path():
+    respx.get(f"{API}v1/charges/search").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "object": "search_result",
+                "has_more": False,
+                "data": [
+                    {
+                        "id": "ch_1",
+                        "refunds": {
+                            "object": "list",
+                            "data": [{"id": "re_1", "object": "refund", "amount": 100}],
+                            "has_more": True,
+                            "url": "/v1/charges/ch_1/refunds",
+                        },
+                    }
+                ],
+            },
+        )
+    )
+    page = await stripe.charges_search.ainvoke(query="refunded:'true'", expand=["data.refunds"])
+    assert page["data"][0]["refunds"] == {"data": [{"id": "re_1", "amount": 100}], "has_more": True}
+
+
+def test_without_expand_the_trim_is_what_it_was():
+    """The includable fields are absent from a default response, so nothing changes."""
+    import asyncio
+
+    from charter.packs.stripe.response_handlers import trim_prices
+
+    raw = {
+        "object": "price",
+        "id": "price_1",
+        "currency": "usd",
+        "unit_amount": 5,
+        "livemode": False,
+    }
+    assert asyncio.run(trim_prices(raw)) == {"id": "price_1", "currency": "usd", "unit_amount": 5}

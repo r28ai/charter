@@ -56,7 +56,7 @@ Install it with: pip install 'charter-ai[langchain]'
 
 ## Sending schemas on demand
 
-A [`ToolSession`](/reference/tool-discovery#toolsession) sends the schemas of the tools the model has reached for, plus a `ToolSearch` that loads the rest, so Gmail and Stripe together cost 924 tokens on the first turn instead of 40,342.
+A [`ToolSession`](/reference/tool-discovery#toolsession) sends the schemas of the tools the model has reached for, plus a `ToolSearch` that loads the rest, so Gmail and Stripe together cost 924 tokens on the first turn instead of 41,361.
 
 Its tool list grows, which means the loop has to rebuild that list every turn. Charter ships the loop rather than asking you to remember:
 

@@ -54,10 +54,66 @@ __all__ = [
 ]
 
 
-def _pick(obj: Dict[str, Any], fields: Sequence[str]) -> Dict[str, Any]:
+# Fields Stripe sends as a whole object without being asked. A subscription's
+# `plan` is the legacy view of its first item, and repeats what `items` says.
+# Everything else that arrives as an object with an `id` was expanded.
+_EMBEDDED_BY_DEFAULT = frozenset({"plan"})
+
+
+def _is_expanded(value: Any) -> bool:
+    """Whether ``value`` is a Stripe object inlined in place of its ID.
+
+    An expansion replaces ``"cus_123"`` with the object it names, which carries
+    its own ``object`` and ``id``. A list has an ``object`` but no ``id``.
+    https://docs.stripe.com/api/expanding_objects
+    """
+    return isinstance(value, dict) and "id" in value and value.get("object") not in (None, "list")
+
+
+_EMPTY = (None, "", [], {})
+
+
+def _compact(value: Any) -> Any:
+    """What the caller expanded, without what says nothing — at every depth.
+
+    Not a projection: the caller named this object, so every field it has is
+    one they may want. What goes is nulls, empty strings and collections, and
+    the `object`/`livemode` markers — inside nested settings too, where an
+    expanded customer's `invoice_settings` is otherwise four nulls.
+    """
+    if isinstance(value, list):
+        return [_compact(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    out: Dict[str, Any] = {}
+    for key, item in value.items():
+        if key in ("object", "livemode"):
+            continue
+        if key == "url" and value.get("object") == "list":
+            continue  # a nested list's own path, which the caller cannot use
+        item = _compact(item)
+        if item not in _EMPTY:
+            out[key] = item
+    return out
+
+
+def _pick(
+    obj: Dict[str, Any], fields: Sequence[str], includable: Sequence[str] = ()
+) -> Dict[str, Any]:
     """Project one object onto ``fields``, dropping keys that are absent or null.
 
     ``id`` is always kept: it is the pagination cursor.
+
+    A field the caller expanded is kept even when the projection does not name
+    it. The handler cannot see the request, but it can see the answer: an
+    expansion turns an ID into an object, so an object where an ID would be is
+    one somebody asked for, and dropping it would answer ``expand`` with
+    nothing.
+
+    ``includable`` names the fields Stripe sends only when expanded — a
+    price's ``currency_options``, a charge's ``refunds``. They are not IDs
+    turned into objects, so the test above cannot see them; but they are
+    absent from every response that did not ask, so present means asked.
     """
     out: Dict[str, Any] = {}
     if obj.get("id") is not None:
@@ -65,13 +121,21 @@ def _pick(obj: Dict[str, Any], fields: Sequence[str]) -> Dict[str, Any]:
     for field in fields:
         value = obj.get(field)
         if value not in (None, "", [], {}):
-            out[field] = value
+            out[field] = _compact(value) if _is_expanded(value) else value
+    for key, value in obj.items():
+        if key not in out and key not in _EMBEDDED_BY_DEFAULT and _is_expanded(value):
+            out[key] = _compact(value)
+    for key in includable:
+        value = _compact(obj.get(key))
+        if key not in out and value not in _EMPTY:
+            out[key] = value
     return out
 
 
 def _list_handler(
     fields: Sequence[str],
     refine: Optional[Callable[[Dict[str, Any], Dict[str, Any]], None]] = None,
+    includable: Sequence[str] = (),
 ) -> Callable[[Dict[str, Any]], Any]:
     """Build a handler that trims every object in a Stripe list response.
 
@@ -84,7 +148,7 @@ def _list_handler(
     """
 
     def one(obj: Dict[str, Any]) -> Dict[str, Any]:
-        out = _pick(obj, fields)
+        out = _pick(obj, fields, includable)
         if refine is not None:
             refine(obj, out)
         return out
@@ -129,6 +193,7 @@ def _trim(response: Any, one: Callable[[Dict[str, Any]], Dict[str, Any]]) -> Any
     if response.get("next_page"):
         out["next_page"] = response["next_page"]
     # Only present when the caller expanded it, and only accurate to 10,000.
+    # Kept even at zero: "no matches" is the answer to the question asked.
     if response.get("total_count") is not None:
         out["total_count"] = response["total_count"]
     return out
@@ -304,10 +369,27 @@ def _carry_payment_error(obj: Dict[str, Any], out: Dict[str, Any]) -> None:
         out["last_payment_error"] = projected
 
 
-trim_customers = _list_handler(_CUSTOMER_FIELDS)
+# The fields each resource sends only when expanded, measured against the
+# pinned version: in the OpenAPI schema, absent from a default response, and
+# present once `expand` names them. Every other field these resources have is
+# either in the projection, or an ID an expansion turns into an object, which
+# `_pick` keeps without being told. https://docs.stripe.com/expand
+_CUSTOMER_INCLUDABLE = (
+    "cash_balance",
+    "invoice_credit_balance",
+    "sources",
+    "subscriptions",
+    "tax",
+    "tax_ids",
+)
+_CHARGE_INCLUDABLE = ("refunds",)
+_INVOICE_INCLUDABLE = ("amount_paid_off_stripe", "confirmation_secret", "payments")
+_PRICE_INCLUDABLE = ("currency_options", "tiers")
+
+trim_customers = _list_handler(_CUSTOMER_FIELDS, includable=_CUSTOMER_INCLUDABLE)
 trim_payment_intents = _list_handler(_PAYMENT_INTENT_FIELDS, _carry_payment_error)
-trim_charges = _list_handler(_CHARGE_FIELDS)
-trim_prices = _list_handler(_PRICE_FIELDS)
+trim_charges = _list_handler(_CHARGE_FIELDS, includable=_CHARGE_INCLUDABLE)
+trim_prices = _list_handler(_PRICE_FIELDS, includable=_PRICE_INCLUDABLE)
 
 
 async def trim_subscriptions(response: Any) -> Any:
@@ -429,7 +511,7 @@ def _carry_method_detail(obj: Dict[str, Any], out: Dict[str, Any]) -> None:
         out[kind] = obj[kind]
 
 
-trim_invoices = _list_handler(_INVOICE_FIELDS)
+trim_invoices = _list_handler(_INVOICE_FIELDS, includable=_INVOICE_INCLUDABLE)
 trim_payment_methods = _list_handler(_PAYMENT_METHOD_FIELDS, _carry_method_detail)
 trim_disputes = _list_handler(_DISPUTE_FIELDS)
 trim_accounts = _list_handler(_ACCOUNT_FIELDS)

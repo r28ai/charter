@@ -20,6 +20,14 @@ here, with the migration in the same entry.
   declares its own `STRIPE_SEARCH_PAGINATION` (`next_page` → `page`). The
   response handlers now recognise the `search_result` envelope; before, a
   search answer was read as a single object and trimmed down to nothing.
+- **`expand` on the Stripe search tools**, as Stripe documents it: up to
+  four properties deep, with `data.` reaching into the results
+  (`data.customer`) and `total_count` returning the number of matches, to
+  10,000, without fetching them. A fifth level is refused before the request.
+  The response handlers keep what was expanded, where they used to trim it
+  away: an ID that came back as an object, and the fields Stripe sends only
+  when asked (`currency_options` on a price, `refunds` on a charge), with
+  their empty fields dropped at every depth.
 - **Every pack can serve each of your users their own account.** Stripe,
   Linear, Granola, Firecrawl and Tavily took one API key per process, so an
   application whose users connect their own Stripe or Linear could not use

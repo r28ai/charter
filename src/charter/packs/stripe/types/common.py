@@ -14,12 +14,25 @@ from __future__ import annotations
 
 from typing import Annotated, Dict, Optional
 
-from pydantic import Field, model_validator
+from pydantic import Field, StringConstraints, model_validator
 
 from charter.types import Query
 from charter.types.model import PackModel
 
-__all__ = ["StripeListRequest", "Address"]
+__all__ = ["StripeListRequest", "Address", "ExpandPath"]
+
+ExpandPath = Annotated[
+    str,
+    StringConstraints(max_length=5000, pattern=r"^[a-z0-9_]+(\.[a-z0-9_]+){0,3}$"),
+]
+"""One entry of ``expand``: a property, or up to four of them joined by dots.
+
+"Expansions have a maximum depth of four levels. Meaning that an `expand`
+string can contain no more than four properties." The pattern says so, so a
+fifth level is refused here rather than by a 400. The 5000 is the OpenAPI
+document's ``maxLength`` on each item.
+https://docs.stripe.com/expand
+"""
 
 
 class StripeListRequest(PackModel):

@@ -20,10 +20,11 @@ OpenAPI: https://github.com/stripe/openapi (``/v1/*/search``)
 
 from __future__ import annotations
 
-from typing import Annotated, Optional
+from typing import Annotated, List, Optional
 
 from pydantic import Field
 
+from charter.packs.stripe.types.common import ExpandPath
 from charter.types import Gloss, Query
 from charter.types.model import PackModel
 
@@ -78,11 +79,26 @@ def _query_gloss(resource: str, fields: str, *notes: str) -> Gloss:
 class StripeSearchRequest(PackModel):
     """The parameters every Stripe search endpoint accepts besides ``query``.
 
-    ``expand`` is left out, as on every tool in this pack: it inlines related
-    objects the response handlers would only trim away again.
+    ``expand`` follows Stripe's rules for a list, which a search result is:
+    a property of the results is named through ``data``, and ``total_count`` —
+    which a search result carries only when asked — is named on its own.
 
     API Reference: https://docs.stripe.com/api/customers/search
+    Expanding: https://docs.stripe.com/api/expanding_objects
     """
+
+    expand: Annotated[
+        Optional[List[ExpandPath]],
+        Field(None, description="Specifies which fields in the response should be expanded."),
+        Query(),
+        Gloss(
+            "'total_count' adds the number of results that match the query, accurate "
+            "up to 10,000, without fetching them. Prefix a field of the results with "
+            "data. to expand it on every result: 'data.customer' replaces each "
+            "customer ID with the customer. At most four properties deep, data "
+            "included: 'data.payment_intent.customer.default_source'."
+        ),
+    ]
 
     limit: Annotated[
         Optional[int],
