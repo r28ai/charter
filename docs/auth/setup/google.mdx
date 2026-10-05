@@ -139,7 +139,7 @@ lets the script in step 7 catch Google's answer with nothing registered.
 <Frame>
   <img
     src="/images/setup/google/07-client-desktop.webp"
-    alt="The Create OAuth client ID form, with Application type set to Desktop app and the name Charter."
+    alt="The Create OAuth client ID form, with Application type set to Desktop app and the name Example App."
   />
 </Frame>
 
@@ -380,7 +380,8 @@ every tool in all six packs.
 The console steps are the same, with a **Web application** client (step 4's
 second tab). What changes is everything after: the consent route lives in your
 app, each user's grant is stored against them, and many users means
-verification. [Getting the grant](/auth/oauth-flow) is the route;
+verification. [Register a Google OAuth client](/auth/apps/google) walks through
+it, verification included; [getting the grant](/auth/oauth-flow) is the route;
 [serving many users](/auth/authorization-servers#serving-many-users) is the
 per-user cache.
 
@@ -400,6 +401,7 @@ Named rather than left for you to discover:
 
 ## Related
 
+- [Register a Google OAuth client](/auth/apps/google) — the client your users connect through, and verification
 - [Google](/auth/providers/google) — the server constant, every scope, the hundred-token cap and what else fails silently
 - [Getting the grant](/auth/oauth-flow) — the same two protocol steps, inside your app
 - [Authorization servers](/auth/authorization-servers) — refresh, caching, many users

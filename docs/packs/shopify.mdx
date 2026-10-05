@@ -7,7 +7,7 @@ sidebarTitle: "Overview"
 {/* generated:summary start — do not edit by hand; run scripts/generate_pack_docs.py */}
 <div className="pack-summary">
   <span><Visibility for="humans"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg></Visibility>22 tools</span>
-  <span><Visibility for="humans"><svg viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /></svg></Visibility>OAuth token</span>
+  <span><Visibility for="humans"><svg viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /></svg></Visibility>OAuth</span>
 </div>
 {/* generated:summary end */}
 
@@ -43,7 +43,7 @@ not.
 ## Authenticating
 
 {/* generated:auth start — do not edit by hand; run scripts/generate_pack_docs.py */}
-**Get credentials:** create an app in Shopify's [Dev Dashboard](https://dev.shopify.com/dashboard), install it on your store, and copy its client ID and secret — [the steps](#getting-the-client-id-and-secret) are below. The pack trades them for an Admin API token and trades them again when it runs out, so `SHOPIFY_SHOP`, `SHOPIFY_CLIENT_ID` and `SHOPIFY_CLIENT_SECRET` are all it needs.
+**Get credentials:** create an app in Shopify's [Dev Dashboard](https://dev.shopify.com/dashboard), install it on your store, and copy its client ID and secret — [Set up Shopify](/auth/setup/shopify) has every screen. The pack trades them for an Admin API token and trades them again when it runs out, so `SHOPIFY_SHOP`, `SHOPIFY_CLIENT_ID` and `SHOPIFY_CLIENT_SECRET` are all it needs.
 
 This pack takes an OAuth token, sent bare in `X-Shopify-Access-Token` rather than in `Authorization`. Its [`configure()`](/reference/configuration#configure) takes the installation as well as the credential, so the shapes it accepts are written out below.
 {/* generated:auth end */}
@@ -101,7 +101,8 @@ token per store, which is your application's to keep.
 
 Since January 2026 a new app is made in Shopify's Dev Dashboard rather than in
 the store admin, and its Admin API token is minted on request rather than shown
-once on a settings page:
+once on a settings page. [Set up Shopify](/auth/setup/shopify) has these steps
+with a screenshot for each screen:
 
 1. In the [Dev Dashboard](https://dev.shopify.com/dashboard), **Create app**.
 2. On the app's version, choose the **Admin API access scopes** for what the

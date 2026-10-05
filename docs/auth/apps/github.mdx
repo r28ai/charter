@@ -1,0 +1,153 @@
+---
+title: "Register a GitHub OAuth App"
+sidebarTitle: "GitHub"
+description: "The OAuth App your users authorize: one form, a client ID and secret, and the consent screen they see, with a screenshot for each."
+---
+
+Before your users can connect their GitHub accounts, GitHub needs an app that
+you own and they authorize. An OAuth App is a single form and takes about two
+minutes. Each user's token then acts as that user, with the scopes they
+approved.
+
+Only connecting your own account? [Set up GitHub](/auth/setup/github) is
+shorter: a personal access token with the scopes already ticked.
+
+Every GitHub link below opens in a new tab, so this page stays where you left it.
+
+<Note>
+GitHub also offers **GitHub Apps**, with fine-grained permissions and 8-hour
+tokens that refresh. The steps are similar, starting at
+[github.com/settings/apps/new](https://github.com/settings/apps/new), and the
+token you get back depends on one checkbox there:
+[which token you have](/auth/providers/github#which-token-you-have).
+</Note>
+
+<Steps>
+
+<Step title="Fill in the registration form">
+
+Open [github.com/settings/applications/new](https://github.com/settings/applications/new).
+You can also get there from **Settings → Developer settings → OAuth Apps →
+New OAuth App**.
+
+<Frame>
+  <img
+    src="/images/setup/github/01-register-app.webp"
+    alt="GitHub's Register a new OAuth app form, filled in: application name Example App, homepage https://app.example.com, a short description, and authorization callback URL https://app.example.com/oauth/github/callback. Enable Device Flow is unticked."
+  />
+</Frame>
+
+- **Application name**: what your users see on the consent screen. Use a name
+  they'll recognize.
+- **Homepage URL**: your product's public site.
+- **Application description**: optional, but it's shown to users while they
+  decide, so it's worth a sentence.
+- **Authorization callback URL**: your app's callback route. GitHub sends the
+  browser back here after consent, so it has to match the `redirect_uri` your
+  flow sends.
+
+Leave **Enable Device Flow** unticked. It's for CLIs and devices without a
+browser, and this flow runs in one.
+
+Everything on this form is public, so don't put internal hostnames or anything
+secret in it. Then click **Register application**.
+
+</Step>
+
+<Step title="Copy the client ID, then generate a secret">
+
+GitHub opens the app's page. Copy the **Client ID**, then click
+**Generate a new client secret** and copy the secret straight away. GitHub shows
+it only once.
+
+<Frame>
+  <img
+    src="/images/setup/github/02-client-secret.webp"
+    alt="The OAuth App's page: the client ID, and a newly generated client secret with a notice to copy it now because it won't be shown again."
+  />
+</Frame>
+
+```bash
+export GITHUB_CLIENT_ID=Ov23li...
+export GITHUB_CLIENT_SECRET=...
+```
+
+Lost it? Generate another one, switch your app over to it, then delete the old
+one. An app can hold more than one secret, so rotating needs no downtime.
+
+</Step>
+
+<Step title="Connect an account">
+
+Your app's "Connect GitHub" button opens the link that
+[`flow.authorize()`](/reference/oauth#oauth2flow-authorize) builds. GitHub
+shows the app, who owns it and every scope it asks for, and the user clicks
+**Authorize**.
+
+<Frame>
+  <img
+    src="/images/setup/github/03-consent.webp"
+    alt="GitHub's Authorize Example App screen: the app and its owner, the permissions requested (codespaces, gists, notifications, projects, repositories, personal user data, workflows), an organization access section with a Request button, and an Authorize button."
+  />
+</Frame>
+
+The pack's tools need `repo` and `read:user`, so that's the scope list to ask
+for. The screen above asks for more, and every extra scope is another line your
+users have to accept.
+
+**Organization access** is listed separately. A user can authorize the app for
+their own account straight away, but an organization that restricts OAuth Apps
+keeps its private repositories out of reach until an owner approves the
+**Request**.
+
+```python github_connect.py
+from charter.auth import OAuth2Flow
+
+flow = OAuth2Flow(
+    GITHUB,  # the server constant, from /auth/providers/github
+    client_id=os.environ["GITHUB_CLIENT_ID"],
+    client_secret=os.environ["GITHUB_CLIENT_SECRET"],
+    redirect_uri="https://app.example.com/oauth/github/callback",
+)
+request = flow.authorize(["repo", "read:user"])  # request.url is the link to open
+
+# At the callback, after checking state:
+grant = await flow.exchange(code, code_verifier=verifier, expect_refresh_token=False)
+# An OAuth App's token never expires and comes with no refresh token.
+```
+
+Store `grant.access_token` against the user, and hand it to the pack with a
+[`StaticTokenProvider`](/reference/credentials#statictokenprovider) from a
+[`SubjectProvider`](/auth/your-users).
+
+</Step>
+
+</Steps>
+
+## When it does not work
+
+<AccordionGroup>
+  <Accordion title="“The redirect_uri MUST match the registered callback URL for this application”">
+    The flow sent a `redirect_uri` that the app doesn't list. An OAuth App takes
+    one callback URL, and the one you send must start with it. Change the
+    app's **Authorization callback URL**, or send the one it has.
+  </Accordion>
+  <Accordion title="403: “Resource protected by organization SAML enforcement”, or an organization's repositories missing">
+    The organization hasn't approved the app, or the user hasn't authorized it
+    for that organization's SSO. An owner approves it under the organization's
+    **Settings → Third-party access**.
+  </Accordion>
+  <Accordion title="grant.scopes is one string, not a list">
+    GitHub separates scopes with commas, not the spaces the specification
+    calls for, so `repo,read:user` arrives as a single element. Split it on
+    commas before you compare. [GitHub's provider page](/auth/providers/github#getting-the-first-grant)
+    has the detail.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [GitHub](/auth/providers/github) — the server constant, every token type, and refresh under expiry
+- [Getting the grant](/auth/oauth-flow) — the two routes, `state` and PKCE, inside your app
+- [Every pack](/auth/your-users) — what each pack's users connect with, and what you store
+- [Set up GitHub](/auth/setup/github) — your own account, with a personal access token

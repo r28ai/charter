@@ -1,0 +1,208 @@
+---
+title: "Register a Slack app"
+sidebarTitle: "Slack"
+description: "The Slack app your users' workspaces install: a redirect URL, the pack's bot scopes, and the client ID and secret the flow needs, with a screenshot for each screen."
+---
+
+Before your users can connect their workspaces, Slack needs an app that you own
+and they install. You register it once, it takes about five minutes, and every
+workspace that connects afterwards goes through the same app.
+
+Only connecting your own workspace? [Set up Slack](/auth/setup/slack) is
+shorter: an app from a prefilled manifest and the bot token it shows you.
+
+Every Slack link below opens in a new tab, so this page stays where you left it.
+
+<Steps>
+
+<Step title="Create the app">
+
+Open [api.slack.com/apps](https://api.slack.com/apps) and click **Create an App**.
+
+<Frame>
+  <img
+    src="/images/setup/slack/01-your-apps.webp"
+    alt="Slack's Your Apps page, with a green Create an App button in the middle."
+  />
+</Frame>
+
+Choose **From scratch**.
+
+<Frame>
+  <img
+    src="/images/setup/slack/02-from-scratch.webp"
+    alt="The Create an app dialog, offering From a manifest and From scratch."
+  />
+</Frame>
+
+Name the app and pick the workspace to develop it in, then click **Create App**.
+Your users see this name on the consent screen and on every message the app
+posts. You can rename the app later, but you can't move it to another workspace.
+
+<Frame>
+  <img
+    src="/images/setup/slack/03-name-app.webp"
+    alt="The Name app & choose workspace dialog, with Example App as the app name and a workspace selected."
+  />
+</Frame>
+
+<Tip>
+**Prefer a manifest?** Use the one on [Set up Slack](/auth/setup/slack),
+which already has the pack's scopes, and add your callback under `oauth_config`:
+`"redirect_urls": ["https://app.example.com/oauth/slack/callback"]`. That does
+steps 2 and 3 for you.
+</Tip>
+
+</Step>
+
+<Step title="Add your redirect URL">
+
+In the sidebar, open **OAuth & Permissions**. Under **Redirect URLs**, click
+**Add New Redirect URL**, enter your app's callback route, click **Add**, then
+**Save URLs**.
+
+<Frame>
+  <img
+    src="/images/setup/slack/04-redirect-urls.webp"
+    alt="The Redirect URLs section of OAuth & Permissions, listing https://app.example.com/oauth/slack/callback, with Add New Redirect URL and Save URLs buttons."
+  />
+</Frame>
+
+Slack only sends the browser back to a URL on this list. Register the exact
+`redirect_uri` your flow sends, scheme and path included.
+
+</Step>
+
+<Step title="Add the bot scopes">
+
+On the same page, scroll to **Scopes**. Under **Bot Token Scopes**, click
+**Add an OAuth Scope** once for each scope your tools need.
+
+<Frame>
+  <img
+    src="/images/setup/slack/05-scopes.webp"
+    alt="Bot Token Scopes listing channels:history, chat:write and users:read, each with its description, and an Add an OAuth Scope button."
+  />
+</Frame>
+
+The pack's tools declare nineteen scopes:
+
+```text slack scopes
+channels:history  channels:join  channels:manage  channels:read
+channels:write.invites  chat:write  groups:history  groups:read
+groups:write  groups:write.invites  im:history  im:read  im:write
+mpim:history  mpim:read  mpim:write  reactions:read  reactions:write
+users:read
+```
+
+[`scopes_for(slack.TOOLS)`](/reference/oauth#scopes_for) returns the same list,
+so if you only hand out some of the tools, ask it for theirs and leave the rest
+off. The link your app builds asks for scopes too, and Slack refuses to grant a
+scope the app hasn't been given here.
+
+</Step>
+
+<Step title="Copy the client ID and secret">
+
+Open **Basic Information** and scroll to **App Credentials**. Copy the
+**Client ID**, then click **Show** next to **Client Secret** and copy that too.
+The signing secret and verification token are for events, which the flow
+doesn't use.
+
+<Frame>
+  <img
+    src="/images/setup/slack/06-app-credentials.webp"
+    alt="Basic Information's App Credentials: App ID and Client ID (hidden), Client Secret and Signing Secret masked with Show and Regenerate buttons."
+  />
+</Frame>
+
+```bash
+export SLACK_CLIENT_ID=1234567890.1234567890
+export SLACK_CLIENT_SECRET=...
+```
+
+Keep the secret on your server. Anyone who has it can complete a grant as your
+app.
+
+</Step>
+
+<Step title="Turn on public distribution">
+
+Until you do this, only the workspace you picked in step 1 can install the app.
+Open **Manage Distribution**, work through its checklist (it checks that the
+redirect URL uses HTTPS and that nothing is hard-coded), then click
+**Activate Public Distribution**.
+
+Distributing the app isn't the same as listing it in the Slack Marketplace.
+Workspaces install it from your own link, and you only need Slack's review if
+you also want a Marketplace listing.
+
+</Step>
+
+<Step title="Connect a workspace">
+
+Your app's "Connect Slack" button opens the link that
+[`flow.authorize()`](/reference/oauth#oauth2flow-authorize) builds. The user
+picks a workspace, reviews what the app can see and do, and clicks **Allow**.
+
+<Frame>
+  <img
+    src="/images/setup/slack/07-consent.webp"
+    alt="Slack's consent screen: a workspace picker, what Example App can view and the actions it can take, and Cancel and Allow buttons."
+  />
+</Frame>
+
+```python slack_connect.py
+from charter.auth import OAuth2Flow
+
+flow = OAuth2Flow(
+    SLACK,  # the server constant, from /auth/providers/slack
+    client_id=os.environ["SLACK_CLIENT_ID"],
+    client_secret=os.environ["SLACK_CLIENT_SECRET"],
+    redirect_uri="https://app.example.com/oauth/slack/callback",
+)
+request = flow.authorize(SLACK_SCOPES)  # request.url is the link to open
+
+# At the callback, after checking state:
+grant = await flow.exchange(code, code_verifier=verifier, expect_refresh_token=False)
+# grant.access_token is that workspace's xoxb- bot token: store it against the user.
+```
+
+`expect_refresh_token=False` is there because an app with token rotation off
+gets a bot token that never expires and no refresh token comes with it.
+[Slack's provider page](/auth/providers/slack#two-shapes-of-slack-app) covers
+turning rotation on and what changes when you do.
+
+</Step>
+
+</Steps>
+
+## When it does not work
+
+<AccordionGroup>
+  <Accordion title="“redirect_uri did not match any configured URIs”">
+    The flow sent a `redirect_uri` that isn't on the app's list. Add it under
+    **OAuth & Permissions → Redirect URLs** exactly as the flow sends it, then
+    **Save URLs**. Forgetting that last click is the usual cause.
+  </Accordion>
+  <Accordion title="A workspace other than yours can't install the app">
+    Public distribution is off, so only the development workspace can install.
+    See step 5.
+  </Accordion>
+  <Accordion title="“invalid_scope”, or missing_scope from a tool later">
+    The link asked for a scope the app doesn't have, or a tool needs a scope the
+    grant doesn't cover. Add it under **Bot Token Scopes**, then have that
+    workspace connect again. A grant only covers the scopes it was issued for.
+  </Accordion>
+  <Accordion title="not_in_channel">
+    The bot reads only the channels it has been invited to. In the channel, type
+    `/invite @your-app`.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [Slack](/auth/providers/slack) — the server constant, both token shapes, and refresh under rotation
+- [Getting the grant](/auth/oauth-flow) — the two routes, `state` and PKCE, inside your app
+- [Every pack](/auth/your-users) — what each pack's users connect with, and what you store
+- [Set up Slack](/auth/setup/slack) — your own workspace, from a manifest

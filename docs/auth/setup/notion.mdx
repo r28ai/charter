@@ -20,6 +20,13 @@ Open [notion.so/profile/integrations](https://www.notion.so/profile/integrations
 → **New integration**. Give it a name, pick the workspace, leave the type as
 **Internal**, and **Save**.
 
+<Frame>
+  <img
+    src="/images/setup/notion/06-internal-form.webp"
+    alt="The New Integration form: integration name Example App, type Internal, associated workspace Example Workspace, and a Create button."
+  />
+</Frame>
+
 </Step>
 
 <Step title="Give it the capabilities the tools use">
@@ -32,12 +39,29 @@ On the integration's **Configuration** tab, under **Capabilities**, tick:
 
 Those are the capabilities the pack's tools declare. **Save changes.**
 
+<Frame>
+  <img
+    src="/images/setup/notion/04-capabilities.webp"
+    alt="The Capabilities section: Read, Update and Insert content ticked, the two comment capabilities unticked, and Read user information including email addresses selected."
+  />
+</Frame>
+
+The screenshot leaves the comment capabilities off; tick them too if you hand
+out the comment tools.
+
 </Step>
 
 <Step title="Copy the secret">
 
 Still on **Configuration**: **Internal Integration Secret → Show → Copy**. It
 begins `ntn_`.
+
+<Frame>
+  <img
+    src="/images/setup/notion/07-internal-secret.webp"
+    alt="The integration's Configuration tab: name Example App, associated workspace Example Workspace, and a masked Internal integration secret with Refresh and Show links."
+  />
+</Frame>
 
 ```bash
 export NOTION_API_KEY=ntn_...
@@ -87,12 +111,13 @@ lists the pages you connected; if it is empty, step 4 has not taken.
 ## Your users' workspaces
 
 A product whose users each connect their own workspace needs a **public**
-integration instead: at the same page, set the type to **Public**, fill in the
-redirect URIs, and each user picks the pages to share on Notion's own consent
-screen. The route is [getting the grant](/auth/oauth-flow); the
+integration instead, and each user picks the pages to share on Notion's own
+consent screen. [Register a public Notion integration](/auth/apps/notion) has
+the screens. The route is [getting the grant](/auth/oauth-flow); the
 [pack page](/packs/notion#authenticating) shows the credential providers.
 
 ## Related
 
+- [Register a public Notion integration](/auth/apps/notion) — the one your users connect, screen by screen
 - [Notion](/packs/notion) — the pack, and how a database differs from the table inside it
 - [Every pack](/auth/your-own-account) — what the other packs need, in one table

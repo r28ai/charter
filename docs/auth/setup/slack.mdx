@@ -88,6 +88,13 @@ not at install.
 On the app's page, **Install App** in the sidebar → **Install to *your
 workspace*** → **Allow**.
 
+<Frame>
+  <img
+    src="/images/setup/slack/07-consent.webp"
+    alt="Slack's consent screen: a workspace picker, what Example App can view and the actions it can take, and Cancel and Allow buttons."
+  />
+</Frame>
+
 A workspace that restricts apps sends an approval request to its admins
 instead, and the token appears once they approve.
 
@@ -154,14 +161,16 @@ hand it only the search tool. The [Slack pack page](/packs/slack) has the rest.
 
 ## Your users' workspaces
 
-The same app, distributed. Under **OAuth & Permissions**, add your app's
-callback as a **Redirect URL**. Under **Manage Distribution**, turn on public
-distribution. Each workspace then installs through your consent route instead
-of the **Install** button. Whether to turn token rotation on, and what changes
-when you do, is on [Slack's provider page](/auth/providers/slack#two-shapes-of-slack-app);
+The same kind of app, distributed: a redirect URL, public distribution, and a
+client ID and secret, so that each workspace installs through your consent
+route instead of the **Install** button.
+[Register a Slack app](/auth/apps/slack) has each screen. Whether to turn token
+rotation on, and what changes when you do, is on
+[Slack's provider page](/auth/providers/slack#two-shapes-of-slack-app);
 the route itself is [getting the grant](/auth/oauth-flow).
 
 ## Related
 
+- [Register a Slack app](/auth/apps/slack) — the app your users' workspaces install, screen by screen
 - [Slack](/auth/providers/slack) — the server constant, both token shapes, and refresh under rotation
 - [Every pack](/auth/your-own-account) — what the other packs need, in one table

@@ -1,0 +1,179 @@
+---
+title: "Set up Shopify"
+sidebarTitle: "Shopify"
+description: "An app in Shopify's Dev Dashboard, installed on your own store, and the client ID and secret the shopify pack mints its tokens from, with a screenshot for each screen."
+---
+
+The [`shopify`](/packs/shopify) pack needs an app installed on your store.
+Since January 2026 you make that app in Shopify's **Dev Dashboard**, and
+instead of a token to copy, it gives you a client ID and secret. The pack
+trades those for an Admin API token and trades them again before the token's
+24 hours are up. It takes about five minutes.
+
+Every Shopify link below opens in a new tab, so this page stays where you left it.
+
+<Steps>
+
+<Step title="Create the app">
+
+Open the [Dev Dashboard](https://dev.shopify.com/dashboard) and click
+**Create app** in the top-right corner.
+
+<Frame>
+  <img
+    src="/images/setup/shopify/01-dev-dashboard.webp"
+    alt="Shopify's Dev Dashboard Apps page, with a Create app button in the top-right corner."
+  />
+</Frame>
+
+Under **Start from Dev Dashboard**, give it a name and click **Create**. The
+Shopify CLI option beside it is for building an app with its own code, which
+this one doesn't need.
+
+<Frame>
+  <img
+    src="/images/setup/shopify/02-create-app.webp"
+    alt="The Create an app page: Start with Shopify CLI on the left, and Start from Dev Dashboard on the right with the app name Example App and a Create button."
+  />
+</Frame>
+
+</Step>
+
+<Step title="Choose the scopes">
+
+Shopify opens the app's first version. Scroll to **Access** and click
+**Select scopes** beside **Scopes**.
+
+<Frame>
+  <img
+    src="/images/setup/shopify/04-scopes.webp"
+    alt="The version's Access section: empty Scopes and Optional scopes fields, each with a Select scopes link, and an empty Redirect URLs field."
+  />
+</Frame>
+
+Tick the Admin API scopes for whatever the tools you hand out touch: products,
+orders, customers, inventory, locations, draft orders and fulfillments. Use
+`read_` for tools that only read and `write_` for the rest. Then click **Done**.
+
+<Frame>
+  <img
+    src="/images/setup/shopify/05-select-scopes.webp"
+    alt="The Select scopes dialog: Admin API resources listed with a read and write checkbox for each, and Cancel and Done buttons."
+  />
+</Frame>
+
+You can also type them straight into the field, separated by commas, for
+example `read_products,read_orders,read_customers,read_inventory,read_locations`
+for a store assistant that only reads. A tool that needs a scope you left out
+names it in its error: *"Required access: `read_products` access scope"*.
+
+</Step>
+
+<Step title="Release the version">
+
+Click **Release** at the top of the page. Naming the version is optional.
+Click **Release** again in the dialog.
+
+<Frame>
+  <img
+    src="/images/setup/shopify/07-release.webp"
+    alt="The Release this new version dialog, with an optional version name and message and a Release button."
+  />
+</Frame>
+
+The version then shows as **Active**. Scopes only take effect once a version
+with them is released, so if you change scopes later, release again.
+
+<Frame>
+  <img
+    src="/images/setup/shopify/08-versions.webp"
+    alt="The app's Versions page, with the new version marked Active above the first one."
+  />
+</Frame>
+
+</Step>
+
+<Step title="Install it on your store">
+
+From the app's **Home**, click **Install app**, pick your store, and confirm on
+the store's admin.
+
+<Frame>
+  <img
+    src="/images/setup/shopify/10-install.webp"
+    alt="The store admin's Install app screen: a notice that the app hasn't been reviewed, the app Example App on My Store, the store data it needs access to, and an Install button."
+  />
+</Frame>
+
+*"This app hasn't been reviewed"* is expected. Shopify reviews only apps that
+are listed on its App Store, and this one is yours.
+
+The app and the store have to belong to the same organization, otherwise
+Shopify refuses the grant the pack uses. A development store made from the
+Dev Dashboard's **Dev stores** page is in yours automatically.
+
+</Step>
+
+<Step title="Copy the client ID and secret">
+
+Open the app's **Settings**. **Credentials** shows the **Client ID**, and the
+**Secret** is revealed with the eye icon.
+
+<Frame>
+  <img
+    src="/images/setup/shopify/09-credentials.webp"
+    alt="The app's Settings page: a Credentials panel with the client ID and a masked secret with reveal, copy and Rotate buttons."
+  />
+</Frame>
+
+```bash
+export SHOPIFY_SHOP=my-store            # my-store.myshopify.com
+export SHOPIFY_CLIENT_ID=3c1f6e9a...
+export SHOPIFY_CLIENT_SECRET=...
+```
+
+That's all the configuration there is. The pack reads the three variables on
+its next call, and so does the [MCP server](/using/mcp). The secret mints
+every token, so keep it like one, and use **Rotate** if it leaks.
+
+</Step>
+
+<Step title="Verify">
+
+```python verify_shopify.py
+import asyncio
+
+from charter.packs import shopify
+
+
+async def main():
+    print(await shopify.shop_get.ainvoke(variables={}))
+
+
+asyncio.run(main())
+```
+
+Your store's name, domain and currency. It's the cheapest way to confirm the
+credentials point at the store you meant.
+
+</Step>
+
+</Steps>
+
+## A store with an older custom app
+
+A custom app made in the store admin before 2026 keeps its `shpat_` token,
+which still works and doesn't expire. Set it as `SHOPIFY_ACCESS_TOKEN` instead
+of the client ID and secret. When both are set, the pair wins.
+
+## Your merchants' stores
+
+An app that merchants install on their own stores uses the same Dev Dashboard
+app, plus an app URL and a redirect URL, and each store gets its own token
+through Shopify's consent flow. [Register a Shopify app](/auth/apps/shopify)
+has those screens.
+
+## Related
+
+- [Shopify](/packs/shopify) — the pack, the three credential shapes, and why the store is part of the connection
+- [Every pack](/auth/your-own-account) — what the other packs need, in one table

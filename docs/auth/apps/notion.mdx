@@ -1,0 +1,167 @@
+---
+title: "Register a public Notion integration"
+sidebarTitle: "Notion"
+description: "The public integration your users connect, where each one picks the pages to share: the form, the redirect URI, its capabilities and its credentials, with a screenshot for each screen."
+---
+
+Before your users can connect their Notion workspaces, Notion needs a
+**public** integration that you own. It's the same kind of integration as the
+internal one you'd make for yourself, but with OAuth turned on. Each user
+chooses which pages to share on Notion's own consent screen. It takes about
+three minutes.
+
+Only connecting your own workspace? [Set up Notion](/auth/setup/notion) is
+shorter: an internal integration, its secret, and the pages it may read.
+
+Every Notion link below opens in a new tab, so this page stays where you left it.
+
+<Steps>
+
+<Step title="Start a new integration">
+
+Open [notion.so/profile/integrations](https://www.notion.so/profile/integrations)
+and click **New integration**.
+
+<Frame>
+  <img
+    src="/images/setup/notion/01-integrations.webp"
+    alt="Notion's Integrations page, with Internal and Public tabs and a Create a new integration tile above an existing integration."
+  />
+</Frame>
+
+</Step>
+
+<Step title="Make it public">
+
+<Frame>
+  <img
+    src="/images/setup/notion/02-new-integration.webp"
+    alt="The New Integration form: integration name Example App, an icon, type Public, associated workspace Example Workspace, and company name Example Inc."
+  />
+</Frame>
+
+- **Integration name** and **Icon**: what your users see on the consent screen.
+- **Type**: **Public**. An internal integration can't use OAuth, and a public
+  one isn't tied to a single workspace.
+- **Associated workspace**: where you'll manage it. Users in any workspace can
+  still connect.
+- **Company name**, **Website**, and the privacy policy and terms links further
+  down: Notion requires them for a public integration and shows them to your
+  users.
+
+</Step>
+
+<Step title="Add your redirect URI">
+
+Further down the same form, under **OAuth domains & URIs**, add your app's
+callback route under **Redirect URIs**, then click **Create**.
+
+<Frame>
+  <img
+    src="/images/setup/notion/03-redirect-uri.webp"
+    alt="The OAuth domains & URIs section with https://app.example.com/oauth/notion/callback entered as a redirect URI."
+  />
+</Frame>
+
+Notion is strict about this URI. It has to use HTTPS, match character for
+character, and have no fragment, wildcard or relative path.
+
+</Step>
+
+<Step title="Tick the capabilities the tools use">
+
+On the integration's **Configuration** tab, under **Capabilities**, tick what
+the pack's tools declare:
+
+- **Read content**, **Update content** and **Insert content**
+- **Read comments** and **Insert comments**
+- **Read user information**, with or without email addresses
+
+<Frame>
+  <img
+    src="/images/setup/notion/04-capabilities.webp"
+    alt="The Capabilities section: Read, Update and Insert content ticked, the two comment capabilities unticked, and Read user information including email addresses selected."
+  />
+</Frame>
+
+The screenshot leaves the two comment capabilities off. Tick them if you hand
+out the comment tools, which answer `403` without them. Notion lists every
+capability on the consent screen, so leave off any your tools don't use.
+**Save changes.**
+
+</Step>
+
+<Step title="Copy the client ID and secret">
+
+Still on **Configuration**, copy the **OAuth Client ID**, then click **Show**
+next to **OAuth Client Secret** and copy that too.
+
+<Frame>
+  <img
+    src="/images/setup/notion/05-client-secret.webp"
+    alt="The Edit Integration page for Example App: the OAuth client ID, a masked OAuth client secret with a Show link, and the authorization URL."
+  />
+</Frame>
+
+```bash
+export NOTION_CLIENT_ID=2f8d1c4e-7b3a-4e19-9c60-5d2e8a7b1f03
+export NOTION_CLIENT_SECRET=...
+```
+
+You don't need the **Authorization URL** shown below them.
+[`flow.authorize()`](/reference/oauth#oauth2flow-authorize) builds the same
+link, with `state` and PKCE added.
+
+</Step>
+
+<Step title="Connect a workspace">
+
+Your app's "Connect Notion" button opens that link. Notion shows the
+capabilities you ticked, and the user clicks **Select pages** to choose what
+your app can reach.
+
+<Frame>
+  <img
+    src="/images/setup/notion/08-consent.webp"
+    alt="Notion's consent screen: Connect with Example App, the permissions it has (view, edit and create content in pages you select, view workspace users and their emails), and Cancel and Select pages buttons."
+  />
+</Frame>
+
+The pages the user picks here are all the integration can see. A page they
+didn't pick answers `object_not_found`, and if they picked nothing, `search`
+comes back empty. The pages can be changed later, from the integration's entry
+under **Settings → Connections** in their workspace.
+
+The server constant and the per-user client are in the
+[Notion section of Every pack](/auth/your-users#notion). The link asks for no
+scopes, since the capabilities you ticked play that role, and Notion's token
+endpoint takes JSON rather than a form. The constant declares both.
+
+</Step>
+
+</Steps>
+
+## When it does not work
+
+<AccordionGroup>
+  <Accordion title="“Missing or invalid redirect_uri”">
+    The flow sent a URI that isn't listed under **Redirect URIs**, character for
+    character. A trailing slash is enough to break the match.
+  </Accordion>
+  <Accordion title="Every call succeeds and finds nothing">
+    The user connected but shared no pages, or not the ones you expect. They
+    can add pages from the integration's entry under **Settings → Connections**.
+  </Accordion>
+  <Accordion title="403 on comment tools only">
+    The integration doesn't have **Read comments** or **Insert comments**. Tick
+    them under **Capabilities**, then have the user connect again so their grant
+    includes them.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [Every pack: Notion](/auth/your-users#notion) — the server constant and the per-user client
+- [Getting the grant](/auth/oauth-flow) — the two routes, `state` and PKCE, inside your app
+- [Notion](/packs/notion) — the pack, and how a database differs from the table inside it
+- [Set up Notion](/auth/setup/notion) — your own workspace, with an internal integration

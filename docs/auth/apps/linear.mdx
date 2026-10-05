@@ -1,0 +1,127 @@
+---
+title: "Register a Linear OAuth application"
+sidebarTitle: "Linear"
+description: "The OAuth application your users' Linear workspaces authorize: the form, the switch that lets other workspaces install it, and the credentials, with a screenshot for each."
+---
+
+Before your users can connect their Linear workspaces, Linear needs an OAuth
+application that you own and they authorize. You register it once, from a
+workspace you're an admin of, and it takes about three minutes.
+
+Only connecting your own workspace? A personal API key from
+[linear.app/settings/account/security](https://linear.app/settings/account/security)
+is all the [`linear`](/packs/linear) pack needs. Set it as `LINEAR_API_KEY`.
+
+Every Linear link below opens in a new tab, so this page stays where you left it.
+
+<Steps>
+
+<Step title="Start a new OAuth application">
+
+Open [linear.app/settings/api](https://linear.app/settings/api) and, under
+**OAuth Applications**, click **New OAuth application**.
+
+<Frame>
+  <img
+    src="/images/setup/linear/01-new-oauth-app.webp"
+    alt="Linear's API settings page, with a New OAuth application button in the OAuth Applications section."
+  />
+</Frame>
+
+</Step>
+
+<Step title="Fill in the form">
+
+<Frame>
+  <img
+    src="/images/setup/linear/02-app-form.webp"
+    alt="The new OAuth application form: application name Example App, developer name Example Inc., developer URL https://app.example.com, callback URL https://app.example.com/oauth/linear/callback (highlighted), an empty GitHub username, Public switched on, and Client credentials and Webhooks switched off."
+  />
+</Frame>
+
+- **Application name**, **Developer name**, **Developer URL**: what your users
+  see on the consent screen.
+- **Callback URLs**: your app's callback route, one per line. Linear redirects
+  only to a URL listed here.
+- **GitHub username**: leave it empty. It only matters for apps that act as
+  themselves and want their commits attributed.
+- **Public**: switch it **on**. With it off, only the workspace you're in can
+  authorize the app, which is fine for testing and wrong for your users.
+- **Client credentials**: leave it off. That grant is for an app acting on its
+  own workspace, and this flow acts on behalf of each user.
+
+Click **Create**.
+
+</Step>
+
+<Step title="Copy the client ID and secret">
+
+Linear opens the application's page. Under **OAuth credentials**, copy the
+**Client ID** and the **Client secret**.
+
+<Frame>
+  <img
+    src="/images/setup/linear/03-credentials.webp"
+    alt="The application's page: developer, redirect URIs and availability, then an OAuth credentials panel with the client ID, a masked client secret, and a developer token row."
+  />
+</Frame>
+
+```bash
+export LINEAR_CLIENT_ID=3f9a1c07be52d4e8a6b0c91d27e4f538
+export LINEAR_CLIENT_SECRET=...
+```
+
+</Step>
+
+<Step title="Connect a workspace">
+
+Your app's "Connect Linear" button opens the link that
+[`flow.authorize()`](/reference/oauth#oauth2flow-authorize) builds. Linear
+shows what the app is asking for, and the user clicks **Authorize**.
+
+<Frame>
+  <img
+    src="/images/setup/linear/04-consent.webp"
+    alt="Linear's consent screen: Example App is requesting access to the Example Workspace workspace, with read and write access listed, and Cancel and Authorize buttons."
+  />
+</Frame>
+
+`read` and `write` cover the pack's tools. Don't ask for `admin`: it adds a
+line about managing settings and people to this screen, and no tool needs it.
+
+The server constant and the per-user client are in the
+[Linear section of Every pack](/auth/your-users#linear). Two details from there
+matter here. Linear's access tokens last 24 hours and its refresh tokens
+rotate, so `on_refresh` has to store each new one. And Linear separates scopes
+with commas, which the constant already declares.
+
+</Step>
+
+</Steps>
+
+## When it does not work
+
+<AccordionGroup>
+  <Accordion title="Users in other workspaces can't authorize the app">
+    **Public** is off. Open the application from
+    [linear.app/settings/api](https://linear.app/settings/api), switch it on and
+    save.
+  </Accordion>
+  <Accordion title="invalid_grant on a refresh that worked yesterday">
+    The refresh token was used and its replacement was never saved. Linear
+    rotates refresh tokens, so the old one stops working once it has been used.
+    Store the new one in `on_refresh`, then have the user connect again.
+  </Accordion>
+  <Accordion title="401 on a token that should be valid">
+    Linear wants an OAuth token sent as `Bearer` and a personal API key sent
+    with no scheme at all. The pack tells them apart by the key's `lin_api_`
+    prefix, so make sure what you hand it is the access token, not the client
+    secret.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [Every pack: Linear](/auth/your-users#linear) — the server constant, and a pasted key beside OAuth in one configuration
+- [Getting the grant](/auth/oauth-flow) — the two routes, `state` and PKCE, inside your app
+- [Linear](/packs/linear) — the pack, and why a personal key goes out with no scheme

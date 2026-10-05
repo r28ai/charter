@@ -1,0 +1,274 @@
+---
+title: "Register a Google OAuth client"
+sidebarTitle: "Google"
+description: "The OAuth client your users connect their Google accounts through: a web client, a published consent screen, and the verification that decides when you can launch, with a screenshot for each screen."
+---
+
+Before your users can connect their Google accounts, Google needs an OAuth
+client that you own, in a Cloud project, behind a consent screen with your
+product's name on it. The console part takes about fifteen minutes and is the
+same for all six Google packs.
+
+What takes longer is **verification**. Google reviews any app that asks
+strangers for sensitive data, and the review depends on which packs you hand
+out. Read step 7 before you plan a launch date.
+
+Only connecting your own account? [Set up Google](/auth/setup/google) uses a
+Desktop client and a script, and needs no verification.
+
+Every console link below opens in a new tab, so this page stays where you left it.
+
+<Steps>
+
+<Step title="Create a project">
+
+Open [console.cloud.google.com/projectcreate](https://console.cloud.google.com/projectcreate)
+and create a project for the product. Keep it separate from any project you
+used for local experiments: its consent screen, its users and its quota belong
+to your product.
+
+<Frame>
+  <img
+    src="/images/setup/google/01-new-project.webp"
+    alt="The Google Cloud project picker, with an arrow pointing at New project in its top-right corner."
+  />
+</Frame>
+
+Everything below happens in whichever project the picker at the top of the
+console shows, so check it before each step.
+
+</Step>
+
+<Step title="Turn on the APIs your tools call">
+
+Each pack calls one Google API, and an API is off until you turn it on.
+[This link turns on all six at once](https://console.cloud.google.com/flows/enableapi?apiid=gmail.googleapis.com,calendar-json.googleapis.com,sheets.googleapis.com,docs.googleapis.com,drive.googleapis.com,forms.googleapis.com),
+or enable them one at a time from the table on
+[Set up Google](/auth/setup/google).
+
+<Frame>
+  <img
+    src="/images/setup/google/02-enable-api.webp"
+    alt="The Gmail API's page in the API library, with an arrow pointing at the blue Enable button."
+  />
+</Frame>
+
+Only turn on the ones you'll use. Each API you enable is one more thing to
+justify in step 7.
+
+</Step>
+
+<Step title="Set up the consent screen">
+
+Open [console.cloud.google.com/auth/overview](https://console.cloud.google.com/auth/overview)
+and click **Get started**.
+
+<Frame>
+  <img
+    src="/images/setup/google/03-get-started.webp"
+    alt="Google Auth Platform's overview page saying the platform is not configured yet, with a Get started button."
+  />
+</Frame>
+
+- **App information**: your product's name, which is what users see on the
+  consent screen, and a support email they can reach.
+- **Audience**: **External**. *Internal* only lets in accounts from your own
+  Google Workspace organization, so it can't serve customers.
+- **Contact information**: where Google writes to you about the app.
+
+<Frame>
+  <img
+    src="/images/setup/google/04-audience.webp"
+    alt="The Audience part of the form, with External selected and Internal left unselected."
+  />
+</Frame>
+
+Then open **Branding** in the sidebar and fill in what verification will ask
+for: your logo, your homepage, links to your privacy policy and terms, and
+your **authorized domains**. The homepage and the redirect URI have to be on
+domains you've verified you own in
+[Google Search Console](https://search.google.com/search-console).
+
+</Step>
+
+<Step title="Create a web application client">
+
+Open [console.cloud.google.com/auth/clients/create](https://console.cloud.google.com/auth/clients/create).
+Set **Application type** to **Web application** and give the client a name.
+Only you see the name, in the console.
+
+Under **Authorised redirect URIs**, add your app's callback route exactly,
+scheme and path included. **Authorised JavaScript origins** only matter when a
+page in the browser calls Google itself. Charter's flow runs on your server, so
+you can leave them empty.
+
+<Frame>
+  <img
+    src="/images/setup/google/07-client-web.webp"
+    alt="The Create OAuth client ID form for a Web application, named Example App, with https://app.example.com as the JavaScript origin and https://app.example.com/oauth/google/callback as the redirect URI."
+  />
+</Frame>
+
+To try the flow from your laptop with the same client, add
+`http://localhost:8765/callback` as a second redirect URI, and remove it once
+you go to production.
+
+</Step>
+
+<Step title="Copy the client ID and secret">
+
+Google shows a dialog with the client ID and a **Download JSON** link. Download
+it before you click **OK**: the file holds the client ID and the client secret
+together.
+
+<Frame>
+  <img
+    src="/images/setup/google/08-client-created.webp"
+    alt="The OAuth client created dialog: the client ID, a Download JSON link, and an OK button."
+  />
+</Frame>
+
+```bash
+export GOOGLE_CLIENT_ID=1234-abc.apps.googleusercontent.com
+export GOOGLE_CLIENT_SECRET=GOCSPX-...
+```
+
+Clicked OK first? Open the client from
+[Clients](https://console.cloud.google.com/auth/clients) and use **Add secret**.
+A new secret is shown in full only when it's created. A client can hold more
+than one, which is also how you rotate a secret without downtime.
+
+<Frame>
+  <img
+    src="/images/setup/google/09-client-secret.webp"
+    alt="A client's details page: the client ID, a Client secrets section with one secret shown masked, and an Add secret button."
+  />
+</Frame>
+
+</Step>
+
+<Step title="Declare the scopes">
+
+Open **Data access** in the sidebar and add every scope your link will ask for.
+This is the list Google reviews in step 7.
+
+The six packs' tools declare these. [`scopes_for`](/reference/oauth#scopes_for)
+reads them off whichever tools you actually hand out:
+
+| Pack | Scope | Google's category |
+|---|---|---|
+| `gmail` | `gmail.modify` | restricted |
+| `gmail`, `threads_delete` only | `https://mail.google.com/` | restricted |
+| `gdrive` | `drive` | restricted |
+| `gcalendar` | `calendar.events`, `calendar.readonly` | sensitive |
+| `gsheets` | `spreadsheets` | sensitive |
+| `gdocs` | `documents` | sensitive |
+| `gforms` | `forms.body`, `forms.responses.readonly` | sensitive |
+
+The categories are Google's, and Google can change them. **Data access** shows
+the current category next to each scope as you add it.
+
+</Step>
+
+<Step title="Publish, then get verified">
+
+Open [console.cloud.google.com/auth/audience](https://console.cloud.google.com/auth/audience)
+and click **Publish app**.
+
+<Frame>
+  <img
+    src="/images/setup/google/10-publish.webp"
+    alt="The Audience page: publishing status Testing with a Publish app button, user type External, and an Add users button under Test users."
+  />
+</Frame>
+
+While the app is in *Testing*, only the accounts listed under **Test users**
+can connect, and their refresh tokens expire after seven days. That's fine
+while you build. It isn't a way to launch.
+
+Once it's published, what happens next depends on the scopes from step 6:
+
+- **Only sensitive scopes** (Calendar, Sheets, Docs, Forms): Google verifies
+  the app. It checks your branding and domains, reads a justification for each
+  scope, and watches a short video of your app using them.
+- **Any restricted scope** (Gmail, Drive): the same review, plus an
+  independent **security assessment** of how your servers store and handle
+  Google data. It's repeated every year, and you arrange and pay for it.
+
+Until verification completes, users see *"Google hasn't verified this app"*
+and a lower cap on how many of them can connect. The review takes weeks,
+longer with an assessment, so start it well before launch.
+[Check Google's current rules](https://developers.google.com/identity/protocols/oauth2/production-readiness/policy-compliance)
+before planning around any of this.
+
+<Tip>
+A product that only needs Calendar, Sheets, Docs or Forms avoids the security
+assessment entirely. Hand those packs out first, and add Gmail or Drive once
+the assessment is booked.
+</Tip>
+
+</Step>
+
+<Step title="Connect a user">
+
+Your app's "Connect Google" button opens the link that
+[`flow.authorize()`](/reference/oauth#oauth2flow-authorize) builds. The user
+picks an account and approves the scopes.
+
+```python google_connect.py
+from charter.auth import OAuth2Flow, scopes_for
+
+flow = OAuth2Flow(
+    GOOGLE,  # the server constant, from /auth/providers/google
+    client_id=os.environ["GOOGLE_CLIENT_ID"],
+    client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
+    redirect_uri="https://app.example.com/oauth/google/callback",
+)
+request = flow.authorize(scopes=scopes_for(tools), login_hint=user.email)
+
+# At the callback, after checking state:
+grant = await flow.exchange(code, code_verifier=verifier)
+missing = set(scopes_for(tools)) - set(grant.scopes)  # unticked on the consent screen
+```
+
+Google lets a user untick a permission and still finish the flow, so compare
+`grant.scopes` against what you asked for before you store the refresh token.
+Google doesn't rotate refresh tokens, so the one you store stays the one you
+use. [Google's provider page](/auth/providers/google#getting-the-first-grant)
+covers the rest: the hundred-token cap per account, and what fails silently.
+
+</Step>
+
+</Steps>
+
+## When it does not work
+
+<AccordionGroup>
+  <Accordion title="redirect_uri_mismatch">
+    The flow sent a URI the client doesn't list, character for character. Add
+    it under the client's **Authorised redirect URIs**. Changes can take a few
+    minutes to apply.
+  </Accordion>
+  <Accordion title="“Access blocked: … has not completed the Google verification process”">
+    The app is in *Testing* and the account isn't a test user. Add it under
+    **Test users**, or publish the app (step 7).
+  </Accordion>
+  <Accordion title="invalid_grant, about a week after a user connected">
+    The app was in *Testing* when they connected, and testing tokens expire
+    after seven days. Publish it and have them connect again.
+  </Accordion>
+  <Accordion title="403: “Request had insufficient authentication scopes”">
+    The user unticked a permission, or the tool needs a scope the grant was
+    never asked for. Send them through consent again with the full list.
+  </Accordion>
+  <Accordion title="403: “… API has not been used in project N before or it is disabled”">
+    That pack's API is off in the client's project. See step 2.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [Google](/auth/providers/google) — the server constant, every scope, the hundred-token cap and what else fails silently
+- [Getting the grant](/auth/oauth-flow) — the two routes, `state` and PKCE, inside your app
+- [Every pack](/auth/your-users) — what each pack's users connect with, and what you store
+- [Set up Google](/auth/setup/google) — your own account, with a Desktop client and a script

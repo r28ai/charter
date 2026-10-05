@@ -49,7 +49,7 @@ afterwards. *Provider* is what `for_user` returns.
 |---|---|---|---|
 | Gmail, Calendar, Sheets, Docs, Drive, Forms | an OAuth link | a refresh token | `OAuth2Client(GOOGLE, ...)` — [Google](/auth/providers/google) |
 | Slack | an OAuth link | the bot token, or a refresh token with rotation on | [Slack](/auth/providers/slack) |
-| GitHub | an OAuth link | a refresh token | `OAuth2Client(GITHUB, ...)` — [GitHub](/auth/providers/github) |
+| GitHub | an OAuth link | a refresh token, or the token of an app that does not expire them | `OAuth2Client(GITHUB, ...)` or `StaticTokenProvider` — [GitHub](/auth/providers/github) |
 | Notion | an OAuth link | a refresh token | `OAuth2Client(NOTION, ...)` — [below](#notion) |
 | Linear | an OAuth link, or a pasted personal key | a refresh token, or the key | `OAuth2Client(LINEAR, ...)` or `StaticTokenProvider` — [below](#linear) |
 | Stripe | a Stripe App install link, or a pasted restricted key | a refresh token, or the key | `OAuth2Client(STRIPE_APPS, ...)` or `StaticTokenProvider` — [below](#stripe) |
@@ -64,10 +64,19 @@ shape: the two routes, `state`, PKCE, and what to store.
 A pasted key needs no flow. Show a field, check the key with one call, and
 store it the way you store any other secret.
 
+Every OAuth row needs an app registered with the provider first: a redirect URL,
+the scopes, and the client ID and secret the flow is built from. Each of these
+has a screenshot for every screen:
+[Google](/auth/apps/google), [Slack](/auth/apps/slack),
+[GitHub](/auth/apps/github), [Linear](/auth/apps/linear),
+[Notion](/auth/apps/notion) and [Shopify](/auth/apps/shopify).
+
 ## Linear
 
 Linear access tokens last 24 hours, and Linear's refresh tokens rotate. It
-documents scopes as a comma-separated list.
+documents scopes as a comma-separated list. The OAuth application is registered
+at [linear.app/settings/api](https://linear.app/settings/api):
+[Register a Linear OAuth application](/auth/apps/linear).
 
 ```python linear_users.py
 from charter.auth import OAuth2Client, OAuth2Flow, OAuth2Server, SubjectProvider
@@ -175,7 +184,8 @@ A [public connection](https://developers.notion.com/docs/authorization) asks for
 nothing in its link. The user picks which pages to share on Notion's consent
 screen, and the connection's capabilities are set where you registered it.
 Notion's token endpoint takes JSON and HTTP Basic, where most servers take a
-form.
+form. [Register a public Notion integration](/auth/apps/notion) has the
+screens.
 
 ```python notion_users.py
 from charter.auth import OAuth2Client, OAuth2Flow, OAuth2Server, SubjectProvider
@@ -219,7 +229,8 @@ notion.configure(credential_provider=SubjectProvider(notion_for))
 A merchant connects a store, and the store is part of the connection: the API
 host, the consent page and the token endpoint all sit on it. So the store is
 named per call as well as the token. `shop=` takes a function for exactly this,
-and it is called on every request:
+and it is called on every request. The app is one Dev Dashboard app for every
+store: [Register a Shopify app](/auth/apps/shopify).
 
 ```python shopify_users.py
 from charter.auth import (

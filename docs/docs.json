@@ -64,14 +64,27 @@
                   "auth/setup/google",
                   "auth/setup/slack",
                   "auth/setup/github",
-                  "auth/setup/notion"
+                  "auth/setup/notion",
+                  "auth/setup/stripe",
+                  "auth/setup/shopify"
                 ]
               },
               {
                 "group": "Your users' accounts",
                 "pages": [
                   "auth/your-users",
-                  "auth/oauth-flow"
+                  "auth/oauth-flow",
+                  {
+                    "group": "Register your app",
+                    "pages": [
+                      "auth/apps/google",
+                      "auth/apps/slack",
+                      "auth/apps/github",
+                      "auth/apps/linear",
+                      "auth/apps/notion",
+                      "auth/apps/shopify"
+                    ]
+                  }
                 ]
               },
               "auth/authorization-servers",

@@ -10,9 +10,11 @@ tab, so this page stays where you left it.
 
 Most packs take an API key, which is a minute's work and needs nothing more —
 [API keys](/auth/api-key-tool-factory) covers what Charter does with one. Google,
-Slack, GitHub and Notion each have a guide, because each wants something
-registered before it will issue a credential, and Google's takes ten minutes of
-console screens that are much easier with pictures.
+Slack, GitHub, Notion and Shopify each have a guide, because each wants something
+registered before it will issue a credential, and Stripe has one for the key
+worth preferring. Google's takes ten minutes of console screens, and every
+guide has a screenshot for each screen, because they are much easier with
+pictures.
 
 {/* generated:setup start — do not edit by hand; run scripts/generate_pack_docs.py */}
 | Pack | What you need | Where you get it | Then set |
@@ -25,9 +27,9 @@ console screens that are much easier with pictures.
 | [Google Forms](/packs/gforms) | An OAuth client, then a grant | [Set up Google](/auth/setup/google) — about ten minutes, once for all six | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN` |
 | [Slack](/packs/slack) | A Slack app, installed in your workspace | [Set up Slack](/auth/setup/slack) — about three minutes | `SLACK_BOT_TOKEN` |
 | [GitHub](/packs/github) | A personal access token | [GitHub's token form, prefilled](https://github.com/settings/tokens/new?description=Charter&scopes=repo,read:user) · [Set up GitHub](/auth/setup/github) | `GITHUB_TOKEN` |
-| [Stripe](/packs/stripe) | A secret key | [dashboard.stripe.com/apikeys](https://dashboard.stripe.com/apikeys) | `STRIPE_API_KEY` |
+| [Stripe](/packs/stripe) | A secret key | [dashboard.stripe.com/apikeys](https://dashboard.stripe.com/apikeys) · [Set up Stripe](/auth/setup/stripe) | `STRIPE_API_KEY` |
 | [Linear](/packs/linear) | A personal API key | [linear.app/settings/account/security](https://linear.app/settings/account/security) | `LINEAR_API_KEY` |
-| [Shopify](/packs/shopify) | An app installed on your store | [dev.shopify.com/dashboard](https://dev.shopify.com/dashboard) · [the steps](/packs/shopify#getting-the-client-id-and-secret) | `SHOPIFY_SHOP`, `SHOPIFY_CLIENT_ID`, `SHOPIFY_CLIENT_SECRET` |
+| [Shopify](/packs/shopify) | An app installed on your store | [dev.shopify.com/dashboard](https://dev.shopify.com/dashboard) · [Set up Shopify](/auth/setup/shopify) | `SHOPIFY_SHOP`, `SHOPIFY_CLIENT_ID`, `SHOPIFY_CLIENT_SECRET` |
 | [Firecrawl](/packs/firecrawl) | An API key | [firecrawl.dev/app/api-keys](https://www.firecrawl.dev/app/api-keys) | `FIRECRAWL_API_KEY` |
 | [Notion](/packs/notion) | An internal integration, connected to your pages | [notion.so/profile/integrations](https://www.notion.so/profile/integrations) · [Set up Notion](/auth/setup/notion) | `NOTION_API_KEY` |
 | [Granola](/packs/granola) | An API key, on a Business or Enterprise plan | The desktop app's **Settings → Connectors → API keys** · [Granola's guide](https://docs.granola.ai/help-center/sharing/integrations/granola-api) | `GRANOLA_API_KEY` |
@@ -54,4 +56,6 @@ The console steps are the same, so do the guide first, then
 - [Set up Slack](/auth/setup/slack) — an app from a prefilled manifest, and its bot token
 - [Set up GitHub](/auth/setup/github) — a token with the scopes already ticked
 - [Set up Notion](/auth/setup/notion) — an integration, and the pages it may read
+- [Set up Stripe](/auth/setup/stripe) — the secret key, and the restricted one to prefer
+- [Set up Shopify](/auth/setup/shopify) — a Dev Dashboard app on your store, and its client ID and secret
 - [Credentials](/reference/credentials) — every credential provider, as reference

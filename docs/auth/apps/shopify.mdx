@@ -1,0 +1,162 @@
+---
+title: "Register a Shopify app"
+sidebarTitle: "Shopify"
+description: "The Dev Dashboard app merchants install on their own stores: the app URL, the redirect URL, the scopes, and the install screen they see, with a screenshot for each."
+---
+
+A merchant connects a **store**, not an account, so the store is part of every
+connection: the consent page, the token endpoint and the API host all live on
+it. You register one app in Shopify's Dev Dashboard, each merchant installs it,
+and you keep one token per store.
+
+Only connecting a store you own? [Set up Shopify](/auth/setup/shopify) is
+shorter, because no consent route is involved.
+
+Every Shopify link below opens in a new tab, so this page stays where you left it.
+
+<Steps>
+
+<Step title="Create the app">
+
+In the [Dev Dashboard](https://dev.shopify.com/dashboard), click **Create app**,
+then name it under **Start from Dev Dashboard** and click **Create**. Merchants
+see this name on the install screen.
+
+<Frame>
+  <img
+    src="/images/setup/shopify/02-create-app.webp"
+    alt="The Create an app page, with the app name Example App under Start from Dev Dashboard and a Create button."
+  />
+</Frame>
+
+</Step>
+
+<Step title="Set the app URL">
+
+Shopify opens the app's first version. Under **URLs**, set **App URL** to your
+product's address. This is where a merchant lands after installing, and when
+the app opens from their admin.
+
+<Frame>
+  <img
+    src="/images/setup/shopify/03-app-url.webp"
+    alt="The Create a version page: app name Example App, and under URLs an App URL of https://app.example.com with Embed app in Shopify admin ticked."
+  />
+</Frame>
+
+**Embed app in Shopify admin** loads your app inside the admin in an iframe.
+Untick it unless your app is built for that.
+
+</Step>
+
+<Step title="Choose the scopes and add your redirect URL">
+
+Further down, under **Access**, set the **Scopes** the tools need, either with
+**Select scopes** or typed in and separated by commas. Below them, add your
+callback route under **Redirect URLs**.
+
+<Frame>
+  <img
+    src="/images/setup/shopify/06-redirect-urls.webp"
+    alt="The version's Access section: a comma-separated list of scopes, an empty Optional scopes field, Use legacy install flow unticked, and https://app.example.com/oauth/shopify/callback under Redirect URLs."
+  />
+</Frame>
+
+The scopes here are what Shopify grants on install. The flow sends the same
+list in its link, separated by commas, and the server constant on
+[Every pack](/auth/your-users#shopify) already declares that separator.
+
+Leave **Use legacy install flow** unticked.
+
+</Step>
+
+<Step title="Release the version">
+
+Click **Release** at the top of the page, then **Release** again in the dialog.
+Nothing you set reaches a merchant until a version with it is released.
+
+<Frame>
+  <img
+    src="/images/setup/shopify/07-release.webp"
+    alt="The Release this new version dialog, with an optional version name and message and a Release button."
+  />
+</Frame>
+
+</Step>
+
+<Step title="Copy the client ID and secret">
+
+Open the app's **Settings** and copy the **Client ID** and **Secret** from
+**Credentials**.
+
+<Frame>
+  <img
+    src="/images/setup/shopify/09-credentials.webp"
+    alt="The app's Settings page: a Credentials panel with the client ID and a masked secret with reveal, copy and Rotate buttons."
+  />
+</Frame>
+
+```bash
+export SHOPIFY_CLIENT_ID=3c1f6e9a...
+export SHOPIFY_CLIENT_SECRET=...
+```
+
+The secret also signs every request Shopify sends to your callback, and the
+callback must check that signature. See the next step.
+
+</Step>
+
+<Step title="Connect a store">
+
+Your "Connect Shopify" button asks for the merchant's store, then opens the
+link that [`flow.authorize()`](/reference/oauth#oauth2flow-authorize) builds on
+that store. The merchant reviews what the app needs and clicks **Install**.
+
+<Frame>
+  <img
+    src="/images/setup/shopify/10-install.webp"
+    alt="The merchant's Install app screen: a notice that the app hasn't been reviewed, the app Example App on My Store, the data it needs access to, and an Install button."
+  />
+</Frame>
+
+*"This app hasn't been reviewed"* appears for any app that isn't listed on the
+Shopify App Store. Listing it means going through Shopify's review.
+
+At the callback, **check Shopify's `hmac` parameter before anything else**. It's
+an HMAC-SHA256 of the other query parameters, keyed with your client secret.
+Charter doesn't check it for you, because it's Shopify's own convention rather
+than part of OAuth. Then exchange the code with `expect_refresh_token=False`,
+since the default offline token doesn't expire and comes without a refresh
+token, and store the shop and its token against the user. The full shape,
+including the per-call store, is in the
+[Shopify section of Every pack](/auth/your-users#shopify).
+
+</Step>
+
+</Steps>
+
+## When it does not work
+
+<AccordionGroup>
+  <Accordion title="“The redirect_uri is not whitelisted”">
+    The flow sent a URL that isn't under **Redirect URLs** in the active
+    version. Add it, then release a new version, because an edit that isn't
+    released doesn't count.
+  </Accordion>
+  <Accordion title="A scope you added is not granted">
+    Scope changes reach a store only through a released version, and a store
+    that installed earlier keeps its old grant until the merchant approves the
+    new scopes. Release, then send the merchant through the link again.
+  </Accordion>
+  <Accordion title="403: “Required access: … access scope”">
+    The grant doesn't include the scope that tool needs. Add the scope, release,
+    and have the merchant reconnect.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [Every pack: Shopify](/auth/your-users#shopify) — the per-store server, `shop=` per call, and what you store
+- [Getting the grant](/auth/oauth-flow) — the two routes, `state` and PKCE, inside your app
+- [Shopify](/packs/shopify) — the pack, and the credential shapes it accepts
+- [Set up Shopify](/auth/setup/shopify) — a store you own, with no consent route

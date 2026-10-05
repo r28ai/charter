@@ -1,0 +1,102 @@
+---
+title: "Set up Stripe"
+sidebarTitle: "Stripe"
+description: "Where the stripe pack's key lives in the Dashboard, which key to copy, and the narrower one to prefer, with a screenshot for each screen."
+---
+
+The [`stripe`](/packs/stripe) pack takes a single API key. There's no app to
+register and no consent screen, and the key is waiting in the Dashboard as soon
+as you have an account. It takes about a minute.
+
+Every Stripe link below opens in a new tab, so this page stays where you left it.
+
+<Steps>
+
+<Step title="Open the API keys">
+
+In the [Stripe Dashboard](https://dashboard.stripe.com), open **Developers**
+at the bottom of the sidebar, then **API keys**. Or go straight to
+[dashboard.stripe.com/apikeys](https://dashboard.stripe.com/apikeys).
+
+<Frame>
+  <img
+    src="/images/setup/stripe/01-api-keys-menu.webp"
+    alt="The Stripe Dashboard with the Developers menu open, listing Overview, Webhooks, Events, Logs, documentation links, then API keys, Created apps and Developer settings."
+  />
+</Frame>
+
+Check the account picker at the top left before you copy anything: keys belong
+to the account and the mode you're in.
+
+</Step>
+
+<Step title="Copy the secret key">
+
+Under **Standard keys**, reveal the **Secret key** and copy it. The
+**Publishable key** is meant for a browser and can't read anything an agent
+needs.
+
+<Frame>
+  <img
+    src="/images/setup/stripe/02-standard-keys.webp"
+    alt="The API keys tab: a Standard keys table with a publishable key and a secret key (both hidden), and below it a Restricted keys section with a Create restricted key button."
+  />
+</Frame>
+
+```bash
+export STRIPE_API_KEY=sk_test_...
+```
+
+Start with `sk_test_…`, from a sandbox or test mode, which moves no money. The
+pack reads the variable on its next call, and the key doesn't expire.
+
+</Step>
+
+<Step title="Prefer a restricted key">
+
+A secret key can do anything the account can, refunds included. For an agent,
+click **Create restricted key** on the same page and grant only what its tools
+touch, for example **Read** on customers, charges and invoices for an agent
+that answers questions. The key begins `rk_` and goes in the same variable:
+
+```bash
+export STRIPE_API_KEY=rk_test_...
+```
+
+A tool that needs a permission you left off answers with a `403` that names the
+permission.
+
+</Step>
+
+<Step title="Verify">
+
+```python verify_stripe.py
+import asyncio
+
+from charter.packs import stripe
+
+
+async def main():
+    print(await stripe.customers_list.ainvoke(limit=3))
+
+
+asyncio.run(main())
+```
+
+Up to three customers, newest first. An empty list on a new test account is
+still a pass: it proves the key was accepted.
+
+</Step>
+
+</Steps>
+
+## Your users' accounts
+
+Users connect their own Stripe accounts either by pasting a restricted key they
+create, or by installing a Stripe App you publish. Both are covered in the
+[Stripe section of Every pack](/auth/your-users#stripe).
+
+## Related
+
+- [Stripe](/packs/stripe) — the pack, form encoding, idempotency and Connect
+- [Every pack](/auth/your-own-account) — what the other packs need, in one table
