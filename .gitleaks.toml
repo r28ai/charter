@@ -27,3 +27,16 @@ keywords = ["key", "api", "token", "secret", "client", "passwd", "password", "au
     # invented "event2" in the same file and authorises nothing.
     '''CAcSB2V2ZW50Mg''',
   ]
+
+# The app-registration guides (docs/auth/apps/) show a client ID next to a
+# screenshot of the provider's credentials page. Both are mock-ups of an invented
+# "Example App" (Jane Doe, Example Inc., app.example.com), and these are the IDs
+# drawn in them. Global rather than per rule because two rules match them: the
+# generic one and gitleaks' own `linear-client-secret`. A client ID is not a
+# secret, and the secret beside it is always written as `...`.
+[allowlist]
+regexTarget = "match"
+regexes = [
+  '''2f8d1c4e-7b3a-4e19-9c60-5d2e8a7b1f03''',
+  '''3f9a1c07be52d4e8a6b0c91d27e4f538''',
+]
