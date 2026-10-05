@@ -84,8 +84,10 @@ BASE_URL = "https://docs.googleapis.com/"
 QUOTA_DOC_URL = "https://developers.google.com/workspace/docs/api/limits"
 
 # Docs needs write access to the document itself. `documents.readonly` is
-# enough for documents_get alone.
+# enough for documents_get alone, so it is declared on that tool: an agent that
+# only reads gets a consent screen that says "see", not "edit and delete".
 SCOPES = ["https://www.googleapis.com/auth/documents"]
+READONLY_SCOPE = "https://www.googleapis.com/auth/documents.readonly"
 
 _credentials = DeferredCredentialProvider(
     "gdocs", env_var="GOOGLE_ACCESS_TOKEN", env_grant=ENV_GRANT
@@ -121,6 +123,7 @@ documents_get = _docs(
         "default response covers only the first."
     ),
     action_label="Reads a document.",
+    scopes_override=[READONLY_SCOPE],
     quota_cost=1,
     response_handler=extract_document,
 )

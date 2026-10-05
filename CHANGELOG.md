@@ -9,6 +9,8 @@ here, with the migration in the same entry.
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-10-05
+
 ### Added
 
 - **Stripe search: seven `*_search` tools**, one per resource Stripe can
@@ -53,6 +55,13 @@ here, with the migration in the same entry.
 
 ### Changed
 
+- **`gdocs.documents_get` asks for `documents.readonly`**, not the full
+  `documents` scope. `scopes_for()` reads it off the tool, so an agent that only
+  reads documents gets a consent screen that says "see your Google Docs" instead
+  of "see, edit, create and delete all your Google Docs" — the easier one for a
+  user to accept and for Google to verify. The two write tools still need
+  `documents`. A grant made for the full scope covers the read-only one, so
+  existing users are not asked again.
 - The five API-key packs are built on `oauth_tool_factory` with a
   `DeferredCredentialProvider`, so their tools carry `credential_provider` and
   no `api_key_headers`. Code that read a pack's private `_headers` should use
@@ -1972,6 +1981,7 @@ First release.
   pagination loops, no multi-call orchestration, no streaming. See *What this
   can't express* in the README.
 
+[0.4.0]: https://github.com/r28ai/charter/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/r28ai/charter/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/r28ai/charter/compare/v0.2.7...v0.3.0
 [0.2.7]: https://github.com/r28ai/charter/compare/v0.2.6...v0.2.7

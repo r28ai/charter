@@ -98,7 +98,7 @@ from charter.types import (
     WireName,
 )
 
-__version__ = "0.3.1"
+__version__ = "0.4.0"
 
 # The public surface, deliberately.
 #

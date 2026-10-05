@@ -286,6 +286,18 @@ def test_scopes_for_asks_for_full_access_only_when_a_tool_needs_it():
     assert "https://mail.google.com/" in scopes_for(gmail.TOOLS)
 
 
+def test_scopes_for_reading_a_doc_asks_only_to_read_docs():
+    """An agent that only reads documents should not get an "edit and delete
+    all your Google Docs" consent screen."""
+    from charter.packs import gdocs
+
+    assert scopes_for([gdocs.documents_get]) == [
+        "https://www.googleapis.com/auth/documents.readonly"
+    ]
+    writers = [t for t in gdocs.TOOLS if t is not gdocs.documents_get]
+    assert scopes_for(writers) == ["https://www.googleapis.com/auth/documents"]
+
+
 def test_scopes_for_of_nothing_is_empty():
     assert scopes_for([]) == []
 
