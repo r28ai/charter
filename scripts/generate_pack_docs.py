@@ -206,22 +206,16 @@ def _takes_a_key(module: ModuleType) -> bool:
     return "api_key" in inspect.signature(module.configure).parameters
 
 
-def _render_auth_short(module: ModuleType, tool: Tool) -> Tuple[str, str]:
-    """The two words a reader is scanning for, and the glyph that carries them.
+def _render_auth_short(pack: str) -> Tuple[str, str]:
+    """The words a reader is scanning for, and the glyph that carries them.
 
-    The packs declare one OAuth flavour — a bearer token from a credential
-    provider — so the split a reader has to make is OAuth against API key, and
-    two glyphs cover it. A pack that authenticates some third way would need a
-    third here rather than falling into one of these.
+    The question a reader brings is how an account gets connected, so the label
+    is the pack's ``connect`` and the glyph follows it: the shield wherever OAuth
+    is one of the ways, the key where a pasted key is the only one. How the
+    credential travels is the wire block's business, further down.
     """
-    if _takes_a_key(module):
-        return _ICON_API_KEY, "API key"
-    if tool.credential_provider is not None:
-        # Same glyph: it is still an OAuth token from a credential provider, and
-        # only the header it lands in differs. "Bearer" would be the one word
-        # on the chip that is false.
-        return _ICON_OAUTH, "OAuth token" if tool.token_header else "OAuth bearer"
-    return _ICON_API_KEY, "API key"
+    connect = _SETUP[pack].connect
+    return (_ICON_OAUTH if connect.startswith("OAuth") else _ICON_API_KEY), connect
 
 
 def _pill(icon: str, label: str) -> str:
@@ -253,7 +247,7 @@ def render_summary(pack: str, module: ModuleType) -> str:
     count = f"{len(tools)} tool" + ("s" if len(tools) != 1 else "")
     pills = [
         _pill(_ICON_TOOLS, count),
-        _pill(*_render_auth_short(module, tools[0])),
+        _pill(*_render_auth_short(pack)),
     ]
     return '<div className="pack-summary">\n' + "\n".join(pills) + "\n</div>"
 
@@ -385,12 +379,20 @@ class _Setup(NamedTuple):
     ``need``, ``where`` and ``env`` are the same fact as one row of the table on
     /auth/your-own-account, which lists every pack so a reader who has not
     chosen one yet sees what each will ask of them.
+
+    ``connect`` is how an account gets connected at all, yours or a user's: the
+    chip at the top of the pack page, the card on /packs/overview and the README
+    row all print it. It is not the header the credential lands in. Linear's
+    personal key goes out bare and Stripe's in ``Authorization``, but both packs
+    take OAuth too, and a chip that said "API key" told a reader planning a
+    product that their users would have to paste one.
     """
 
     need: str
     where: str
     env: str
     lead: str
+    connect: str = "API key"
 
 
 def _google(service: str) -> _Setup:
@@ -405,6 +407,7 @@ def _google(service: str) -> _Setup:
             " every screen — about ten minutes, done once, and the same client serves"
             " all six Google packs."
         ),
+        connect="OAuth",
     )
 
 
@@ -433,6 +436,7 @@ _SETUP: Dict[str, _Setup] = {
             " carrying the scopes these tools use, installs it, and ends with the"
             " `xoxb-` token `$SLACK_BOT_TOKEN` takes — about three minutes."
         ),
+        connect="OAuth",
     ),
     "github": _Setup(
         need="A personal access token",
@@ -444,6 +448,7 @@ _SETUP: Dict[str, _Setup] = {
             " GITHUB_TOKEN=ghp_…`. [Set up GitHub](/auth/setup/github) covers"
             " fine-grained tokens, and the app your users would connect through."
         ),
+        connect="OAuth or token",
     ),
     "notion": _Setup(
         need="An internal integration, connected to your pages",
@@ -456,16 +461,20 @@ _SETUP: Dict[str, _Setup] = {
             " page it should reach**, because a new integration can see nothing."
             " [Set up Notion](/auth/setup/notion) has the clicks."
         ),
+        connect="OAuth or API key",
     ),
     "stripe": _Setup(
         need="A secret key",
-        where="[dashboard.stripe.com/apikeys](https://dashboard.stripe.com/apikeys)",
+        where="[dashboard.stripe.com/apikeys](https://dashboard.stripe.com/apikeys) · [Set up Stripe](/auth/setup/stripe)",
         env="`STRIPE_API_KEY`",
         lead=(
             "**Get a key:** [dashboard.stripe.com/apikeys](https://dashboard.stripe.com/apikeys)"
             " → copy the **Secret key** — `sk_test_…` from a sandbox or test mode, which"
             " moves no money — and `export STRIPE_API_KEY=sk_test_…`."
+            " [Set up Stripe](/auth/setup/stripe) shows where, and the restricted key"
+            " to prefer."
         ),
+        connect="OAuth or API key",
     ),
     "linear": _Setup(
         need="A personal API key",
@@ -476,20 +485,22 @@ _SETUP: Dict[str, _Setup] = {
             " → **Personal API keys** → **New API key**, then `export"
             " LINEAR_API_KEY=lin_api_…`. Linear shows the key once."
         ),
+        connect="OAuth or API key",
     ),
     "shopify": _Setup(
         need="An app installed on your store",
-        where="[dev.shopify.com/dashboard](https://dev.shopify.com/dashboard) · [the steps](/packs/shopify#getting-the-client-id-and-secret)",
+        where="[dev.shopify.com/dashboard](https://dev.shopify.com/dashboard) · [Set up Shopify](/auth/setup/shopify)",
         env="`SHOPIFY_SHOP`, `SHOPIFY_CLIENT_ID`, `SHOPIFY_CLIENT_SECRET`",
         lead=(
             "**Get credentials:** create an app in Shopify's"
             " [Dev Dashboard](https://dev.shopify.com/dashboard), install it on your"
             " store, and copy its client ID and secret —"
-            " [the steps](#getting-the-client-id-and-secret) are below. The pack trades"
+            " [Set up Shopify](/auth/setup/shopify) has every screen. The pack trades"
             " them for an Admin API token and trades them again when it runs out, so"
             " `SHOPIFY_SHOP`, `SHOPIFY_CLIENT_ID` and `SHOPIFY_CLIENT_SECRET` are all it"
             " needs."
         ),
+        connect="OAuth",
     ),
     "firecrawl": _Setup(
         need="An API key",

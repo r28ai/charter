@@ -87,6 +87,31 @@ def test_the_overview_grid_counts_the_tools_each_pack_actually_ships():
     assert not wrong, "docs/packs/overview.mdx miscounts: " + "; ".join(wrong)
 
 
+_CONNECTS = {"OAuth", "OAuth or API key", "OAuth or token", "API key"}
+
+
+@pytest.mark.parametrize("pack", PACKS)
+def test_a_packs_connect_label_is_one_a_reader_can_compare(pack):
+    """Four labels, so two packs that connect the same way say so in the same words."""
+    assert GEN._SETUP[pack].connect in _CONNECTS
+
+
+def test_the_overview_and_readme_say_how_each_pack_connects():
+    """Both are hand-written beside a generated chip, and both drifted from it once."""
+    overview = (PACK_DOCS / "overview.mdx").read_text()
+    readme = (ROOT / "README.md").read_text()
+    wrong = []
+    for pack in PACKS:
+        connect = GEN._SETUP[pack].connect
+        card = re.search(rf'href="/packs/{pack}">\s*\n\s*\d+ tools · ([^\n<]+)', overview)
+        if card is None or card.group(1).strip() != connect:
+            wrong.append(f"overview {pack}: {card.group(1) if card else 'no card'!r}, want {connect!r}")
+        row = re.search(rf"^\| [^|]+ \| `charter\.packs\.{pack}` \| \d+ \| ([^|]+) \|", readme, re.M)
+        if row is None or row.group(1).strip() != connect:
+            wrong.append(f"README {pack}: {row.group(1) if row else 'no row'!r}, want {connect!r}")
+    assert not wrong, "; ".join(wrong)
+
+
 def test_the_overview_links_to_every_pack_page():
     """Either as markdown — `(/packs/slack)` — or as a card's `href`."""
     text = (PACK_DOCS / "overview.mdx").read_text()
@@ -515,11 +540,10 @@ def test_the_summary_states_the_count_and_the_auth(pack):
 
     assert f"</Visibility>{len(module.TOOLS)} tools</span>" in summary
 
-    oauth = module.TOOLS[0].credential_provider is not None and not GEN._takes_a_key(module)
-    bearer = oauth and not module.TOOLS[0].token_header
-    assert ("</Visibility>OAuth bearer</span>" in summary) is bearer
-    assert ("</Visibility>OAuth token</span>" in summary) is (oauth and not bearer)
-    assert ("</Visibility>API key</span>" in summary) is not oauth
+    # How an account connects, not which header the credential lands in: that
+    # is the wire block's, and printing it here made Linear and Stripe read
+    # "API key" long after their users could connect by OAuth.
+    assert f"</Visibility>{GEN._SETUP[pack].connect}</span>" in summary
 
 
 @pytest.mark.parametrize("pack", PACKS)
@@ -545,7 +569,6 @@ def test_the_summary_pills_carry_a_glyph(pack):
     beside it does not already say. The wrapper is asserted here because nothing
     on the rendered page would look wrong if it went missing.
     """
-    module = GEN.pack_module(pack)
     summary = GEN.blocks(pack)["summary"]
 
     assert summary.count('<svg viewBox="0 0 24 24">') == 2
@@ -553,7 +576,9 @@ def test_the_summary_pills_carry_a_glyph(pack):
     assert summary.count("</svg></Visibility>") == 2
     assert GEN._ICON_TOOLS in summary
 
-    oauth = module.TOOLS[0].credential_provider is not None and not GEN._takes_a_key(module)
+    connect = GEN._SETUP[pack].connect
+    oauth = connect.startswith("OAuth")
+    assert f"</Visibility>{connect}</span>" in summary
     assert (GEN._ICON_OAUTH in summary) is oauth
     assert (GEN._ICON_API_KEY in summary) is not oauth
 

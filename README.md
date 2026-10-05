@@ -493,20 +493,20 @@ which parameters an endpoint refuses together. Then
 
 ## Coverage
 
-| Pack | Import | Tools | Auth | The awkward part |
+| Pack | Import | Tools | Connect by | The awkward part |
 |---|---|---|---|---|
-| Gmail | `charter.packs.gmail` | 24 | OAuth bearer | Mail goes out as base64url RFC 2822 and comes back parsed |
-| Google Calendar | `charter.packs.gcalendar` | 13 | OAuth bearer | camelCase in the query, snake_case in the body |
-| Google Sheets | `charter.packs.gsheets` | 17 | OAuth bearer | Cells are protobuf JSON, not plain values |
-| Google Docs | `charter.packs.gdocs` | 3 | OAuth bearer | One batch request, thirty-three alternative edit types |
-| Google Drive | `charter.packs.gdrive` | 25 | OAuth bearer | PATCH takes a subset of the create body |
-| Google Forms | `charter.packs.gforms` | 6 | OAuth bearer | One resource, different fields on create and update |
-| Slack | `charter.packs.slack` | 18 | OAuth bearer | Rejected writes answer HTTP 200 |
-| GitHub | `charter.packs.github` | 139 | OAuth bearer | Three constant headers, one of them a pinned API version |
-| Stripe | `charter.packs.stripe` | 66 | API key | Form-encoded, bracketed query, DELETE with a body |
-| Linear | `charter.packs.linear` | 128 | API key | GraphQL, with the cursor nested inside the response |
-| Shopify | `charter.packs.shopify` | 22 | OAuth token | No fixed host, and every price is a nested `MoneyBag` |
-| Notion | `charter.packs.notion` | 35 | OAuth bearer | 100 blocks and two levels of children per write |
+| Gmail | `charter.packs.gmail` | 24 | OAuth | Mail goes out as base64url RFC 2822 and comes back parsed |
+| Google Calendar | `charter.packs.gcalendar` | 13 | OAuth | camelCase in the query, snake_case in the body |
+| Google Sheets | `charter.packs.gsheets` | 17 | OAuth | Cells are protobuf JSON, not plain values |
+| Google Docs | `charter.packs.gdocs` | 3 | OAuth | One batch request, thirty-three alternative edit types |
+| Google Drive | `charter.packs.gdrive` | 25 | OAuth | PATCH takes a subset of the create body |
+| Google Forms | `charter.packs.gforms` | 6 | OAuth | One resource, different fields on create and update |
+| Slack | `charter.packs.slack` | 18 | OAuth | Rejected writes answer HTTP 200 |
+| GitHub | `charter.packs.github` | 139 | OAuth or token | Three constant headers, one of them a pinned API version |
+| Stripe | `charter.packs.stripe` | 66 | OAuth or API key | Form-encoded, bracketed query, DELETE with a body |
+| Linear | `charter.packs.linear` | 128 | OAuth or API key | GraphQL, with the cursor nested inside the response |
+| Shopify | `charter.packs.shopify` | 22 | OAuth | No fixed host, and every price is a nested `MoneyBag` |
+| Notion | `charter.packs.notion` | 35 | OAuth or API key | 100 blocks and two levels of children per write |
 | Firecrawl | `charter.packs.firecrawl` | 43 | API key | camelCase wire, and some failures answer HTTP 200 |
 | Granola | `charter.packs.granola` | 9 | API key | Four kinds of actor in one discriminated union |
 | Tavily | `charter.packs.tavily` | 9 | API key | Research is asynchronous: create, then poll |
