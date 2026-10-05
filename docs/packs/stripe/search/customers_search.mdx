@@ -1,6 +1,6 @@
 ---
 title: "customers_search"
-description: "Search customers by email, name, phone, metadata or creation date, with substring matching: email~'amy' finds amy@example.com. Results can lag a write by up to a minute, so read back something just written with the list or retrieve tool instead."
+description: "Search customers by email, name, phone, metadata or creation date, with substring matching: email~'amy' finds amy@example.com. Results usually lag a write by under a minute, and longer during Stripe outages, so read back something just written with the list or retrieve tool."
 tag: "GET"
 ---
 
@@ -27,7 +27,7 @@ result = asyncio.run(stripe.customers_search.ainvoke({"query": ...}))
 | Field | Type | Description |
 | --- | --- | --- |
 | `limit` | `integer` | A limit on the number of objects to be returned. Limit can range between 1 and 100, and the default is 10. <span className="field-constraints">≥ 1; ≤ 100</span> |
-| `page` | `string` | A cursor for pagination across multiple pages of results. Don't include this parameter on the first call. Use the next_page value returned in a previous response to request subsequent results. |
-| `query` <span className="required" title="required">*</span> | `string` | The search query string. See search query language (https://docs.stripe.com/search#search-query-language) and the list of supported query fields for customers (https://docs.stripe.com/search#query-fields-for-customers). Query fields for customers: created (numeric), email (string), metadata (token), name (string), phone (string). Syntax: field:value is an exact match, and string values must be quoted (email:'jane@example.com'). field~'abc' matches a substring of at least 3 characters on string fields. Numeric fields take &gt;, &lt;, &gt;= and &lt;=. A leading - negates a clause. Metadata is metadata['key']:'value'. Up to 10 clauses, joined by AND or by OR but never both, with no parentheses. Timestamps are Unix seconds, not milliseconds: created&gt;1700000000. <span className="field-constraints">min length 1</span> |
+| `page` | `string` | A cursor for pagination across multiple pages of results. Don't include this parameter on the first call. Use the next_page value returned in a previous response to request subsequent results. <span className="field-constraints">max length 5000</span> |
+| `query` <span className="required" title="required">*</span> | `string` | The search query string. See [search query language](https://docs.stripe.com/search#search-query-language) and the list of supported [query fields for customers](https://docs.stripe.com/search#query-fields-for-customers). Query fields for customers: created (numeric), email (string), metadata (token), name (string), phone (string). Syntax: field:value is an exact match, and string values must be quoted (email:'jane@example.com'). field~'abc' matches a substring of at least 3 characters on string fields. Numeric fields take &gt;, &lt;, &gt;= and &lt;=. A leading - negates a clause, and field:null matches an empty field. Metadata is metadata['key']:'value'. Up to 10 clauses, joined by AND or by OR but never both, with no parentheses. Timestamps are Unix seconds, not milliseconds: created&gt;1700000000. <span className="field-constraints">min length 1; max length 5000</span> |
 
 </div>

@@ -956,9 +956,11 @@ charges_retrieve = _stripe(
 # argument: each resource accepts its own query fields, and a single schema
 # would have to describe all seven to the model on every call.
 
+# Stripe: "data is searchable in less than a minute", and up to an hour behind
+# during outages. https://docs.stripe.com/search#data-freshness
 _SEARCH_LAG = (
-    " Results can lag a write by up to a minute, so read back something just "
-    "written with the list or retrieve tool instead."
+    " Results usually lag a write by under a minute, and longer during Stripe "
+    "outages, so read back something just written with the list or retrieve tool."
 )
 
 customers_search = _stripe(

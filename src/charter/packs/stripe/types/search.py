@@ -40,31 +40,46 @@ __all__ = [
 
 # How to write a query, condensed from the search query language section. It is
 # the same for every resource, and a model that has not met Stripe's syntax
-# guesses SQL or Lucene and gets a 400 back.
+# guesses SQL or Lucene and gets a 400 back. A Gloss rather than description
+# text, so that each `query` description stays Stripe's own sentence, diffable
+# against the OpenAPI document.
 # https://docs.stripe.com/search#search-query-language
 _SYNTAX = (
     "Syntax: field:value is an exact match, and string values must be quoted "
     "(email:'jane@example.com'). field~'abc' matches a substring of at least 3 "
     "characters on string fields. Numeric fields take >, <, >= and <=. A leading - "
-    "negates a clause. Metadata is metadata['key']:'value'. Up to 10 clauses, "
-    "joined by AND or by OR but never both, with no parentheses."
+    "negates a clause, and field:null matches an empty field. Metadata is "
+    "metadata['key']:'value'. Up to 10 clauses, joined by AND or by OR but never "
+    "both, with no parentheses."
 )
 _SECONDS = "Timestamps are Unix seconds, not milliseconds: created>1700000000."
 _CENTS = "Amounts are in the smallest currency unit: $15.00 is 1500."
 
 
-def _query_description(resource: str, anchor: str, fields: str) -> str:
+def _query_description(resource: str, anchor: str) -> str:
+    """Stripe's description of ``query``, word for word from the OpenAPI document."""
     return (
-        "The search query string. See search query language "
+        "The search query string. See [search query language]"
         "(https://docs.stripe.com/search#search-query-language) and the list of "
-        f"supported query fields for {resource} "
-        f"(https://docs.stripe.com/search#query-fields-for-{anchor}). "
-        f"Query fields for {resource}: {fields}."
+        f"supported [query fields for {resource}]"
+        f"(https://docs.stripe.com/search#query-fields-for-{anchor})."
     )
+
+
+def _query_gloss(resource: str, fields: str, *notes: str) -> Gloss:
+    """The fields this resource can be searched on, then how to write a query.
+
+    The field list is the resource's table on the search page, which the
+    description links to and a model cannot follow.
+    """
+    return Gloss(" ".join([f"Query fields for {resource}: {fields}.", _SYNTAX, *notes]))
 
 
 class StripeSearchRequest(PackModel):
     """The parameters every Stripe search endpoint accepts besides ``query``.
+
+    ``expand`` is left out, as on every tool in this pack: it inlines related
+    objects the response handlers would only trim away again.
 
     API Reference: https://docs.stripe.com/api/customers/search
     """
@@ -86,6 +101,7 @@ class StripeSearchRequest(PackModel):
         Optional[str],
         Field(
             None,
+            max_length=5000,
             description=(
                 "A cursor for pagination across multiple pages of results. Don't "
                 "include this parameter on the first call. Use the next_page value "
@@ -107,23 +123,24 @@ class ChargesSearchRequest(StripeSearchRequest):
         Field(
             ...,
             min_length=1,
-            description=_query_description(
-                "charges",
-                "charges",
-                "amount (numeric), billing_details.address.postal_code (token), "
-                "created (numeric), currency (token), customer (token), disputed "
-                "(token, 'true' or 'false'), metadata (token), "
-                "payment_method_details.{SOURCE}.last4, .exp_month, .exp_year, "
-                ".brand, .fingerprint, .reader and .location (token; SOURCE is card "
-                "for online payments, interac_present for Terminal card payments on "
-                "the Interac network and card_present for other Terminal card "
-                "payments), refunded (token: 'true' is fully refunded, 'false' is "
-                "unrefunded or partially refunded, null is not refundable), status "
-                "(token)",
-            ),
+            max_length=5000,
+            description=_query_description("charges", "charges"),
         ),
         Query(),
-        Gloss(f"{_SYNTAX} {_SECONDS} {_CENTS}"),
+        _query_gloss(
+            "charges",
+            "amount (numeric), billing_details.address.postal_code (token), created "
+            "(numeric), currency (token), customer (token), disputed (token, 'true' or "
+            "'false'), metadata (token), payment_method_details.{SOURCE}.last4, "
+            ".exp_month, .exp_year, .brand, .fingerprint, .reader and .location "
+            "(token), refunded (token), status (token). SOURCE is card for online "
+            "charges, interac_present for Terminal card-present charges on the "
+            "Interac network, card_present for other Terminal card-present charges, "
+            "or another payment method Terminal supports. refunded:'true' is fully "
+            "refunded, refunded:'false' is not refunded or partially refunded",
+            _SECONDS,
+            _CENTS,
+        ),
     ]
 
 
@@ -138,15 +155,15 @@ class CustomersSearchRequest(StripeSearchRequest):
         Field(
             ...,
             min_length=1,
-            description=_query_description(
-                "customers",
-                "customers",
-                "created (numeric), email (string), metadata (token), name (string), "
-                "phone (string)",
-            ),
+            max_length=5000,
+            description=_query_description("customers", "customers"),
         ),
         Query(),
-        Gloss(f"{_SYNTAX} {_SECONDS}"),
+        _query_gloss(
+            "customers",
+            "created (numeric), email (string), metadata (token), name (string), phone (string)",
+            _SECONDS,
+        ),
     ]
 
 
@@ -161,17 +178,19 @@ class InvoicesSearchRequest(StripeSearchRequest):
         Field(
             ...,
             min_length=1,
-            description=_query_description(
-                "invoices",
-                "invoices",
-                "created (numeric), currency (token), customer (token), "
-                "last_finalization_error_code (token), last_finalization_error_type "
-                "(token), metadata (token), number (string), receipt_number "
-                "(string), status (string), subscription (string), total (numeric)",
-            ),
+            max_length=5000,
+            description=_query_description("invoices", "invoices"),
         ),
         Query(),
-        Gloss(f"{_SYNTAX} {_SECONDS} {_CENTS}"),
+        _query_gloss(
+            "invoices",
+            "created (numeric), currency (token), customer (token), "
+            "last_finalization_error_code (token), last_finalization_error_type "
+            "(token), metadata (token), number (string), receipt_number (string), "
+            "status (string), subscription (string), total (numeric)",
+            _SECONDS,
+            _CENTS,
+        ),
     ]
 
 
@@ -186,17 +205,18 @@ class PaymentIntentsSearchRequest(StripeSearchRequest):
         Field(
             ...,
             min_length=1,
-            description=_query_description(
-                "payment intents",
-                "paymentintents",
-                "amount (numeric), created (numeric), currency (token), customer "
-                "(token), metadata (token), status (token)",
-            ),
+            max_length=5000,
+            description=_query_description("payment intents", "paymentintents"),
         ),
         Query(),
-        Gloss(
-            f"{_SYNTAX} {_SECONDS} {_CENTS} A status match is against a cached "
-            "status, so a result can show a newer one: check status on what comes back."
+        _query_gloss(
+            "payment intents",
+            "amount (numeric), created (numeric), currency (token), customer "
+            "(token), metadata (token), status (token)",
+            _SECONDS,
+            _CENTS,
+            "A status match is against a cached status, so a result can show a "
+            "newer one: check status on what comes back.",
         ),
     ]
 
@@ -212,15 +232,15 @@ class PricesSearchRequest(StripeSearchRequest):
         Field(
             ...,
             min_length=1,
-            description=_query_description(
-                "prices",
-                "prices",
-                "active (token), currency (token), lookup_key (string), metadata "
-                "(token), product (string), type (token)",
-            ),
+            max_length=5000,
+            description=_query_description("prices", "prices"),
         ),
         Query(),
-        Gloss(_SYNTAX),
+        _query_gloss(
+            "prices",
+            "active (token), currency (token), lookup_key (string), metadata "
+            "(token), product (string), type (token)",
+        ),
     ]
 
 
@@ -235,15 +255,15 @@ class ProductsSearchRequest(StripeSearchRequest):
         Field(
             ...,
             min_length=1,
-            description=_query_description(
-                "products",
-                "products",
-                "active (token), description (string), metadata (token), name "
-                "(string), shippable (token), url (string)",
-            ),
+            max_length=5000,
+            description=_query_description("products", "products"),
         ),
         Query(),
-        Gloss(_SYNTAX),
+        _query_gloss(
+            "products",
+            "active (token), description (string), metadata (token), name "
+            "(string), shippable (token), url (string)",
+        ),
     ]
 
 
@@ -258,12 +278,13 @@ class SubscriptionsSearchRequest(StripeSearchRequest):
         Field(
             ...,
             min_length=1,
-            description=_query_description(
-                "subscriptions",
-                "subscriptions",
-                "canceled_at (numeric), created (numeric), metadata (token), status (token)",
-            ),
+            max_length=5000,
+            description=_query_description("subscriptions", "subscriptions"),
         ),
         Query(),
-        Gloss(f"{_SYNTAX} {_SECONDS}"),
+        _query_gloss(
+            "subscriptions",
+            "canceled_at (numeric), created (numeric), metadata (token), status (token)",
+            _SECONDS,
+        ),
     ]

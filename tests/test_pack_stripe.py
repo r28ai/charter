@@ -1862,6 +1862,41 @@ def test_each_search_tells_the_model_its_own_query_fields():
         assert "never both" not in wire, name
 
 
+def test_each_query_description_is_stripe_s_own_sentence():
+    """Word for word what the OpenAPI document says, so it can be diffed against it.
+
+    The field list and the syntax are a Gloss: in the model's view, not in the
+    description. They were in the description once, and a drift against the
+    reference — a French translation's "not refundable" for the English
+    "non-refunded" — was invisible to any diff because nothing was verbatim.
+    """
+    anchors = {
+        "customers_search": ("customers", "customers"),
+        "charges_search": ("charges", "charges"),
+        "invoices_search": ("invoices", "invoices"),
+        "payment_intents_search": ("payment intents", "paymentintents"),
+        "prices_search": ("prices", "prices"),
+        "products_search": ("products", "products"),
+        "subscriptions_search": ("subscriptions", "subscriptions"),
+    }
+    for name, (resource, anchor) in anchors.items():
+        field = getattr(stripe, name).args_schema.model_fields["query"]
+        assert field.description == (
+            "The search query string. See [search query language]"
+            "(https://docs.stripe.com/search#search-query-language) and the list of "
+            f"supported [query fields for {resource}]"
+            f"(https://docs.stripe.com/search#query-fields-for-{anchor})."
+        ), name
+        # The spec's maxLength on both strings.
+        for param in ("query", "page"):
+            limits = [
+                m.max_length
+                for m in getattr(stripe, name).args_schema.model_fields[param].metadata
+                if hasattr(m, "max_length")
+            ]
+            assert limits == [5000], (name, param)
+
+
 async def test_an_empty_query_is_refused_locally():
     with pytest.raises(ToolValidationError):
         await stripe.customers_search.ainvoke(query="")
