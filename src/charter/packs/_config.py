@@ -20,11 +20,16 @@ from __future__ import annotations
 import os
 from typing import Dict, Optional, Protocol
 
-from charter.auth import CredentialProvider, Credentials
+from charter.auth import CredentialProvider, Credentials, StaticTokenProvider
 from charter.auth.credentials import invalidate
 from charter.types.errors import CredentialError
 
-__all__ = ["DeferredCredentialProvider", "DeferredApiKeyHeaders", "EnvGrant"]
+__all__ = [
+    "DeferredCredentialProvider",
+    "DeferredApiKeyHeaders",
+    "EnvGrant",
+    "configure_key_or_provider",
+]
 
 _UNSET = "CHARTER_UNCONFIGURED"
 
@@ -61,6 +66,11 @@ class DeferredCredentialProvider:
 
     def configure(self, provider: CredentialProvider) -> None:
         self._provider = provider
+
+    @property
+    def pack(self) -> str:
+        """The pack this provider serves, for its error messages."""
+        return self._pack
 
     @property
     def env_var(self) -> Optional[str]:
@@ -195,3 +205,38 @@ def api_key_headers(
     if from_env:
         headers.configure(from_env)
     return headers
+
+
+def configure_key_or_provider(
+    credentials: DeferredCredentialProvider,
+    api_key: Optional[str],
+    credential_provider: Optional[CredentialProvider],
+) -> None:
+    """The body of ``configure()`` for a pack whose credential is an API key.
+
+    A key is one credential for the whole process, which is right for a script
+    and wrong for an application whose users each connect their own account:
+    every user's agent would act as whoever configured the pack. So these packs
+    take the key the way the OAuth packs take a token, through a
+    :class:`~charter.auth.CredentialProvider` read on every call, and
+    ``api_key`` is shorthand for the one that never changes. A
+    :class:`~charter.auth.SubjectProvider` in its place serves each user their
+    own key, or their own OAuth token where the API issues one.
+    """
+    pack = credentials.pack
+    if api_key is not None and credential_provider is not None:
+        raise TypeError(
+            f"charter.packs.{pack}.configure() takes one credential: api_key or "
+            "credential_provider, not both."
+        )
+    if credential_provider is not None:
+        credentials.configure(credential_provider)
+        return
+    if api_key is None:
+        raise TypeError(
+            f"charter.packs.{pack}.configure() needs a credential: api_key=... for "
+            "one account, or credential_provider=... for many."
+        )
+    if not api_key:
+        raise CredentialError(f"charter.packs.{pack} was given an empty API key")
+    credentials.configure(StaticTokenProvider(api_key))

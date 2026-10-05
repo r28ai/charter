@@ -80,12 +80,18 @@ __all__ = [
 
 logger = logging.getLogger("charter")
 
-TokenEndpointAuthMethod = Literal["client_secret_post", "client_secret_basic"]
+TokenEndpointAuthMethod = Literal["client_secret_post", "client_secret_basic", "secret_key_basic"]
 """How the client authenticates to the token endpoint (RFC 6749 §2.3.1).
 
 ``client_secret_post`` puts the credentials in the form body; it is what Google,
 GitHub and most APIs expect. ``client_secret_basic`` puts them in an HTTP Basic
 header, which the RFC nominally prefers and some servers require.
+
+``secret_key_basic`` is not in the RFC. It sends the client secret alone as the
+Basic username, with no password and no client ID, which is how an API that
+authenticates every request with a secret key authenticates its token endpoint
+too. Stripe is the case: a Stripe App exchanges and refreshes with
+``-u sk_live_...:``, and its ``client_id`` appears only in the consent link.
 """
 
 Grant = Literal["refresh_token", "client_credentials"]
@@ -142,6 +148,20 @@ class OAuth2Server:
     ``{"access_type": "offline", "prompt": "consent"}`` the server returns no
     refresh token, nothing fails, and the integration dies an hour later.
     Writing it on the server declaration puts the lore where the constants live.
+
+    ``uses_scopes=False`` is for a server whose permissions are fixed when the
+    app is registered rather than asked for in the consent link — Notion's
+    capabilities, a Stripe App's manifest. :meth:`OAuth2Flow.authorize` then
+    takes no scopes and sends no ``scope`` parameter, where it would otherwise
+    refuse an empty list as a bug upstream.
+
+    ``scope_separator`` is how the consent link joins scopes. RFC 6749 §3.3
+    says a space; Linear and Shopify document a comma, so their declarations
+    say so.
+
+    ``token_request_format`` is how the token endpoint wants its body. The RFC
+    says a form, and so does nearly every server; Notion documents its token
+    endpoint as JSON only, so its declaration says ``"json"``.
     """
 
     token_endpoint: str
@@ -149,6 +169,9 @@ class OAuth2Server:
     issuer: Optional[str] = None
     authorization_endpoint: Optional[str] = None
     authorization_params: Mapping[str, str] = field(default_factory=dict)
+    uses_scopes: bool = True
+    scope_separator: str = " "
+    token_request_format: Literal["form", "json"] = "form"
 
     def __post_init__(self) -> None:
         if not self.token_endpoint:
@@ -159,11 +182,19 @@ class OAuth2Server:
         if self.token_endpoint_auth_method not in (
             "client_secret_post",
             "client_secret_basic",
+            "secret_key_basic",
         ):
             raise DeclarationError(
-                "token_endpoint_auth_method must be 'client_secret_post' or "
-                f"'client_secret_basic', got {self.token_endpoint_auth_method!r}"
+                "token_endpoint_auth_method must be 'client_secret_post', "
+                "'client_secret_basic' or 'secret_key_basic', got "
+                f"{self.token_endpoint_auth_method!r}"
             )
+        if self.token_request_format not in ("form", "json"):
+            raise DeclarationError(
+                f"token_request_format must be 'form' or 'json', got {self.token_request_format!r}"
+            )
+        if not self.scope_separator:
+            raise DeclarationError("scope_separator must not be empty")
         # NOTE(plan): the plan suggested a sorted tuple of pairs behind a
         # property, but an InitVar and a property cannot share a name on a
         # dataclass. A read-only proxy over a key-sorted dict is smaller and
@@ -310,6 +341,13 @@ def _client_auth(
         encoded = base64.b64encode(pair.encode("utf-8")).decode("ascii")
         headers["Authorization"] = f"Basic {encoded}"
         return {}, headers
+    if auth_method == "secret_key_basic":
+        # The secret is the username and the password is empty — what
+        # `curl -u sk_live_...:` sends. Not form-encoded first: this is the
+        # API's own key auth, not RFC 6749's client authentication.
+        encoded = base64.b64encode(f"{client_secret}:".encode()).decode("ascii")
+        headers["Authorization"] = f"Basic {encoded}"
+        return {}, headers
     return {"client_id": client_id, "client_secret": client_secret}, headers
 
 
@@ -320,11 +358,17 @@ async def _post_token_form(
     *,
     client: Optional[httpx.AsyncClient],
     timeout: int,
+    request_format: Literal["form", "json"] = "form",
 ) -> httpx.Response:
-    """One form POST to the token endpoint, owning the HTTP client if none was lent."""
+    """One POST to the token endpoint, owning the HTTP client if none was lent.
+
+    A form, as RFC 6749 specifies, unless the server is declared to want JSON.
+    """
     owns_client = client is None
     http = client or httpx.AsyncClient(timeout=timeout)
     try:
+        if request_format == "json":
+            return await http.post(token_endpoint, json=data, headers=headers)
         return await http.post(token_endpoint, data=data, headers=headers)
     finally:
         if owns_client:
@@ -639,6 +683,7 @@ class OAuth2Client:
             headers,
             client=self._http,
             timeout=self._timeout,
+            request_format=self.server.token_request_format,
         )
         payload = self._parse(resp, provider)
 

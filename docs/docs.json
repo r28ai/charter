@@ -67,7 +67,13 @@
                   "auth/setup/notion"
                 ]
               },
-              "auth/oauth-flow",
+              {
+                "group": "Your users' accounts",
+                "pages": [
+                  "auth/your-users",
+                  "auth/oauth-flow"
+                ]
+              },
               "auth/authorization-servers",
               "auth/api-key-tool-factory",
               {
@@ -618,140 +624,6 @@
                 ]
               },
               {
-                "group": "Shopify",
-                "expanded": false,
-                "pages": [
-                  "packs/shopify",
-                  "packs/shopify/shop_get",
-                  "packs/shopify/products_list",
-                  "packs/shopify/product_get",
-                  "packs/shopify/product_create",
-                  "packs/shopify/product_update",
-                  "packs/shopify/orders_list",
-                  "packs/shopify/order_get",
-                  "packs/shopify/customers_list",
-                  "packs/shopify/customer_get",
-                  "packs/shopify/customer_create",
-                  "packs/shopify/customer_update",
-                  "packs/shopify/order_fulfillment_orders",
-                  "packs/shopify/fulfillment_create",
-                  "packs/shopify/inventory_adjust_quantities",
-                  "packs/shopify/variant_inventory_level",
-                  "packs/shopify/locations_list",
-                  "packs/shopify/order_close",
-                  "packs/shopify/order_open",
-                  "packs/shopify/order_cancel",
-                  "packs/shopify/draft_order_create",
-                  "packs/shopify/draft_order_complete",
-                  "packs/shopify/product_variants_bulk_create",
-                  "packs/shopify/objects"
-                ]
-              },
-              {
-                "group": "Notion",
-                "expanded": false,
-                "pages": [
-                  "packs/notion",
-                  {
-                    "group": "Users",
-                    "pages": [
-                      "packs/notion/users/users_list",
-                      "packs/notion/users/users_retrieve",
-                      "packs/notion/users/users_retrieve_me"
-                    ]
-                  },
-                  {
-                    "group": "Search",
-                    "pages": [
-                      "packs/notion/search/search",
-                      "packs/notion/search/objects"
-                    ]
-                  },
-                  {
-                    "group": "Pages",
-                    "pages": [
-                      "packs/notion/pages/pages_create",
-                      "packs/notion/pages/pages_retrieve",
-                      "packs/notion/pages/pages_update",
-                      "packs/notion/pages/pages_move",
-                      "packs/notion/pages/pages_retrieve_property_item",
-                      "packs/notion/pages/pages_retrieve_markdown",
-                      "packs/notion/pages/pages_update_markdown",
-                      "packs/notion/pages/objects"
-                    ]
-                  },
-                  {
-                    "group": "Blocks",
-                    "pages": [
-                      "packs/notion/blocks/blocks_retrieve",
-                      "packs/notion/blocks/blocks_update",
-                      "packs/notion/blocks/blocks_delete",
-                      "packs/notion/blocks/blocks_children_list",
-                      "packs/notion/blocks/blocks_children_append",
-                      "packs/notion/blocks/objects"
-                    ]
-                  },
-                  {
-                    "group": "Databases",
-                    "pages": [
-                      "packs/notion/databases/databases_create",
-                      "packs/notion/databases/databases_retrieve",
-                      "packs/notion/databases/databases_update",
-                      "packs/notion/databases/objects"
-                    ]
-                  },
-                  {
-                    "group": "Data sources",
-                    "pages": [
-                      "packs/notion/data_sources/data_sources_create",
-                      "packs/notion/data_sources/data_sources_retrieve",
-                      "packs/notion/data_sources/data_sources_update",
-                      "packs/notion/data_sources/data_sources_query",
-                      "packs/notion/data_sources/data_sources_templates_list",
-                      "packs/notion/data_sources/objects"
-                    ]
-                  },
-                  {
-                    "group": "Comments",
-                    "pages": [
-                      "packs/notion/comments/comments_create",
-                      "packs/notion/comments/comments_list",
-                      "packs/notion/comments/comments_retrieve",
-                      "packs/notion/comments/comments_update",
-                      "packs/notion/comments/comments_delete",
-                      "packs/notion/comments/objects"
-                    ]
-                  },
-                  {
-                    "group": "File uploads",
-                    "pages": [
-                      "packs/notion/file_uploads/file_uploads_create",
-                      "packs/notion/file_uploads/file_uploads_complete",
-                      "packs/notion/file_uploads/file_uploads_retrieve",
-                      "packs/notion/file_uploads/file_uploads_list",
-                      "packs/notion/file_uploads/objects"
-                    ]
-                  },
-                  {
-                    "group": "Custom emojis",
-                    "pages": [
-                      "packs/notion/custom_emojis/custom_emojis_list"
-                    ]
-                  },
-                  {
-                    "group": "Async tasks",
-                    "pages": [
-                      "packs/notion/async_tasks/async_tasks_retrieve"
-                    ]
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "group": "API-key packs",
-            "pages": [
-              {
                 "group": "Stripe",
                 "expanded": false,
                 "pages": [
@@ -1115,6 +987,36 @@
                 ]
               },
               {
+                "group": "Shopify",
+                "expanded": false,
+                "pages": [
+                  "packs/shopify",
+                  "packs/shopify/shop_get",
+                  "packs/shopify/products_list",
+                  "packs/shopify/product_get",
+                  "packs/shopify/product_create",
+                  "packs/shopify/product_update",
+                  "packs/shopify/orders_list",
+                  "packs/shopify/order_get",
+                  "packs/shopify/customers_list",
+                  "packs/shopify/customer_get",
+                  "packs/shopify/customer_create",
+                  "packs/shopify/customer_update",
+                  "packs/shopify/order_fulfillment_orders",
+                  "packs/shopify/fulfillment_create",
+                  "packs/shopify/inventory_adjust_quantities",
+                  "packs/shopify/variant_inventory_level",
+                  "packs/shopify/locations_list",
+                  "packs/shopify/order_close",
+                  "packs/shopify/order_open",
+                  "packs/shopify/order_cancel",
+                  "packs/shopify/draft_order_create",
+                  "packs/shopify/draft_order_complete",
+                  "packs/shopify/product_variants_bulk_create",
+                  "packs/shopify/objects"
+                ]
+              },
+              {
                 "group": "Firecrawl",
                 "expanded": false,
                 "pages": [
@@ -1229,6 +1131,105 @@
                 ]
               },
               {
+                "group": "Notion",
+                "expanded": false,
+                "pages": [
+                  "packs/notion",
+                  {
+                    "group": "Users",
+                    "pages": [
+                      "packs/notion/users/users_list",
+                      "packs/notion/users/users_retrieve",
+                      "packs/notion/users/users_retrieve_me"
+                    ]
+                  },
+                  {
+                    "group": "Search",
+                    "pages": [
+                      "packs/notion/search/search",
+                      "packs/notion/search/objects"
+                    ]
+                  },
+                  {
+                    "group": "Pages",
+                    "pages": [
+                      "packs/notion/pages/pages_create",
+                      "packs/notion/pages/pages_retrieve",
+                      "packs/notion/pages/pages_update",
+                      "packs/notion/pages/pages_move",
+                      "packs/notion/pages/pages_retrieve_property_item",
+                      "packs/notion/pages/pages_retrieve_markdown",
+                      "packs/notion/pages/pages_update_markdown",
+                      "packs/notion/pages/objects"
+                    ]
+                  },
+                  {
+                    "group": "Blocks",
+                    "pages": [
+                      "packs/notion/blocks/blocks_retrieve",
+                      "packs/notion/blocks/blocks_update",
+                      "packs/notion/blocks/blocks_delete",
+                      "packs/notion/blocks/blocks_children_list",
+                      "packs/notion/blocks/blocks_children_append",
+                      "packs/notion/blocks/objects"
+                    ]
+                  },
+                  {
+                    "group": "Databases",
+                    "pages": [
+                      "packs/notion/databases/databases_create",
+                      "packs/notion/databases/databases_retrieve",
+                      "packs/notion/databases/databases_update",
+                      "packs/notion/databases/objects"
+                    ]
+                  },
+                  {
+                    "group": "Data sources",
+                    "pages": [
+                      "packs/notion/data_sources/data_sources_create",
+                      "packs/notion/data_sources/data_sources_retrieve",
+                      "packs/notion/data_sources/data_sources_update",
+                      "packs/notion/data_sources/data_sources_query",
+                      "packs/notion/data_sources/data_sources_templates_list",
+                      "packs/notion/data_sources/objects"
+                    ]
+                  },
+                  {
+                    "group": "Comments",
+                    "pages": [
+                      "packs/notion/comments/comments_create",
+                      "packs/notion/comments/comments_list",
+                      "packs/notion/comments/comments_retrieve",
+                      "packs/notion/comments/comments_update",
+                      "packs/notion/comments/comments_delete",
+                      "packs/notion/comments/objects"
+                    ]
+                  },
+                  {
+                    "group": "File uploads",
+                    "pages": [
+                      "packs/notion/file_uploads/file_uploads_create",
+                      "packs/notion/file_uploads/file_uploads_complete",
+                      "packs/notion/file_uploads/file_uploads_retrieve",
+                      "packs/notion/file_uploads/file_uploads_list",
+                      "packs/notion/file_uploads/objects"
+                    ]
+                  },
+                  {
+                    "group": "Custom emojis",
+                    "pages": [
+                      "packs/notion/custom_emojis/custom_emojis_list"
+                    ]
+                  },
+                  {
+                    "group": "Async tasks",
+                    "pages": [
+                      "packs/notion/async_tasks/async_tasks_retrieve"
+                    ]
+                  }
+                ]
+              },
+              {
                 "group": "Granola",
                 "expanded": false,
                 "pages": [
@@ -1315,6 +1316,10 @@
                 ]
               }
             ]
+          },
+          {
+            "group": "API-key packs",
+            "pages": []
           }
         ]
       },

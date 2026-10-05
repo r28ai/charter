@@ -48,10 +48,18 @@ Pass any [`CredentialProvider`](/reference/credentials): a
 ### API-key packs
 
 ```python
-def configure(api_key: str) -> None: ...
+def configure(
+    api_key: Optional[str] = None,
+    *,
+    credential_provider: Optional[CredentialProvider] = None,
+) -> None: ...
 ```
 
-`stripe`, `linear`, `firecrawl`, `granola`. An empty key raises
+`stripe`, `linear`, `firecrawl`, `granola`, `tavily`. Exactly one of the two:
+`api_key` is one account for the whole process, and `credential_provider` is
+read on every call, so a [`SubjectProvider`](/reference/credentials) serves each
+of your users their own key or OAuth token. Both, or neither, raises
+`TypeError`; an empty key raises
 [`CredentialError`](/reference/errors#credentialerror).
 
 ```python
@@ -60,11 +68,16 @@ from charter.packs import stripe
 stripe.configure("sk_test_123")
 ```
 
+The key goes out as `Authorization: Bearer <key>`, except on Linear, which
+sends a personal key (`lin_api_...`) bare and anything else — an OAuth access
+token — as `Bearer`. [Connect your users' accounts](/auth/your-users) has each
+pack's per-user setup.
+
 ### Shopify
 
 ```python
 def configure(
-    shop: Optional[str] = None,
+    shop: Union[str, Callable[[], str], None] = None,
     access_token: Optional[str] = None,
     *,
     client_id: Optional[str] = None,
@@ -84,6 +97,11 @@ at once raise `TypeError`, and so does moving to another store while holding an
 issued it, while the client ID and secret mint per store. Nothing changes when
 a call raises. The token is sent in `X-Shopify-Access-Token`.
 
+`shop` may also be a function returning the store, called on every request,
+for an application whose merchants each connect their own. Pair it with a
+`credential_provider` that answers per user too; with an `access_token` it
+raises `TypeError`, since that token belongs to one store.
+
 ## Environment fallbacks
 
 A pack with no `configure()` call falls back to a documented variable, read on
@@ -102,7 +120,7 @@ first use.
 | `granola` | `GRANOLA_API_KEY` |
 | `tavily` | `TAVILY_API_KEY` |
 
-The bearer variables are read per call, and the API-key variables at import.
+Every variable is read per call, so one set after import is still found.
 
 **The Google packs take a renewable grant.** A raw access token expires in about
 an hour and nothing renews it, so the six Google packs also look for a grant,

@@ -76,16 +76,13 @@ python scripts/live_google_check.py
 It is a script rather than a test on purpose — the suite is offline by rule, and
 this needs the network and a real grant.
 
-### Linear
+### Linear, Stripe, Notion and Shopify
 
-```python linear_server.py
-LINEAR = OAuth2Server(
-    issuer="https://linear.app",
-    authorization_endpoint="https://linear.app/oauth/authorize",
-    token_endpoint="https://api.linear.app/oauth/token",
-    token_endpoint_auth_method="client_secret_post",
-)
-```
+Each of these departs from the RFC somewhere: Linear and Shopify join scopes
+with commas, Stripe authenticates its token endpoint with your secret key,
+Notion wants JSON and takes no scopes. Their constants are on
+[Connect your users' accounts](/auth/your-users), beside the flow that uses
+them, and each departure is a field on the declaration rather than code.
 
 ## Anything else
 
@@ -95,10 +92,13 @@ is specified on [`OAuth2Server`](/reference/oauth#oauth2server):
 | field | what it is |
 |---|---|
 | `token_endpoint` | where the form POST goes |
-| `token_endpoint_auth_method` | `client_secret_post` (credentials in the body, the common case) or `client_secret_basic` (credentials in an HTTP Basic header) |
+| `token_endpoint_auth_method` | `client_secret_post` (credentials in the body, the common case), `client_secret_basic` (credentials in an HTTP Basic header), or `secret_key_basic` (the secret alone as the Basic username — Stripe) |
 | `issuer` | optional, for your own readability |
 | `authorization_endpoint` | where [`OAuth2Flow.authorize()`](/reference/oauth#oauth2flow-authorize) sends the user; optional — leave it off for a refresh-only declaration |
 | `authorization_params` | extra consent-screen parameters the vendor requires but discovery cannot know (Google's `access_type=offline`); default empty |
+| `uses_scopes` | `False` for a server whose permissions are set where the app is registered (Notion, Stripe Apps): `authorize()` then takes no scopes and sends no `scope`; default `True` |
+| `scope_separator` | how the consent link joins scopes: the RFC's space by default, `","` for Linear and Shopify |
+| `token_request_format` | `"form"`, as the RFC says, or `"json"` for a token endpoint that takes only JSON (Notion) |
 
 If a wrong choice fails loudly it is safe to write down — a server expecting
 Basic answers `invalid_client` on the first call. That is why these are declared

@@ -236,9 +236,9 @@ async def test_a_success_false_body_raises_instead_of_returning():
 
 async def test_unconfigured_pack_raises_before_a_request(monkeypatch):
     monkeypatch.delenv("FIRECRAWL_API_KEY", raising=False)
-    firecrawl._headers._api_key = None  # noqa: SLF001 — test the guard directly
+    monkeypatch.setattr(firecrawl._credentials, "_provider", None)
 
-    with pytest.raises(CredentialError, match="no API key"):
+    with pytest.raises(CredentialError, match="no credentials"):
         await firecrawl.search.ainvoke(query="test")
 
 

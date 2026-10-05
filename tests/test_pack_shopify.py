@@ -226,6 +226,51 @@ def test_restating_the_same_store_is_not_a_move():
     assert shopify.base_url() == f"https://{SHOP}.myshopify.com/"
 
 
+# -----------------------------------------------------
+# A store per user
+# -----------------------------------------------------
+
+
+@respx.mock
+async def test_each_user_s_call_reaches_their_own_store_with_their_own_token():
+    """An application whose merchants each connect a store names it per call."""
+    from charter.auth import StaticTokenProvider, SubjectProvider, current_subject, use_subject
+
+    stores = {"ada": "ada-shop", "grace": "grace-shop.myshopify.com"}
+    tokens = {"ada": "shpua_ada", "grace": "shpua_grace"}
+    shopify.configure(
+        shop=lambda: stores[current_subject.get()],
+        credential_provider=SubjectProvider(lambda s: StaticTokenProvider(tokens[s])),
+    )
+    route = respx.post(url__regex=r"https://[a-z-]+\.myshopify\.com/.*").mock(
+        return_value=httpx.Response(200, json={"data": {"shop": {}}})
+    )
+
+    for subject in ("ada", "grace"):
+        with use_subject(subject):
+            await shopify.shop_get.ainvoke()
+
+    sent = [(c.request.url.host, c.request.headers["x-shopify-access-token"]) for c in route.calls]
+    assert sent == [
+        ("ada-shop.myshopify.com", "shpua_ada"),
+        ("grace-shop.myshopify.com", "shpua_grace"),
+    ]
+    assert shopify._base_url.is_configured
+
+
+def test_a_per_call_store_with_one_access_token_is_refused():
+    """One token belongs to one store; a per-call store would send it to every other."""
+    with pytest.raises(TypeError, match="belongs to one store"):
+        shopify.configure(shop=lambda: "any", access_token="shpat_x")
+    assert shopify.base_url() == f"https://{SHOP}.myshopify.com/"
+
+
+def test_making_the_store_per_call_while_holding_one_store_s_token_is_refused():
+    with pytest.raises(TypeError, match="previous one"):
+        shopify.configure(shop=lambda: "any")
+    assert shopify.base_url() == f"https://{SHOP}.myshopify.com/"
+
+
 @respx.mock
 async def test_the_access_token_goes_in_its_own_header_not_authorization():
     respx.post(API).mock(return_value=httpx.Response(200, json={"data": {"shop": {}}}))

@@ -65,27 +65,31 @@ def test_the_list_tools_declare_the_derived_cursor():
     `starting_after` they do not accept.
     """
     paging = {t.name for t in stripe.TOOLS if t.pagination is not None}
-    assert paging == {
-        "customers_list",
-        "payment_intents_list",
-        "charges_list",
-        "products_list",
-        "prices_list",
-        "subscriptions_list",
-        "refunds_list",
-        "invoices_list",
-        "payment_methods_list",
-        "customer_payment_methods_list",
-        "disputes_list",
-        "accounts_list",
-        "transfers_list",
-        "payouts_list",
-        "application_fees_list",
-        "balance_transactions_list",
-        "invoice_items_list",
-        "checkout_sessions_list",
-        "checkout_sessions_line_items",
-    } | SEARCH_TOOLS
+    assert (
+        paging
+        == {
+            "customers_list",
+            "payment_intents_list",
+            "charges_list",
+            "products_list",
+            "prices_list",
+            "subscriptions_list",
+            "refunds_list",
+            "invoices_list",
+            "payment_methods_list",
+            "customer_payment_methods_list",
+            "disputes_list",
+            "accounts_list",
+            "transfers_list",
+            "payouts_list",
+            "application_fees_list",
+            "balance_transactions_list",
+            "invoice_items_list",
+            "checkout_sessions_list",
+            "checkout_sessions_line_items",
+        }
+        | SEARCH_TOOLS
+    )
     for tool in stripe.TOOLS:
         if tool.pagination is None:
             continue
@@ -110,9 +114,10 @@ SEARCH_TOOLS = {
 }
 
 
-def test_headers_resolve_per_request():
+def test_the_key_is_read_per_call():
     for tool in stripe.TOOLS:
-        assert callable(tool.api_key_headers)
+        assert tool.credential_provider is stripe._credentials
+        assert tool.token_header is None
 
 
 # -----------------------------------------------------
@@ -421,7 +426,7 @@ async def test_an_invalid_enum_is_rejected_locally():
 
 
 async def test_unconfigured_pack_fails_before_any_request(monkeypatch):
-    monkeypatch.setattr(stripe._headers, "_api_key", None)
+    monkeypatch.setattr(stripe._credentials, "_provider", None)
     with respx.mock:
         route = respx.route().mock(return_value=httpx.Response(200, json={}))
         with pytest.raises(CredentialError, match="configure"):
@@ -431,9 +436,8 @@ async def test_unconfigured_pack_fails_before_any_request(monkeypatch):
 
 @respx.mock
 async def test_env_var_fallback(monkeypatch):
-    monkeypatch.setattr(stripe._headers, "_api_key", None)
+    monkeypatch.setattr(stripe._credentials, "_provider", None)
     monkeypatch.setenv("STRIPE_API_KEY", "sk_from_env")
-    stripe.configure(api_key="sk_from_env")
     route = respx.get(f"{API}v1/balance").mock(return_value=httpx.Response(200, json={}))
     await stripe.balance_retrieve.ainvoke()
     assert route.calls.last.request.headers["authorization"] == "Bearer sk_from_env"

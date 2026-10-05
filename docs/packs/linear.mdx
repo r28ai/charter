@@ -44,20 +44,25 @@ is where each one is answered.
 
 This pack takes an API key in `Authorization`, and [`configure()`](/reference/configuration#configure) is optional when `$LINEAR_API_KEY` is set.
 
-There is no authorization server, no consent screen and no refresh — [API keys](/auth/api-key-tool-factory) is the whole story.
+That key serves every call the process makes. For an application whose users each connect their own account, hand [`configure()`](/reference/configuration#configure) a `credential_provider` instead — a [`SubjectProvider`](/reference/credentials#subjectprovider) that answers per user — and each call carries the credential of the user [`use_subject`](/reference/credentials#use_subject) names. [Your users' accounts](/auth/your-users) says how each pack's users connect.
 {/* generated:auth end */}
 
-The key goes out **raw** — not `Bearer`, not `Token`, just the key. This is the
-one place Linear differs from almost every other API here. An OAuth access
-token does take `Bearer`; for that, build the factory yourself with
-`oauth_tool_factory`, which adds the prefix. Linear documents where a personal
-key is created in [its authentication guide](https://linear.app/developers/graphql#authentication).
+A personal key goes out **raw** — not `Bearer`, not `Token`, just the key. This
+is the one place Linear differs from almost every other API here. An OAuth
+access token does take `Bearer`, and Linear refuses each in the other's shape,
+so the pack tells them apart by the personal key's `lin_api_` prefix: hand
+`configure(credential_provider=...)` an OAuth token and it is sent as `Bearer`.
+That is what lets one configuration serve users who connected by OAuth beside
+users who pasted a key — the Linear section of
+[Connect your users' accounts](/auth/your-users#linear) has the flow. Linear
+documents where a personal key is created in
+[its authentication guide](https://linear.app/developers/graphql#authentication).
 
 ## The client
 
 {/* generated:wire start — do not edit by hand; run scripts/generate_pack_docs.py */}
 <Note>
-[`api_key_tool_factory`](/reference/factories#api_key_tool_factory) is the whole client: a thin wrapper over `httpx` that attaches your key and these endpoint constants to each request. No vendor SDK enters your dependency tree.
+[`oauth_tool_factory`](/reference/factories#oauth_tool_factory) is the whole client: a thin wrapper over `httpx` that attaches your key and these endpoint constants to each request. No vendor SDK enters your dependency tree.
 </Note>
 
 <div className="named-tabs" data-files="linear_api_client.py|linear_pack_client.py">
@@ -66,13 +71,17 @@ key is created in [its authentication guide](https://linear.app/developers/graph
 ```python Without the pack
 import os
 
-from charter import Envelope, api_key_tool_factory
+from charter import Envelope, oauth_tool_factory
+from charter.auth import StaticTokenProvider
 
 api_key = os.environ["LINEAR_API_KEY"]
 
-linear_api_client = api_key_tool_factory(
+linear_api_client = oauth_tool_factory(
     base_url="https://api.linear.app/",
-    api_key_headers={"Authorization": api_key},
+    provider="linear",
+    credential_provider=StaticTokenProvider(api_key),
+    # the key is sent bare, with no Bearer
+    token_header="Authorization",
     pack="linear",
     body_format="json",
     query_format="repeat",

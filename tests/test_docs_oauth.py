@@ -16,6 +16,7 @@ credential lookup, which the surrounding page has always assumed.
 from __future__ import annotations
 
 import ast
+import importlib
 import importlib.util
 import os
 import re
@@ -36,6 +37,7 @@ ROOT = FsPath(__file__).resolve().parent.parent
 DOCS = [
     ROOT / "docs/auth/authorization-servers.md",
     ROOT / "docs/auth/oauth-flow.md",
+    ROOT / "docs/auth/your-users.mdx",
     ROOT / "docs/auth/setup/google.mdx",
     ROOT / "docs/auth/setup/slack.mdx",
     ROOT / "docs/auth/setup/github.mdx",
@@ -62,6 +64,11 @@ def test_the_extraction_matches_something():
         assert _python_blocks(doc), f"{doc.name} has no python blocks?"
 
 
+class _Keys:
+    async def get(self, subject, provider):
+        return SimpleNamespace(api_key="key-stored")
+
+
 class _Grants:
     async def get(self, subject, provider):
         return SimpleNamespace(refresh_token="rt-stored")
@@ -79,7 +86,7 @@ def _stubs() -> dict:
     what keeps that page honest — a snippet written against a constant nobody
     checks is the failure this whole file exists to prevent.
     """
-    db = SimpleNamespace(grants=_Grants())
+    db = SimpleNamespace(grants=_Grants(), keys=_Keys())
     return {
         "GOOGLE": _declared_server(ROOT / "docs/auth/providers/google.mdx", "GOOGLE"),
         "__name__": "__charter_docs__",
@@ -193,7 +200,7 @@ async def _run_block(source: str, namespace: dict, origin: str) -> None:
 
 def _credentials_in_the_environment(monkeypatch) -> None:
     """The registration facts each provider page reads out of os.environ."""
-    for name in ("GOOGLE", "SLACK", "GITHUB"):
+    for name in ("GOOGLE", "SLACK", "GITHUB", "LINEAR", "NOTION", "SHOPIFY"):
         monkeypatch.setenv(f"{name}_CLIENT_ID", "cid")
         monkeypatch.setenv(f"{name}_CLIENT_SECRET", "csec")
     monkeypatch.setenv("GOOGLE_ACCESS_TOKEN", "at-static")
@@ -201,11 +208,33 @@ def _credentials_in_the_environment(monkeypatch) -> None:
     monkeypatch.setenv("SLACK_BOT_TOKEN", "xoxb-static")
     monkeypatch.setenv("GITHUB_TOKEN", "ghp-static")
     monkeypatch.setenv("NOTION_API_KEY", "ntn-static")
+    monkeypatch.setenv("STRIPE_APP_CLIENT_ID", "ca_app")
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_dev")
+
+
+def _restore_the_packs_afterwards(monkeypatch) -> None:
+    """A snippet configures a pack, and a pack is process-wide.
+
+    Each document starts from unconfigured packs, as a reader's fresh process
+    would, and the state is put back afterwards — so one page's per-user setup,
+    or another test's, is not what the next page's single-account snippet finds.
+    """
+    from charter.mcp import PACKS
+
+    for pack in PACKS:
+        module = importlib.import_module(f"charter.packs.{pack}")
+        holder = getattr(module, "_credentials", None)
+        if holder is not None:
+            monkeypatch.setattr(holder, "_provider", None)
+    shop = importlib.import_module("charter.packs.shopify")._base_url
+    monkeypatch.setattr(shop, "_shop", None)
+    monkeypatch.setattr(shop, "_resolve", None)
 
 
 @pytest.mark.parametrize("doc", DOCS, ids=[d.name for d in DOCS])
 async def test_every_python_block_runs(doc, monkeypatch):
     _credentials_in_the_environment(monkeypatch)
+    _restore_the_packs_afterwards(monkeypatch)
 
     namespace: dict = {}
     with respx.mock:

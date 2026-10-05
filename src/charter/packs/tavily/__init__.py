@@ -35,8 +35,11 @@ arguments.
 
 from __future__ import annotations
 
-from charter.factories import api_key_tool_factory
-from charter.packs._config import DeferredApiKeyHeaders, api_key_headers
+from typing import Optional
+
+from charter.auth import CredentialProvider
+from charter.factories import oauth_tool_factory
+from charter.packs._config import DeferredCredentialProvider, configure_key_or_provider
 from charter.packs.tavily.types import (
     CrawlRequest,
     ExtractRequest,
@@ -53,23 +56,28 @@ from charter.tool import Tool
 BASE_URL = "https://api.tavily.com/"
 QUOTA_DOC_URL = "https://docs.tavily.com/documentation/rate-limits"
 
-_headers: DeferredApiKeyHeaders = api_key_headers(
-    "tavily",
-    {"Authorization": "Bearer CHARTER_UNCONFIGURED"},
-    "Authorization",
-    "TAVILY_API_KEY",
-)
+_credentials = DeferredCredentialProvider("tavily", env_var="TAVILY_API_KEY")
 
 
-def configure(api_key: str) -> None:
-    """Supply the Tavily API key for this pack's tools."""
-    _headers.configure(api_key)
+def configure(
+    api_key: Optional[str] = None,
+    *,
+    credential_provider: Optional[CredentialProvider] = None,
+) -> None:
+    """Supply the Tavily API key for this pack's tools, or a provider of one per call.
+
+    ``api_key`` is one account for the whole process. ``credential_provider`` is
+    read on every call, so a :class:`~charter.auth.SubjectProvider` serves each
+    of your users their own.
+    """
+    configure_key_or_provider(_credentials, api_key, credential_provider)
 
 
-_tavily = api_key_tool_factory(
+_tavily = oauth_tool_factory(
     pack="tavily",
     base_url=BASE_URL,
-    api_key_headers=_headers,
+    provider="tavily",
+    credential_provider=_credentials,
     body_case="snake",
     query_case="snake",
     quota_doc_url=QUOTA_DOC_URL,

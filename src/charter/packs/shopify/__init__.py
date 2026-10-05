@@ -85,7 +85,7 @@ from __future__ import annotations
 
 import math
 import os
-from typing import Any, Optional
+from typing import Any, Callable, Optional, Union
 
 from charter.auth import CredentialProvider, StaticTokenProvider
 from charter.factories import oauth_tool_factory
@@ -212,10 +212,22 @@ class _DeferredShopUrl:
         # variable set afterwards — by load_dotenv, or a host that connects the
         # store at runtime — was never seen, and every call said "no store".
         self._shop: Optional[str] = None
+        # Or a function of the host's that names the store per call, for an
+        # application whose users each connect their own. Called on every
+        # request, so it can read whatever identifies the user — the same
+        # `current_subject` a SubjectProvider reads for the token.
+        self._resolve: Optional[Callable[[], str]] = None
+
+    @property
+    def per_call(self) -> bool:
+        """Whether the store is named per call rather than fixed."""
+        return self._resolve is not None
 
     @property
     def shop(self) -> Optional[str]:
         """The store's subdomain: what configure() set, else ``$SHOPIFY_SHOP`` now."""
+        if self._resolve is not None:
+            return self.normalize(self._resolve())
         if self._shop is not None:
             return self._shop
         # Through the same normalisation as configure(): the full domain is what
@@ -236,12 +248,19 @@ class _DeferredShopUrl:
             raise CredentialError("charter.packs.shopify was given an empty shop name")
         return shop
 
-    def configure(self, shop: str) -> None:
-        self._shop = self.normalize(shop)
+    def configure(self, shop: Union[str, Callable[[], str]]) -> None:
+        if callable(shop):
+            self._resolve = shop
+            self._shop = None
+        else:
+            self._shop = self.normalize(shop)
+            self._resolve = None
 
     @property
     def is_configured(self) -> bool:
-        return self.shop is not None
+        # A per-call store is configured; which store it names depends on the
+        # call, and asking here, outside one, could only raise.
+        return self._resolve is not None or self.shop is not None
 
     def __call__(self) -> str:
         shop = self.shop
@@ -254,6 +273,8 @@ class _DeferredShopUrl:
         return f"https://{shop}.myshopify.com/"
 
     def __repr__(self) -> str:
+        if self._resolve is not None:
+            return "_DeferredShopUrl(per call)"
         return f"_DeferredShopUrl({self.shop or 'unconfigured'!r})"
 
 
@@ -271,7 +292,7 @@ _credentials = DeferredCredentialProvider(
 
 
 def configure(
-    shop: Optional[str] = None,
+    shop: Union[str, Callable[[], str], None] = None,
     access_token: Optional[str] = None,
     *,
     client_id: Optional[str] = None,
@@ -283,6 +304,17 @@ def configure(
     ``shop`` is the store's subdomain — ``"my-store"`` for
     ``my-store.myshopify.com``. The full domain or URL is accepted too. Left
     out, the store comes from ``$SHOPIFY_SHOP``.
+
+    ``shop`` may instead be a function returning one, called on every request,
+    for an application whose users each connect their own store. Pair it with a
+    ``credential_provider`` that answers per user as well — a
+    :class:`~charter.auth.SubjectProvider` over each store's token — since a
+    token belongs to the store that issued it::
+
+        shopify.configure(
+            shop=lambda: stores[current_subject.get()],
+            credential_provider=SubjectProvider(token_for_user),
+        )
 
     At most one credential, in one of three shapes:
 
@@ -308,10 +340,21 @@ def configure(
     if len(given) > 1:
         raise TypeError(f"configure() takes one credential, got {' and '.join(given)}.")
 
+    if callable(shop) and access_token is not None:
+        # One token, many stores: every store but the one that issued it would
+        # answer 401, and the rest of the time it would be the wrong store's data.
+        raise TypeError(
+            "configure(shop=<function>) names a store per call, and an access_token "
+            "belongs to one store. Pass credential_provider= with a provider that "
+            "answers per user too, such as a SubjectProvider."
+        )
+
     # Everything is checked before anything changes, so a refused credential
     # leaves the pack pointing where it was rather than at a new store with the
     # old store's token.
-    store = _DeferredShopUrl.normalize(shop) if shop is not None else None
+    store: Union[str, Callable[[], str], None] = (
+        shop if shop is None or callable(shop) else _DeferredShopUrl.normalize(shop)
+    )
     provider: Optional[CredentialProvider] = None
     if access_token is not None:
         provider = StaticTokenProvider(access_token)
@@ -321,8 +364,8 @@ def configure(
         provider = credential_provider
     elif (
         store is not None
-        and store != _base_url.shop
         and isinstance(_credentials._provider, StaticTokenProvider)
+        and (callable(store) or _base_url.per_call or store != _base_url.shop)
     ):
         # A minted or shpat_ token is for the store it was issued by. Moving the
         # store without it sent that token to the new store. The client ID and

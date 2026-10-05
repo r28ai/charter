@@ -22,17 +22,23 @@ class OAuth2Server:
     issuer: Optional[str] = None
     authorization_endpoint: Optional[str] = None
     authorization_params: Mapping[str, str] = field(default_factory=dict)
+    uses_scopes: bool = True
+    scope_separator: str = " "
+    token_request_format: Literal["form", "json"] = "form"
 ```
 
 <ParamField path="token_endpoint" type="str" required>
   Where the form POST goes. Empty raises [`DeclarationError`](/reference/errors#declarationerror).
 </ParamField>
 
-<ParamField path="token_endpoint_auth_method" type='"client_secret_post" | "client_secret_basic"' default='"client_secret_post"'>
+<ParamField path="token_endpoint_auth_method" type='"client_secret_post" | "client_secret_basic" | "secret_key_basic"' default='"client_secret_post"'>
   How the client authenticates (RFC 6749 §2.3.1). `client_secret_post` puts the
   credentials in the form body, which is what Google, GitHub and most APIs
-  expect; `client_secret_basic` puts them in an HTTP Basic header. Any other
-  value raises [`DeclarationError`](/reference/errors#declarationerror).
+  expect; `client_secret_basic` puts them in an HTTP Basic header.
+  `secret_key_basic` is outside the RFC: the client secret alone is the Basic
+  username, with no password and no client ID, which is how Stripe's token
+  endpoint takes your secret key. Any other value raises
+  [`DeclarationError`](/reference/errors#declarationerror).
 </ParamField>
 
 <ParamField path="issuer" type="Optional[str]" default="None">
@@ -52,6 +58,24 @@ class OAuth2Server:
   `{"access_type": "offline", "prompt": "consent"}` returns no refresh token and
   reports no error. Normalised to a read-only, key-sorted mapping, so the
   declaration stays frozen all the way down.
+</ParamField>
+
+<ParamField path="uses_scopes" type="bool" default="True">
+  `False` for a server whose permissions are set where the app is registered —
+  Notion's capabilities, a Stripe App's manifest. `OAuth2Flow.authorize` then
+  takes no scopes and sends no `scope`, and raises if given some, since they
+  would be ignored.
+</ParamField>
+
+<ParamField path="scope_separator" type="str" default='" "'>
+  How the consent link joins scopes. RFC 6749 §3.3 says a space; Linear and
+  Shopify document a comma.
+</ParamField>
+
+<ParamField path="token_request_format" type='"form" | "json"' default='"form"'>
+  How the token endpoint wants its body, for the exchange and every refresh.
+  The RFC's form unless the server documents otherwise; Notion's takes only
+  JSON.
 </ParamField>
 
 ### `OAuth2Server.discover`
@@ -260,7 +284,7 @@ knows which browser is which.
 ```python
 def authorize(
     self,
-    scopes: Iterable[str],
+    scopes: Iterable[str] = (),
     *,
     state: Optional[str] = None,
     login_hint: Optional[str] = None,
@@ -271,10 +295,11 @@ def authorize(
 
 Build the authorization URL (RFC 6749 §4.1.1). Pure — no I/O, no state.
 
-<ParamField path="scopes" type="Iterable[str]" required>
+<ParamField path="scopes" type="Iterable[str]" default="()">
   What to ask for. Empty raises `CredentialError`: an authorization request for
   nothing is a bug upstream. [`scopes_for`](#scopes_for) derives this from a
-  tool set.
+  tool set. Against a server declared with `uses_scopes=False` it is the other
+  way round: leave it empty, and no `scope` is sent.
 </ParamField>
 
 <ParamField path="state" type="Optional[str]" default="None">
@@ -456,11 +481,12 @@ user and so no refresh token to store.
 ## `TokenEndpointAuthMethod`
 
 ```python
-TokenEndpointAuthMethod = Literal["client_secret_post", "client_secret_basic"]
+TokenEndpointAuthMethod = Literal["client_secret_post", "client_secret_basic", "secret_key_basic"]
 ```
 
 How the client authenticates to the token endpoint — credentials in the form
-body, or in an HTTP Basic header. [RFC 8414](https://www.rfc-editor.org/rfc/rfc8414)
+body, in an HTTP Basic header, or (`secret_key_basic`, Stripe) the secret alone
+as the Basic username. [RFC 8414](https://www.rfc-editor.org/rfc/rfc8414)
 names this field, and a server's own metadata usually announces which it wants;
 `OAuth2Server.discover` reads it for you.
 

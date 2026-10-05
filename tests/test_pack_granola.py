@@ -657,7 +657,7 @@ async def test_a_413_is_raised_rather_than_handed_to_the_model():
 @respx.mock
 async def test_an_unconfigured_pack_fails_before_any_request(monkeypatch):
     monkeypatch.delenv("GRANOLA_API_KEY", raising=False)
-    granola._headers._api_key = None
+    monkeypatch.setattr(granola._credentials, "_provider", None)
     route = respx.get(url__startswith=API)
 
     with pytest.raises(CredentialError):

@@ -630,3 +630,204 @@ async def test_a_flow_is_reusable_across_users_because_it_holds_nothing():
     assert alice.refresh_token == "rt-alice"
     assert bob.refresh_token == "rt-bob"
     assert alice_request.state != bob_request.state
+
+
+# -----------------------------------------------------
+# Servers whose permissions are fixed at registration
+# -----------------------------------------------------
+
+# Notion and Stripe Apps set what an app may do where it is registered — a
+# Notion connection's capabilities, a Stripe App's manifest — and their consent
+# links carry no scope at all.
+NO_SCOPES = dataclasses.replace(SERVER, uses_scopes=False)
+
+
+def test_a_server_without_scopes_sends_no_scope_parameter():
+    from urllib.parse import parse_qs, urlsplit
+
+    request = _flow(NO_SCOPES).authorize(state="s")
+    params = parse_qs(urlsplit(request.url).query)
+    assert "scope" not in params
+    assert params["client_id"] == ["cid"]
+    assert params["state"] == ["s"]
+    assert "code_challenge" in params
+
+
+def test_scopes_for_a_server_without_them_are_refused_rather_than_dropped():
+    with pytest.raises(CredentialError, match="uses_scopes=False"):
+        _flow(NO_SCOPES).authorize(["read"])
+
+
+def test_a_server_with_scopes_still_refuses_an_empty_request():
+    with pytest.raises(CredentialError, match="no scopes"):
+        _flow().authorize()
+
+
+# -----------------------------------------------------
+# A token endpoint that takes the API's own secret key
+# -----------------------------------------------------
+
+# A Stripe App's install link and token endpoint, from
+# https://docs.stripe.com/stripe-apps/api-authentication/oauth
+STRIPE_APPS = OAuth2Server(
+    issuer="https://marketplace.stripe.com",
+    authorization_endpoint="https://marketplace.stripe.com/oauth/v2/authorize",
+    token_endpoint="https://api.stripe.com/v1/oauth/token",
+    token_endpoint_auth_method="secret_key_basic",
+    uses_scopes=False,
+)
+
+
+@respx.mock
+async def test_the_exchange_authenticates_with_the_secret_key_alone():
+    """`curl -u sk_live_...:` — the key as the username, no password, no client_id."""
+    route = respx.post(STRIPE_APPS.token_endpoint).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "access_token": "at",
+                "refresh_token": "rt",
+                "token_type": "bearer",
+                "stripe_user_id": "acct_1",
+            },
+        )
+    )
+    flow = OAuth2Flow(
+        STRIPE_APPS,
+        client_id="ca_app",
+        client_secret="sk_test_dev",
+        redirect_uri="https://app.example.com/stripe/callback",
+    )
+
+    grant = await flow.exchange("ac_code")
+
+    request = route.calls.last.request
+    expected = base64.b64encode(b"sk_test_dev:").decode()
+    assert request.headers["authorization"] == f"Basic {expected}"
+    form = dict(httpx.QueryParams(request.content.decode()))
+    assert form == {
+        "grant_type": "authorization_code",
+        "code": "ac_code",
+        "redirect_uri": "https://app.example.com/stripe/callback",
+    }
+    assert grant.raw["stripe_user_id"] == "acct_1"
+
+
+@respx.mock
+async def test_a_refresh_authenticates_the_same_way_and_adopts_the_rolled_token():
+    route = respx.post(STRIPE_APPS.token_endpoint).mock(
+        return_value=httpx.Response(
+            200, json={"access_token": "at2", "refresh_token": "rt2", "token_type": "bearer"}
+        )
+    )
+    client = OAuth2Client(
+        STRIPE_APPS, client_id="ca_app", client_secret="sk_test_dev", refresh_token="rt1"
+    )
+
+    credentials = await client.get_credentials("stripe")
+
+    request = route.calls.last.request
+    assert request.headers["authorization"] == (
+        "Basic " + base64.b64encode(b"sk_test_dev:").decode()
+    )
+    form = dict(httpx.QueryParams(request.content.decode()))
+    assert form == {"grant_type": "refresh_token", "refresh_token": "rt1"}
+    assert credentials.token == "at2"
+    assert client.refresh_token == "rt2"
+
+
+def test_the_consent_link_carries_the_app_s_client_id_not_its_key():
+    request = OAuth2Flow(
+        STRIPE_APPS,
+        client_id="ca_app",
+        client_secret="sk_test_dev",
+        redirect_uri="https://app.example.com/stripe/callback",
+    ).authorize()
+    assert "client_id=ca_app" in request.url
+    assert "sk_test_dev" not in request.url
+    assert "scope=" not in request.url
+
+
+# -----------------------------------------------------
+# Servers that depart from the RFC's wire details
+# -----------------------------------------------------
+
+
+def test_a_comma_separated_server_gets_its_scopes_joined_with_commas():
+    """Linear and Shopify document `scope=read,write`, not the RFC's space."""
+    from urllib.parse import parse_qs, urlsplit
+
+    server = dataclasses.replace(SERVER, scope_separator=",")
+    request = _flow(server).authorize(["read", "write"])
+    assert parse_qs(urlsplit(request.url).query)["scope"] == ["read,write"]
+
+
+# Notion documents its token endpoint as JSON only, with Basic client auth.
+# https://developers.notion.com/reference/create-a-token
+NOTION = OAuth2Server(
+    issuer="https://api.notion.com",
+    authorization_endpoint="https://api.notion.com/v1/oauth/authorize",
+    token_endpoint="https://api.notion.com/v1/oauth/token",
+    token_endpoint_auth_method="client_secret_basic",
+    authorization_params={"owner": "user"},
+    uses_scopes=False,
+    token_request_format="json",
+)
+
+
+@respx.mock
+async def test_a_json_server_receives_its_exchange_as_json():
+    import json
+
+    route = respx.post(NOTION.token_endpoint).mock(
+        return_value=httpx.Response(
+            200, json={"access_token": "ntn_at", "refresh_token": "nrt_1", "bot_id": "b"}
+        )
+    )
+    flow = OAuth2Flow(
+        NOTION, client_id="cid", client_secret="csec", redirect_uri="https://app.example.com/cb"
+    )
+
+    grant = await flow.exchange("code-1")
+
+    request = route.calls.last.request
+    assert request.headers["content-type"] == "application/json"
+    assert json.loads(request.content) == {
+        "grant_type": "authorization_code",
+        "code": "code-1",
+        "redirect_uri": "https://app.example.com/cb",
+    }
+    assert request.headers["authorization"].startswith("Basic ")
+    assert grant.refresh_token == "nrt_1"
+
+
+@respx.mock
+async def test_a_json_server_receives_its_refresh_as_json():
+    import json
+
+    route = respx.post(NOTION.token_endpoint).mock(
+        return_value=httpx.Response(200, json={"access_token": "at2", "refresh_token": "nrt_2"})
+    )
+    client = OAuth2Client(NOTION, client_id="cid", client_secret="csec", refresh_token="nrt_1")
+
+    await client.get_credentials("notion")
+
+    request = route.calls.last.request
+    assert json.loads(request.content) == {"grant_type": "refresh_token", "refresh_token": "nrt_1"}
+    assert client.refresh_token == "nrt_2"
+
+
+def test_the_notion_consent_link_says_owner_user_and_asks_for_no_scope():
+    request = OAuth2Flow(
+        NOTION, client_id="cid", client_secret="csec", redirect_uri="https://app.example.com/cb"
+    ).authorize()
+    assert "owner=user" in request.url
+    assert "scope=" not in request.url
+
+
+@pytest.mark.parametrize("field, value", [("token_request_format", "xml"), ("scope_separator", "")])
+def test_a_wire_detail_outside_the_known_set_is_refused_at_declaration(field, value):
+    from charter import DeclarationError
+
+    with pytest.raises(DeclarationError, match=field):
+        OAuth2Server(token_endpoint=TOKEN_URL, **{field: value})

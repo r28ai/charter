@@ -70,8 +70,11 @@ Known limits, named rather than hidden:
 
 from __future__ import annotations
 
-from charter.factories import api_key_tool_factory
-from charter.packs._config import DeferredApiKeyHeaders, api_key_headers
+from typing import Optional
+
+from charter.auth import CredentialProvider
+from charter.factories import oauth_tool_factory
+from charter.packs._config import DeferredCredentialProvider, configure_key_or_provider
 from charter.packs.granola.response_handlers import trim_note, trim_transcript
 from charter.packs.granola.types import (
     AuditListRequest,
@@ -109,23 +112,28 @@ GRANOLA_PAGINATION = Pagination(
     more_field="hasMore",
 )
 
-_headers: DeferredApiKeyHeaders = api_key_headers(
-    "granola",
-    {"Authorization": "Bearer CHARTER_UNCONFIGURED"},
-    "Authorization",
-    "GRANOLA_API_KEY",
-)
+_credentials = DeferredCredentialProvider("granola", env_var="GRANOLA_API_KEY")
 
 
-def configure(api_key: str) -> None:
-    """Supply the Granola API key for this pack's tools."""
-    _headers.configure(api_key)
+def configure(
+    api_key: Optional[str] = None,
+    *,
+    credential_provider: Optional[CredentialProvider] = None,
+) -> None:
+    """Supply the Granola API key for this pack's tools, or a provider of one per call.
+
+    ``api_key`` is one account for the whole process. ``credential_provider`` is
+    read on every call, so a :class:`~charter.auth.SubjectProvider` serves each
+    of your users their own.
+    """
+    configure_key_or_provider(_credentials, api_key, credential_provider)
 
 
-_granola = api_key_tool_factory(
+_granola = oauth_tool_factory(
     pack="granola",
     base_url=BASE_URL,
-    api_key_headers=_headers,
+    provider="granola",
+    credential_provider=_credentials,
     # Granola is snake_case on the wire, in bodies and query parameters alike.
     # The query default is snake already; it is set explicitly because the two
     # are separate defaults and a reader should not have to know which way each

@@ -43,9 +43,12 @@ exactly this.
 
 One more thing, small but easy to get wrong: **a personal API key goes in
 ``Authorization`` with no scheme.** Not ``Bearer``, not ``Token`` — the raw key.
-An OAuth access token, by contrast, does take ``Bearer``. This pack is built for
-the personal-key case; for OAuth, build the factory yourself with
-``oauth_tool_factory``, which adds the prefix.
+An OAuth access token, by contrast, does take ``Bearer``, and Linear refuses
+either one in the other's shape. The pack tells them apart by Linear's own
+prefix, ``lin_api_``, so ``configure()`` takes both: ``api_key=`` for one
+account, or ``credential_provider=`` — a :class:`~charter.auth.SubjectProvider`
+over each user's OAuth grant or pasted key — for an application whose users
+connect their own workspaces.
 
 What is here, and what is not
 -----------------------------
@@ -97,8 +100,11 @@ Known limits, named rather than hidden:
 
 from __future__ import annotations
 
-from charter.factories import api_key_tool_factory
-from charter.packs._config import DeferredApiKeyHeaders, api_key_headers
+from typing import Optional
+
+from charter.auth import CredentialProvider, Credentials
+from charter.factories import oauth_tool_factory
+from charter.packs._config import DeferredCredentialProvider, configure_key_or_provider
 from charter.packs.linear import curation, queries, types
 from charter.packs.linear.response_handlers import unwrap, unwrap_mutation
 from charter.tool import Tool
@@ -135,26 +141,60 @@ LINEAR_PAGINATION = Pagination(
     more_field="pageInfo.hasNextPage",
 )
 
-# A personal API key is sent raw, with no `Bearer` prefix — this is the one
-# place Linear differs from almost every other API in this repository.
-# https://linear.app/developers/graphql#authentication
-_headers: DeferredApiKeyHeaders = api_key_headers(
-    "linear",
-    {"Authorization": "CHARTER_UNCONFIGURED"},
-    "Authorization",
-    "LINEAR_API_KEY",
-)
+# Linear's personal API keys carry this prefix; its OAuth access tokens do not.
+PERSONAL_KEY_PREFIX = "lin_api_"
 
 
-def configure(api_key: str) -> None:
-    """Supply the Linear personal API key for this pack's tools."""
-    _headers.configure(api_key)
+class _LinearCredentials(DeferredCredentialProvider):
+    """The credential, in whichever ``Authorization`` shape Linear wants for it.
+
+    A personal API key is sent raw; an OAuth access token is sent as
+    ``Bearer <token>``. Linear answers each in the other's shape with an
+    authentication error, so the choice cannot be a constant on the factory —
+    an application serving its users holds both kinds at once, one per user.
+    The token goes out bare in ``Authorization`` (the factory's
+    ``token_header``), and this adds the scheme where it belongs.
+    https://linear.app/developers/graphql#authentication
+    """
+
+    async def get_credentials(self, provider: str) -> Credentials:
+        credentials = await super().get_credentials(provider)
+        if credentials.token.startswith(PERSONAL_KEY_PREFIX):
+            return credentials
+        return credentials.model_copy(update={"token": f"Bearer {credentials.token}"})
+
+    def invalidate(self, credentials: Credentials) -> None:
+        # Hand back the token the provider issued, not the header value, or a
+        # caching provider never recognises the one Linear refused.
+        token = credentials.token.removeprefix("Bearer ")
+        super().invalidate(credentials.model_copy(update={"token": token}))
 
 
-_linear = api_key_tool_factory(
+_credentials = _LinearCredentials("linear", env_var="LINEAR_API_KEY")
+
+
+def configure(
+    api_key: Optional[str] = None,
+    *,
+    credential_provider: Optional[CredentialProvider] = None,
+) -> None:
+    """Supply a Linear personal API key, or a provider of one credential per call.
+
+    ``api_key`` is one account for the whole process. ``credential_provider`` is
+    read on every call and may hand back an OAuth access token or a personal key
+    — each is sent the way Linear expects it — so a
+    :class:`~charter.auth.SubjectProvider` serves each of your users their own.
+    """
+    configure_key_or_provider(_credentials, api_key, credential_provider)
+
+
+_linear = oauth_tool_factory(
     pack="linear",
     base_url=BASE_URL,
-    api_key_headers=_headers,
+    provider="linear",
+    credential_provider=_credentials,
+    # Bare, because _LinearCredentials has already chosen the scheme.
+    token_header="Authorization",
     # GraphQL variables are camelCase, which is Charter's default for bodies; said
     # out loud because it is the reason `team_id` arrives as `teamId`.
     body_case="camel",

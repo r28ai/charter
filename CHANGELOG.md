@@ -20,6 +20,35 @@ here, with the migration in the same entry.
   declares its own `STRIPE_SEARCH_PAGINATION` (`next_page` → `page`). The
   response handlers now recognise the `search_result` envelope; before, a
   search answer was read as a single object and trimmed down to nothing.
+- **Every pack can serve each of your users their own account.** Stripe,
+  Linear, Granola, Firecrawl and Tavily took one API key per process, so an
+  application whose users connect their own Stripe or Linear could not use
+  them. Their `configure()` now also takes `credential_provider=`, read on
+  every call, so a `SubjectProvider` puts each user's key or OAuth token on
+  that user's calls. `configure(api_key=...)` works as before. Linear sends a
+  personal key (`lin_api_...`) bare and an OAuth access token as `Bearer`,
+  choosing per call, since one application holds both kinds.
+- **Shopify's `shop` can be a function**, called on every request, for an
+  application whose merchants each connect a store. Combined with a single
+  `access_token` it raises, since that token belongs to one store.
+- **`OAuth2Server` declares four more departures from the RFC**, so Stripe,
+  Notion, Linear and Shopify consent flows go through `OAuth2Flow` and
+  `OAuth2Client`: `token_endpoint_auth_method="secret_key_basic"` (Stripe's
+  token endpoint takes your secret key as the Basic username),
+  `uses_scopes=False` (Notion and Stripe Apps set permissions at registration,
+  so `authorize()` sends no `scope`), `scope_separator=","` (Linear, Shopify),
+  and `token_request_format="json"` (Notion). `authorize()`'s `scopes` now
+  defaults to empty; a server that uses scopes still refuses an empty list.
+- **[Connect your users' accounts](https://docs.r28.ai/charter/auth/your-users)**:
+  for every pack, how a user connects, what to store, and the server constants
+  for Linear, Stripe Apps, Notion and Shopify.
+
+### Changed
+
+- The five API-key packs are built on `oauth_tool_factory` with a
+  `DeferredCredentialProvider`, so their tools carry `credential_provider` and
+  no `api_key_headers`. Code that read a pack's private `_headers` should use
+  `charter.packs.is_configured()`.
 
 ## [0.3.1] — 2026-10-04
 

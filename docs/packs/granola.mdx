@@ -42,7 +42,7 @@ program can create, change or delete here are webhook endpoints.
 
 This pack takes an API key in `Authorization`, and [`configure()`](/reference/configuration#configure) is optional when `$GRANOLA_API_KEY` is set.
 
-There is no authorization server, no consent screen and no refresh — [API keys](/auth/api-key-tool-factory) is the whole story.
+That key serves every call the process makes. For an application whose users each connect their own account, hand [`configure()`](/reference/configuration#configure) a `credential_provider` instead — a [`SubjectProvider`](/reference/credentials#subjectprovider) that answers per user — and each call carries the credential of the user [`use_subject`](/reference/credentials#use_subject) names. [Your users' accounts](/auth/your-users) says how each pack's users connect.
 {/* generated:auth end */}
 
 The key goes out as a bearer token, and the notes it can reach are chosen when
@@ -54,7 +54,7 @@ back short is usually a key question rather than a filter question.
 
 {/* generated:wire start — do not edit by hand; run scripts/generate_pack_docs.py */}
 <Note>
-[`api_key_tool_factory`](/reference/factories#api_key_tool_factory) is the whole client: a thin wrapper over `httpx` that attaches your key and these endpoint constants to each request. No vendor SDK enters your dependency tree.
+[`oauth_tool_factory`](/reference/factories#oauth_tool_factory) is the whole client: a thin wrapper over `httpx` that attaches your key and these endpoint constants to each request. No vendor SDK enters your dependency tree.
 </Note>
 
 <div className="named-tabs" data-files="granola_api_client.py|granola_pack_client.py">
@@ -63,13 +63,15 @@ back short is usually a key question rather than a filter question.
 ```python Without the pack
 import os
 
-from charter import api_key_tool_factory
+from charter import oauth_tool_factory
+from charter.auth import StaticTokenProvider
 
 api_key = os.environ["GRANOLA_API_KEY"]
 
-granola_api_client = api_key_tool_factory(
+granola_api_client = oauth_tool_factory(
     base_url="https://public-api.granola.ai/",
-    api_key_headers={"Authorization": f"Bearer {api_key}"},
+    provider="granola",
+    credential_provider=StaticTokenProvider(api_key),
     pack="granola",
     body_format="json",
     query_format="repeat",

@@ -211,7 +211,15 @@ def test_the_auth_signpost_routes_rather_than_restates(pack):
     signpost = GEN.blocks(pack)["auth"]
     oauth = module.TOOLS[0].credential_provider is not None
 
-    if oauth and GEN._takes_more_than_a_credential(module):
+    if GEN._takes_a_key(module):
+        # A key, and the one other shape a key pack takes: a provider per user.
+        # The OAuth sections do not apply, and the page that does is named.
+        assert "takes an API key" in signpost
+        assert "`credential_provider`" in signpost
+        assert "/auth/your-users" in signpost
+        assert "/auth/oauth-flow" not in signpost
+        assert "/auth/your-own-account" not in signpost
+    elif oauth and GEN._takes_more_than_a_credential(module):
         # Shopify: a store as well as a credential, and no refresh token. The
         # signpost defers to the page's own prose, so the prose is what is
         # checked — every credential configure() takes is shown being passed.
@@ -258,6 +266,9 @@ def _oauth_packs():
         for pack in PACKS
         if GEN.pack_module(pack).TOOLS[0].credential_provider is not None
         and not GEN._takes_more_than_a_credential(GEN.pack_module(pack))
+        # A key pack reads its key through a provider too, so that it can serve
+        # one per user, but its reader holds a key: no grant, no server page.
+        and not GEN._takes_a_key(GEN.pack_module(pack))
     ]
 
 
@@ -423,7 +434,9 @@ def test_both_halves_of_the_comparison_use_the_same_credential(pack):
     # Authenticating — rather than building a second kind here; an API-key pack
     # reads its key from the environment on both sides.
     expected = (
-        GEN._CREDENTIAL if first.credential_provider is not None else f'os.environ["{env_var}"]'
+        GEN._CREDENTIAL
+        if first.credential_provider is not None and not GEN._takes_a_key(module)
+        else f'os.environ["{env_var}"]'
     )
     for half, source in (("hand written", by_hand), ("with the pack", with_pack)):
         assert expected in source, f"{pack}: the {half} tab does not use {expected}"
@@ -462,7 +475,10 @@ def test_the_signpost_never_promises_an_env_var_is_enough(pack):
     """
     module = GEN.pack_module(pack)
     signpost = GEN.blocks(pack)["auth"]
-    single = len(inspect.signature(module.configure).parameters) == 1
+    # A key pack's configure() takes the key or a provider of one: two ways to
+    # pass a single credential, so the environment variable is still enough.
+    taken = len(inspect.signature(module.configure).parameters) - GEN._takes_a_key(module)
+    single = taken == 1
 
     # The name is a link now, not bare code type, so the clause is matched
     # through its anchor: `configure()` is a symbol a reader can look up.
@@ -499,7 +515,7 @@ def test_the_summary_states_the_count_and_the_auth(pack):
 
     assert f"</Visibility>{len(module.TOOLS)} tools</span>" in summary
 
-    oauth = module.TOOLS[0].credential_provider is not None
+    oauth = module.TOOLS[0].credential_provider is not None and not GEN._takes_a_key(module)
     bearer = oauth and not module.TOOLS[0].token_header
     assert ("</Visibility>OAuth bearer</span>" in summary) is bearer
     assert ("</Visibility>OAuth token</span>" in summary) is (oauth and not bearer)
@@ -537,7 +553,7 @@ def test_the_summary_pills_carry_a_glyph(pack):
     assert summary.count("</svg></Visibility>") == 2
     assert GEN._ICON_TOOLS in summary
 
-    oauth = module.TOOLS[0].credential_provider is not None
+    oauth = module.TOOLS[0].credential_provider is not None and not GEN._takes_a_key(module)
     assert (GEN._ICON_OAUTH in summary) is oauth
     assert (GEN._ICON_API_KEY in summary) is not oauth
 

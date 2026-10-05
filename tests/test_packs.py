@@ -18,7 +18,7 @@ import respx
 from pydantic import ValidationError
 
 from charter import CredentialError, Tool
-from charter.auth import StaticTokenProvider
+from charter.auth import StaticTokenProvider, SubjectProvider, use_subject
 from charter.packs import (
     firecrawl,
     gcalendar,
@@ -34,6 +34,7 @@ from charter.packs import (
     shopify,
     slack,
     stripe,
+    tavily,
 )
 
 ALL_PACKS = [
@@ -55,7 +56,17 @@ ALL_PACKS = [
 GOOGLE_PACKS = [gmail, gcalendar, gsheets, gdocs, gdrive, gforms]
 # Bearer-token packs, Google and otherwise — they share a configure() shape.
 OAUTH_PACKS = [gmail, gcalendar, gsheets, gdocs, gdrive, gforms, slack, github, notion]
-API_KEY_PACKS = [firecrawl, stripe, linear, granola]
+# Packs whose credential is an API key. They take it through a credential
+# provider like the OAuth packs, so one user's key never serves another's call.
+API_KEY_PACKS = [firecrawl, stripe, linear, granola, tavily]
+# Where each one reads its key from when configure() was never called.
+API_KEY_ENV = {
+    "firecrawl": "FIRECRAWL_API_KEY",
+    "stripe": "STRIPE_API_KEY",
+    "linear": "LINEAR_API_KEY",
+    "granola": "GRANOLA_API_KEY",
+    "tavily": "TAVILY_API_KEY",
+}
 # Shopify is a bearer pack with neither shape: its token goes in a header of its
 # own, and its configure() takes the store as well. Its own tests are below.
 
@@ -137,17 +148,17 @@ def test_google_packs_declare_google_scope_urls(pack):
 
 
 @pytest.mark.parametrize("pack", API_KEY_PACKS, ids=lambda p: p.__name__)
-def test_api_key_packs_use_header_auth_only(pack):
-    for tool in pack.TOOLS:
-        assert tool.api_key_headers is not None
-        assert tool.credential_provider is None
+def test_api_key_packs_read_their_key_per_call(pack):
+    """From a provider the runtime asks on every call, not a header dict.
 
-
-@pytest.mark.parametrize("pack", API_KEY_PACKS, ids=lambda p: p.__name__)
-def test_api_key_packs_resolve_headers_per_request(pack):
-    """Not a static dict — a callable the runtime invokes on every call."""
+    A header dict is one key for the process. An application whose users each
+    connect their own Stripe or Linear needs the key to follow the call, which
+    is what a credential provider — and a SubjectProvider in particular — does.
+    """
     for tool in pack.TOOLS:
-        assert callable(tool.api_key_headers)
+        assert tool.credential_provider is pack._credentials
+        assert tool.api_key_headers is None
+        assert tool.provider == pack.__name__.rsplit(".", 1)[-1]
 
 
 # -----------------------------------------------------
@@ -174,6 +185,7 @@ VALID_CALL = {
     "shopify": (lambda: shopify.shop_get, {}),
     "notion": (lambda: notion.users_retrieve_me, {}),
     "granola": (lambda: granola.notes_list, {}),
+    "tavily": (lambda: tavily.search, {"query": "x"}),
 }
 
 
@@ -191,10 +203,15 @@ async def test_unconfigured_google_pack_raises_credential_error(pack, monkeypatc
     assert "configure" in str(excinfo.value)
 
 
+def _unconfigure(pack, monkeypatch):
+    monkeypatch.setattr(pack._credentials, "_provider", None)
+    monkeypatch.delenv(API_KEY_ENV[pack.__name__.rsplit(".", 1)[-1]], raising=False)
+
+
 @pytest.mark.parametrize("pack", API_KEY_PACKS, ids=lambda p: p.__name__)
 async def test_unconfigured_api_key_pack_fails_before_any_request(pack, monkeypatch):
     """No doomed request should leave the process."""
-    monkeypatch.setattr(pack._headers, "_api_key", None)
+    _unconfigure(pack, monkeypatch)
     tool, args = _valid_call(pack)
     with respx.mock:
         route = respx.route().mock(return_value=httpx.Response(200, json={}))
@@ -205,11 +222,11 @@ async def test_unconfigured_api_key_pack_fails_before_any_request(pack, monkeypa
 
 @pytest.mark.parametrize("pack", API_KEY_PACKS, ids=lambda p: p.__name__)
 async def test_a_tool_added_without_ceremony_is_still_guarded(pack, monkeypatch):
-    """The regression that motivated resolving headers in the runtime.
+    """The regression that motivated resolving the credential in the runtime.
 
     Previously each tool had to opt in via build_request=_guard(...); a tool
     added without it sent the unconfigured sentinel over the wire."""
-    monkeypatch.setattr(pack._headers, "_api_key", None)
+    _unconfigure(pack, monkeypatch)
     reference, args = _valid_call(pack)
 
     plain = Tool(
@@ -218,7 +235,9 @@ async def test_a_tool_added_without_ceremony_is_still_guarded(pack, monkeypatch)
         method=reference.method,
         url_template=reference.url_template,
         base_url=reference.base_url,
-        api_key_headers=pack._headers,
+        provider=reference.provider,
+        credential_provider=pack._credentials,
+        token_header=reference.token_header,
     )
 
     with respx.mock:
@@ -230,7 +249,7 @@ async def test_a_tool_added_without_ceremony_is_still_guarded(pack, monkeypatch)
 
 @pytest.mark.parametrize("pack", API_KEY_PACKS, ids=lambda p: p.__name__)
 async def test_configure_after_construction_reaches_existing_tools(pack, monkeypatch):
-    monkeypatch.setattr(pack._headers, "_api_key", None)
+    _unconfigure(pack, monkeypatch)
     tool, args = _valid_call(pack)
     pack.configure(api_key="late-key")
 
@@ -238,6 +257,68 @@ async def test_configure_after_construction_reaches_existing_tools(pack, monkeyp
         route = respx.route().mock(return_value=httpx.Response(200, json={}))
         await tool.ainvoke(args)
         assert "late-key" in route.calls.last.request.headers["authorization"]
+
+
+@pytest.mark.parametrize("pack", API_KEY_PACKS, ids=lambda p: p.__name__)
+async def test_the_environment_variable_is_read_when_nothing_was_configured(pack, monkeypatch):
+    _unconfigure(pack, monkeypatch)
+    monkeypatch.setenv(API_KEY_ENV[pack.__name__.rsplit(".", 1)[-1]], "from-env")
+    tool, args = _valid_call(pack)
+
+    with respx.mock:
+        route = respx.route().mock(return_value=httpx.Response(200, json={}))
+        await tool.ainvoke(args)
+        assert "from-env" in route.calls.last.request.headers["authorization"]
+
+
+@pytest.mark.parametrize("pack", API_KEY_PACKS, ids=lambda p: p.__name__)
+async def test_each_user_s_call_carries_that_user_s_key(pack, monkeypatch):
+    """The gap this closes: one key per process meant every user acted as one.
+
+    A host whose users each connect their own account hands the pack a
+    SubjectProvider, and the key on the wire is the one for whoever the call is
+    for — with no per-call header the agent framework would have to pass.
+    """
+    _unconfigure(pack, monkeypatch)
+    keys = {"ada": "key-for-ada", "grace": "key-for-grace"}
+    pack.configure(credential_provider=SubjectProvider(lambda s: StaticTokenProvider(keys[s])))
+    tool, args = _valid_call(pack)
+
+    with respx.mock:
+        route = respx.route().mock(return_value=httpx.Response(200, json={}))
+        for subject in ("ada", "grace", "ada"):
+            with use_subject(subject):
+                await tool.ainvoke(args)
+        sent = [call.request.headers["authorization"] for call in route.calls]
+
+    for header, subject in zip(sent, ("ada", "grace", "ada"), strict=True):
+        assert header.endswith(keys[subject]), (subject, header)
+
+
+@pytest.mark.parametrize("pack", API_KEY_PACKS, ids=lambda p: p.__name__)
+async def test_a_call_with_no_user_set_is_refused_rather_than_guessed(pack, monkeypatch):
+    _unconfigure(pack, monkeypatch)
+    pack.configure(credential_provider=SubjectProvider(lambda s: StaticTokenProvider("k")))
+    tool, args = _valid_call(pack)
+
+    with respx.mock:
+        route = respx.route().mock(return_value=httpx.Response(200, json={}))
+        with pytest.raises(CredentialError, match="use_subject"):
+            await tool.ainvoke(args)
+        assert not route.called
+
+
+@pytest.mark.parametrize("pack", API_KEY_PACKS, ids=lambda p: p.__name__)
+def test_configure_takes_exactly_one_credential(pack, monkeypatch):
+    _unconfigure(pack, monkeypatch)
+    with pytest.raises(TypeError, match="one credential"):
+        pack.configure(api_key="k", credential_provider=StaticTokenProvider("k"))
+    with pytest.raises(TypeError, match="needs a credential"):
+        pack.configure()
+    with pytest.raises(CredentialError, match="empty API key"):
+        pack.configure(api_key="")
+    # None of the refusals configured anything.
+    assert pack._credentials.is_configured is False
 
 
 @pytest.fixture

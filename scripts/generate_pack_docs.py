@@ -196,7 +196,17 @@ _ICON_API_KEY = (
 )
 
 
-def _render_auth_short(tool: Tool) -> Tuple[str, str]:
+def _takes_a_key(module: ModuleType) -> bool:
+    """Whether this pack's credential is an API key, whatever carries it.
+
+    The key packs read it through a credential provider, like the OAuth packs,
+    so one process can serve each of its users their own. What makes one a key
+    pack is what ``configure()`` asks for, not which factory built its tools.
+    """
+    return "api_key" in inspect.signature(module.configure).parameters
+
+
+def _render_auth_short(module: ModuleType, tool: Tool) -> Tuple[str, str]:
     """The two words a reader is scanning for, and the glyph that carries them.
 
     The packs declare one OAuth flavour — a bearer token from a credential
@@ -204,6 +214,8 @@ def _render_auth_short(tool: Tool) -> Tuple[str, str]:
     two glyphs cover it. A pack that authenticates some third way would need a
     third here rather than falling into one of these.
     """
+    if _takes_a_key(module):
+        return _ICON_API_KEY, "API key"
     if tool.credential_provider is not None:
         # Same glyph: it is still an OAuth token from a credential provider, and
         # only the header it lands in differs. "Bearer" would be the one word
@@ -241,7 +253,7 @@ def render_summary(pack: str, module: ModuleType) -> str:
     count = f"{len(tools)} tool" + ("s" if len(tools) != 1 else "")
     pills = [
         _pill(_ICON_TOOLS, count),
-        _pill(*_render_auth_short(tools[0])),
+        _pill(*_render_auth_short(module, tools[0])),
     ]
     return '<div className="pack-summary">\n' + "\n".join(pills) + "\n</div>"
 
@@ -612,7 +624,10 @@ def _render_credential_source(module: ModuleType, tool: Tool) -> str:
     """
     holder = tool.credential_provider or tool.api_key_headers
     env_var = getattr(holder, "env_var", None)
-    if not env_var or len(inspect.signature(module.configure).parameters) != 1:
+    # A key pack's configure() takes the key or a provider of one: still one
+    # credential, in either of two shapes.
+    takes = len(inspect.signature(module.configure).parameters) - _takes_a_key(module)
+    if not env_var or takes != 1:
         return ""
     if getattr(holder, "env_grant", None) is not None:
         # A renewable grant is checked first; the variables it reads are too
@@ -817,7 +832,7 @@ def _credential_shapes(pack: str, provider: str, env_var: str, page: Optional[st
 def _takes_more_than_a_credential(module: ModuleType) -> bool:
     """Whether this OAuth pack's ``configure()`` takes anything besides the provider."""
     params = inspect.signature(module.configure).parameters
-    return "credential_provider" in params and len(params) > 1
+    return "credential_provider" in params and len(params) > 1 and not _takes_a_key(module)
 
 
 def _token_placement(tool: Tool) -> str:
@@ -845,6 +860,24 @@ def render_auth(pack: str, module: ModuleType) -> str:
     # First, because it is the question the reader arrived with: the error that
     # sent them here said "no credentials", and this says where one comes from.
     lead = _setup(pack, module).lead
+
+    if _takes_a_key(module):
+        # One key for the process is the script's shape. The other one — an
+        # application whose users each bring their own — is a provider instead
+        # of a string, and this is the only place a reader of a key pack learns
+        # that configure() takes one.
+        return (
+            f"{lead}\n"
+            "\n"
+            f"This pack takes an API key in `Authorization`{source}.\n"
+            "\n"
+            "That key serves every call the process makes. For an application"
+            " whose users each connect their own account, hand"
+            f" {_CONFIGURE} a `credential_provider` instead — a {_SUBJECT} that"
+            " answers per user — and each call carries the credential of the"
+            f" user {_USE_SUBJECT} names. [Your users' accounts](/auth/your-users)"
+            " says how each pack's users connect."
+        )
 
     if first.credential_provider is None:
         header = getattr(first.api_key_headers, "key_header", None)
@@ -1171,7 +1204,10 @@ def wire_declarations(pack: str, module: ModuleType) -> str:
     key_var = getattr(holder, "env_var", None)
     base_url = uniform(lambda t: t.base_url)
     host_var = getattr(base_url, "env_var", None) if callable(base_url) else None
-    reads, key_name, host_name = _env_bindings(module, None if oauth else key_var, host_var)
+    keyed = _takes_a_key(module)
+    reads, key_name, host_name = _env_bindings(
+        module, key_var if keyed or not oauth else None, host_var
+    )
 
     if _varies(base_url):
         base_url, exceptions = _dominant(tools, lambda t: t.base_url)
@@ -1202,10 +1238,15 @@ def wire_declarations(pack: str, module: ModuleType) -> str:
         provider = uniform(lambda t: t.provider)
         if not _varies(provider) and provider:
             kwargs.append((None, f"provider={_py(provider)}"))
-        kwargs.append((None, f"credential_provider={_py_credential(first)}"))
+        credential = f"StaticTokenProvider({key_name or '...'})" if keyed else _py_credential(first)
+        kwargs.append((None, f"credential_provider={credential}"))
         token_header = uniform(lambda t: t.token_header)
         if _varies(token_header):
             kwargs.append(("varies by tool", "token_header=..."))
+        elif token_header and token_header.lower() == "authorization":
+            kwargs.append(
+                ("the key is sent bare, with no Bearer", f"token_header={_py(token_header)}")
+            )
         elif token_header:
             kwargs.append(
                 ("the token is not sent in Authorization", f"token_header={_py(token_header)}")
@@ -1339,6 +1380,8 @@ def wire_declarations(pack: str, module: ModuleType) -> str:
     if any("os.environ" in line for line in body):
         lines += ["import os", ""]
     lines.append(f"from charter import {', '.join(sorted(imports))}")
+    if oauth and keyed:
+        lines.append("from charter.auth import StaticTokenProvider")
     lines.append("")
     lines += body
 
@@ -1445,7 +1488,15 @@ def pack_usage(pack: str, module: ModuleType) -> str:
     args: List[str] = []
     parameters = inspect.signature(module.configure).parameters
     for name, parameter in parameters.items():
-        if "credential_provider" in parameters and name not in ("credential_provider", "shop"):
+        if name == "credential_provider" and "api_key" in parameters:
+            # A key pack's provider is the multi-user shape; this tab is the
+            # one-account comparison, and the key is what its neighbour reads.
+            continue
+        if (
+            "credential_provider" in parameters
+            and "api_key" not in parameters
+            and name not in ("credential_provider", "shop")
+        ):
             # The other credential shapes are alternatives to this one, and the
             # tab hands over the same object as its neighbour.
             continue
@@ -1536,7 +1587,7 @@ def render_wire(pack: str, module: ModuleType) -> str:
         absent = f"{names} {does} not enter your dependency tree."
     else:
         absent = "No vendor SDK enters your dependency tree."
-    credential = "token" if oauth else "key"
+    credential = "token" if oauth and not _takes_a_key(module) else "key"
     lead = (
         f"{link} is the whole client: a thin wrapper over `httpx` that "
         f"attaches your {credential} and these endpoint constants to each "
@@ -1580,7 +1631,7 @@ def render_wire(pack: str, module: ModuleType) -> str:
     # Only for an OAuth pack. An API-key pack has one credential shape and its
     # tabs read the key straight from the environment on both sides, so there is
     # no picked-provider to place and nothing here to say.
-    if oauth:
+    if oauth and not _takes_a_key(module):
         which = (
             "the provider you built in"
             if _takes_more_than_a_credential(module)

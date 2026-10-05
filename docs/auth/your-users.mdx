@@ -1,0 +1,280 @@
+---
+title: "Connect your users' accounts"
+sidebarTitle: "Every pack"
+description: "How each pack's users connect their own account, what you store, and the one configure() call that serves all of them."
+---
+
+<Note>
+This page is for a product whose users each connect their own Stripe, Linear,
+Notion or Google account — the way they would connect one to any SaaS app.
+Connecting your own account to a script needs none of it:
+[your own account](/auth/your-own-account) covers that.
+</Note>
+
+Every pack serves many users the same way. Configure it once, with a
+[`SubjectProvider`](/reference/credentials#subjectprovider) that builds one
+user's credential from what you stored when they connected. Then name the user
+around each run:
+
+```python many_users.py
+from charter.auth import StaticTokenProvider, SubjectProvider, use_subject
+from charter.packs import granola
+
+
+# Yours to write: a user id in, that user's credential out.
+async def granola_for(user_id: str):
+    row = await db.keys.get(user_id, "granola")
+    return StaticTokenProvider(row.api_key)
+
+
+granola.configure(credential_provider=SubjectProvider(granola_for))
+
+# Per request: whose account the tools act on.
+with use_subject(request.user_id):
+    await agent.ainvoke(...)
+```
+
+The tools are built once, at import, and shared by every user. The credential is
+looked up below every adapter, so this works the same through MCP, LangChain, the
+OpenAI tools interface and the Claude Agent SDK. No per-call header has to get
+through the agent framework. A call with no user set raises instead of using
+someone else's credential.
+
+## Every pack
+
+The *connect* column is what your user does. *Store* is what you keep
+afterwards. *Provider* is what `for_user` returns.
+
+| Pack | Connect | Store | Provider |
+|---|---|---|---|
+| Gmail, Calendar, Sheets, Docs, Drive, Forms | an OAuth link | a refresh token | `OAuth2Client(GOOGLE, ...)` — [Google](/auth/providers/google) |
+| Slack | an OAuth link | the bot token, or a refresh token with rotation on | [Slack](/auth/providers/slack) |
+| GitHub | an OAuth link | a refresh token | `OAuth2Client(GITHUB, ...)` — [GitHub](/auth/providers/github) |
+| Notion | an OAuth link | a refresh token | `OAuth2Client(NOTION, ...)` — [below](#notion) |
+| Linear | an OAuth link, or a pasted personal key | a refresh token, or the key | `OAuth2Client(LINEAR, ...)` or `StaticTokenProvider` — [below](#linear) |
+| Stripe | a Stripe App install link, or a pasted restricted key | a refresh token, or the key | `OAuth2Client(STRIPE_APPS, ...)` or `StaticTokenProvider` — [below](#stripe) |
+| Shopify | an OAuth link on the merchant's store | the store, and its token | `StaticTokenProvider`, with `shop=` per call — [below](#shopify) |
+| Granola | a pasted API key | the key | `StaticTokenProvider` |
+| Firecrawl, Tavily | nothing: these are services you pay for | your own key | `configure(api_key=...)`, once |
+
+Every row takes the same [`OAuth2Flow`](/reference/oauth#oauth2flow), with a
+different server constant. [Getting the grant](/auth/oauth-flow) has the full
+shape: the two routes, `state`, PKCE, and what to store.
+
+A pasted key needs no flow. Show a field, check the key with one call, and
+store it the way you store any other secret.
+
+## Linear
+
+Linear access tokens last 24 hours, and Linear's refresh tokens rotate. It
+documents scopes as a comma-separated list.
+
+```python linear_users.py
+from charter.auth import OAuth2Client, OAuth2Flow, OAuth2Server, SubjectProvider
+from charter.packs import linear
+
+LINEAR = OAuth2Server(
+    issuer="https://linear.app",
+    authorization_endpoint="https://linear.app/oauth/authorize",
+    token_endpoint="https://api.linear.app/oauth/token",
+    token_endpoint_auth_method="client_secret_post",
+    scope_separator=",",
+)
+
+flow = OAuth2Flow(
+    LINEAR,
+    client_id=os.environ["LINEAR_CLIENT_ID"],
+    client_secret=os.environ["LINEAR_CLIENT_SECRET"],
+    redirect_uri="https://app.example.com/oauth/linear/callback",
+)
+request = flow.authorize(["read", "write"])  # the link your "Connect Linear" button opens
+
+
+async def linear_for(user_id: str):
+    row = await db.grants.get(user_id, "linear")
+    return OAuth2Client(
+        LINEAR,
+        client_id=os.environ["LINEAR_CLIENT_ID"],
+        client_secret=os.environ["LINEAR_CLIENT_SECRET"],
+        refresh_token=row.refresh_token,
+        on_refresh=partial(save_to_db, user_id),
+    )
+
+
+linear.configure(credential_provider=SubjectProvider(linear_for))
+```
+
+A user who pastes a personal API key instead gets a `StaticTokenProvider(key)`
+from the same `linear_for`. Linear wants a personal key with no scheme and an
+OAuth token as `Bearer`, and refuses each in the other's shape. The pack tells
+them apart by Linear's `lin_api_` prefix, so the two kinds of user can share one
+configuration.
+
+## Stripe
+
+A [Stripe App](https://docs.stripe.com/stripe-apps/api-authentication/oauth)
+gives the link-and-redirect experience. Your user installs it from the link,
+picks an account, and comes back. The app's permissions are set in its manifest,
+not in the link, so the flow sends no scopes. Stripe's token endpoint takes
+your app's own **secret key** as the credential: passed as `client_secret`, it is
+sent the way `curl -u sk_live_...:` sends it.
+
+```python stripe_users.py
+from charter.auth import OAuth2Client, OAuth2Flow, OAuth2Server, SubjectProvider
+from charter.packs import stripe
+
+STRIPE_APPS = OAuth2Server(
+    issuer="https://marketplace.stripe.com",
+    authorization_endpoint="https://marketplace.stripe.com/oauth/v2/authorize",
+    token_endpoint="https://api.stripe.com/v1/oauth/token",
+    token_endpoint_auth_method="secret_key_basic",
+    uses_scopes=False,
+)
+
+flow = OAuth2Flow(
+    STRIPE_APPS,
+    client_id=os.environ["STRIPE_APP_CLIENT_ID"],  # ca_..., from the app's settings
+    client_secret=os.environ["STRIPE_SECRET_KEY"],  # your developer account's sk_...
+    redirect_uri="https://app.example.com/oauth/stripe/callback",
+)
+request = flow.authorize()
+
+
+async def stripe_for(user_id: str):
+    row = await db.grants.get(user_id, "stripe")
+    return OAuth2Client(
+        STRIPE_APPS,
+        client_id=os.environ["STRIPE_APP_CLIENT_ID"],
+        client_secret=os.environ["STRIPE_SECRET_KEY"],
+        refresh_token=row.refresh_token,
+        on_refresh=partial(save_to_db, user_id),
+    )
+
+
+stripe.configure(credential_provider=SubjectProvider(stripe_for))
+```
+
+Stripe access tokens last an hour. Its refresh tokens roll on every use, so
+`on_refresh` has to store the new one. Stripe's documented token response has
+no `expires_in`. If yours has none either, the client finds out a token expired
+from the 401 that refuses it, and the next call refreshes. That first call
+still fails, so your agent should retry it.
+
+Not every product wants to publish a Stripe App. The other path is a
+[restricted key](https://docs.stripe.com/keys/restricted-api-keys) (`rk_...`):
+the user creates it with read-only permissions and pastes it, and `stripe_for`
+returns `StaticTokenProvider(row.api_key)`. Many tools start this way.
+
+A Connect platform is different again. It acts on its connected accounts with
+its own key and a `Stripe-Account` header, which is
+[per call](/packs/stripe), not a credential.
+
+## Notion
+
+A [public connection](https://developers.notion.com/docs/authorization) asks for
+nothing in its link. The user picks which pages to share on Notion's consent
+screen, and the connection's capabilities are set where you registered it.
+Notion's token endpoint takes JSON and HTTP Basic, where most servers take a
+form.
+
+```python notion_users.py
+from charter.auth import OAuth2Client, OAuth2Flow, OAuth2Server, SubjectProvider
+from charter.packs import notion
+
+NOTION = OAuth2Server(
+    issuer="https://api.notion.com",
+    authorization_endpoint="https://api.notion.com/v1/oauth/authorize",
+    token_endpoint="https://api.notion.com/v1/oauth/token",
+    token_endpoint_auth_method="client_secret_basic",
+    authorization_params={"owner": "user"},
+    uses_scopes=False,
+    token_request_format="json",
+)
+
+flow = OAuth2Flow(
+    NOTION,
+    client_id=os.environ["NOTION_CLIENT_ID"],
+    client_secret=os.environ["NOTION_CLIENT_SECRET"],
+    redirect_uri="https://app.example.com/oauth/notion/callback",
+)
+request = flow.authorize()
+
+
+async def notion_for(user_id: str):
+    row = await db.grants.get(user_id, "notion")
+    return OAuth2Client(
+        NOTION,
+        client_id=os.environ["NOTION_CLIENT_ID"],
+        client_secret=os.environ["NOTION_CLIENT_SECRET"],
+        refresh_token=row.refresh_token,
+        on_refresh=partial(save_to_db, user_id),
+    )
+
+
+notion.configure(credential_provider=SubjectProvider(notion_for))
+```
+
+## Shopify
+
+A merchant connects a store, and the store is part of the connection: the API
+host, the consent page and the token endpoint all sit on it. So the store is
+named per call as well as the token. `shop=` takes a function for exactly this,
+and it is called on every request:
+
+```python shopify_users.py
+from charter.auth import (
+    OAuth2Flow,
+    OAuth2Server,
+    StaticTokenProvider,
+    SubjectProvider,
+    current_subject,
+)
+from charter.packs import shopify
+
+
+def shopify_server(shop: str) -> OAuth2Server:
+    return OAuth2Server(
+        authorization_endpoint=f"https://{shop}.myshopify.com/admin/oauth/authorize",
+        token_endpoint=f"https://{shop}.myshopify.com/admin/oauth/access_token",
+        scope_separator=",",
+    )
+
+
+flow = OAuth2Flow(
+    shopify_server("merchant-store"),
+    client_id=os.environ["SHOPIFY_CLIENT_ID"],
+    client_secret=os.environ["SHOPIFY_CLIENT_SECRET"],
+    redirect_uri="https://app.example.com/oauth/shopify/callback",
+)
+request = flow.authorize(["read_products", "read_orders"])
+# Callback: also verify Shopify's `hmac` parameter before exchanging. Then
+# grant = await flow.exchange(code, expect_refresh_token=False)
+# and store the shop and grant.access_token for the user.
+
+stores = {"u1": "merchant-store"}  # yours: user id to store
+tokens = {"u1": "shpua_stored"}  # yours: user id to token
+
+
+async def shopify_for(user_id: str):
+    return StaticTokenProvider(tokens[user_id])
+
+
+shopify.configure(
+    shop=lambda: stores[current_subject.get()],
+    credential_provider=SubjectProvider(shopify_for),
+)
+```
+
+`exchange(..., expect_refresh_token=False)` is because Shopify's default
+offline token does not expire and comes with no refresh token. Pairing a
+per-call store with a single `access_token` raises: one store's token would go
+to every other store.
+
+## What stays yours
+
+The same line as everywhere in Charter's auth. The consent routes, the session
+that holds `state` and the PKCE verifier, the database the grants live in, and
+any encryption at rest are your application's. Charter builds the link, exchanges
+the code, refreshes the grant, and puts the right user's credential on each call.
+[Security invariants](/auth/oauth-flow#security-invariants) lists the rules the
+callback has to keep.

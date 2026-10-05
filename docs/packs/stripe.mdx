@@ -43,18 +43,25 @@ hands back are all declared in [the wire contract](/tools/wire-contract).
 
 This pack takes an API key in `Authorization`, and [`configure()`](/reference/configuration#configure) is optional when `$STRIPE_API_KEY` is set.
 
-There is no authorization server, no consent screen and no refresh — [API keys](/auth/api-key-tool-factory) is the whole story.
+That key serves every call the process makes. For an application whose users each connect their own account, hand [`configure()`](/reference/configuration#configure) a `credential_provider` instead — a [`SubjectProvider`](/reference/credentials#subjectprovider) that answers per user — and each call carries the credential of the user [`use_subject`](/reference/credentials#use_subject) names. [Your users' accounts](/auth/your-users) says how each pack's users connect.
 {/* generated:auth end */}
 
 Prefer a [restricted key](https://docs.stripe.com/keys/restricted-api-keys)
 scoped to what the agent actually needs — an agent that only reads should not
 hold a key that can issue refunds.
 
+When your users connect their own Stripe accounts, each one's credential is
+either a restricted key they paste or the token a
+[Stripe App](https://docs.stripe.com/stripe-apps/api-authentication/oauth)
+install returns, and both are sent the same way. The Stripe section of
+[Connect your users' accounts](/auth/your-users#stripe) declares the Stripe Apps
+server and the flow.
+
 ## The client
 
 {/* generated:wire start — do not edit by hand; run scripts/generate_pack_docs.py */}
 <Note>
-[`api_key_tool_factory`](/reference/factories#api_key_tool_factory) is the whole client: a thin wrapper over `httpx` that attaches your key and these endpoint constants to each request. `stripe` does not enter your dependency tree.
+[`oauth_tool_factory`](/reference/factories#oauth_tool_factory) is the whole client: a thin wrapper over `httpx` that attaches your key and these endpoint constants to each request. `stripe` does not enter your dependency tree.
 </Note>
 
 <div className="named-tabs" data-files="stripe_api_client.py|stripe_pack_client.py">
@@ -63,13 +70,15 @@ hold a key that can issue refunds.
 ```python Without the pack
 import os
 
-from charter import api_key_tool_factory
+from charter import oauth_tool_factory
+from charter.auth import StaticTokenProvider
 
 api_key = os.environ["STRIPE_API_KEY"]
 
-stripe_api_client = api_key_tool_factory(
+stripe_api_client = oauth_tool_factory(
     base_url="https://api.stripe.com/",
-    api_key_headers={"Authorization": f"Bearer {api_key}"},
+    provider="stripe",
+    credential_provider=StaticTokenProvider(api_key),
     pack="stripe",
     body_format="form",
     query_format="bracket",

@@ -63,6 +63,15 @@ _PROVIDER_PAGES = {
     "google": "auth/providers/google",
     "slack": "auth/providers/slack",
     "github": "auth/providers/github",
+    # The key packs. Each reads its key through a credential provider, so that
+    # one process can hold a key per user, which makes the call look like a
+    # bearer call; what the reader of a refused key needs is still where the key
+    # comes from, and that is its pack page's own section.
+    "stripe": "packs/stripe#authenticating",
+    "linear": "packs/linear#authenticating",
+    "granola": "packs/granola#authenticating",
+    "firecrawl": "packs/firecrawl#authenticating",
+    "tavily": "packs/tavily#authenticating",
 }
 
 

@@ -201,7 +201,7 @@ class OAuth2Flow:
 
     def authorize(
         self,
-        scopes: Iterable[str],
+        scopes: Iterable[str] = (),
         *,
         state: Optional[str] = None,
         login_hint: Optional[str] = None,
@@ -217,9 +217,21 @@ class OAuth2Flow:
         server's ``authorization_params``, then ``extra_params`` — but neither
         map may override identity (``client_id``, ``redirect_uri``) or the
         CSRF/PKCE material (``state``, ``code_challenge*``).
+
+        A server declared with ``uses_scopes=False`` takes no scopes, and none is
+        sent: its permissions were fixed when the app was registered.
         """
         scope_list = list(scopes)
-        if not scope_list:
+        if not self.server.uses_scopes:
+            if scope_list:
+                raise CredentialError(
+                    f"The server for {self.server.token_endpoint} is declared with "
+                    "uses_scopes=False — its permissions are set where the app is "
+                    f"registered — so the scopes {scope_list} would be ignored. Set "
+                    "them on the app instead, and call authorize() without them.",
+                    docs="auth/authorization-servers",
+                )
+        elif not scope_list:
             raise CredentialError(
                 "authorize() was called with no scopes. An authorization request "
                 "for nothing is always a bug upstream — pass "
@@ -240,9 +252,10 @@ class OAuth2Flow:
             "response_type": "code",
             "client_id": self._client_id,
             "redirect_uri": self.redirect_uri,
-            "scope": " ".join(scope_list),
-            "state": state,
         }
+        if scope_list:
+            params["scope"] = self.server.scope_separator.join(scope_list)
+        params["state"] = state
         code_verifier: Optional[str] = None
         if pkce:
             code_verifier = _pkce_verifier()
@@ -309,6 +322,7 @@ class OAuth2Flow:
             headers,
             client=self._http,
             timeout=self._timeout,
+            request_format=self.server.token_request_format,
         )
         payload = _json_payload(resp, self.server.token_endpoint, None)
         failure = _token_failure(payload, resp.status_code, None)

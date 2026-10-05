@@ -106,9 +106,9 @@ async def test_org_usage_posts_required_organization_name():
 
 async def test_unconfigured_pack_raises_before_a_request(monkeypatch):
     monkeypatch.delenv("TAVILY_API_KEY", raising=False)
-    tavily._headers._api_key = None  # noqa: SLF001 — test the guard directly
+    monkeypatch.setattr(tavily._credentials, "_provider", None)
 
-    with pytest.raises(CredentialError, match="no API key"):
+    with pytest.raises(CredentialError, match="no credentials"):
         await tavily.search.ainvoke(query="test")
 
 

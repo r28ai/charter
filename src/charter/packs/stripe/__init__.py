@@ -13,6 +13,12 @@ Stripe — sixty-six tools over the Stripe API.
 `restricted key <https://docs.stripe.com/keys/restricted-api-keys>`_ scoped to
 what the agent actually needs.
 
+For an application whose users each connect their own Stripe account, pass
+``configure(credential_provider=...)`` instead — a
+:class:`~charter.auth.SubjectProvider` returning each user's pasted restricted
+key, or an :class:`~charter.auth.OAuth2Client` over the grant a Stripe App
+install returned. Either is sent as ``Authorization: Bearer``.
+
 Stripe is the pack that exercises the wire contract hardest:
 
 **Form-encoded, not JSON.** Stripe speaks
@@ -75,8 +81,11 @@ Known limit, named rather than hidden:
 
 from __future__ import annotations
 
-from charter.factories import api_key_tool_factory
-from charter.packs._config import DeferredApiKeyHeaders, api_key_headers
+from typing import Optional
+
+from charter.auth import CredentialProvider
+from charter.factories import oauth_tool_factory
+from charter.packs._config import DeferredCredentialProvider, configure_key_or_provider
 from charter.packs.stripe.response_handlers import (
     trim_accounts,
     trim_application_fees,
@@ -197,23 +206,28 @@ STRIPE_SEARCH_PAGINATION = Pagination(
     more_field="has_more",
 )
 
-_headers: DeferredApiKeyHeaders = api_key_headers(
-    "stripe",
-    {"Authorization": "Bearer CHARTER_UNCONFIGURED"},
-    "Authorization",
-    "STRIPE_API_KEY",
-)
+_credentials = DeferredCredentialProvider("stripe", env_var="STRIPE_API_KEY")
 
 
-def configure(api_key: str) -> None:
-    """Supply the Stripe secret or restricted key for this pack's tools."""
-    _headers.configure(api_key)
+def configure(
+    api_key: Optional[str] = None,
+    *,
+    credential_provider: Optional[CredentialProvider] = None,
+) -> None:
+    """Supply a Stripe secret or restricted key, or a provider of one per call.
+
+    ``api_key`` is one account for the whole process. ``credential_provider`` is
+    read on every call, so a :class:`~charter.auth.SubjectProvider` serves each
+    of your users their own.
+    """
+    configure_key_or_provider(_credentials, api_key, credential_provider)
 
 
-_stripe = api_key_tool_factory(
+_stripe = oauth_tool_factory(
     pack="stripe",
     base_url=BASE_URL,
-    api_key_headers=_headers,
+    provider="stripe",
+    credential_provider=_credentials,
     # Stripe is snake_case natively, and form-encoded in both directions.
     body_case="snake",
     query_case="snake",

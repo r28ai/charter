@@ -1,14 +1,16 @@
 ---
 title: "Getting the grant"
 description: "Build the authorization URL and exchange the callback's code. The route, session, and storage stay yours."
-sidebarTitle: "Your users' accounts"
+sidebarTitle: "Getting the grant"
 ---
 
 <Note>
 This page is the flow **inside your app**, for a product whose users each
 connect their own account. Connecting one account — yours — to a script or an
 agent you run needs none of it: [your own account](/auth/your-own-account)
-names what each pack needs, and each guide ends in a working call.
+names what each pack needs, and each guide ends in a working call. For what
+each pack's users connect with, and the server constants, see
+[every pack](/auth/your-users).
 </Note>
 
 Charter's OAuth surface has two halves. [`OAuth2Client`](/auth/authorization-servers)

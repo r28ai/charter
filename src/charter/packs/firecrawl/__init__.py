@@ -30,8 +30,11 @@ Notion file uploads).
 
 from __future__ import annotations
 
-from charter.factories import api_key_tool_factory
-from charter.packs._config import DeferredApiKeyHeaders, api_key_headers
+from typing import Optional
+
+from charter.auth import CredentialProvider
+from charter.factories import oauth_tool_factory
+from charter.packs._config import DeferredCredentialProvider, configure_key_or_provider
 from charter.packs.firecrawl.response_handlers import (
     extract_map,
     extract_scrape,
@@ -101,12 +104,7 @@ from charter.types.pagination import Pagination
 BASE_URL = "https://api.firecrawl.dev/v2/"
 QUOTA_DOC_URL = "https://docs.firecrawl.dev/rate-limits"
 
-_headers: DeferredApiKeyHeaders = api_key_headers(
-    "firecrawl",
-    {"Authorization": "Bearer CHARTER_UNCONFIGURED"},
-    "Authorization",
-    "FIRECRAWL_API_KEY",
-)
+_credentials = DeferredCredentialProvider("firecrawl", env_var="FIRECRAWL_API_KEY")
 
 FIRECRAWL_ENVELOPE = Envelope(ok_field="success", error_field="error")
 
@@ -117,15 +115,25 @@ ACTIVITY_PAGINATION = Pagination(
 )
 
 
-def configure(api_key: str) -> None:
-    """Supply the Firecrawl API key for this pack's tools."""
-    _headers.configure(api_key)
+def configure(
+    api_key: Optional[str] = None,
+    *,
+    credential_provider: Optional[CredentialProvider] = None,
+) -> None:
+    """Supply the Firecrawl API key for this pack's tools, or a provider of one per call.
+
+    ``api_key`` is one account for the whole process. ``credential_provider`` is
+    read on every call, so a :class:`~charter.auth.SubjectProvider` serves each
+    of your users their own.
+    """
+    configure_key_or_provider(_credentials, api_key, credential_provider)
 
 
-_firecrawl = api_key_tool_factory(
+_firecrawl = oauth_tool_factory(
     pack="firecrawl",
     base_url=BASE_URL,
-    api_key_headers=_headers,
+    provider="firecrawl",
+    credential_provider=_credentials,
     body_case="camel",
     query_case="camel",
     envelope=FIRECRAWL_ENVELOPE,

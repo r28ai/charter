@@ -190,14 +190,89 @@ async def test_a_personal_api_key_is_sent_with_no_bearer_prefix():
     assert respx.calls.last.request.headers["authorization"] == "lin_api_test123"
 
 
-def test_headers_resolve_per_request():
+@respx.mock
+async def test_an_oauth_access_token_is_sent_as_bearer():
+    """The other half: Linear refuses an OAuth token sent the personal-key way."""
+    from charter.auth import StaticTokenProvider
+
+    linear.configure(credential_provider=StaticTokenProvider("00a21d8b0c4e2375114e49c0"))
+    respx.post(API).mock(return_value=httpx.Response(200, json={"data": {"viewer": {"id": "u1"}}}))
+
+    await linear.viewer.ainvoke()
+
+    assert respx.calls.last.request.headers["authorization"] == "Bearer 00a21d8b0c4e2375114e49c0"
+
+
+@respx.mock
+async def test_users_holding_either_kind_of_credential_share_one_set_of_tools():
+    """An application's users connect by OAuth or paste a key, and both work at once."""
+    from charter.auth import StaticTokenProvider, SubjectProvider, use_subject
+
+    held = {"ada": "lin_api_ada", "grace": "oauth-token-grace"}
+    linear.configure(credential_provider=SubjectProvider(lambda s: StaticTokenProvider(held[s])))
+    route = respx.post(API).mock(
+        return_value=httpx.Response(200, json={"data": {"viewer": {"id": "u1"}}})
+    )
+
+    for subject in ("ada", "grace"):
+        with use_subject(subject):
+            await linear.viewer.ainvoke()
+
+    assert [c.request.headers["authorization"] for c in route.calls] == [
+        "lin_api_ada",
+        "Bearer oauth-token-grace",
+    ]
+
+
+@respx.mock
+async def test_a_refused_oauth_token_reaches_the_client_that_cached_it():
+    """The provider issued the bare token; the 401 must be reported in its terms.
+
+    Reported as `Bearer ...`, an OAuth2Client compares it with the token it holds,
+    finds no match, and keeps sending the refused one until it expires — a day,
+    on Linear.
+    """
+    from charter.auth import OAuth2Client, OAuth2Server
+
+    server = OAuth2Server(token_endpoint="https://api.linear.app/oauth/token")
+    respx.post(server.token_endpoint).mock(
+        side_effect=[
+            httpx.Response(200, json={"access_token": "first", "expires_in": 86399}),
+            httpx.Response(200, json={"access_token": "second", "expires_in": 86399}),
+        ]
+    )
+    api = respx.post(API).mock(
+        side_effect=[
+            httpx.Response(401, json={"errors": [{"message": "Authentication required"}]}),
+            httpx.Response(200, json={"data": {"viewer": {"id": "u1"}}}),
+        ]
+    )
+    linear.configure(
+        credential_provider=OAuth2Client(
+            server, client_id="c", client_secret="s", refresh_token="r"
+        )
+    )
+
+    with pytest.raises(CredentialError):
+        await linear.viewer.ainvoke()
+    await linear.viewer.ainvoke()
+
+    assert [c.request.headers["authorization"] for c in api.calls] == [
+        "Bearer first",
+        "Bearer second",
+    ]
+
+
+def test_the_credential_is_read_per_call():
     for tool in linear.TOOLS:
-        assert callable(tool.api_key_headers)
+        assert tool.credential_provider is linear._credentials
+        assert tool.token_header == "Authorization"
 
 
 @respx.mock
 async def test_an_unconfigured_pack_raises_before_it_reaches_the_network(monkeypatch):
-    monkeypatch.setattr(linear._headers, "_api_key", None)
+    monkeypatch.setattr(linear._credentials, "_provider", None)
+    monkeypatch.delenv("LINEAR_API_KEY", raising=False)
     route = respx.post(API).mock(return_value=httpx.Response(200, json={}))
 
     with pytest.raises(CredentialError, match="configure"):

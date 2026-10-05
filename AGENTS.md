@@ -74,6 +74,12 @@ field, and not something Charter generates. See [docs/tools/wire-contract.md](do
 move the token into `api_key_headers`: those are resolved synchronously and
 cannot wait on a renewal.
 
+**A pack whose credential is an API key.** Build it on `oauth_tool_factory`
+with a `DeferredCredentialProvider`, and have `configure()` call
+`configure_key_or_provider` (`packs/_config.py`) so it takes `api_key=` or
+`credential_provider=`. A key held in `api_key_headers` is one key for the
+process, which no application serving its own users can use.
+
 **A constant the API wants on every request** (Azure `api-version`, a
 `Notion-Version` header). Use `static_query` / `static_headers` on the factory.
 Never put it in the schema: the model would see a field it must not set.

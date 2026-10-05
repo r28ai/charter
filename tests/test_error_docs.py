@@ -123,7 +123,7 @@ def _pack_credentials_restored():
 @pytest.mark.parametrize(
     "pack_name,host,configure,expected",
     [
-        ("stripe", "api.stripe.com", {"api_key": "sk_bad"}, "auth/api-key-tool-factory"),
+        ("stripe", "api.stripe.com", {"api_key": "sk_bad"}, "packs/stripe#authenticating"),
         ("gmail", "gmail.googleapis.com", None, "auth/providers/google"),
     ],
     ids=["api-key pack", "bearer pack"],
@@ -240,8 +240,10 @@ def test_the_provider_fallback_resolves(bearer):
 
 def test_an_unmapped_provider_does_not_invent_a_page():
     """The lookup is a map on purpose. An f-string here would 404 for eight packs."""
-    assert provider_docs("stripe", bearer=False) == "auth/api-key-tool-factory"
+    assert provider_docs("openweather", bearer=False) == "auth/api-key-tool-factory"
     assert provider_docs(None, bearer=True) == "auth/your-own-account"
+    # A shipped key pack is mapped, to the section that says where its key comes from.
+    assert provider_docs("stripe", bearer=True) == "packs/stripe#authenticating"
 
 
 def test_a_rejected_api_key_is_not_sent_to_the_oauth_page():
