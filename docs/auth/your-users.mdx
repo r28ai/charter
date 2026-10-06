@@ -88,7 +88,14 @@ at [linear.app/settings/api](https://linear.app/settings/api):
 [Register a Linear OAuth application](/auth/apps/linear).
 
 ```python linear_users.py
-from charter.auth import OAuth2Client, OAuth2Flow, OAuth2Server, SubjectProvider, TokenGrant
+from charter.auth import (
+    OAuth2Client,
+    OAuth2Flow,
+    OAuth2Server,
+    Revocation,
+    SubjectProvider,
+    TokenGrant,
+)
 from charter.packs import linear
 
 LINEAR = OAuth2Server(
@@ -98,6 +105,9 @@ LINEAR = OAuth2Server(
     token_endpoint_auth_method="client_secret_post",
     scope_separator=",",
     dead_grant_errors=("invalid_request",),
+    revocation=Revocation(
+        "https://api.linear.app/oauth/revoke", auth_method="none", gone_statuses=(400,)
+    ),
 )
 
 flow = OAuth2Flow(
@@ -236,7 +246,14 @@ form. [Register a public Notion integration](/auth/apps/notion) has the
 screens.
 
 ```python notion_users.py
-from charter.auth import OAuth2Client, OAuth2Flow, OAuth2Server, SubjectProvider, TokenGrant
+from charter.auth import (
+    OAuth2Client,
+    OAuth2Flow,
+    OAuth2Server,
+    Revocation,
+    SubjectProvider,
+    TokenGrant,
+)
 from charter.packs import notion
 
 NOTION = OAuth2Server(
@@ -247,6 +264,7 @@ NOTION = OAuth2Server(
     authorization_params={"owner": "user"},
     uses_scopes=False,
     token_request_format="json",
+    revocation=Revocation("https://api.notion.com/v1/oauth/revoke", token_type="access_token"),
 )
 
 flow = OAuth2Flow(
@@ -310,6 +328,7 @@ from charter.auth import (
     OAuth2Client,
     OAuth2Flow,
     OAuth2Server,
+    Revocation,
     SubjectProvider,
     TokenGrant,
     current_subject,
@@ -323,6 +342,13 @@ def shopify_server(shop: str) -> OAuth2Server:
         token_endpoint=f"https://{shop}.myshopify.com/admin/oauth/access_token",
         scope_separator=",",
         exchange_params={"expiring": "1"},  # an offline token that expires, with a refresh token
+        revocation=Revocation(  # uninstalls the app from the store
+            f"https://{shop}.myshopify.com/admin/api_permissions/current.json",
+            token_type="access_token",
+            token_header="X-Shopify-Access-Token",
+            auth_method="none",
+            http_method="DELETE",
+        ),
     )
 
 
@@ -370,11 +396,59 @@ to a custom app, keeps working as `StaticTokenProvider(token)`, exchanged with
 `expect_refresh_token=False`. Pairing a per-call store with a single
 `access_token` raises: one store's token would go to every other store.
 
+## Disconnecting a user
+
+A "Disconnect" button revokes the grant at the provider, then deletes your
+row. Deleting the row alone leaves the grant live, with every scope it was
+given, and your app still listed on the user's account. The `SubjectProvider`
+the pack is configured with does both lookups for you:
+
+```python disconnect.py
+from charter.auth import SubjectProvider
+
+linear_users = SubjectProvider(linear_for)  # the one given to linear.configure()
+
+
+async def disconnect(user_id: str):
+    await linear_users.revoke(user_id)  # builds their client, revokes, forgets it
+    await db.grants.delete(user_id, "linear")
+```
+
+[`revoke(user_id)`](/reference/credentials#subjectprovider) returns `False`
+when the grant was already gone (the user removed the app on the provider's
+side first) and raises only when the provider refused for some other reason.
+Delete the row after it, not before: the client reads the grant from your
+store to know what to revoke, and under `refresh_lock` it is the grant the
+store holds, not one another process has already rotated.
+
+What each server is sent is on its declaration, so the call is the same for
+every pack:
+
+- **Linear** takes the refresh token alone at `oauth/revoke`, and answers
+  `400` for one already revoked.
+- **Notion** takes the access token, as JSON with the client's Basic auth,
+  at `v1/oauth/revoke`. Notion's reference documents the endpoint with an
+  access token, so that is what is sent.
+- **Shopify** has no revocation endpoint. Its documented way to end an
+  installation's access is to uninstall the app with the store's own token,
+  `DELETE /admin/api_permissions/current.json`, so that is the declaration.
+  The merchant can install it again from your link. A store already
+  uninstalled answers `401`, which counts as gone.
+- **Stripe Apps** documents no endpoint that revokes an app's grant, so
+  `STRIPE_APPS` declares none and `revoke()` raises
+  [`DeclarationError`](/reference/errors#declarationerror) saying so. Delete
+  the row. The user uninstalls the app from their Dashboard, Stripe sends
+  your app `account.application.deauthorized`, and an unused refresh token
+  expires after a year.
+- **A pasted key** (Linear's personal key, a Stripe restricted key, Granola)
+  was made by the user, and only they can delete it. Delete the row.
+
 ## What stays yours
 
 The same line as everywhere in Charter's auth. The consent routes, the session
 that holds `state` and the PKCE verifier, the database the grants live in, and
 any encryption at rest are your application's. Charter builds the link, exchanges
-the code, refreshes the grant, and puts the right user's credential on each call.
+the code, refreshes the grant, revokes it when the user disconnects, and puts
+the right user's credential on each call.
 [Security invariants](/auth/oauth-flow#security-invariants) lists the rules the
 callback has to keep.

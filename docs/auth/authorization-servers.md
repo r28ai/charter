@@ -36,7 +36,8 @@ This is the path for the enterprise IdP nobody has heard of — which is almost
 always one of the products above, and therefore *more* discoverable than the
 consumer APIs the packs talk to, not less.
 
-Discovery fills in the `authorization_endpoint` too, when the document has one.
+Discovery fills in the `authorization_endpoint` too, when the document has one,
+and the `revocation_endpoint` that a disconnect button needs.
 What it can never fill in is `authorization_params` — see
 [Google](/auth/providers/google), where those two parameters decide whether the
 integration lives past its first hour.
@@ -99,6 +100,7 @@ is specified on [`OAuth2Server`](/reference/oauth#oauth2server):
 | `uses_scopes` | `False` for a server whose permissions are set where the app is registered (Notion, Stripe Apps): `authorize()` then takes no scopes and sends no `scope`; default `True` |
 | `scope_separator` | how the consent link joins scopes: the RFC's space by default, `","` for Linear and Shopify |
 | `token_request_format` | `"form"`, as the RFC says, or `"json"` for a token endpoint that takes only JSON (Notion) |
+| `revocation` | how the server ends a grant, a [`Revocation`](/reference/oauth#revocation): RFC 7009 by default; see [Disconnecting a user](#disconnecting-a-user) |
 
 If a wrong choice fails loudly it is safe to write down — a server expecting
 Basic answers `invalid_client` on the first call. That is why these are declared
@@ -232,6 +234,88 @@ A provider of your own can take part by defining `invalidate(credentials)`.
 `SubjectProvider` passes it on to the current subject's provider, and the packs'
 own providers pass it on to the client they hold.
 
+## Disconnecting a user
+
+Deleting a stored refresh token does not disconnect anybody. The grant stays
+live at the server with every scope it was given, the app stays on the user's
+list of connected apps, and for a server whose refresh tokens never expire,
+Google's among them, that is permanent. Disconnecting is a request to the
+server, and it is one more piece of protocol:
+[RFC 7009](https://www.rfc-editor.org/rfc/rfc7009) token revocation.
+
+The server says how it takes that request in its declaration, as
+[`revocation`](/reference/oauth#revocation), and the client sends it:
+
+```python acme_disconnect.py
+from charter.auth import OAuth2Client, OAuth2Server, Revocation
+
+server = OAuth2Server(
+    token_endpoint="https://login.acme-corp.com/oauth2/v1/token",
+    revocation=Revocation("https://login.acme-corp.com/oauth2/v1/revoke"),
+)
+
+client = OAuth2Client(
+    server, client_id=CLIENT_ID, client_secret=CLIENT_SECRET,
+    refresh_token=stored_refresh_token,
+)
+await client.revoke()   # True: revoked. False: it was already gone.
+await db.grants.delete(user.id, "acme")
+```
+
+[`discover()`](/reference/oauth#oauth2server-discover) fills `revocation` in
+from the server's `revocation_endpoint`, so most enterprise IdPs need nothing
+written. The vendors depart from the RFC in small ways, each a field on
+`Revocation`: GitHub, Slack and Shopify end a grant given a live access token
+rather than the refresh token, GitHub and Shopify with a `DELETE`. The
+declarations on the provider pages already carry them.
+
+Serving many users, [`SubjectProvider.revoke(user_id)`](/reference/credentials#subjectprovider)
+builds that user's client from your store, revokes, and forgets it, in one
+call:
+
+```python acme_disconnect_route.py
+from charter.auth import SubjectProvider
+
+users = SubjectProvider(for_user)  # give this one to the factory, and keep it
+
+
+async def disconnect(user_id: str):
+    await users.revoke(user_id)
+    await db.grants.delete(user_id, "acme")
+```
+
+A token you hold as a string, with no client around it, is
+[`revoke_token(server, refresh_token=..., access_token=...)`](/reference/oauth#revoke_token).
+
+**Already gone is not an error.** A user who removed the app from their
+account settings first, or a grant that expired, comes back as the server's
+"invalid token". `revoke()` returns `False` rather than raising, since the
+user is disconnected either way. Any other refusal, such as a wrong client
+secret, raises [`CredentialError`](/reference/errors#credentialerror) and
+leaves the client as it was, so the call can be retried.
+
+**A revoked client does not refresh.** Afterwards `get_credentials` raises a
+`CredentialError` whose `reauthorize` is true, without asking the token
+endpoint. A client built with a [`GrantLoader`](/reference/oauth#grantloader)
+recovers on its own once the store holds a new grant: the user connected
+again.
+
+**Delete your row after the revocation, not before.** The client needs the
+refresh token to send. A loader-backed client reads the store under its
+`refresh_lock` first, so in a multi-process deployment the token revoked is
+the one the store holds, not one another process has already rotated away
+from.
+
+| server | what disconnecting sends | page |
+|---|---|---|
+| Google | the refresh token, alone | [Google](/auth/providers/google#disconnecting) |
+| Slack | `apps.uninstall`, with the bot token | [Slack](/auth/providers/slack#disconnecting) |
+| GitHub | `DELETE /applications/{client_id}/grant`, with an access token | [GitHub](/auth/providers/github#disconnecting) |
+| Linear | the refresh token, alone | [Your users](/auth/your-users#disconnecting-a-user) |
+| Notion | the access token, as JSON with Basic auth | [Your users](/auth/your-users#disconnecting-a-user) |
+| Shopify | `DELETE api_permissions/current.json`, which uninstalls the app | [Your users](/auth/your-users#disconnecting-a-user) |
+| Stripe Apps | nothing: Stripe documents no revocation for an app's grant | [Your users](/auth/your-users#disconnecting-a-user) |
+
 ## What Charter does not do
 
 **It does not hold anything between `authorize()` and `exchange()`.** The two
@@ -247,5 +331,7 @@ SigV4 out. Two grants are supported, both a plain form POST:
 **It does not store a token.** The access token lives in memory for the seconds
 it is valid. Persistence is yours, through `on_refresh` — which is also how a
 multi-process deployment shares one refresh: your store is the shared cache.
+Deleting the row when a user disconnects is yours for the same reason;
+revoking the grant at the server is Charter's.
 
 [rfc8414]: https://www.rfc-editor.org/rfc/rfc8414

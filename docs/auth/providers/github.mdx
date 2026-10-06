@@ -12,7 +12,7 @@ tokens — and that is the shape [`OAuth2Client`](/reference/oauth#oauth2client)
 ## The server
 
 ```python github_server.py
-from charter.auth import OAuth2Server
+from charter.auth import OAuth2Server, Revocation
 
 GITHUB = OAuth2Server(
     issuer="https://github.com",
@@ -20,6 +20,15 @@ GITHUB = OAuth2Server(
     token_endpoint="https://github.com/login/oauth/access_token",
     token_endpoint_auth_method="client_secret_post",
     dead_grant_errors=("bad_refresh_token",),
+    revocation=Revocation(
+        "https://api.github.com/applications/{client_id}/grant",
+        token_type="access_token",
+        auth_method="client_secret_basic",
+        token_field="access_token",
+        http_method="DELETE",
+        request_format="json",
+        gone_statuses=(422,),
+    ),
 )
 ```
 
@@ -30,6 +39,10 @@ different host from the one that issues the token.
 
 No `authorization_params`: GitHub takes its refresh behaviour from the app's own
 settings rather than from the authorization request.
+
+`revocation` deletes the user's authorization of your app, which is
+[GitHub's REST API](https://docs.github.com/en/rest/apps/oauth-applications#delete-an-app-authorization)
+rather than an RFC 7009 endpoint: [Disconnecting](#disconnecting).
 
 `dead_grant_errors` is GitHub's name for a dead grant. A spent, expired or
 revoked refresh token comes back as `bad_refresh_token` in an `HTTP 200`, rather
@@ -182,6 +195,38 @@ nothing like what you expected.
 ignored and no `code_verifier` is ever checked. Charter still sends both by
 default, harmlessly. Verifying `state` at the callback is the CSRF defense that
 actually holds on this server.
+
+## Disconnecting
+
+GitHub ends a grant through its API: `DELETE /applications/{client_id}/grant`
+on `api.github.com`, authenticated with the app's client ID and secret as Basic
+auth, given any live access token of the user's in a JSON body. It deletes
+every token the app holds for that user, and the app leaves their list of
+authorized apps. A refresh token cannot be presented there, so the declaration
+asks for an access token, and `OAuth2Client.revoke()` refreshes first if its
+own has lapsed.
+
+Every token type in the table above revokes the same way. A token that never
+expires has no client around it, so revoke it as a string:
+
+```python github_disconnect.py
+from charter.auth import revoke_token
+
+
+async def disconnect():
+    row = await db.keys.get(user.id, "github")
+    await revoke_token(
+        GITHUB,
+        access_token=row.api_key,
+        client_id=os.environ["GITHUB_CLIENT_ID"],
+        client_secret=os.environ["GITHUB_CLIENT_SECRET"],
+    )
+```
+
+GitHub answers `204` when it deleted the authorization and `422` when the token
+was not valid, which `revoke_token` returns as `False`: the authorization is
+already gone. A personal access token is not an authorization of your app, so
+there is nothing for the app to revoke; its owner deletes it in their settings.
 
 ## Where the rest is
 

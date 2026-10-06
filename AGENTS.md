@@ -47,7 +47,8 @@ src/charter/
   factories.py api_key_tool_factory, oauth_tool_factory
   auth/        the whole of authentication, and the only place it lives:
                credentials.py (CredentialProvider + shipped providers),
-               oauth.py (OAuth2Server/Client), flow.py (OAuth2Flow).
+               oauth.py (OAuth2Server/Client, Revocation), flow.py
+               (OAuth2Flow), revocation.py (revoke_token).
                Import from `charter.auth`; nothing here is re-exported
                from `charter`.
   egress.py    the egress map — what each tool can expose to the model

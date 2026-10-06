@@ -62,7 +62,14 @@ is somewhere else. Row by row, with each half's link:
 ## The flow
 
 ```python oauth_routes.py
-from charter.auth import OAuth2Client, OAuth2Flow, OAuth2Server, scopes_for, states_match
+from charter.auth import (
+    OAuth2Client,
+    OAuth2Flow,
+    OAuth2Server,
+    Revocation,
+    scopes_for,
+    states_match,
+)
 from charter.packs import gmail
 
 # The constant as it is maintained on /auth/providers/google.
@@ -71,6 +78,7 @@ GOOGLE = OAuth2Server(
     authorization_endpoint="https://accounts.google.com/o/oauth2/v2/auth",
     token_endpoint="https://oauth2.googleapis.com/token",
     authorization_params={"access_type": "offline", "prompt": "consent"},
+    revocation=Revocation("https://oauth2.googleapis.com/revoke", auth_method="none"),
 )
 
 flow = OAuth2Flow(
@@ -283,6 +291,16 @@ this process. But the store then holds a refresh token the server has already
 spent, and the next worker presents it. Against reuse detection, that one
 failed write disconnects the user, so make sure it alerts you.
 
+## Ending the grant
+
+The flow has a third protocol step, at the other end of the connection: when
+the user disconnects, the grant is revoked at the server (RFC 7009), and only
+then is your row deleted. `await client.revoke()` sends it, as the server's
+declaration says; with many users, `await provider.revoke(user_id)` on the
+`SubjectProvider` finds the client first. Deleting the row alone leaves the
+grant alive. [Disconnecting a user](/auth/authorization-servers#disconnecting-a-user)
+has the rest.
+
 ## Security invariants
 
 **PKCE always.** On by default, S256 only — there is no `plain` method and
@@ -310,7 +328,7 @@ redirectors and token leaks happen.
 masked; a grant in a log line leaks nothing. Servers quote what they refuse
 ("Refresh token does not exist: rt_..."), so a token endpoint's error has every
 credential the request sent replaced by `***` before it becomes a
-`CredentialError`.
+`CredentialError`. A revocation endpoint's error is redacted the same way.
 
 ## Trying it from a terminal
 

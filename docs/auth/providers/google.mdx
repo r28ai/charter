@@ -11,7 +11,7 @@ screen, one refresh token, one [`OAuth2Client`](/reference/oauth#oauth2client) h
 ## The server
 
 ```python google_server.py
-from charter.auth import OAuth2Server
+from charter.auth import OAuth2Server, Revocation
 
 GOOGLE = OAuth2Server(
     issuer="https://accounts.google.com",
@@ -19,12 +19,17 @@ GOOGLE = OAuth2Server(
     token_endpoint="https://oauth2.googleapis.com/token",
     token_endpoint_auth_method="client_secret_post",
     authorization_params={"access_type": "offline", "prompt": "consent"},
+    revocation=Revocation("https://oauth2.googleapis.com/revoke", auth_method="none"),
 )
 ```
 
 This is the canonical copy. `scripts/live_google_check.py` holds the same
 constant in Python and fails if Google's own discovery document stops agreeing
 with it.
+
+`revocation` is how a user is disconnected: [Disconnecting](#disconnecting).
+Google documents its revocation endpoint with the token alone, so
+`auth_method="none"` keeps the client secret out of that request.
 
 Google does publish metadata, so
 `await OAuth2Server.discover("https://accounts.google.com")` builds the same
@@ -194,6 +199,40 @@ worth recognising before you go looking for a bug in your storage.
 **`login_hint` is a hint.** It pre-fills the account chooser; the user can pick a
 different account. If your product ties the grant to an email address, read the
 address back from the API rather than trusting the one you asked for.
+
+## Disconnecting
+
+A "Disconnect Google" button has to revoke the grant, not only delete your
+row. Without the revocation the refresh token keeps working, your app stays
+under the user's [third-party connections](https://myaccount.google.com/connections)
+with every scope it was given, and Google's refresh tokens do not expire on
+their own.
+
+```python google_disconnect.py
+async def disconnect():
+    row = await db.grants.get(user.id, "google")
+    client = OAuth2Client(
+        GOOGLE,
+        client_id=os.environ["GOOGLE_CLIENT_ID"],
+        client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
+        refresh_token=row.refresh_token,
+    )
+    await client.revoke()
+    await db.grants.delete(user.id, "google")
+```
+
+[`revoke()`](/reference/oauth#attributes-and-methods) posts the refresh token
+to `https://oauth2.googleapis.com/revoke`, which ends the grant and every
+access token issued from it, for all six packs at once. A grant the user
+already removed from their account answers `invalid_token`, and `revoke()`
+returns `False` rather than raising, since the outcome is the one asked for.
+Serving many users through `SubjectProvider`, `await provider.revoke(user.id)`
+does the lookup and the revocation, then forgets the user's client:
+[Disconnecting a user](/auth/authorization-servers#disconnecting-a-user).
+
+Revoking also gives back one of the hundred refresh tokens Google allows per
+account per client, which matters to an app whose users connect and disconnect
+often.
 
 ## Where the rest is
 

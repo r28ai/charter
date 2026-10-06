@@ -44,7 +44,7 @@ import os
 from pathlib import Path
 from typing import Optional, Set, Tuple
 
-from charter.auth import CredentialProvider, OAuth2Client, OAuth2Server
+from charter.auth import CredentialProvider, OAuth2Client, OAuth2Server, Revocation
 from charter.types.errors import CredentialError
 
 __all__ = ["GOOGLE", "GoogleEnvGrant", "ENV_GRANT"]
@@ -57,6 +57,7 @@ GOOGLE = OAuth2Server(
     token_endpoint="https://oauth2.googleapis.com/token",
     token_endpoint_auth_method="client_secret_post",
     authorization_params={"access_type": "offline", "prompt": "consent"},
+    revocation=Revocation("https://oauth2.googleapis.com/revoke", auth_method="none"),
 )
 
 TOKEN_FILE = "GOOGLE_TOKEN_FILE"

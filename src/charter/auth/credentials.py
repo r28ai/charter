@@ -372,6 +372,44 @@ class SubjectProvider:
         """Drop a subject's provider — after a revocation, or a sign-out."""
         self._providers.pop(subject, None)
 
+    async def revoke(self, subject: str) -> bool:
+        """Disconnect one subject: end their grant at the server, then forget them.
+
+        Builds the subject's provider if it is not held (your factory reads
+        their stored grant, as for a tool call), calls its ``revoke()`` —
+        :meth:`OAuth2Client.revoke <charter.auth.OAuth2Client.revoke>` — and
+        drops it. Named rather than read from :data:`current_subject`: a
+        disconnect is a request about one user, not a tool call made as one.
+
+        Returns what ``revoke()`` returned: ``True`` when the server confirmed
+        it, ``False`` when the grant was already gone. The provider is
+        forgotten either way, and on a failure too, so the next lookup reads
+        your store again. Deleting the stored grant is yours, after this.
+
+        A provider with no ``revoke()``, such as a
+        :class:`StaticTokenProvider`, raises :class:`CredentialError`: it holds
+        a token but not the server that issued it.
+        """
+        if not subject:
+            raise CredentialError("revoke() requires a non-empty subject")
+        built = await self._provider_for(subject)
+        try:
+            revoke = getattr(built, "revoke", None)
+            if not callable(revoke):
+                raise CredentialError(
+                    f"The provider for subject {subject!r} is a {type(built).__name__}, "
+                    "which has no revoke(): it holds a token, not the server that issued "
+                    "it. Revoke with charter.auth.revoke_token(server, access_token=...), "
+                    "or have the factory return an OAuth2Client.",
+                    docs="reference/credentials#subjectprovider",
+                )
+            result = revoke()
+            if inspect.isawaitable(result):
+                result = await result
+            return bool(result)
+        finally:
+            self.forget(subject)
+
     def invalidate(self, credentials: Credentials) -> None:
         """Pass a rejection on to the provider of the subject this call is for.
 

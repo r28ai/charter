@@ -16,14 +16,17 @@ credential lookup, which the surrounding page has always assumed.
 from __future__ import annotations
 
 import ast
+import base64
 import importlib
 import importlib.util
+import json
 import os
 import re
 import sys
 from functools import partial
 from pathlib import Path as FsPath
 from types import SimpleNamespace
+from urllib.parse import parse_qs
 
 import httpx
 import pytest
@@ -32,6 +35,7 @@ from tests._doc_blocks import run_doc_block
 
 import charter
 import charter.auth
+from charter.auth import OAuth2Client, revoke_token
 
 ROOT = FsPath(__file__).resolve().parent.parent
 DOCS = [
@@ -76,6 +80,9 @@ class _Grants:
 
     async def put(self, subject, provider, refresh_token, **shared):
         self.stored = (subject, provider, refresh_token)
+
+    async def delete(self, subject, provider):
+        self.deleted = (subject, provider)
 
 
 def _stubs() -> dict:
@@ -249,6 +256,13 @@ async def test_every_python_block_runs(doc, monkeypatch):
             await _run_block(source, namespace, f"<{doc.name} block {index}>")
 
 
+# What a server declaration is written in, and nothing else.
+_DECLARATIONS = {
+    "OAuth2Server": charter.auth.OAuth2Server,
+    "Revocation": charter.auth.Revocation,
+}
+
+
 def _declared_server(path: FsPath, name: str) -> charter.auth.OAuth2Server:
     """The ``name = OAuth2Server(...)`` a file declares, built from its own source.
 
@@ -269,7 +283,7 @@ def _declared_server(path: FsPath, name: str) -> charter.auth.OAuth2Server:
                 ast.copy_location(expression, node.value)
                 return eval(  # noqa: S307 — this repo's own docs and scripts
                     compile(expression, str(path), "eval"),
-                    {"OAuth2Server": charter.auth.OAuth2Server},
+                    _DECLARATIONS,
                 )
     raise AssertionError(f"{path.name} declares no {name}")
 
@@ -311,24 +325,26 @@ def test_the_live_check_holds_the_constant_the_page_tells_readers_to_paste(page,
     assert _declared_server(ROOT / page, name) == _declared_server(LIVE_CHECK, name)
 
 
+def _shopify_server_from(source: str):
+    """The ``shopify_server`` function a source defines, built from it alone."""
+    for node in ast.parse(source).body:
+        if isinstance(node, ast.FunctionDef) and node.name == "shopify_server":
+            namespace: dict = dict(_DECLARATIONS)
+            exec(
+                compile(ast.Module(body=[node], type_ignores=[]), "<shopify_server>", "exec"),
+                namespace,
+            )  # noqa: S102
+            return namespace["shopify_server"]
+    raise AssertionError("no shopify_server")
+
+
 def test_the_live_check_builds_shopify_s_server_as_the_page_does():
     """A function on both sides, since the store is part of the server."""
-
-    def built(source: str):
-        for node in ast.parse(source).body:
-            if isinstance(node, ast.FunctionDef) and node.name == "shopify_server":
-                namespace: dict = {"OAuth2Server": charter.auth.OAuth2Server}
-                exec(
-                    compile(ast.Module(body=[node], type_ignores=[]), "<shopify_server>", "exec"),
-                    namespace,
-                )  # noqa: S102
-                return namespace["shopify_server"]("my-store")
-        raise AssertionError("no shopify_server")
-
     page = next(
         b for b in _python_blocks(ROOT / "docs/auth/your-users.mdx") if "def shopify_server" in b
     )
-    assert built(page) == built(LIVE_CHECK.read_text())
+    built = _shopify_server_from(page)("my-store")
+    assert built == _shopify_server_from(LIVE_CHECK.read_text())("my-store")
 
 
 async def test_the_grant_snippet_really_reaches_storage(monkeypatch):
@@ -413,3 +429,120 @@ def test_both_themes_of_the_diagram_are_committed_and_referenced():
         assert image.exists(), f"{image.name} is missing — run scripts/generate_split_diagram.py"
         assert image.stat().st_size > 4096, f"{image.name} looks empty"
         assert f"/images/oauth-split-{theme}.webp" in section
+
+
+# -----------------------------------------------------
+# What each documented server is sent
+# -----------------------------------------------------
+#
+# The constants are read from the pages readers paste them from, so a page
+# that changes its declaration changes what is pinned here.
+
+PROVIDERS = ROOT / "docs/auth/providers"
+YOUR_USERS = ROOT / "docs/auth/your-users.mdx"
+
+
+def _form(request: httpx.Request) -> dict[str, str]:
+    return {k: v[0] for k, v in parse_qs(request.content.decode()).items()}
+
+
+def _basic(request: httpx.Request) -> str:
+    scheme, _, encoded = request.headers["Authorization"].partition(" ")
+    assert scheme == "Basic"
+    return base64.b64decode(encoded).decode()
+
+
+@respx.mock
+async def test_google_is_sent_the_refresh_token_alone():
+    google = _declared_server(PROVIDERS / "google.mdx", "GOOGLE")
+    route = respx.post("https://oauth2.googleapis.com/revoke").mock(
+        return_value=httpx.Response(200)
+    )
+    client = OAuth2Client(google, client_id="cid", client_secret="csec", refresh_token="1//rt")
+    assert await client.revoke() is True
+    request = route.calls.last.request
+    assert _form(request) == {"token": "1//rt"}  # no client secret where none is asked for
+
+
+@respx.mock
+async def test_slack_uninstalls_the_app_with_the_bot_token():
+    slack = _declared_server(PROVIDERS / "slack.mdx", "SLACK")
+    route = respx.post("https://slack.com/api/apps.uninstall").mock(
+        return_value=httpx.Response(200, json={"ok": True})
+    )
+    # An app without rotation: a bot token, revoked as a string.
+    assert await revoke_token(slack, access_token="xoxb-1", client_id="cid", client_secret="csec")
+    request = route.calls.last.request
+    assert request.headers["Authorization"] == "Bearer xoxb-1"
+    assert _form(request) == {"client_id": "cid", "client_secret": "csec"}
+
+    route.mock(return_value=httpx.Response(200, json={"ok": False, "error": "invalid_auth"}))
+    assert (
+        await revoke_token(slack, access_token="xoxb-1", client_id="cid", client_secret="csec")
+        is False
+    )
+
+
+@respx.mock
+async def test_github_deletes_the_grant_by_access_token():
+    github = _declared_server(PROVIDERS / "github.mdx", "GITHUB")
+    route = respx.delete("https://api.github.com/applications/Iv1.app/grant").mock(
+        return_value=httpx.Response(204)
+    )
+    assert await revoke_token(
+        github, access_token="gho_1", client_id="Iv1.app", client_secret="csec"
+    )
+    request = route.calls.last.request
+    assert _basic(request) == "Iv1.app:csec"
+    assert json.loads(request.content) == {"access_token": "gho_1"}
+
+    route.mock(return_value=httpx.Response(422, json={"message": "Validation Failed"}))
+    assert (
+        await revoke_token(github, access_token="gho_1", client_id="Iv1.app", client_secret="csec")
+        is False
+    )
+
+
+@respx.mock
+async def test_linear_is_sent_the_refresh_token_alone():
+    linear = _declared_server(YOUR_USERS, "LINEAR")
+    route = respx.post("https://api.linear.app/oauth/revoke").mock(return_value=httpx.Response(200))
+    assert await revoke_token(linear, refresh_token="lin_rt")
+    assert _form(route.calls.last.request) == {"token": "lin_rt"}
+
+    route.mock(return_value=httpx.Response(400))  # "e.g. token was already revoked"
+    assert await revoke_token(linear, refresh_token="lin_rt") is False
+
+
+@respx.mock
+async def test_notion_is_sent_json_with_basic_auth():
+    notion = _declared_server(YOUR_USERS, "NOTION")
+    route = respx.post("https://api.notion.com/v1/oauth/revoke").mock(
+        return_value=httpx.Response(200, json={"request_id": "r1"})
+    )
+    assert await revoke_token(notion, access_token="ntn_at", client_id="cid", client_secret="csec")
+    request = route.calls.last.request
+    assert json.loads(request.content) == {"token": "ntn_at"}
+    assert _basic(request) == "cid:csec"
+
+
+@respx.mock
+async def test_shopify_uninstalls_the_app_from_the_store():
+    (block,) = [b for b in _python_blocks(YOUR_USERS) if "def shopify_server" in b]
+    shopify = _shopify_server_from(block)("merchant")
+    route = respx.delete("https://merchant.myshopify.com/admin/api_permissions/current.json").mock(
+        return_value=httpx.Response(200, json={})
+    )
+    assert await revoke_token(shopify, access_token="shpat_1")
+    request = route.calls.last.request
+    assert request.headers["X-Shopify-Access-Token"] == "shpat_1"
+    assert "Authorization" not in request.headers
+
+    route.mock(return_value=httpx.Response(401, json={"errors": "[API] Invalid API key"}))
+    assert await revoke_token(shopify, access_token="shpat_1") is False
+
+
+def test_stripe_apps_declares_no_revocation():
+    """Stripe documents no endpoint that revokes a Stripe App's grant, so none
+    is declared, and revoke() says so rather than guessing at one."""
+    assert _declared_server(YOUR_USERS, "STRIPE_APPS").revocation is None

@@ -13,7 +13,8 @@ Two modules, one import path. :mod:`charter.auth.credentials` is the seam —
 already hold, plus ``SubjectProvider`` for putting any of them behind an
 end-user identity. :mod:`charter.auth.oauth` is the protocol — ``OAuth2Server``
 declares a token endpoint, ``OAuth2Client`` refreshes against it, and
-``OAuth2Flow`` covers the two steps of obtaining a grant in the first place. The
+``OAuth2Flow`` covers the two steps of obtaining a grant in the first place, and
+``revoke_token`` / ``OAuth2Client.revoke`` the one step of ending it. The
 split is where the code lives, not what you import: import from
 ``charter.auth``.
 
@@ -48,8 +49,11 @@ from charter.auth.oauth import (
     OAuth2Server,
     OnRefresh,
     RefreshLock,
+    Revocation,
+    RevocationAuthMethod,
     TokenEndpointAuthMethod,
     TokenGrant,
+    revoke_token,
     scopes_for,
     states_match,
 )
@@ -78,10 +82,14 @@ __all__ = [
     "TokenGrant",
     "states_match",
     "scopes_for",
+    # ending the grant — the disconnect button
+    "Revocation",
+    "revoke_token",
     # the types those signatures are declared in — a host writing its own
     # wrapper has to name them
     "Grant",
     "TokenEndpointAuthMethod",
+    "RevocationAuthMethod",
     "OnRefresh",
     "GrantLoader",
     "RefreshLock",

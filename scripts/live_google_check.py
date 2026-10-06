@@ -46,6 +46,7 @@ from charter import (
 from charter.auth import (
     OAuth2Client,
     OAuth2Server,
+    Revocation,
 )
 
 ADC_PATH = FsPath(
@@ -63,6 +64,7 @@ DOCUMENTED = OAuth2Server(
     token_endpoint="https://oauth2.googleapis.com/token",
     token_endpoint_auth_method="client_secret_post",
     authorization_params={"access_type": "offline", "prompt": "consent"},
+    revocation=Revocation("https://oauth2.googleapis.com/revoke", auth_method="none"),
 )
 
 
@@ -101,8 +103,15 @@ async def main() -> int:
     print(f"   authorization_ep    {server.authorization_endpoint}")
     print(f"   auth method         {server.token_endpoint_auth_method}")
     # authorization_params is registration lore, never in the metadata document,
-    # so the discovered declaration is compared against everything but it.
-    documented = dataclasses.replace(DOCUMENTED, authorization_params={})
+    # so the discovered declaration is compared against everything but it. So is
+    # the revocation's auth_method: the document names the endpoint, and that it
+    # takes the token alone is in Google's prose, not its metadata.
+    assert DOCUMENTED.revocation is not None
+    documented = dataclasses.replace(
+        DOCUMENTED,
+        authorization_params={},
+        revocation=Revocation(DOCUMENTED.revocation.endpoint),
+    )
     if server == documented:
         print("   matches docs/auth/providers/google.mdx")
     else:

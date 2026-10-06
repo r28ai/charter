@@ -11,6 +11,27 @@ here, with the migration in the same entry.
 
 ### Added
 
+- **Disconnecting a user revokes the grant.** Charter could connect a user and
+  keep their token fresh, but had no way to disconnect one, so a "Disconnect"
+  button either deleted the stored refresh token, which leaves the grant live
+  at the provider with every scope it was given and the app still listed on
+  the user's account, or called the provider's revocation endpoint by hand
+  beside Charter. `OAuth2Server(revocation=Revocation(...))` declares how a
+  server ends a grant: RFC 7009 by default, one POST of the refresh token, and
+  each vendor's departure a field rather than code. `await client.revoke()`
+  sends it, `await subject_provider.revoke(user_id)` does it for one user of
+  many and forgets their client, and `revoke_token(server, ...)` revokes a
+  token held as a string, such as a Slack bot token. A grant already gone
+  returns `False` rather than raising, and a revoked client refuses to refresh
+  until the user connects again. `discover()` reads `revocation_endpoint`.
+  Every documented server declares one: Google and Linear (the refresh token
+  alone), Notion (the access token, JSON and Basic auth), GitHub
+  (`DELETE /applications/{client_id}/grant`), Slack (`apps.uninstall`) and
+  Shopify (`DELETE api_permissions/current.json`, which uninstalls the app).
+  Stripe Apps documents no revocation, so `STRIPE_APPS` declares none and
+  `revoke()` says so. The Google packs' shared `GOOGLE` declaration carries
+  its revocation too.
+
 - **Several processes can serve one user against a server that rotates.**
   Each worker's client held its own copy of the grant. Once one worker
   refreshed, the others' refresh tokens were spent, so their next refresh

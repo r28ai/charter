@@ -68,6 +68,7 @@ from typing import (
     Literal,
     Mapping,
     Optional,
+    TypeVar,
     Union,
 )
 from urllib.parse import quote_plus
@@ -80,6 +81,9 @@ from charter.types.errors import CredentialError, DeclarationError
 __all__ = [
     "OAuth2Server",
     "OAuth2Client",
+    "Revocation",
+    "RevocationAuthMethod",
+    "revoke_token",
     "OAuth2Flow",
     "AuthorizationRequest",
     "TokenGrant",
@@ -93,6 +97,8 @@ __all__ = [
 ]
 
 logger = logging.getLogger("charter")
+
+_T = TypeVar("_T")
 
 TokenEndpointAuthMethod = Literal["client_secret_post", "client_secret_basic", "secret_key_basic"]
 """How the client authenticates to the token endpoint (RFC 6749 §2.3.1).
@@ -148,10 +154,143 @@ A window rather than a permanent mark, because some servers answer
 ``invalid_grant`` for transient reasons such as clock skew.
 """
 
+RevocationAuthMethod = Literal[
+    "client_secret_post", "client_secret_basic", "secret_key_basic", "none"
+]
+"""How the client authenticates to a revocation endpoint.
+
+The token endpoint's methods, plus ``none`` for an endpoint that takes the token
+alone. Google's is one: its revocation endpoint is documented with nothing but
+``token``, so the client secret is not sent somewhere it is not asked for.
+"""
+
 
 # -----------------------------------------------------
 # The server
 # -----------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Revocation:
+    """How a server ends a grant: RFC 7009 unless declared otherwise.
+
+    The defaults are the RFC. One POST to ``endpoint`` carrying the refresh
+    token as ``token``, authenticated the way the token endpoint is, in the
+    body format the token endpoint takes. Revoking a refresh token ends the
+    grant and, where the server supports it, every access token issued from it
+    (RFC 7009 §2.1), so the user disappears from the account's list of
+    connected apps. Google, Linear and Notion are this shape, and a server that
+    publishes ``revocation_endpoint`` in its metadata gets one from
+    :meth:`OAuth2Server.discover`.
+
+    The rest of the fields are how a vendor departs from it, each written down
+    rather than coded, as the token endpoint's departures are:
+
+    ``token_type`` is which token the endpoint takes. ``"access_token"`` is for
+    an endpoint that ends the grant given any live access token: GitHub's
+    ``DELETE /applications/{client_id}/grant``, Slack's ``apps.uninstall``,
+    Shopify's ``api_permissions/current.json``. An
+    :class:`OAuth2Client` refreshes first if its cached token has lapsed.
+
+    ``auth_method`` is how the client authenticates, when it differs from the
+    token endpoint. ``None`` inherits; ``"none"`` sends no client credentials.
+
+    ``token_field`` is the body field carrying the token, ``"token"`` when
+    left as ``None``. GitHub names it ``access_token``.
+
+    ``token_header`` sends the token as the request's own credential instead of
+    in the body. ``"Authorization"`` sends it as ``Bearer``; any other header
+    gets the bare token, as Shopify's ``X-Shopify-Access-Token`` does. It only
+    makes sense with ``token_type="access_token"``, and cannot be combined with
+    ``token_field``.
+
+    ``http_method`` is ``"POST"``, or ``"DELETE"`` for GitHub and Shopify.
+
+    ``request_format`` is the body format, inheriting the token endpoint's
+    when ``None``. GitHub's API takes JSON where its token endpoint takes a
+    form.
+
+    ``gone_errors`` and ``gone_statuses`` are how the server says the token was
+    already dead, which for a disconnect is the outcome asked for rather than a
+    failure. ``invalid_token`` (RFC 7009 §2.2.1), ``invalid_grant`` and the
+    server's ``dead_grant_errors`` always count, and so does a ``401`` when the
+    token is the request's own credential. Anything else raises.
+
+    ``{client_id}`` in ``endpoint`` is replaced with the client ID, since
+    GitHub's endpoint is per registration.
+    """
+
+    endpoint: str
+    token_type: Literal["refresh_token", "access_token"] = "refresh_token"
+    auth_method: Optional[RevocationAuthMethod] = None
+    token_field: Optional[str] = None
+    token_header: Optional[str] = None
+    http_method: Literal["POST", "DELETE"] = "POST"
+    request_format: Optional[Literal["form", "json"]] = None
+    gone_errors: tuple[str, ...] = ()
+    gone_statuses: tuple[int, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.endpoint, str) or not self.endpoint:
+            raise DeclarationError(
+                "Revocation requires an endpoint", docs="reference/oauth#revocation"
+            )
+        if self.token_type not in ("refresh_token", "access_token"):
+            raise DeclarationError(
+                f"token_type must be 'refresh_token' or 'access_token', got {self.token_type!r}"
+            )
+        if self.auth_method not in (
+            None,
+            "client_secret_post",
+            "client_secret_basic",
+            "secret_key_basic",
+            "none",
+        ):
+            raise DeclarationError(
+                "auth_method must be None, 'client_secret_post', 'client_secret_basic', "
+                f"'secret_key_basic' or 'none', got {self.auth_method!r}"
+            )
+        if self.http_method not in ("POST", "DELETE"):
+            raise DeclarationError(
+                f"http_method must be 'POST' or 'DELETE', got {self.http_method!r}"
+            )
+        if self.request_format not in (None, "form", "json"):
+            raise DeclarationError(
+                f"request_format must be None, 'form' or 'json', got {self.request_format!r}"
+            )
+        if self.token_field is not None and not self.token_field:
+            raise DeclarationError("token_field must not be empty; leave it None for 'token'")
+        if self.token_header is not None:
+            if not self.token_header:
+                raise DeclarationError("token_header must not be empty")
+            if self.token_field is not None:
+                raise DeclarationError(
+                    "A Revocation sends the token in token_field or in token_header, "
+                    f"not both: got token_field={self.token_field!r} and "
+                    f"token_header={self.token_header!r}."
+                )
+            if self.token_type != "access_token":
+                raise DeclarationError(
+                    "token_header sends the token as the request's own credential, "
+                    "and only an access token authenticates a request. Declare "
+                    "token_type='access_token' with it.",
+                    docs="reference/oauth#revocation",
+                )
+        codes = self.gone_errors
+        if isinstance(codes, str) or not all(isinstance(c, str) and c for c in codes):
+            raise DeclarationError(
+                f"gone_errors must be a tuple of error codes, such as ('invalid_auth',), got {codes!r}"
+            )
+        object.__setattr__(self, "gone_errors", tuple(codes))
+        statuses = self.gone_statuses
+        if isinstance(statuses, (str, int)) or not all(
+            isinstance(s, int) and not isinstance(s, bool) and 400 <= s < 500 for s in statuses
+        ):
+            raise DeclarationError(
+                "gone_statuses must be a tuple of 4xx status codes, such as (422,), "
+                f"got {statuses!r}"
+            )
+        object.__setattr__(self, "gone_statuses", tuple(statuses))
 
 
 @dataclass(frozen=True)
@@ -215,6 +354,12 @@ class OAuth2Server:
     :class:`CredentialError` whose ``reauthorize`` is true. ``invalid_grant``
     always counts, so a server that uses only the RFC's code declares nothing
     here.
+
+    ``revocation`` is how the server ends a grant, for the "disconnect" button:
+    :class:`Revocation`, which is RFC 7009 unless it says otherwise.
+    :meth:`OAuth2Client.revoke` and :func:`revoke_token` send it. ``None``
+    means the server documents no way to, and Stripe Apps is the case: there
+    the grant ends when the user uninstalls the app or the host forgets it.
     """
 
     token_endpoint: str
@@ -228,6 +373,7 @@ class OAuth2Server:
     default_expires_in: Optional[int] = None
     exchange_params: Mapping[str, str] = field(default_factory=dict)
     dead_grant_errors: tuple[str, ...] = ()
+    revocation: Optional[Revocation] = None
 
     def __post_init__(self) -> None:
         if not self.token_endpoint:
@@ -293,6 +439,23 @@ class OAuth2Server:
                 f"('invalid_refresh_token',), got {codes!r}"
             )
         object.__setattr__(self, "dead_grant_errors", tuple(codes))
+        revocation = self.revocation
+        if revocation is not None:
+            if not isinstance(revocation, Revocation):
+                raise DeclarationError(
+                    "revocation must be a Revocation, such as "
+                    f"Revocation('https://.../revoke'), got {revocation!r}",
+                    docs="reference/oauth#revocation",
+                )
+            auth = revocation.auth_method or self.token_endpoint_auth_method
+            header = (revocation.token_header or "").lower()
+            if header == "authorization" and auth in ("client_secret_basic", "secret_key_basic"):
+                raise DeclarationError(
+                    f"The revocation sends the token in the Authorization header, and "
+                    f"{auth} authenticates the client in the same header. Declare "
+                    "auth_method='client_secret_post' or 'none' on the Revocation.",
+                    docs="reference/oauth#revocation",
+                )
 
     @classmethod
     async def discover(
@@ -400,7 +563,36 @@ class OAuth2Server:
                 if isinstance(authorization_endpoint, str) and authorization_endpoint
                 else None
             ),
+            revocation=_discovered_revocation(document, method),
         )
+
+
+def _discovered_revocation(
+    document: Dict[str, Any], token_method: TokenEndpointAuthMethod
+) -> Optional[Revocation]:
+    """The RFC 7009 endpoint a metadata document advertises, if Charter can use it.
+
+    ``revocation_endpoint_auth_methods_supported`` is read the way the token
+    endpoint's list is: the token endpoint's method is kept if the list allows
+    it, and absent means the RFC default. A list naming nothing Charter can send
+    leaves revocation undeclared rather than failing discovery, since the
+    declaration still refreshes tokens.
+    """
+    endpoint = document.get("revocation_endpoint")
+    if not isinstance(endpoint, str) or not endpoint:
+        return None
+    supported = document.get("revocation_endpoint_auth_methods_supported")
+    if not isinstance(supported, list) or not supported or token_method in supported:
+        return Revocation(endpoint)
+    candidates: tuple[RevocationAuthMethod, ...] = (
+        "client_secret_post",
+        "client_secret_basic",
+        "none",
+    )
+    for method in candidates:
+        if method in supported:
+            return Revocation(endpoint, auth_method=method)
+    return None
 
 
 # -----------------------------------------------------
@@ -775,6 +967,96 @@ class OAuth2Client:
                 self.server.issuer or self.server.token_endpoint,
             )
 
+    async def revoke(self) -> bool:
+        """End the grant at the server, then stop using it here: the disconnect button.
+
+        Sends the server's :class:`Revocation`. With the RFC's shape that is the
+        refresh token, which ends the grant and every access token issued from
+        it. With a vendor's that takes an access token it is the cached one,
+        refreshed first if it has lapsed. A client built with a
+        :data:`GrantLoader` reads the store first, under its ``refresh_lock``,
+        so it revokes the grant the store holds and not one another process
+        has since rotated.
+
+        Returns ``True`` when the server confirmed the revocation and ``False``
+        when it said the grant was already gone (revoked from the account's
+        settings, expired, or revoked before). Both leave the user
+        disconnected, so neither raises. A refusal for any other reason does
+        raise :class:`CredentialError`, and the client is left as it was so
+        the call can be retried.
+
+        Afterwards the client does not refresh again: ``get_credentials``
+        raises a ``CredentialError`` whose ``reauthorize`` is true, until
+        :meth:`reset`, or until a loader returns a refresh token other than the
+        revoked one (the user connected again). A ``client_credentials`` client
+        only drops its token, since its next one is always to be had.
+
+        Deleting the stored grant stays yours, after this returns.
+        """
+        revocation = self.server.revocation
+        if revocation is None:
+            raise DeclarationError(
+                f"The server for {self.server.token_endpoint} declares no revocation, so "
+                "there is nothing to send. Add revocation=Revocation(...) to the "
+                "OAuth2Server if it has a revocation endpoint. If it has none, as Stripe "
+                "Apps does not, deleting the stored grant is the whole of disconnecting.",
+                docs="reference/oauth#revocation",
+            )
+        if revocation.token_type == "access_token":
+            try:
+                credentials = await self.get_credentials("")
+            except CredentialError as exc:
+                if not exc.reauthorize:
+                    raise
+                # The server has already called the grant dead, so no access
+                # token can be had to present, and there is nothing left to end.
+                self._mark_revoked()
+                return False
+            revoked = await self._send_revocation(access_token=credentials.token)
+            self._mark_revoked()
+            return revoked
+        # Under the lock a refresh takes, so a refresh in flight lands first and
+        # the token revoked is the one it rotated to, and no call waiting on the
+        # lock refreshes a grant that has just been revoked.
+        async with self._get_lock():
+            revoked = await self._under_refresh_lock("", self._revoke_held_grant)
+            self._mark_revoked()
+        return revoked
+
+    async def _revoke_held_grant(self) -> bool:
+        """Revoke the refresh token this client holds, or its token if it holds none."""
+        if self.grant == "client_credentials":
+            cached = self._cached
+            if cached is None:
+                return False
+            return await self._send_revocation(access_token=cached.token)
+        if self._load_grant is not None:
+            await self._read_store()
+        return await self._send_revocation(refresh_token=self._refresh_token)
+
+    async def _send_revocation(
+        self, *, refresh_token: Optional[str] = None, access_token: Optional[str] = None
+    ) -> bool:
+        return await revoke_token(
+            self.server,
+            client_id=self._client_id,
+            client_secret=self._client_secret,
+            refresh_token=refresh_token,
+            access_token=access_token,
+            timeout=self._timeout,
+            client=self._http,
+        )
+
+    def _mark_revoked(self) -> None:
+        """Drop the token, and refuse to refresh a grant known to be revoked."""
+        self._cached = None
+        if self.grant == "client_credentials":
+            return
+        self._dead_reason = "The grant was revoked with revoke(); the user has to authorize again."
+        self._dead_status = None
+        self._dead_until = float("inf")
+        self._dead_refresh_token = self._refresh_token
+
     @property
     def refresh_token(self) -> Optional[str]:
         """The current refresh token — which is not necessarily the one passed in.
@@ -962,10 +1244,18 @@ class OAuth2Client:
         return stored
 
     async def _refresh(self, provider: str) -> Credentials:
+        return await self._under_refresh_lock(provider, lambda: self._renew(provider))
+
+    async def _under_refresh_lock(self, provider: str, work: Callable[[], Awaitable[_T]]) -> _T:
+        """Run ``work`` holding the refresh lock, when there is one.
+
+        Held across the read, the refresh and on_refresh, so whoever takes it
+        next reads what this one stored rather than the token it spent. A
+        revocation takes it too, so it ends the grant the store holds rather
+        than one another process has just rotated away from.
+        """
         if self._refresh_lock is None:
-            return await self._renew(provider)
-        # Held across the read, the refresh and on_refresh, so whoever takes it
-        # next reads what this one stored rather than the token it spent.
+            return await work()
         try:
             lock = self._refresh_lock()
             await lock.__aenter__()
@@ -976,12 +1266,12 @@ class OAuth2Client:
                 docs="auth/oauth-flow#a-lock-around-the-refresh",
             ) from exc
         try:
-            credentials = await self._renew(provider)
+            result = await work()
         except BaseException as exc:
             await self._release(lock, exc)
             raise
         await self._release(lock, None)
-        return credentials
+        return result
 
     @staticmethod
     async def _release(lock: AsyncContextManager[Any], exc: Optional[BaseException]) -> None:
@@ -1140,9 +1430,9 @@ def _granted_lifetime(payload: Dict[str, Any], server: OAuth2Server) -> Optional
     return lifetime if lifetime is not None else server.default_expires_in
 
 
-# Last on purpose: flow.py builds on the declarations above, so importing it at
-# the bottom keeps the one-way dependency visible (flow -> this module, never
-# the reverse at runtime).
+# Last on purpose: flow.py and revocation.py build on the declarations above, so
+# importing them at the bottom keeps the one-way dependency visible (each ->
+# this module, never the reverse at import time).
 from charter.auth.flow import (  # noqa: E402
     AuthorizationRequest,
     OAuth2Flow,
@@ -1150,3 +1440,4 @@ from charter.auth.flow import (  # noqa: E402
     scopes_for,
     states_match,
 )
+from charter.auth.revocation import revoke_token  # noqa: E402

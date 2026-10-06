@@ -12,7 +12,7 @@ per-app setting.
 ## The server
 
 ```python slack_server.py
-from charter.auth import OAuth2Server
+from charter.auth import OAuth2Server, Revocation
 
 SLACK = OAuth2Server(
     issuer="https://slack.com",
@@ -20,6 +20,12 @@ SLACK = OAuth2Server(
     token_endpoint="https://slack.com/api/oauth.v2.access",
     token_endpoint_auth_method="client_secret_post",
     dead_grant_errors=("invalid_refresh_token", "token_revoked"),
+    revocation=Revocation(
+        "https://slack.com/api/apps.uninstall",
+        token_type="access_token",
+        token_header="Authorization",
+        gone_errors=("invalid_auth", "account_inactive", "token_expired"),
+    ),
 )
 ```
 
@@ -30,6 +36,10 @@ Declared, those get what `invalid_grant` gets: no second request for a
 minute, and a [`CredentialError`](/reference/errors#credentialerror) whose
 `reauthorize` is true. Left out, they read as any other failure, and every tool
 call for that user asks Slack's token endpoint again.
+
+`revocation` is [`apps.uninstall`](https://docs.slack.dev/reference/methods/apps.uninstall),
+which removes the app from the workspace and revokes every token the
+installation holds: [Disconnecting](#disconnecting).
 
 [`OAuth2Server.discover("https://slack.com")`](/reference/oauth#oauth2server-discover) is the wrong move here. Sign in with
 Slack is a separate OpenID Connect surface with its own token endpoint
@@ -199,6 +209,37 @@ app opts in. `state` is your CSRF defense either way.
 **Scopes joined by spaces work.** Slack documents a comma between scopes, and
 Charter's link joins them with a space, as RFC 6749 says. Slack granted all
 eleven of the pack's bot scopes from that link.
+
+## Disconnecting
+
+Slack has two ways to end access, and only one of them disconnects a workspace.
+`auth.revoke` revokes one token. Revoking a bot token that way deactivates the
+bot but leaves the app installed, and with rotation on, the refresh token
+outlives it. `apps.uninstall` removes the installation and every token it
+holds, which is what a "Disconnect Slack" button means, so it is what the
+declaration sends. It wants the app's client ID and secret as well as a token.
+
+With rotation off there is no client, only the bot token you stored, so revoke
+it as a string:
+
+```python slack_disconnect.py
+from charter.auth import revoke_token
+
+
+async def disconnect():
+    row = await db.keys.get(user.id, "slack")
+    await revoke_token(
+        SLACK,
+        access_token=row.api_key,  # the xoxb- bot token
+        client_id=os.environ["SLACK_CLIENT_ID"],
+        client_secret=os.environ["SLACK_CLIENT_SECRET"],
+    )
+```
+
+With rotation on, `OAuth2Client.revoke()` does the same with its current
+access token, refreshing first if it has lapsed. An installation already
+removed answers `invalid_auth`, `account_inactive` or `token_revoked` inside an
+`HTTP 200`, and both calls return `False` for it rather than raising.
 
 ## Where the rest is
 

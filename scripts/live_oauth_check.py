@@ -60,6 +60,7 @@ from charter.auth import (
     OAuth2Client,
     OAuth2Flow,
     OAuth2Server,
+    Revocation,
     StaticTokenProvider,
     TokenGrant,
     scopes_for,
@@ -79,6 +80,7 @@ GOOGLE = OAuth2Server(
     token_endpoint="https://oauth2.googleapis.com/token",
     token_endpoint_auth_method="client_secret_post",
     authorization_params={"access_type": "offline", "prompt": "consent"},
+    revocation=Revocation("https://oauth2.googleapis.com/revoke", auth_method="none"),
 )
 
 SLACK = OAuth2Server(
@@ -87,6 +89,12 @@ SLACK = OAuth2Server(
     token_endpoint="https://slack.com/api/oauth.v2.access",
     token_endpoint_auth_method="client_secret_post",
     dead_grant_errors=("invalid_refresh_token", "token_revoked"),
+    revocation=Revocation(
+        "https://slack.com/api/apps.uninstall",
+        token_type="access_token",
+        token_header="Authorization",
+        gone_errors=("invalid_auth", "account_inactive", "token_expired"),
+    ),
 )
 
 GITHUB = OAuth2Server(
@@ -95,6 +103,15 @@ GITHUB = OAuth2Server(
     token_endpoint="https://github.com/login/oauth/access_token",
     token_endpoint_auth_method="client_secret_post",
     dead_grant_errors=("bad_refresh_token",),
+    revocation=Revocation(
+        "https://api.github.com/applications/{client_id}/grant",
+        token_type="access_token",
+        auth_method="client_secret_basic",
+        token_field="access_token",
+        http_method="DELETE",
+        request_format="json",
+        gone_statuses=(422,),
+    ),
 )
 
 LINEAR = OAuth2Server(
@@ -104,6 +121,9 @@ LINEAR = OAuth2Server(
     token_endpoint_auth_method="client_secret_post",
     scope_separator=",",
     dead_grant_errors=("invalid_request",),
+    revocation=Revocation(
+        "https://api.linear.app/oauth/revoke", auth_method="none", gone_statuses=(400,)
+    ),
 )
 
 NOTION = OAuth2Server(
@@ -114,6 +134,7 @@ NOTION = OAuth2Server(
     authorization_params={"owner": "user"},
     uses_scopes=False,
     token_request_format="json",
+    revocation=Revocation("https://api.notion.com/v1/oauth/revoke", token_type="access_token"),
 )
 
 STRIPE_APPS = OAuth2Server(
@@ -132,6 +153,13 @@ def shopify_server(shop: str) -> OAuth2Server:
         token_endpoint=f"https://{shop}.myshopify.com/admin/oauth/access_token",
         scope_separator=",",
         exchange_params={"expiring": "1"},  # an offline token that expires, with a refresh token
+        revocation=Revocation(  # uninstalls the app from the store
+            f"https://{shop}.myshopify.com/admin/api_permissions/current.json",
+            token_type="access_token",
+            token_header="X-Shopify-Access-Token",
+            auth_method="none",
+            http_method="DELETE",
+        ),
     )
 
 

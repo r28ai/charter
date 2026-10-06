@@ -1,13 +1,14 @@
 ---
 title: "OAuth"
-description: "OAuth2Server, OAuth2Client, OAuth2Flow, AuthorizationRequest, TokenGrant, states_match and scopes_for."
+description: "OAuth2Server, Revocation, OAuth2Client, OAuth2Flow, AuthorizationRequest, TokenGrant, revoke_token, states_match and scopes_for."
 ---
 
 Everything on this page is imported from `charter.auth`, not `charter`.
 
 OAuth 2.0 declared rather than wrapped: a server is a frozen declaration in RFC
-8414's vocabulary, a client refreshes a grant you already hold, and a flow
-covers the two steps of obtaining one that are protocol rather than product.
+8414's vocabulary, a client refreshes a grant you already hold, a flow covers
+the two steps of obtaining one that are protocol rather than product, and a
+revocation is the one step of ending it.
 
 The host keeps the callback route, the session, and storage. Charter signs
 nothing, so JWT-bearer and service-account grants are out of scope.
@@ -28,6 +29,7 @@ class OAuth2Server:
     default_expires_in: Optional[int] = None
     exchange_params: Mapping[str, str] = field(default_factory=dict)
     dead_grant_errors: tuple[str, ...] = ()
+    revocation: Optional[Revocation] = None
 ```
 
 <ParamField path="token_endpoint" type="str" required>
@@ -110,6 +112,17 @@ class OAuth2Server:
   non-string code, raises `DeclarationError`.
 </ParamField>
 
+<ParamField path="revocation" type="Optional[Revocation]" default="None">
+  How the server ends a grant, for a "disconnect" button: a
+  [`Revocation`](#revocation), which is RFC 7009 unless it says otherwise.
+  [`OAuth2Client.revoke`](#attributes-and-methods) and
+  [`revoke_token`](#revoke_token) send it. `None` means the server documents
+  no way to; Stripe Apps is the case. Anything but a `Revocation`, a bare URL
+  included, raises `DeclarationError`, and so does a revocation sending its
+  token in the `Authorization` header to a server whose client authentication
+  uses that header too.
+</ParamField>
+
 ### `OAuth2Server.discover`
 
 ```python
@@ -134,7 +147,132 @@ document with no `token_endpoint`, or advertising neither usable method, raises
 [`CredentialError`](/reference/errors#credentialerror); so does exhausting both well-known paths, with every attempt
 named in the message.
 
+A `revocation_endpoint` in the document becomes a [`Revocation`](#revocation).
+Its auth method is the token endpoint's when
+`revocation_endpoint_auth_methods_supported` allows it or is absent, and
+otherwise the first of `client_secret_post`, `client_secret_basic` and `none`
+the list names. A list naming none of them leaves `revocation` unset rather
+than failing discovery.
+
 The one network call in this library that is not a tool call.
+
+## `Revocation`
+
+```python
+@dataclass(frozen=True)
+class Revocation:
+    endpoint: str
+    token_type: Literal["refresh_token", "access_token"] = "refresh_token"
+    auth_method: Optional[RevocationAuthMethod] = None
+    token_field: Optional[str] = None
+    token_header: Optional[str] = None
+    http_method: Literal["POST", "DELETE"] = "POST"
+    request_format: Optional[Literal["form", "json"]] = None
+    gone_errors: tuple[str, ...] = ()
+    gone_statuses: tuple[int, ...] = ()
+```
+
+How a server ends a grant, declared on [`OAuth2Server`](#oauth2server) as
+`revocation`. The defaults are [RFC 7009](https://www.rfc-editor.org/rfc/rfc7009):
+one POST carrying the refresh token as `token`, authenticated and encoded the
+way the token endpoint is. Revoking the refresh token ends the grant and every
+access token issued from it, and the app leaves the user's list of connected
+apps. Every other field is a vendor's departure, written down as the token
+endpoint's are. Each provider page carries its declaration.
+
+<ParamField path="endpoint" type="str" required>
+  Where the request goes. `{client_id}` is replaced with the client ID, since
+  GitHub's endpoint is per registration. Empty raises `DeclarationError`.
+</ParamField>
+
+<ParamField path="token_type" type='"refresh_token" | "access_token"' default='"refresh_token"'>
+  Which token the endpoint takes. `"access_token"` is for an endpoint that ends
+  the whole grant given any live access token: GitHub's
+  `DELETE /applications/{client_id}/grant`, Slack's `apps.uninstall`,
+  Shopify's `api_permissions/current.json`. A client sends its cached token,
+  refreshing first if it has lapsed.
+</ParamField>
+
+<ParamField path="auth_method" type="Optional[RevocationAuthMethod]" default="None">
+  How the client authenticates, when it differs from the token endpoint.
+  `None` inherits `token_endpoint_auth_method`; `"none"` sends no client
+  credentials, for an endpoint documented to take the token alone (Google,
+  Linear).
+</ParamField>
+
+<ParamField path="token_field" type="Optional[str]" default="None">
+  The body field carrying the token, `token` when left as `None`. GitHub
+  names it `access_token`.
+</ParamField>
+
+<ParamField path="token_header" type="Optional[str]" default="None">
+  Send the token as the request's own credential instead. `"Authorization"`
+  sends `Bearer <token>`; any other header gets the bare token, as Shopify's
+  `X-Shopify-Access-Token` does. Requires `token_type="access_token"`, and
+  cannot be combined with `token_field`; either mistake raises
+  `DeclarationError`.
+</ParamField>
+
+<ParamField path="http_method" type='"POST" | "DELETE"' default='"POST"'>
+  `DELETE` for GitHub and Shopify.
+</ParamField>
+
+<ParamField path="request_format" type='Optional["form" | "json"]' default="None">
+  The body's format, inheriting `token_request_format` when `None`. GitHub's
+  API takes JSON where its token endpoint takes a form. A request with nothing
+  to put in a body sends none.
+</ParamField>
+
+<ParamField path="gone_errors" type="tuple[str, ...]" default="()">
+  Error codes with which the server says the token was already dead. RFC
+  7009's `invalid_token`, `invalid_grant` and the server's
+  `dead_grant_errors` always count. Slack declares `invalid_auth`,
+  `account_inactive` and `token_expired`. A bare string raises
+  `DeclarationError`.
+</ParamField>
+
+<ParamField path="gone_statuses" type="tuple[int, ...]" default="()">
+  Statuses that say the same, for a server that answers without an OAuth error
+  code: GitHub's `422`, Linear's `400`. A `401` always counts when the token is
+  the request's own credential. Anything but 4xx codes raises
+  `DeclarationError`.
+</ParamField>
+
+A token already dead is not a failure: for a disconnect it is the outcome
+asked for, so it returns `False` rather than raising. Any other refusal raises
+`CredentialError`, with the error code and description and the token and
+client secret redacted from both.
+
+## `revoke_token`
+
+```python
+async def revoke_token(
+    server: OAuth2Server,
+    *,
+    refresh_token: Optional[str] = None,
+    access_token: Optional[str] = None,
+    client_id: Optional[str] = None,
+    client_secret: Optional[str] = None,
+    timeout: int = 20,
+    client: Optional[httpx.AsyncClient] = None,
+) -> bool: ...
+```
+
+Revoke a grant held as a string, without building a client: a Slack bot token
+from an app without rotation, a classic GitHub OAuth token, or a disconnect
+handler holding a stored row. [`OAuth2Client.revoke`](#attributes-and-methods)
+calls this.
+
+Pass what you have. A server that revokes by refresh token is sent
+`refresh_token` when given, since that ends the whole grant, and
+`access_token` otherwise. One declared with `token_type="access_token"` needs
+a live `access_token`, and raises `CredentialError` without one.
+`client_id` and `client_secret` are needed wherever the client authenticates,
+or `{client_id}` is in the endpoint.
+
+Returns `True` when the server confirmed the revocation, and `False` when it
+said the token was already dead. Raises `DeclarationError` when the server
+declares no `revocation`, and `CredentialError` for any other refusal.
 
 ## `OAuth2Client`
 
@@ -283,6 +421,25 @@ stream of requests against an endpoint that rate-limits per client. The error's
   when the API refuses it, so the next call fetches a new one rather than
   sending a revoked token until its expiry. A token that has already been
   replaced is left alone, and the grant and its cool-down are untouched.
+</ResponseField>
+
+<ResponseField name="revoke()" type="bool">
+  End the grant at the server, then stop using it: the disconnect button.
+  Sends the server's [`Revocation`](#revocation) with the current refresh
+  token, or with a live access token where the server takes one, refreshing
+  first if the cached one lapsed. With a [`GrantLoader`](#grantloader) the
+  store is read first, under `refresh_lock`, so the grant revoked is the one
+  stored and not one another process has rotated away from. A refresh in
+  flight in this process finishes first, for the same reason.
+
+  `True` when the server confirmed it, `False` when the grant was already
+  gone. Either way the client then refuses to refresh: `get_credentials`
+  raises a `CredentialError` whose `reauthorize` is true, without asking the
+  token endpoint, until `reset()` or until the loader returns a different
+  refresh token. A `client_credentials` client revokes its cached token and
+  only drops it. Any other refusal raises `CredentialError` and leaves the
+  client working. No `revocation` on the server raises `DeclarationError`
+  before any request. Deleting the stored grant is yours, afterwards.
 </ResponseField>
 
 ### `OAuth2Client.from_grant`
@@ -521,9 +678,9 @@ the tool set instead of maintained beside it.
 
 ## Types in these signatures
 
-The three aliases the signatures above are declared in. They are exported from
-`charter` so a host writing its own wrapper can name them without importing from
-a submodule.
+The aliases the signatures above are declared in. They are exported from
+`charter.auth` so a host writing its own wrapper can name them without importing
+from a submodule.
 
 ## `Grant`
 
@@ -534,6 +691,17 @@ Grant = Literal["refresh_token", "client_credentials"]
 Which OAuth 2.0 grant an `OAuth2Client` uses. `"refresh_token"` acts for a user
 who consented; `"client_credentials"` acts as the application itself, with no
 user and so no refresh token to store.
+
+## `RevocationAuthMethod`
+
+```python
+RevocationAuthMethod = Literal["client_secret_post", "client_secret_basic", "secret_key_basic", "none"]
+```
+
+How the client authenticates to a revocation endpoint: the token endpoint's
+methods, plus `none` for an endpoint that takes the token alone. Google's is
+documented with nothing but `token`, so its declaration sends the client secret
+nowhere it is not asked for.
 
 ## `TokenEndpointAuthMethod`
 
