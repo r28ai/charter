@@ -195,20 +195,22 @@ measured rather than read, it says so.
 
 | Provider | Access token | Refresh token | A refresh retires the previous access token | A spent refresh token, presented again |
 |---|---|---|---|---|
-| [Google](https://developers.google.com/identity/protocols/oauth2/web-server#offline) | `expires_in` sent | not rotated | not documented | — |
-| [Slack](https://docs.slack.dev/authentication/using-token-rotation), rotation on | 12 hours, `expires_in` sent | rotated; the old one revoked "after a short grace period" | at most two are active: a refresh beyond that revokes the oldest | fails |
-| [GitHub App](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/refreshing-user-access-tokens), expiry on | 8 hours, `expires_in` sent; refresh token 6 months | rotated | yes, at once | not documented |
-| [Linear](https://linear.app/developers/oauth-2-0-authentication) | 24 hours, `expires_in` sent | rotated | not documented | accepted for 30 minutes, "to allow for network errors" |
-| [Notion](https://developers.notion.com/reference/refresh-a-token) | not documented; no `expires_in` | a `refresh_token` comes back; rotation not documented | not documented | not documented |
+| [Google](https://developers.google.com/identity/protocols/oauth2/web-server#offline) | `expires_in` sent | not rotated | not documented. Measured: still accepted 30 seconds after a refresh | — |
+| [Slack](https://docs.slack.dev/authentication/using-token-rotation), rotation on | 12 hours, `expires_in` sent | rotated; the old one revoked "after a short grace period" | at most two are active: a refresh beyond that revokes the oldest. Measured: one refresh leaves the previous one working | fails after the grace period. Measured: accepted at 4 minutes, and answered with the current refresh token rather than a new one; refused at 8, with `invalid_refresh_token` in an HTTP 200 |
+| [GitHub App](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/refreshing-user-access-tokens), expiry on | 8 hours, `expires_in` sent; refresh token 6 months | rotated | yes, at once (measured: about 2 seconds) | not documented. Measured: refused, with `bad_refresh_token` in an HTTP 200, and the grant survives |
+| [Linear](https://linear.app/developers/oauth-2-0-authentication) | 24 hours, `expires_in` sent | rotated | not documented. Measured: still accepted 30 seconds after a refresh | accepted for 30 minutes, "to allow for network errors". Measured: answered with the current refresh token rather than a new one |
+| [Notion](https://developers.notion.com/reference/refresh-a-token) | not documented; no `expires_in` | not documented. Measured: rotated | not documented. Measured: yes, about 3 seconds after the refresh | not documented. Measured: refused, and the grant survives |
 | [Shopify](https://shopify.dev/docs/apps/build/authentication-authorization/access-tokens/offline-access-tokens), expiring offline token | 1 hour, `expires_in` sent; refresh token 90 days. Measured: accepted at 55 minutes, refused at 60 | rotated | documented: it "retires your previous expiring offline token". Measured: still accepted 10 minutes after the refresh | usable until the newer one is used, or for 30 days (measured: accepted) |
 | [Stripe App](https://docs.stripe.com/stripe-apps/api-authentication/oauth) | 1 hour, **no `expires_in`**: declare `default_expires_in=3600`. Measured: accepted at 58 minutes, refused at 60 with a `401` | rotated | yes, [`platform_api_key_expired`](https://docs.stripe.com/error-codes/platform-api-key-expired); measured at 2 to 7 seconds | refused, and the grant survives (measured) |
 
 Two things follow for several workers. Wherever a refresh retires the previous
-access token (GitHub, Stripe, and Slack beyond two), the workers have to share
-the access token as well as the refresh token, so the loader returns the whole
-grant. Returning it is right for the others too: it saves the refreshes. And none of the seven documents reuse detection, so for these
-the lock below is a safeguard rather than a requirement. GitHub and Notion
-don't say either way.
+access token (GitHub, Notion, Stripe, and Slack beyond two), the workers have to
+share the access token as well as the refresh token, so the loader returns the
+whole grant. Returning it is right for the others too: it saves the refreshes.
+And none of the seven documents reuse detection, and none showed it: a spent
+refresh token presented again was accepted or refused, and in every run the
+grant kept working. So for these the lock below is a safeguard rather than a
+requirement.
 
 ### A lock around the refresh
 

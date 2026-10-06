@@ -204,6 +204,17 @@ class OAuth2Server:
     for with ``expiring=1`` in the exchange, and Shopify requires public apps to
     use that token for the GraphQL Admin API. Only the exchange sends them, not
     the refreshes after it, and the fields the exchange itself owns are refused.
+
+    ``dead_grant_errors`` are the error codes, besides RFC 6749's
+    ``invalid_grant``, with which the server says a grant is gone: revoked,
+    expired, or a refresh token already spent. Slack is the case: it answers a
+    bad refresh token with ``invalid_refresh_token`` and an uninstalled app with
+    ``token_revoked``, both inside an HTTP 200. Charter treats these codes as it
+    treats ``invalid_grant``: it holds the token endpoint off for a minute,
+    rereads a shared store for a successor, and raises a
+    :class:`CredentialError` whose ``reauthorize`` is true. ``invalid_grant``
+    always counts, so a server that uses only the RFC's code declares nothing
+    here.
     """
 
     token_endpoint: str
@@ -216,6 +227,7 @@ class OAuth2Server:
     token_request_format: Literal["form", "json"] = "form"
     default_expires_in: Optional[int] = None
     exchange_params: Mapping[str, str] = field(default_factory=dict)
+    dead_grant_errors: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.token_endpoint:
@@ -272,6 +284,15 @@ class OAuth2Server:
             "exchange_params",
             MappingProxyType(dict(sorted(self.exchange_params.items()))),
         )
+        # A bare string would iterate as its letters, and every one-letter code
+        # would then match nothing, silently.
+        codes = self.dead_grant_errors
+        if isinstance(codes, str) or not all(isinstance(c, str) and c for c in codes):
+            raise DeclarationError(
+                "dead_grant_errors must be a tuple of error codes, such as "
+                f"('invalid_refresh_token',), got {codes!r}"
+            )
+        object.__setattr__(self, "dead_grant_errors", tuple(codes))
 
     @classmethod
     async def discover(
@@ -486,11 +507,17 @@ def _redact(text: str, sent: Iterable[Optional[str]]) -> str:
     return text
 
 
+def _dead_codes(server: OAuth2Server) -> tuple[str, ...]:
+    """The error codes with which ``server`` says a grant is gone."""
+    return ("invalid_grant", *server.dead_grant_errors)
+
+
 def _token_failure(
     payload: Dict[str, Any],
     status_code: int,
     provider: Optional[str],
     sent: Iterable[Optional[str]] = (),
+    dead: Iterable[str] = ("invalid_grant",),
 ) -> Optional[tuple[str, CredentialError]]:
     """The OAuth error in a token response, or ``None`` when it is a success.
 
@@ -504,6 +531,10 @@ def _token_failure(
 
     ``sent`` is the credentials the request carried, redacted from the
     message wherever the server quoted them back: :func:`_redact`.
+
+    ``dead`` is the codes that mean the grant is gone, which is
+    ``invalid_grant`` plus whatever the server declares in
+    ``dead_grant_errors``.
     """
     error = payload.get("error")
     if status_code < 400 and not error:
@@ -514,12 +545,16 @@ def _token_failure(
     if isinstance(description, str) and description:
         message = f"{message} — {description}"
     message = _redact(message, sent)
-    if code == "invalid_grant":
+    reauthorize = code in dead
+    if reauthorize:
+        # GitHub's description ends in a full stop of its own.
+        message = message.rstrip(".")
         message += ". The grant has expired or been revoked; the user has to authorize again."
     return code, CredentialError(
         message,
         provider=provider,
         status_code=status_code if status_code >= 400 else None,
+        reauthorize=reauthorize,
     )
 
 
@@ -819,6 +854,7 @@ class OAuth2Client:
             provider=provider,
             status_code=self._dead_status,
             docs="auth/oauth-flow",
+            reauthorize=True,
         )
 
     def _clear_dead(self) -> None:
@@ -970,7 +1006,7 @@ class OAuth2Client:
                 return self._adopt(stored, provider)
 
         payload, failure = await self._token_request(provider)
-        if failure is not None and failure[0] == "invalid_grant" and self._load_grant is not None:
+        if failure is not None and failure[1].reauthorize and self._load_grant is not None:
             # Another process may have spent this refresh token and stored its
             # successor while this one was reading. A server that rotates refuses
             # the spent one, so ask the store again before calling the grant dead.
@@ -981,7 +1017,7 @@ class OAuth2Client:
                 # The store can't be read just now. The server's answer stands,
                 # and the cool-down below keeps the endpoint from being asked again.
                 logger.warning(
-                    "charter: rereading the stored grant after invalid_grant failed", exc_info=True
+                    "charter: rereading the stored grant after %s failed", failure[0], exc_info=True
                 )
                 stored, self._refresh_token = None, tried
             if stored is not None:
@@ -994,8 +1030,8 @@ class OAuth2Client:
                 payload, failure = await self._token_request(provider)
 
         if failure is not None:
-            code, error = failure
-            if code == "invalid_grant":
+            error = failure[1]
+            if error.reauthorize:
                 # Dead until somebody re-authorizes. Remember that, so an agent
                 # still calling tools does not turn it into a stream of requests.
                 self._dead_reason = error.message
@@ -1059,7 +1095,9 @@ class OAuth2Client:
         """One token request, read once: the payload, and the OAuth error in it if any."""
         resp, sent = await self._request_token()
         payload = _json_payload(resp, self.server.token_endpoint, provider)
-        return payload, _token_failure(payload, resp.status_code, provider, sent)
+        return payload, _token_failure(
+            payload, resp.status_code, provider, sent, _dead_codes(self.server)
+        )
 
     def __repr__(self) -> str:
         return (

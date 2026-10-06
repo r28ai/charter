@@ -19,8 +19,17 @@ SLACK = OAuth2Server(
     authorization_endpoint="https://slack.com/oauth/v2/authorize",
     token_endpoint="https://slack.com/api/oauth.v2.access",
     token_endpoint_auth_method="client_secret_post",
+    dead_grant_errors=("invalid_refresh_token", "token_revoked"),
 )
 ```
+
+`dead_grant_errors` is how Slack says a grant is gone. Where RFC 6749 says
+`invalid_grant`, `oauth.v2.access` answers a bad refresh token with
+`invalid_refresh_token`, and an app the workspace removed with `token_revoked`.
+Declared, those get what `invalid_grant` gets: no second request for a
+minute, and a [`CredentialError`](/reference/errors#credentialerror) whose
+`reauthorize` is true. Left out, they read as any other failure, and every tool
+call for that user asks Slack's token endpoint again.
 
 [`OAuth2Server.discover("https://slack.com")`](/reference/oauth#oauth2server-discover) is the wrong move here. Sign in with
 Slack is a separate OpenID Connect surface with its own token endpoint
@@ -170,15 +179,26 @@ other server — the same rule the pack's [envelope](/tools/envelopes) applies t
 the tools themselves.
 
 **Reinstalling replaces the grant.** A workspace reinstall issues fresh tokens;
-the previous refresh token stops working, and the symptom is `invalid_grant`
-against a user who just clicked "Allow". Re-run the callback path that stores
-the grant on every install, not only the first.
+the previous refresh token stops working, and the symptom is
+`invalid_refresh_token` against a user who just clicked "Allow". Re-run the
+callback path that stores the grant on every install, not only the first.
 
-One thing this page has not verified against the live server: whether Slack acts
-on PKCE. Charter sends `code_challenge` by default, and Slack does not document
-`oauth.v2.access` as verifying a `code_verifier`. If your install flow rejects
-the extra parameters, `flow.authorize(..., pkce=False)` exists for that; `state`
-is your CSRF defense either way.
+**The spent refresh token's grace period, measured.** Presented again a few
+minutes after a refresh, the spent token is accepted, and Slack answers with the
+current refresh token rather than minting another, so a worker holding a stale
+copy gets the live grant. Against a rotation-enabled app it was still accepted
+at 4 minutes and refused at 8, as `HTTP 200` with `invalid_refresh_token`. The
+grant itself kept working.
+
+**PKCE is a per-app setting** (OAuth & Permissions, *Proof Key for Code
+Exchange*), off by default. Charter sends `code_challenge` by default, and
+against an app that had not opted in, Slack accepted the consent link and the
+exchange that carried the verifier. So the default works whether or not your
+app opts in. `state` is your CSRF defense either way.
+
+**Scopes joined by spaces work.** Slack documents a comma between scopes, and
+Charter's link joins them with a space, as RFC 6749 says. Slack granted all
+eleven of the pack's bot scopes from that link.
 
 ## Where the rest is
 

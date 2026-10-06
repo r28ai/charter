@@ -211,7 +211,11 @@ means the refresh token is dead until a human re-authorizes; retrying cannot hel
 Token endpoints rate-limit per *client*, so an agent that keeps calling tools for a
 revoked user would degrade every other user of your app. The client remembers the
 refusal for 60 seconds and raises the same [`CredentialError`](/reference/errors#credentialerror) without asking again.
-Call `reset()` — or build a new client — after re-authorizing.
+Call `reset()` — or build a new client — after re-authorizing. The error's
+`reauthorize` is true, so your app can tell this from a failure worth retrying.
+A server that names a dead grant its own way declares the codes in
+`dead_grant_errors`: Slack answers `invalid_refresh_token` or `token_revoked`,
+GitHub `bad_refresh_token`.
 
 **A token the API refuses is dropped, not kept until it expires.** A token can
 die early: an app uninstalled and reinstalled, a secret rotated, a grant revoked

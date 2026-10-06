@@ -27,6 +27,7 @@ class OAuth2Server:
     token_request_format: Literal["form", "json"] = "form"
     default_expires_in: Optional[int] = None
     exchange_params: Mapping[str, str] = field(default_factory=dict)
+    dead_grant_errors: tuple[str, ...] = ()
 ```
 
 <ParamField path="token_endpoint" type="str" required>
@@ -96,6 +97,17 @@ class OAuth2Server:
   the exchange only, never with a refresh. A field the exchange owns
   (`grant_type`, `code`, `redirect_uri`, `code_verifier`, `client_id`,
   `client_secret`, `refresh_token`) raises `DeclarationError`.
+</ParamField>
+
+<ParamField path="dead_grant_errors" type="tuple[str, ...]" default="()">
+  Error codes, besides RFC 6749's `invalid_grant`, that the server uses to say
+  a grant is gone. Slack answers a spent refresh token with
+  `invalid_refresh_token` and an uninstalled app with `token_revoked`, both in
+  an HTTP 200; GitHub uses `bad_refresh_token`. A declared code is handled
+  like `invalid_grant`: a 60-second cool-down, one more read of a
+  [`GrantLoader`](#grantloader), and a `CredentialError` whose `reauthorize` is
+  true. `invalid_grant` always counts. A bare string, or an empty or
+  non-string code, raises `DeclarationError`.
 </ParamField>
 
 ### `OAuth2Server.discover`
@@ -169,8 +181,9 @@ many users by wrapping it in
 
   A [`GrantLoader`](#grantloader) instead of a string reads your store whenever
   the client's token is due or refused: right before a refresh, and once more
-  if the server answers `invalid_grant`. Use one when more than one process
-  serves the same user and the server rotates refresh tokens. A string is a
+  if the server answers `invalid_grant` or a code in `dead_grant_errors`. Use
+  one when more than one process serves the same user and the server rotates
+  refresh tokens. A string is a
   copy, and it goes stale as soon as another process refreshes:
   [More than one process](/auth/oauth-flow#more-than-one-process). A loader
   that raises, or returns no refresh token, raises `CredentialError`.
@@ -224,9 +237,11 @@ nowhere. Concurrent callers wait on a single refresh: some servers invalidate
 the previous refresh token on use, so twelve parallel tool calls each firing
 their own refresh would poison eleven of them.
 
-An `invalid_grant` answer marks the grant dead for 60 seconds and re-raises the
-same error without asking the server again — one revoked user must not become a
-stream of requests against an endpoint that rate-limits per client.
+An `invalid_grant` answer, or a code the server declares in
+`dead_grant_errors`, marks the grant dead for 60 seconds and re-raises the same
+error without asking the server again — one revoked user must not become a
+stream of requests against an endpoint that rate-limits per client. The error's
+`reauthorize` is true, which is the signal to show the user a reconnect button.
 
 ### Attributes and methods
 

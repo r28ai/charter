@@ -223,7 +223,7 @@ form. [Register a public Notion integration](/auth/apps/notion) has the
 screens.
 
 ```python notion_users.py
-from charter.auth import OAuth2Client, OAuth2Flow, OAuth2Server, SubjectProvider
+from charter.auth import OAuth2Client, OAuth2Flow, OAuth2Server, SubjectProvider, TokenGrant
 from charter.packs import notion
 
 NOTION = OAuth2Server(
@@ -246,13 +246,20 @@ request = flow.authorize()
 
 
 async def notion_for(user_id: str):
-    row = await db.grants.get(user_id, "notion")
+    async def stored_grant():  # read before every refresh: Notion rotates
+        row = await db.grants.get(user_id, "notion")
+        return TokenGrant(
+            access_token=row.access_token,
+            refresh_token=row.refresh_token,
+            expires_at=row.expires_at,
+        )
+
     return OAuth2Client(
         NOTION,
         client_id=os.environ["NOTION_CLIENT_ID"],
         client_secret=os.environ["NOTION_CLIENT_SECRET"],
-        refresh_token=row.refresh_token,
-        on_refresh=partial(save_to_db, user_id),
+        refresh_token=stored_grant,
+        on_refresh=partial(save_to_db, user_id),  # stores the token and the refresh token
     )
 
 
@@ -260,9 +267,14 @@ notion.configure(credential_provider=SubjectProvider(notion_for))
 ```
 
 Notion's token response carries a `refresh_token` and no `expires_in`, and its
-docs don't say how long an access token lasts or whether the refresh token
-rotates. So the client keeps a token until the API refuses it, and that one
-call fails before the next refreshes.
+docs don't say how long an access token lasts or what a refresh does to the
+tokens before it. Measured against a live connection: every refresh rotates the
+refresh token, and the access token before it stops working about three
+seconds later. That is why the loader returns the whole grant. A worker holding
+only its own copy of the refresh token presents one another worker has spent,
+which Notion refuses, and a worker that refreshes on its own retires the token
+the others are still using. With no lifetime to go on, the client keeps a token
+until the API refuses it, and that one call fails before the next refreshes.
 
 ## Shopify
 

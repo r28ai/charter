@@ -86,6 +86,7 @@ SLACK = OAuth2Server(
     authorization_endpoint="https://slack.com/oauth/v2/authorize",
     token_endpoint="https://slack.com/api/oauth.v2.access",
     token_endpoint_auth_method="client_secret_post",
+    dead_grant_errors=("invalid_refresh_token", "token_revoked"),
 )
 
 GITHUB = OAuth2Server(
@@ -93,6 +94,7 @@ GITHUB = OAuth2Server(
     authorization_endpoint="https://github.com/login/oauth/authorize",
     token_endpoint="https://github.com/login/oauth/access_token",
     token_endpoint_auth_method="client_secret_post",
+    dead_grant_errors=("bad_refresh_token",),
 )
 
 LINEAR = OAuth2Server(
@@ -134,7 +136,9 @@ def shopify_server(shop: str) -> OAuth2Server:
 
 # -----------------------------------------------------
 # Each provider: its server, a few read-only tools, and what its docs claim.
-# None means the docs don't say, so the run reports what it saw.
+# Where the docs are silent and a run has measured it, the measurement stands
+# in, marked beside it, so a provider that changes fails the run. None means
+# neither, so the run reports what it saw.
 # -----------------------------------------------------
 
 
@@ -167,6 +171,7 @@ PROVIDERS = {
         scopes=_scopes("gcalendar", "calendar_list_list"),
         sends_expires_in=True,
         rotates=False,
+        retires_previous_access=False,  # measured: still accepted 30 seconds on
     ),
     "slack": Provider(
         "slack",
@@ -177,7 +182,10 @@ PROVIDERS = {
         sends_expires_in=True,
         rotates=True,
         retires_previous_access=False,  # at most two active; one refresh leaves the previous
-        spent_refresh_token="refused",
+        # Revoked "after a short grace period". Measured: accepted at 4 minutes,
+        # answered with the current refresh token; refused at 8 with
+        # invalid_refresh_token. The check replays within that grace.
+        spent_refresh_token="accepted",
     ),
     "github": Provider(
         "github",
@@ -188,6 +196,7 @@ PROVIDERS = {
         sends_expires_in=True,
         rotates=True,
         retires_previous_access=True,
+        spent_refresh_token="refused",  # measured: HTTP 200 with bad_refresh_token
     ),
     "linear": Provider(
         "linear",
@@ -197,6 +206,7 @@ PROVIDERS = {
         scopes=("read",),
         sends_expires_in=True,
         rotates=True,
+        retires_previous_access=False,  # measured: still accepted 30 seconds on
         spent_refresh_token="accepted",  # a 30-minute grace period
     ),
     "notion": Provider(
@@ -205,6 +215,10 @@ PROVIDERS = {
         "notion",
         reads=(("users_retrieve_me", {}), ("search", {"body": {"page_size": 1}})),
         sends_expires_in=False,
+        # None of these three is documented; all measured.
+        rotates=True,
+        retires_previous_access=True,  # about 3 seconds after the refresh
+        spent_refresh_token="refused",
     ),
     "shopify": Provider(
         "shopify",

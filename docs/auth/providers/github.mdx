@@ -19,6 +19,7 @@ GITHUB = OAuth2Server(
     authorization_endpoint="https://github.com/login/oauth/authorize",
     token_endpoint="https://github.com/login/oauth/access_token",
     token_endpoint_auth_method="client_secret_post",
+    dead_grant_errors=("bad_refresh_token",),
 )
 ```
 
@@ -29,6 +30,13 @@ different host from the one that issues the token.
 
 No `authorization_params`: GitHub takes its refresh behaviour from the app's own
 settings rather than from the authorization request.
+
+`dead_grant_errors` is GitHub's name for a dead grant. A spent, expired or
+revoked refresh token comes back as `bad_refresh_token` in an `HTTP 200`, rather
+than RFC 6749's `invalid_grant` in a `400`; measured against a live GitHub App,
+where the grant itself kept working. Declared, it gets what `invalid_grant` gets: no second request
+for a minute, and a [`CredentialError`](/reference/errors#credentialerror)
+whose `reauthorize` is true.
 
 ## Which token you have
 
@@ -150,7 +158,7 @@ case. On GitHub it often is not, so say so with
 **Every refresh rotates.** GitHub returns a new refresh token with each refresh
 and retires the old one, alongside `refresh_token_expires_in` — roughly six
 months. Persist the new value through `on_refresh` or the next refresh fails with
-`invalid_grant`, and note that the six-month clock is on the *refresh* token: an
+`bad_refresh_token`, and note that the six-month clock is on the *refresh* token: an
 integration nobody uses for six months needs the user back on the consent screen.
 
 **Concurrency across processes is yours to solve.** One `OAuth2Client`

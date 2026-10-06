@@ -192,6 +192,12 @@ class CredentialError(CharterError):
         envelope's ``credential_errors``. False for an envelope's
         ``permission_errors`` — the token works and may not do this, which no
         refresh changes — and for a failure raised before any request.
+    reauthorize:
+        Whether the grant itself is gone, so nothing but the user authorizing
+        again brings it back: the token endpoint answered ``invalid_grant``, or
+        a code its server declares in ``dead_grant_errors``. This is the one to
+        show a reconnect button for. False for everything else, including a
+        refused access token, which the next call replaces by refreshing.
     """
 
     def __init__(
@@ -202,6 +208,7 @@ class CredentialError(CharterError):
         status_code: Optional[int] = None,
         docs: Optional[str] = None,
         token_refused: Optional[bool] = None,
+        reauthorize: bool = False,
     ) -> None:
         super().__init__(message, docs=docs)
         self.message = message
@@ -210,6 +217,7 @@ class CredentialError(CharterError):
         # A status means a response, and a response refusing credentials refused
         # this token, unless the raiser says the token is not what was wrong.
         self.token_refused = status_code is not None if token_refused is None else token_refused
+        self.reauthorize = reauthorize
 
     def __str__(self) -> str:
         if self.provider:

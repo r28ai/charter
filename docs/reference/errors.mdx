@@ -112,6 +112,7 @@ class CredentialError(CharterError):
         provider: Optional[str] = None,
         status_code: Optional[int] = None,
         token_refused: Optional[bool] = None,
+        reauthorize: bool = False,
     ) -> None: ...
 ```
 
@@ -136,6 +137,25 @@ class CredentialError(CharterError):
   for an envelope's `permission_errors`, where the token works and may not do
   this, and for a failure raised before any request. Defaults to whether there
   is a `status_code`.
+</ResponseField>
+
+<ResponseField name="reauthorize" type="bool">
+  Whether the grant itself is gone, so only the user authorizing again brings
+  it back. True when a token endpoint answered `invalid_grant` or a code its
+  [`OAuth2Server`](/reference/oauth#oauth2server) declares in
+  `dead_grant_errors`, and for the repeats of that error during the cool-down.
+  False for everything else, including an access token the API refused, which
+  the next call replaces by refreshing.
+
+  ```python
+  async def run(tool, args):
+      try:
+          return await tool.ainvoke(args)
+      except CredentialError as exc:
+          if exc.reauthorize:
+              return show_reconnect_button(exc.provider)
+          raise
+  ```
 </ResponseField>
 
 `str(exc)` prefixes the provider in brackets when there is one.

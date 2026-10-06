@@ -23,6 +23,7 @@ from charter import (
     CallCollector,
     CharterError,
     CredentialError,
+    DeclarationError,
     Path,
     format_call_summary,
     oauth_tool_factory,
@@ -324,6 +325,124 @@ async def test_concurrent_callers_do_not_queue_up_behind_a_dead_grant():
 
     assert all(isinstance(r, CredentialError) for r in results)
     assert route.call_count == 1
+
+
+# Slack names a dead grant its own way, inside a 200: invalid_refresh_token for
+# a spent or unknown refresh token, token_revoked once the app is uninstalled.
+SLACKISH = OAuth2Server(
+    token_endpoint=TOKEN_URL, dead_grant_errors=("invalid_refresh_token", "token_revoked")
+)
+
+
+def _slack_failure(code: str = "invalid_refresh_token") -> httpx.Response:
+    return httpx.Response(200, json={"ok": False, "error": code})
+
+
+@respx.mock
+async def test_a_declared_dead_grant_code_is_asked_about_once_like_invalid_grant():
+    route = respx.post(TOKEN_URL).mock(return_value=_slack_failure())
+    client = OAuth2Client(SLACKISH, client_id="cid", client_secret="csec", refresh_token="rt-1")
+
+    for _ in range(25):
+        with pytest.raises(CredentialError, match="invalid_refresh_token") as excinfo:
+            await client.get_credentials("slack")
+        assert excinfo.value.reauthorize
+        assert "authorize again" in str(excinfo.value)
+
+    assert route.call_count == 1
+
+
+@respx.mock
+async def test_an_undeclared_code_is_not_taken_for_a_dead_grant():
+    """Without the declaration, Slack's code reads as any other failure."""
+    route = respx.post(TOKEN_URL).mock(side_effect=[_slack_failure(), _ok()])
+    client = _client()
+
+    with pytest.raises(CredentialError) as excinfo:
+        await client.get_credentials("slack")
+
+    assert not excinfo.value.reauthorize
+    assert "authorize again" not in str(excinfo.value)
+    assert (await client.get_credentials("slack")).token == "at-1"
+    assert route.call_count == 2
+
+
+@respx.mock
+async def test_invalid_grant_still_counts_on_a_server_that_declares_other_codes():
+    route = respx.post(TOKEN_URL).mock(
+        return_value=httpx.Response(400, json={"error": "invalid_grant"})
+    )
+    client = OAuth2Client(SLACKISH, client_id="cid", client_secret="csec", refresh_token="rt-1")
+
+    for _ in range(3):
+        with pytest.raises(CredentialError) as excinfo:
+            await client.get_credentials("slack")
+        assert excinfo.value.reauthorize
+
+    assert route.call_count == 1
+
+
+@respx.mock
+async def test_reauthorize_is_false_for_a_failure_the_next_call_may_not_repeat():
+    respx.post(TOKEN_URL).mock(
+        return_value=httpx.Response(503, json={"error": "temporarily_unavailable"})
+    )
+    with pytest.raises(CredentialError) as excinfo:
+        await _client().get_credentials("example")
+    assert not excinfo.value.reauthorize
+
+
+@respx.mock
+async def test_a_declared_code_rereads_the_store_for_a_token_spent_elsewhere():
+    """Another worker refreshed with this token and stored the successor."""
+
+    def slack(request: httpx.Request) -> httpx.Response:
+        if b"refresh_token=rt-2" in request.content:
+            return _ok(refresh_token="rt-3")
+        return _slack_failure()
+
+    route = respx.post(TOKEN_URL).mock(side_effect=slack)
+    reads = iter(["rt-1", "rt-2"])
+    client = OAuth2Client(
+        SLACKISH, client_id="cid", client_secret="csec", refresh_token=lambda: next(reads)
+    )
+
+    assert (await client.get_credentials("slack")).token == "at-1"
+    assert route.call_count == 2
+    assert client.refresh_token == "rt-3"
+
+
+@respx.mock
+async def test_github_s_dead_grant_reads_as_one_sentence():
+    """GitHub ends its description with a full stop; the message adds no second."""
+    respx.post(TOKEN_URL).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "error": "bad_refresh_token",
+                "error_description": "The refresh token passed is incorrect or expired.",
+            },
+        )
+    )
+    server = OAuth2Server(token_endpoint=TOKEN_URL, dead_grant_errors=("bad_refresh_token",))
+    client = OAuth2Client(server, client_id="cid", client_secret="csec", refresh_token="rt-1")
+
+    with pytest.raises(CredentialError) as excinfo:
+        await client.get_credentials("github")
+
+    assert excinfo.value.reauthorize
+    assert "expired. The grant" in excinfo.value.message
+
+
+@pytest.mark.parametrize("codes", ["invalid_refresh_token", ("",), (None,)])
+def test_dead_grant_errors_must_be_a_tuple_of_codes(codes):
+    with pytest.raises(DeclarationError, match="dead_grant_errors"):
+        OAuth2Server(token_endpoint=TOKEN_URL, dead_grant_errors=codes)
+
+
+def test_dead_grant_errors_is_kept_as_a_tuple():
+    server = OAuth2Server(token_endpoint=TOKEN_URL, dead_grant_errors=["token_revoked"])  # type: ignore[arg-type]
+    assert server.dead_grant_errors == ("token_revoked",)
 
 
 @respx.mock

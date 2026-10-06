@@ -742,20 +742,30 @@ def _credential_shapes(pack: str, provider: str, env_var: str, page: Optional[st
         ")",
         f"{pack}.configure({_CREDENTIAL})",
     ]
+    # A loader rather than the stored refresh token: the snippet is copied into
+    # servers that run several workers, and a copy goes stale the first time
+    # another worker refreshes against a server that rotates.
     many = [
         "from functools import partial",
         "",
-        "from charter.auth import OAuth2Client, SubjectProvider, use_subject",
+        "from charter.auth import OAuth2Client, SubjectProvider, TokenGrant, use_subject",
         f"from charter.packs import {pack}",
         "",
         "# Yours to write: a user id in, that user's credential out.",
         "async def for_user(user_id: str) -> OAuth2Client:",
-        f'    grant = await db.grants.get(user_id, "{provider}")',
+        "    async def stored_grant() -> TokenGrant:  # read again whenever the token is due",
+        f'        row = await db.grants.get(user_id, "{provider}")',
+        "        return TokenGrant(",
+        "            access_token=row.access_token,",
+        "            refresh_token=row.refresh_token,",
+        "            expires_at=row.expires_at,",
+        "        )",
+        "",
         "    return OAuth2Client(",
         f"        {constant},",
         f'        client_id=os.environ["{constant}_CLIENT_ID"],',
         f'        client_secret=os.environ["{constant}_CLIENT_SECRET"],',
-        "        refresh_token=grant.refresh_token,",
+        "        refresh_token=stored_grant,",
         "        on_refresh=partial(save_to_db, user_id),",
         "    )",
         "",
@@ -829,6 +839,11 @@ def _credential_shapes(pack: str, provider: str, env_var: str, page: Optional[st
         " your app;"
         " [serving many users](/auth/authorization-servers#serving-many-users)"
         " is the per-subject cache and its eviction.",
+        "",
+        "The client is handed a function that reads the stored grant, not a copy"
+        " of the refresh token. A server runs several workers, and a copy goes"
+        " stale the first time another worker refreshes:"
+        " [More than one process](/auth/oauth-flow#more-than-one-process).",
         "",
     ]
     body += _fence(

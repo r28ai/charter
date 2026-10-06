@@ -40,6 +40,7 @@ from pydantic import BaseModel, Field
 from charter.auth.oauth import (
     OAuth2Server,
     _client_auth,
+    _dead_codes,
     _granted_lifetime,
     _json_payload,
     _post_token_form,
@@ -327,7 +328,11 @@ class OAuth2Flow:
         )
         payload = _json_payload(resp, self.server.token_endpoint, None)
         failure = _token_failure(
-            payload, resp.status_code, None, (code, code_verifier, self._client_secret)
+            payload,
+            resp.status_code,
+            None,
+            (code, code_verifier, self._client_secret),
+            _dead_codes(self.server),
         )
         if failure is not None:
             raise failure[1]

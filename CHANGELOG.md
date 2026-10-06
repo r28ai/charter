@@ -61,12 +61,26 @@ here, with the migration in the same entry.
   callback, returns Shopify's expiring offline token for the exchange as
   sent, and the grant refreshes, rotates, and serves two workers from one
   refresh.
+- **`CredentialError.reauthorize`**, true when the grant itself is gone and
+  only the user authorizing again brings it back. Until now your app could tell
+  that from a failure worth retrying only by reading the message, so it could
+  not reliably show a reconnect button.
 - **`GrantLoader` and `RefreshLock` are exported from `charter.auth`**, beside
   `OnRefresh`, so a host can name them. `OAuth2Client.from_grant` takes a
   loader and a lock too.
 
 ### Fixed
 
+- **Slack's and GitHub's dead grants are recognised as dead.** Charter knew a
+  dead grant only by RFC 6749's `invalid_grant`. Slack answers a bad refresh
+  token with `invalid_refresh_token` and an uninstalled app with
+  `token_revoked`, inside an HTTP 200; GitHub answers `bad_refresh_token`. So
+  against either, every tool call for a disconnected user asked the token
+  endpoint again instead of once a minute. The error did not say the user had
+  to authorize again, and a worker holding a refresh token another had spent
+  failed instead of reading the store for the successor. `OAuth2Server` takes
+  `dead_grant_errors`, the server's own codes for a dead grant, and the
+  documented Slack and GitHub declarations list theirs.
 - **A token endpoint's error no longer carries the credential it refused.**
   Servers quote what they reject: Stripe answers a used refresh token with
   "Refresh token does not exist: rt_...", and that text became the
@@ -106,6 +120,29 @@ here, with the migration in the same entry.
   callback taking a `TokenGrant`. Charter calls it with the new credentials and
   the refresh token, so the example raised, and because an `on_refresh` that
   raises is only logged, the rotated token was silently never stored.
+- **Notion, Slack, GitHub, Linear and Google, run live.** Through
+  `scripts/live_oauth_check.py`, each one completed:
+  - connect through Charter's own consent link;
+  - read-only tools;
+  - two workers sharing one grant;
+  - the handover at renewal;
+  - a refresh, and a spent refresh token presented again.
+
+  What their docs leave out is now in the provider table, measured. Notion
+  rotates its refresh token, retires the previous access token about three
+  seconds after a refresh, and refuses a spent refresh token. Slack and Linear
+  answer a spent refresh token within their grace periods with the current
+  one, and Slack's grace ended between 4 and 8 minutes. GitHub refuses a spent
+  token with `bad_refresh_token`. Slack accepts Charter's PKCE challenge from an
+  app that has not opted in to PKCE, and scopes joined by spaces.
+- **The Notion guide gave each worker a copy of the refresh token.** Notion
+  retires the previous access token within seconds of a refresh, so a second
+  worker following it failed the other's calls, and presented refresh tokens
+  already spent. It now reads the whole grant from the store, as the Linear and
+  Stripe sections do.
+- **Every pack's "Many end users" snippet reads the stored grant** through a
+  loader, instead of handing the client a copy of the refresh token that goes
+  stale when another worker refreshes.
 
 ## [0.4.0] — 2026-10-05
 

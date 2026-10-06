@@ -355,8 +355,9 @@ async def test_client_secret_basic_puts_the_credentials_in_the_header_not_the_bo
 @respx.mock
 async def test_an_oauth_error_at_400_raises():
     respx.post(TOKEN_URL).mock(return_value=httpx.Response(400, json={"error": "invalid_grant"}))
-    with pytest.raises(CredentialError, match="invalid_grant"):
+    with pytest.raises(CredentialError, match="invalid_grant") as excinfo:
         await _flow().exchange("code-used-twice")
+    assert excinfo.value.reauthorize
 
 
 @respx.mock
