@@ -42,10 +42,12 @@ from charter.auth.credentials import (
 from charter.auth.oauth import (
     AuthorizationRequest,
     Grant,
+    GrantLoader,
     OAuth2Client,
     OAuth2Flow,
     OAuth2Server,
     OnRefresh,
+    RefreshLock,
     TokenEndpointAuthMethod,
     TokenGrant,
     scopes_for,
@@ -81,4 +83,6 @@ __all__ = [
     "Grant",
     "TokenEndpointAuthMethod",
     "OnRefresh",
+    "GrantLoader",
+    "RefreshLock",
 ]

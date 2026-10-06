@@ -25,6 +25,8 @@ class OAuth2Server:
     uses_scopes: bool = True
     scope_separator: str = " "
     token_request_format: Literal["form", "json"] = "form"
+    default_expires_in: Optional[int] = None
+    exchange_params: Mapping[str, str] = field(default_factory=dict)
 ```
 
 <ParamField path="token_endpoint" type="str" required>
@@ -78,6 +80,24 @@ class OAuth2Server:
   JSON.
 </ParamField>
 
+<ParamField path="default_expires_in" type="Optional[int]" default="None">
+  The access token's lifetime in seconds, for a server that documents one but
+  leaves `expires_in` out of its token response. Stripe's tokens last an hour
+  and its response never says so. Without this, a token with no `expires_in`
+  is kept until the API refuses it, and that call fails. With it, the token is
+  renewed shortly before it lapses. An `expires_in` in the response always
+  wins. Anything but a positive whole number raises `DeclarationError`.
+</ParamField>
+
+<ParamField path="exchange_params" type="Mapping[str, str]" default="{}">
+  Vendor fields for the code exchange, as `authorization_params` are for the
+  consent link. Shopify asks for its expiring offline token, the one public
+  apps must use for the GraphQL Admin API, with `{"expiring": "1"}`. Sent with
+  the exchange only, never with a refresh. A field the exchange owns
+  (`grant_type`, `code`, `redirect_uri`, `code_verifier`, `client_id`,
+  `client_secret`, `refresh_token`) raises `DeclarationError`.
+</ParamField>
+
 ### `OAuth2Server.discover`
 
 ```python
@@ -114,10 +134,11 @@ class OAuth2Client:
         *,
         client_id: str,
         client_secret: str,
-        refresh_token: Optional[str] = None,
+        refresh_token: Optional[Union[str, GrantLoader]] = None,
         grant: Grant = "refresh_token",
         scope: Optional[str] = None,
         on_refresh: Optional[OnRefresh] = None,
+        refresh_lock: Optional[RefreshLock] = None,
         leeway_seconds: int = 90,
         timeout: int = 20,
         client: Optional[httpx.AsyncClient] = None,
@@ -141,10 +162,18 @@ many users by wrapping it in
   Your registration's client secret. Empty raises `CredentialError`.
 </ParamField>
 
-<ParamField path="refresh_token" type="Optional[str]" default="None">
+<ParamField path="refresh_token" type="Optional[str | GrantLoader]" default="None">
   The grant to renew. Required for the `refresh_token` grant — omitting it
   raises `CredentialError` saying that obtaining a grant is your application's
   flow.
+
+  A [`GrantLoader`](#grantloader) instead of a string reads your store whenever
+  the client's token is due or refused: right before a refresh, and once more
+  if the server answers `invalid_grant`. Use one when more than one process
+  serves the same user and the server rotates refresh tokens. A string is a
+  copy, and it goes stale as soon as another process refreshes:
+  [More than one process](/auth/oauth-flow#more-than-one-process). A loader
+  that raises, or returns no refresh token, raises `CredentialError`.
 </ParamField>
 
 <ParamField path="grant" type='"refresh_token" | "client_credentials"' default='"refresh_token"'>
@@ -163,6 +192,17 @@ many users by wrapping it in
   token to store next time — which may be a new one, since some servers rotate
   on every use. This is where persistence lives. A callback that raises is
   logged at WARNING and does not fail the call the token was fetched for.
+</ParamField>
+
+<ParamField path="refresh_lock" type="Optional[RefreshLock]" default="None">
+  A lock across processes for this grant, as a function returning an async
+  context manager. The client holds it while it reads the store, refreshes if
+  it still has to, and runs `on_refresh`, so the next holder reads that result
+  instead of refreshing again. Mandatory against a server with reuse
+  detection, where two processes presenting one refresh token revoke the
+  grant: [A lock around the refresh](/auth/oauth-flow#a-lock-around-the-refresh).
+  Requires `refresh_token` to be a [`GrantLoader`](#grantloader), or raises
+  `ValueError`. A lock that cannot be taken raises `CredentialError`.
 </ParamField>
 
 <ParamField path="leeway_seconds" type="int" default="90">
@@ -496,23 +536,78 @@ Getting it wrong is a silent-shaped failure: the server answers
 ## `OnRefresh`
 
 ```python
-OnRefresh = Callable[[TokenGrant], Union[None, Awaitable[None]]]
+OnRefresh = Callable[[Credentials, Optional[str]], Union[None, Awaitable[None]]]
 ```
 
-Called after every successful refresh, with the grant that came back. Sync or
-async; both are awaited correctly.
+Called after every successful refresh, with the new credentials and the refresh
+token to store next time, which may be a new one. Sync or async; both are
+awaited correctly.
 
 This is where a rotated refresh token gets persisted. A server that rotates
 hands you a new one in the refresh response and invalidates the old immediately,
 so a host that does not write it down is one restart away from a dead grant.
 
 ```python
-async def store(grant: TokenGrant) -> None:
-    if grant.refresh_token:
-        await db.grants.put("user_1042", "google", grant.refresh_token)
+async def store(credentials: Credentials, refresh_token: Optional[str]) -> None:
+    if refresh_token:
+        await db.grants.put("user_1042", "google", refresh_token)
 
 client = OAuth2Client(GOOGLE, client_id=..., client_secret=..., refresh_token=...,
                       on_refresh=store)
+```
+
+An `on_refresh` that raises is logged as a warning and does not fail the call:
+the token is still good for this process. So a callback with the wrong
+signature fails quietly, and the rotated token is never stored.
+
+## `GrantLoader`
+
+```python
+GrantLoader = Callable[[], Union[str, TokenGrant, Awaitable[Union[str, TokenGrant]]]]
+```
+
+Passed as `refresh_token`, it reads a grant from your store, where `on_refresh`
+wrote it. Return the refresh token alone, and no process refreshes with one
+another has already spent. Return a [`TokenGrant`](#tokengrant) with the access
+token and its expiry too, and a process whose own token is due takes the stored
+one instead of refreshing, so one refresh serves every process. That is
+required against Stripe, whose refresh revokes the previous access token within
+seconds. A stored token is skipped when it is inside the renewal window, or is
+the one the API just refused.
+
+```python
+async def stored_grant() -> TokenGrant:
+    row = await db.grants.get("user_1042", "stripe")
+    return TokenGrant(access_token=row.access_token, refresh_token=row.refresh_token,
+                      expires_at=row.expires_at)
+
+async def store(credentials: Credentials, refresh_token: Optional[str]) -> None:
+    await db.grants.put("user_1042", "stripe", refresh_token,
+                        access_token=credentials.token, expires_at=credentials.expires_at)
+
+client = OAuth2Client(STRIPE_APPS, client_id=..., client_secret=...,
+                      refresh_token=stored_grant, on_refresh=store)
+```
+
+## `RefreshLock`
+
+```python
+RefreshLock = Callable[[], AsyncContextManager[Any]]
+```
+
+Passed as `refresh_lock`, it takes a lock scoped to one grant, across every
+process that serves it: a Postgres advisory lock, a Redis lock. Called once per
+refresh, and held from the read of the store to the end of `on_refresh`.
+
+```python
+def grant_lock(user_id: str, provider: str) -> RefreshLock:
+    @asynccontextmanager
+    async def held():
+        async with pool.acquire() as conn, conn.transaction():
+            await conn.execute("SELECT pg_advisory_xact_lock(hashtext($1))", f"{user_id}:{provider}")
+            yield
+
+    return held
 ```
 
 ## Related

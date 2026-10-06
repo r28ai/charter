@@ -760,6 +760,80 @@ def test_the_consent_link_carries_the_app_s_client_id_not_its_key():
     assert "scope=" not in request.url
 
 
+# Stripe quotes the credential it refuses. These are its messages from a live
+# run, around invented values.
+STALE_REFRESH = "rt_invented0stale0refresh0token0for0the0tests"
+
+
+@respx.mock
+async def test_a_refused_refresh_token_never_reaches_the_error():
+    respx.post(STRIPE_APPS.token_endpoint).mock(
+        return_value=httpx.Response(
+            400,
+            json={
+                "error": "invalid_grant",
+                "error_description": f"Refresh token does not exist: {STALE_REFRESH}",
+            },
+        )
+    )
+    client = OAuth2Client(
+        STRIPE_APPS, client_id="ca_app", client_secret="sk_test_dev", refresh_token=STALE_REFRESH
+    )
+
+    with pytest.raises(CredentialError) as first:
+        await client.get_credentials("stripe")
+    # The dead-grant cooldown replays the message without a request, so it is
+    # the stored copy that has to be clean too.
+    with pytest.raises(CredentialError) as replayed:
+        await client.get_credentials("stripe")
+
+    for error in (first.value, replayed.value):
+        assert STALE_REFRESH not in str(error)
+        assert "Refresh token does not exist: ***" in str(error)
+
+
+@respx.mock
+async def test_a_refused_code_and_key_never_reach_the_exchange_error():
+    code = "ac_invented0authorization0code"
+    key = "secret-key-invented-for-this-test"
+    respx.post(STRIPE_APPS.token_endpoint).mock(
+        return_value=httpx.Response(
+            400,
+            json={
+                "error": "invalid_grant",
+                "error_description": f"Authorization code does not exist: {code} (key {key})",
+            },
+        )
+    )
+    flow = OAuth2Flow(
+        STRIPE_APPS,
+        client_id="ca_app",
+        client_secret=key,
+        redirect_uri="https://app.example.com/stripe/callback",
+    )
+
+    with pytest.raises(CredentialError) as raised:
+        await flow.exchange(code)
+
+    assert code not in str(raised.value)
+    assert key not in str(raised.value)
+    assert "Authorization code does not exist: *** (key ***)" in str(raised.value)
+
+
+@respx.mock
+async def test_a_value_too_short_to_be_a_credential_leaves_the_message_alone():
+    """A secret like the suite's `csec` would otherwise rewrite the server's words."""
+    respx.post(TOKEN_URL).mock(
+        return_value=httpx.Response(
+            400, json={"error": "invalid_client", "error_description": "csec is not recognised"}
+        )
+    )
+    client = OAuth2Client(SERVER, client_id="cid", client_secret="csec", refresh_token="rt1")
+
+    with pytest.raises(CredentialError, match="csec is not recognised"):
+        await client.get_credentials("example")
+
+
 # -----------------------------------------------------
 # Servers that depart from the RFC's wire details
 # -----------------------------------------------------
@@ -843,3 +917,70 @@ def test_a_wire_detail_outside_the_known_set_is_refused_at_declaration(field, va
 
     with pytest.raises(DeclarationError, match=field):
         OAuth2Server(token_endpoint=TOKEN_URL, **{field: value})
+
+
+# -----------------------------------------------------
+# Vendor fields in the code exchange
+# -----------------------------------------------------
+
+# Shopify's expiring offline token is asked for with `expiring=1` in the
+# exchange; the response is its documented one.
+# https://shopify.dev/docs/apps/build/authentication-authorization/access-tokens/authorization-code-grant
+SHOPIFY = OAuth2Server(
+    authorization_endpoint="https://my-store.myshopify.com/admin/oauth/authorize",
+    token_endpoint="https://my-store.myshopify.com/admin/oauth/access_token",
+    scope_separator=",",
+    exchange_params={"expiring": "1"},
+)
+
+
+@respx.mock
+async def test_the_exchange_sends_the_server_s_exchange_params():
+    route = respx.post(SHOPIFY.token_endpoint).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "access_token": "shpua_at",
+                "scope": "read_products",
+                "expires_in": 3600,
+                "refresh_token": "shprt_rt",
+                "refresh_token_expires_in": 7776000,
+            },
+        )
+    )
+    flow = OAuth2Flow(
+        SHOPIFY, client_id="cid", client_secret="csec", redirect_uri="https://app.example.com/cb"
+    )
+
+    grant = await flow.exchange("code-1")
+
+    form = dict(httpx.QueryParams(route.calls.last.request.content.decode()))
+    assert form["expiring"] == "1"
+    assert form["code"] == "code-1"
+    assert grant.refresh_token == "shprt_rt"
+    assert grant.expires_at is not None
+
+
+@respx.mock
+async def test_the_refreshes_after_the_exchange_do_not_send_them():
+    route = respx.post(SHOPIFY.token_endpoint).mock(
+        return_value=httpx.Response(200, json={"access_token": "at2", "refresh_token": "rt2"})
+    )
+    await OAuth2Client(
+        SHOPIFY, client_id="cid", client_secret="csec", refresh_token="shprt_rt"
+    ).get_credentials("shopify")
+
+    form = dict(httpx.QueryParams(route.calls.last.request.content.decode()))
+    assert "expiring" not in form
+    assert form["grant_type"] == "refresh_token"
+
+
+@pytest.mark.parametrize("owned", ["code", "grant_type", "redirect_uri", "client_secret"])
+def test_exchange_params_cannot_replace_what_the_exchange_sends(owned):
+    with pytest.raises(ValueError, match=f"exchange_params cannot set {owned}"):
+        dataclasses.replace(SERVER, exchange_params={owned: "x"})
+
+
+def test_exchange_params_are_frozen_with_the_declaration():
+    with pytest.raises(TypeError):
+        SHOPIFY.exchange_params["expiring"] = "0"  # type: ignore[index]

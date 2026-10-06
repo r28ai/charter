@@ -40,7 +40,7 @@ from pydantic import BaseModel, Field
 from charter.auth.oauth import (
     OAuth2Server,
     _client_auth,
-    _expires_in_seconds,
+    _granted_lifetime,
     _json_payload,
     _post_token_form,
     _token_failure,
@@ -311,6 +311,7 @@ class OAuth2Flow:
         }
         if code_verifier:
             data["code_verifier"] = code_verifier
+        data.update(self.server.exchange_params)
         auth_fields, headers = _client_auth(
             self.server.token_endpoint_auth_method, self._client_id, self._client_secret
         )
@@ -325,7 +326,9 @@ class OAuth2Flow:
             request_format=self.server.token_request_format,
         )
         payload = _json_payload(resp, self.server.token_endpoint, None)
-        failure = _token_failure(payload, resp.status_code, None)
+        failure = _token_failure(
+            payload, resp.status_code, None, (code, code_verifier, self._client_secret)
+        )
         if failure is not None:
             raise failure[1]
 
@@ -351,7 +354,7 @@ class OAuth2Flow:
                 docs="auth/oauth-flow#the-failure-this-flow-exists-to-catch",
             )
 
-        lifetime = _expires_in_seconds(payload.get("expires_in"))
+        lifetime = _granted_lifetime(payload, self.server)
         expires_at = (
             datetime.now(timezone.utc) + timedelta(seconds=lifetime)
             if lifetime is not None

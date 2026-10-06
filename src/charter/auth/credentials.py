@@ -276,7 +276,11 @@ class SubjectProvider:
     invalidated it. Reaching this needs ``max_subjects`` distinct other users
     between the start and end of one refresh, so the default of 1000 makes it
     remote; if you serve more concurrent users than that and your provider
-    rotates, raise the cap rather than tuning around it.
+    rotates, raise the cap rather than tuning around it. A client given a
+    ``refresh_token`` loader narrows it further: it reads the store again on
+    ``invalid_grant``, so only a refresh that lands before ``on_refresh`` has
+    stored its successor still fails. The same loader is what lets several
+    processes serve one user: :class:`~charter.auth.OAuth2Client`.
     """
 
     def __init__(

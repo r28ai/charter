@@ -82,6 +82,7 @@
                       "auth/apps/github",
                       "auth/apps/linear",
                       "auth/apps/notion",
+                      "auth/apps/stripe",
                       "auth/apps/shopify"
                     ]
                   }

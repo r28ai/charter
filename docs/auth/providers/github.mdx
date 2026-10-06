@@ -45,6 +45,13 @@ on, an 8-hour access token and a 6-month refresh token. It is the whole
 difference between the first two rows, and it is not visible from the token
 response until you look for what is missing.
 
+With expiry on, a refresh retires the previous access token at once: "once you
+use a refresh token, that refresh token and the old user access token will no
+longer work", in [GitHub's words](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/refreshing-user-access-tokens).
+One process notices nothing. Several serving the same user would each refresh
+and break the others' tokens, so they share the whole grant through your store:
+[More than one process](/auth/oauth-flow#more-than-one-process).
+
 For a token that never expires there is nothing for `OAuth2Client` to do:
 
 ```python github_static_token.py

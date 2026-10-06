@@ -125,6 +125,151 @@ defenses, layered:
   Pass `expect_refresh_token=False` only for a server that genuinely never
   issues one.
 
+## More than one process
+
+The client caches a user's access token and refreshes it under a lock, so
+twelve concurrent tool calls in one process share one refresh. That lock is
+per process. Run several workers (gunicorn, a few containers, serverless
+instances) and each builds its own client for the same user, each holding its
+own copy of the grant.
+
+Against a server that keeps one refresh token for the life of the grant, as
+Google does, that costs nothing. Against one that rotates (Stripe, Linear,
+Slack with rotation on), a copy goes stale the moment another worker
+refreshes: the server has spent that refresh token and handed its successor to
+someone else. The stale worker's next refresh answers `invalid_grant`, and
+Charter reports that the user has to authorize again, for a grant that is fine.
+Stripe goes further: a refresh also revokes the previous *access* token, within
+a few seconds. Two workers that each refresh fail each other's next call, and
+then refresh again.
+
+So the workers share the grant through your store. Hand the client a function
+that reads it, where you would have passed the refresh token, and have
+`on_refresh` write all three values back:
+
+```python stripe_workers.py
+async def stripe_for(user_id: str):
+    async def stored_grant():
+        row = await db.grants.get(user_id, "stripe")
+        return TokenGrant(
+            access_token=row.access_token,
+            refresh_token=row.refresh_token,
+            expires_at=row.expires_at,
+        )
+
+    async def store(credentials, refresh_token):
+        await db.grants.put(
+            user_id, "stripe", refresh_token,
+            access_token=credentials.token, expires_at=credentials.expires_at,
+        )
+
+    return OAuth2Client(
+        STRIPE_APPS,
+        client_id=os.environ["STRIPE_APP_CLIENT_ID"],
+        client_secret=os.environ["STRIPE_SECRET_KEY"],
+        refresh_token=stored_grant,
+        on_refresh=store,
+    )
+```
+
+Whenever a worker's own token is due, or the API has refused it, the client
+reads the store first. A stored access token that is still good, and isn't the
+one just refused, is used as it is: one refresh serves every worker. Otherwise
+the client refreshes with the stored refresh token, and if the server answers
+`invalid_grant` it reads the store once more, in case another worker stored a
+successor in the moment between. `on_refresh` has finished before the call that
+triggered the refresh goes out.
+
+A loader may return only the refresh token, as a string. That is enough
+against a server that rotates refresh tokens but leaves earlier access tokens
+alone. Returning the whole grant is right everywhere, and it saves the extra
+refreshes.
+
+### What each provider does
+
+OAuth leaves all of this to the server. [RFC 6749 §6](https://www.rfc-editor.org/rfc/rfc6749#section-6)
+lets it issue a new refresh token or not, and lets it revoke the old one; the
+fate of earlier access tokens isn't specified at all. So the providers differ,
+and the table is what each one's own documentation says. Where a cell was
+measured rather than read, it says so.
+
+| Provider | Access token | Refresh token | A refresh retires the previous access token | A spent refresh token, presented again |
+|---|---|---|---|---|
+| [Google](https://developers.google.com/identity/protocols/oauth2/web-server#offline) | `expires_in` sent | not rotated | not documented | — |
+| [Slack](https://docs.slack.dev/authentication/using-token-rotation), rotation on | 12 hours, `expires_in` sent | rotated; the old one revoked "after a short grace period" | at most two are active: a refresh beyond that revokes the oldest | fails |
+| [GitHub App](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/refreshing-user-access-tokens), expiry on | 8 hours, `expires_in` sent; refresh token 6 months | rotated | yes, at once | not documented |
+| [Linear](https://linear.app/developers/oauth-2-0-authentication) | 24 hours, `expires_in` sent | rotated | not documented | accepted for 30 minutes, "to allow for network errors" |
+| [Notion](https://developers.notion.com/reference/refresh-a-token) | not documented; no `expires_in` | a `refresh_token` comes back; rotation not documented | not documented | not documented |
+| [Shopify](https://shopify.dev/docs/apps/build/authentication-authorization/access-tokens/offline-access-tokens), expiring offline token | 1 hour, `expires_in` sent; refresh token 90 days | rotated | yes, "retires your previous expiring offline token" | usable until the newer one is used, or for 30 days |
+| [Stripe App](https://docs.stripe.com/stripe-apps/api-authentication/oauth) | 1 hour, **no `expires_in`**: declare `default_expires_in=3600`. Measured: accepted at 58 minutes, refused at 60 with a `401` | rotated | yes, [`platform_api_key_expired`](https://docs.stripe.com/error-codes/platform-api-key-expired); measured at 2 to 7 seconds | refused, and the grant survives (measured) |
+
+Two things follow for several workers. Wherever a refresh retires the previous
+access token (GitHub, Shopify, Stripe, and Slack beyond two), the workers have
+to share the access token as well as the refresh token, so the loader returns
+the whole grant. And none of the seven documents reuse detection, so for these
+the lock below is a safeguard rather than a requirement. GitHub and Notion
+don't say either way.
+
+### A lock around the refresh
+
+Two workers that find the stored token due at the same moment both read the
+store before either has written to it, so both refresh with the same token.
+What that costs depends on the server:
+
+- **Stripe, and servers like it**, accept both refreshes. Stripe then revokes
+  the access token of whichever finished first, so one call fails and the
+  next reads the other's token from the store. A lock is optional.
+- **A server with reuse detection** treats the second presentation as theft.
+  [RFC 9700 §4.14](https://www.rfc-editor.org/rfc/rfc9700#section-4.14) says
+  it "will revoke the active refresh token", and it recommends this design.
+  Nothing fails at first: the loser takes the winner's stored access token.
+  An hour later no refresh token is left, and the user has to connect again.
+  Reading the store after `invalid_grant` cannot help, because the grant is
+  already gone. Here the lock is mandatory.
+
+Charter holds no connection to your store, so you supply the lock, as an async
+context manager scoped to the grant. The client holds it while it reads the
+store, refreshes if it still has to, and runs `on_refresh`. Whoever takes it
+next reads the stored result instead of refreshing again:
+
+```python grant_lock.py
+from contextlib import asynccontextmanager
+
+
+def grant_lock(user_id: str, provider: str):
+    @asynccontextmanager
+    async def held():
+        async with pool.acquire() as conn, conn.transaction():
+            # Postgres: released when the transaction ends, whatever happens.
+            await conn.execute("SELECT pg_advisory_xact_lock(hashtext($1))", f"{user_id}:{provider}")
+            yield
+
+    return held
+
+
+async def stripe_for(user_id: str):
+    ...
+    return OAuth2Client(
+        STRIPE_APPS,
+        client_id=os.environ["STRIPE_APP_CLIENT_ID"],
+        client_secret=os.environ["STRIPE_SECRET_KEY"],
+        refresh_token=stored_grant,
+        on_refresh=store,
+        refresh_lock=grant_lock(user_id, "stripe"),
+    )
+```
+
+A Redis lock with a timeout works the same way. The lock needs a loader: a
+refresh token passed as a string is a copy, and holding a lock cannot make a
+copy current, so `refresh_lock` without one raises `ValueError`. A lock that
+cannot be taken raises `CredentialError` and makes no refresh.
+
+`on_refresh` carries more weight here than in one process. An `on_refresh` that
+raises is logged and the call goes ahead, since the token is still good for
+this process. But the store then holds a refresh token the server has already
+spent, and the next worker presents it. Against reuse detection, that one
+failed write disconnects the user, so make sure it alerts you.
+
 ## Security invariants
 
 **PKCE always.** On by default, S256 only — there is no `plain` method and
@@ -146,10 +291,13 @@ redirectors and token leaks happen.
 `extra_params` may add vendor parameters, but overriding `client_id`,
 `redirect_uri`, `state` or `code_challenge*` through either raises `ValueError`.
 
-**Secrets stay out of reprs.** `OAuth2Flow`,
+**Secrets stay out of reprs and errors.** `OAuth2Flow`,
 [`TokenGrant`](/reference/oauth#tokengrant) and
 [`OAuth2Client`](/reference/oauth#oauth2client) all print with their secrets
-masked; a grant in a log line leaks nothing.
+masked; a grant in a log line leaks nothing. Servers quote what they refuse
+("Refresh token does not exist: rt_..."), so a token endpoint's error has every
+credential the request sent replaced by `***` before it becomes a
+`CredentialError`.
 
 ## Trying it from a terminal
 

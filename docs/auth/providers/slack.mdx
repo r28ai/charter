@@ -63,6 +63,15 @@ slack.configure(credential_provider=OAuth2Client(
 ))
 ```
 
+Rotation can't be turned off once it is on. Each refresh returns a new refresh
+token, and the one it used is revoked "after a short grace period". Slack also
+keeps at most two access tokens active: a refresh before the 12 hours are up
+that would make a third revokes the oldest. So several processes serving the
+same workspace share the whole grant through your store rather than each
+refreshing for itself:
+[More than one process](/auth/oauth-flow#more-than-one-process). All of this is
+from [Slack's token rotation guide](https://docs.slack.dev/authentication/using-token-rotation).
+
 `$SLACK_BOT_TOKEN` is also the pack's fallback: with no [`configure()`](/reference/configuration#configure) call at
 all, the tools read it directly. That is the shape for a script, not for a
 product.

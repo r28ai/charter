@@ -23,9 +23,11 @@ from charter import (
     oauth_tool_factory,
 )
 from charter.auth import (
+    Credentials,
     OAuth2Client,
     OAuth2Server,
     SubjectProvider,
+    TokenGrant,
     current_subject,
     use_subject,
 )
@@ -758,3 +760,597 @@ async def test_a_permission_error_keeps_the_token():
     await tool.ainvoke(thing_id="t1")
 
     assert minted.call_count == 1
+
+
+# -----------------------------------------------------
+# A lifetime the server documents but does not send
+# -----------------------------------------------------
+
+# Stripe's tokens last an hour; its token response never carries expires_in.
+DATED = dataclasses.replace(SERVER, default_expires_in=3600)
+
+
+def _undated_response(access_token: str = "at-1") -> httpx.Response:
+    return httpx.Response(200, json={"access_token": access_token, "token_type": "bearer"})
+
+
+@respx.mock
+async def test_a_declared_lifetime_dates_a_token_the_response_left_undated():
+    respx.post(TOKEN_URL).mock(return_value=_undated_response())
+    before = datetime.now(timezone.utc)
+
+    credentials = await OAuth2Client(
+        DATED, client_id="cid", client_secret="csec", refresh_token="rt-1"
+    ).get_credentials("example")
+
+    assert credentials.expires_at is not None
+    assert before + timedelta(seconds=3599) <= credentials.expires_at
+    assert credentials.expires_at <= datetime.now(timezone.utc) + timedelta(seconds=3600)
+
+
+@respx.mock
+async def test_a_dated_token_is_renewed_before_the_hour_rather_than_refused_after_it():
+    """Undated, the cache keeps a token until the API refuses it, and that call fails."""
+    minted = respx.post(TOKEN_URL).mock(
+        side_effect=[_undated_response("at-1"), _undated_response("at-2")]
+    )
+    client = OAuth2Client(DATED, client_id="cid", client_secret="csec", refresh_token="rt-1")
+    await client.get_credentials("example")
+
+    # Fifty-nine minutes on: inside the 90-second leeway, so renewed unprompted.
+    cached = client._cached
+    assert cached is not None and cached.expires_at is not None
+    client._cached = cached.model_copy(
+        update={"expires_at": datetime.now(timezone.utc) + timedelta(seconds=60)}
+    )
+    credentials = await client.get_credentials("example")
+
+    assert credentials.token == "at-2"
+    assert minted.call_count == 2
+
+
+@respx.mock
+async def test_an_expires_in_the_server_does_send_beats_the_declared_lifetime():
+    respx.post(TOKEN_URL).mock(return_value=_token_response(expires_in=600))
+
+    credentials = await OAuth2Client(
+        DATED, client_id="cid", client_secret="csec", refresh_token="rt-1"
+    ).get_credentials("example")
+
+    assert credentials.expires_at is not None
+    assert credentials.expires_at <= datetime.now(timezone.utc) + timedelta(seconds=600)
+
+
+@pytest.mark.parametrize("lifetime", [0, -1, True, 3600.0, "3600"])
+def test_a_declared_lifetime_is_a_positive_whole_number_of_seconds(lifetime):
+    with pytest.raises(ValueError, match="default_expires_in"):
+        dataclasses.replace(SERVER, default_expires_in=lifetime)
+
+
+# -----------------------------------------------------
+# More than one process
+# -----------------------------------------------------
+
+
+class _RotatingServer:
+    """A token endpoint that spends each refresh token on use, as Stripe's does."""
+
+    def __init__(self, live: str = "rt-0") -> None:
+        self.live = {live}
+        self.issued = 0
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        sent = dict(httpx.QueryParams(request.content.decode()))["refresh_token"]
+        if sent not in self.live:
+            return httpx.Response(
+                400,
+                json={"error": "invalid_grant", "error_description": "Refresh token is spent."},
+            )
+        self.live.discard(sent)
+        self.issued += 1
+        successor = f"rt-{self.issued}"
+        self.live.add(successor)
+        return httpx.Response(
+            200,
+            json={"access_token": f"at-{self.issued}", "refresh_token": successor},
+        )
+
+
+class _Store:
+    """The host's grants table, shared by every process."""
+
+    def __init__(self, refresh_token: str = "rt-0") -> None:
+        self.refresh_token = refresh_token
+        self.reads = 0
+
+    async def load(self) -> str:
+        self.reads += 1
+        return self.refresh_token
+
+    def save(self, credentials, refresh_token) -> None:
+        self.refresh_token = refresh_token
+
+
+def _worker(refresh_token, store: _Store) -> OAuth2Client:
+    return OAuth2Client(
+        SERVER,
+        client_id="cid",
+        client_secret="csec",
+        refresh_token=refresh_token,
+        on_refresh=store.save,
+    )
+
+
+@respx.mock
+async def test_a_second_process_holding_its_own_copy_is_refused_once_the_first_rotates():
+    """Why the loader exists: the grant is fine, and this process calls it dead."""
+    respx.post(TOKEN_URL).mock(side_effect=_RotatingServer())
+    store = _Store()
+    first, second = _worker("rt-0", store), _worker("rt-0", store)
+
+    await first.get_credentials("example")
+    with pytest.raises(CredentialError, match="invalid_grant"):
+        await second.get_credentials("example")
+
+
+@respx.mock
+async def test_processes_reading_the_stored_token_take_turns_on_one_rotating_grant():
+    server = _RotatingServer()
+    route = respx.post(TOKEN_URL).mock(side_effect=server)
+    store = _Store()
+    first, second = _worker(store.load, store), _worker(store.load, store)
+
+    tokens = []
+    for worker in (first, second, first, second):
+        worker.reset()  # the hour is up in that process
+        tokens.append((await worker.get_credentials("example")).token)
+
+    assert tokens == ["at-1", "at-2", "at-3", "at-4"]
+    assert store.refresh_token == "rt-4"
+    # Read before each refresh, not recovered after a refusal: no wasted requests.
+    assert route.call_count == 4
+
+
+@respx.mock
+async def test_a_token_spent_between_the_read_and_the_refresh_is_read_again():
+    """Another process refreshed and stored its successor in that gap."""
+    server = _RotatingServer(live="rt-stored-elsewhere")
+    route = respx.post(TOKEN_URL).mock(side_effect=server)
+    store = _Store("rt-0")
+
+    def read_then_lose_the_race() -> str:
+        spent, store.refresh_token = store.refresh_token, "rt-stored-elsewhere"
+        return spent
+
+    reads = iter([read_then_lose_the_race, lambda: store.refresh_token])
+    client = _worker(lambda: next(reads)(), store)
+
+    credentials = await client.get_credentials("example")
+
+    assert credentials.token == "at-1"
+    assert route.call_count == 2
+    assert store.refresh_token == "rt-1"
+
+
+@respx.mock
+async def test_a_refused_token_the_store_still_holds_is_dead_without_a_second_try():
+    route = respx.post(TOKEN_URL).mock(side_effect=_RotatingServer(live="rt-other"))
+    store = _Store("rt-0")
+
+    with pytest.raises(CredentialError, match="invalid_grant"):
+        await _worker(store.load, store).get_credentials("example")
+
+    assert route.call_count == 1
+    assert store.reads == 2
+
+
+@pytest.mark.parametrize("returned", [None, "", 42])
+@respx.mock
+async def test_a_loader_that_returns_no_token_says_so(returned):
+    respx.post(TOKEN_URL).mock(return_value=_token_response())
+
+    with pytest.raises(CredentialError, match="loader returned no refresh token"):
+        await _client(refresh_token=lambda: returned).get_credentials("example")
+
+
+@respx.mock
+async def test_a_loader_that_raises_is_a_credential_error():
+    respx.post(TOKEN_URL).mock(return_value=_token_response())
+
+    def unreachable_database() -> str:
+        raise ConnectionError("db down")
+
+    with pytest.raises(CredentialError, match="ConnectionError: db down"):
+        await _client(refresh_token=unreachable_database).get_credentials("example")
+
+
+# -----------------------------------------------------
+# Sharing the access token, not just the refresh token
+# -----------------------------------------------------
+#
+# Stripe revokes the previous access token a few seconds after a refresh. Two
+# workers that each refresh would refuse each other's next call, so a worker
+# takes the token another already stored instead of refreshing again.
+
+
+class _GrantStore:
+    """The host's row for one grant: what on_refresh writes and the loader reads."""
+
+    def __init__(self, refresh_token: str = "rt-0", access_token=None, expires_at=None) -> None:
+        self.refresh_token = refresh_token
+        self.access_token = access_token
+        self.expires_at = expires_at
+
+    async def load(self):
+        if self.access_token is None:
+            return self.refresh_token
+        return TokenGrant(
+            access_token=self.access_token,
+            refresh_token=self.refresh_token,
+            expires_at=self.expires_at,
+        )
+
+    def save(self, credentials, refresh_token) -> None:
+        self.access_token = credentials.token
+        self.expires_at = credentials.expires_at
+        self.refresh_token = refresh_token
+
+
+def _sharing_worker(store: _GrantStore) -> OAuth2Client:
+    return OAuth2Client(
+        SERVER,
+        client_id="cid",
+        client_secret="csec",
+        refresh_token=store.load,
+        on_refresh=store.save,
+    )
+
+
+def _in(seconds: int) -> datetime:
+    return datetime.now(timezone.utc) + timedelta(seconds=seconds)
+
+
+@respx.mock
+async def test_a_second_worker_takes_the_stored_access_token_instead_of_refreshing():
+    route = respx.post(TOKEN_URL).mock(side_effect=_RotatingServer())
+    store = _GrantStore()
+    first, second = _sharing_worker(store), _sharing_worker(store)
+
+    a = await first.get_credentials("example")
+    b = await second.get_credentials("example")
+
+    assert a.token == b.token == "at-1"
+    assert route.call_count == 1
+
+
+@respx.mock
+async def test_a_stored_token_inside_the_leeway_is_refreshed_rather_than_taken():
+    route = respx.post(TOKEN_URL).mock(side_effect=_RotatingServer())
+    store = _GrantStore("rt-0", access_token="at-old", expires_at=_in(30))
+
+    credentials = await _sharing_worker(store).get_credentials("example")
+
+    assert credentials.token == "at-1"
+    assert route.call_count == 1
+    assert store.access_token == "at-1"
+
+
+@respx.mock
+async def test_a_token_the_api_refused_is_not_read_back_from_the_store():
+    """The store still holds the token until a refresh replaces it."""
+    route = respx.post(TOKEN_URL).mock(side_effect=_RotatingServer())
+    store = _GrantStore("rt-0", access_token="at-revoked", expires_at=_in(3000))
+    client = _sharing_worker(store)
+
+    refused = await client.get_credentials("example")
+    assert refused.token == "at-revoked" and route.call_count == 0
+    client.invalidate(refused)
+    renewed = await client.get_credentials("example")
+
+    assert renewed.token == "at-1"
+    assert route.call_count == 1
+
+
+@respx.mock
+async def test_after_invalid_grant_the_winner_s_stored_token_is_taken_without_a_retry():
+    """Another worker refreshed first: its token is in the store, so use it."""
+    route = respx.post(TOKEN_URL).mock(side_effect=_RotatingServer(live="rt-1"))
+    reads = 0
+
+    async def read_then_lose_the_race():
+        nonlocal reads
+        reads += 1
+        if reads == 1:
+            return "rt-0"
+        return TokenGrant(access_token="at-winner", refresh_token="rt-1", expires_at=_in(3000))
+
+    client = OAuth2Client(
+        SERVER, client_id="cid", client_secret="csec", refresh_token=read_then_lose_the_race
+    )
+    credentials = await client.get_credentials("example")
+
+    assert credentials.token == "at-winner"
+    assert route.call_count == 1
+
+
+# -----------------------------------------------------
+# A lock around the refresh
+# -----------------------------------------------------
+#
+# RFC 9700 §4.14: when a spent refresh token comes back, a server with reuse
+# detection "will revoke the active refresh token". Two workers that each read
+# the store before either has written it present the same token twice, and the
+# second presentation disconnects the user. Rereading after invalid_grant cannot
+# help: the grant is already gone.
+
+
+class _ReuseDetectingServer(_RotatingServer):
+    def __init__(self, live: str = "rt-0") -> None:
+        super().__init__(live)
+        self.spent: set = set()
+        self.revoked = False
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        sent = dict(httpx.QueryParams(request.content.decode()))["refresh_token"]
+        if self.revoked or sent in self.spent:
+            self.revoked = True
+            self.live.clear()
+            return httpx.Response(
+                400, json={"error": "invalid_grant", "error_description": "Token reuse detected."}
+            )
+        response = super().__call__(request)
+        if response.status_code == 200:
+            self.spent.add(sent)
+        return response
+
+
+class _SlowStore(_GrantStore):
+    """A store read whose answer can be stale by the time it arrives, as a
+    database round trip's can: the read happens, then the caller waits."""
+
+    async def load(self):
+        value = await super().load()
+        await asyncio.sleep(0)
+        return value
+
+
+def _locked_worker(store: _GrantStore, lock) -> OAuth2Client:
+    return OAuth2Client(
+        SERVER,
+        client_id="cid",
+        client_secret="csec",
+        refresh_token=store.load,
+        on_refresh=store.save,
+        refresh_lock=lock,
+    )
+
+
+@respx.mock
+async def test_without_a_lock_two_workers_present_one_token_and_the_server_revokes_the_grant():
+    """Why the lock is mandatory against reuse detection, and why it is quiet:
+    the loser takes the winner's stored access token, so both calls succeed,
+    and the user is disconnected an hour later when no refresh token is left."""
+    server = _ReuseDetectingServer()
+    respx.post(TOKEN_URL).mock(side_effect=server)
+    store = _SlowStore()
+
+    await asyncio.gather(
+        _sharing_worker(store).get_credentials("example"),
+        _sharing_worker(store).get_credentials("example"),
+    )
+
+    assert server.revoked
+    assert not server.live
+
+
+@respx.mock
+async def test_with_a_lock_the_second_worker_reads_what_the_first_stored():
+    server = _ReuseDetectingServer()
+    route = respx.post(TOKEN_URL).mock(side_effect=server)
+    store = _SlowStore()
+    across_processes = asyncio.Lock()  # stands in for a database or Redis lock
+
+    first, second = await asyncio.gather(
+        _locked_worker(store, lambda: across_processes).get_credentials("example"),
+        _locked_worker(store, lambda: across_processes).get_credentials("example"),
+    )
+
+    assert first.token == second.token == "at-1"
+    assert route.call_count == 1
+    assert not server.revoked
+
+
+@respx.mock
+async def test_the_lock_is_held_until_on_refresh_has_stored_the_result():
+    order: list = []
+    respx.post(TOKEN_URL).mock(side_effect=_RotatingServer())
+    store = _GrantStore()
+
+    class Lock:
+        async def __aenter__(self):
+            order.append("lock")
+
+        async def __aexit__(self, *exc):
+            order.append("unlock")
+
+    def save(credentials, refresh_token):
+        order.append("store")
+        store.save(credentials, refresh_token)
+
+    client = OAuth2Client(
+        SERVER,
+        client_id="cid",
+        client_secret="csec",
+        refresh_token=store.load,
+        on_refresh=save,
+        refresh_lock=Lock,
+    )
+    await client.get_credentials("example")
+
+    assert order == ["lock", "store", "unlock"]
+
+
+def test_a_lock_without_a_loader_is_refused():
+    """Under the lock the client must read the store; a string is a stale copy."""
+    with pytest.raises(ValueError, match="refresh_lock needs refresh_token to be a GrantLoader"):
+        _client(refresh_lock=asyncio.Lock)
+
+
+@respx.mock
+async def test_a_lock_that_cannot_be_taken_is_a_credential_error():
+    route = respx.post(TOKEN_URL).mock(return_value=_token_response())
+
+    class Unreachable:
+        async def __aenter__(self):
+            raise ConnectionError("redis down")
+
+        async def __aexit__(self, *exc):
+            return False
+
+    store = _GrantStore()
+    with pytest.raises(CredentialError, match="refresh lock failed: ConnectionError: redis down"):
+        await _locked_worker(store, Unreachable).get_credentials("example")
+    assert route.call_count == 0
+
+
+# -----------------------------------------------------
+# From review: the edges of the loader and the lock
+# -----------------------------------------------------
+
+
+@respx.mock
+async def test_a_lock_that_fails_to_release_does_not_undo_a_refresh_that_worked(caplog):
+    """A Redis lock whose timeout ran out mid-refresh raises on release."""
+    respx.post(TOKEN_URL).mock(side_effect=_RotatingServer())
+    store = _GrantStore()
+
+    class Expired:
+        async def __aenter__(self):
+            return None
+
+        async def __aexit__(self, *exc):
+            raise RuntimeError("lock not owned")
+
+    credentials = await _locked_worker(store, Expired).get_credentials("example")
+
+    assert credentials.token == "at-1"
+    assert store.refresh_token == "rt-1"
+    assert "releasing the refresh lock raised" in caplog.text
+
+
+@respx.mock
+async def test_a_lock_that_fails_to_release_does_not_hide_the_refresh_s_own_error():
+    respx.post(TOKEN_URL).mock(side_effect=_RotatingServer(live="rt-other"))
+    store = _GrantStore()
+
+    class Expired:
+        async def __aenter__(self):
+            return None
+
+        async def __aexit__(self, *exc):
+            raise RuntimeError("lock not owned")
+
+    with pytest.raises(CredentialError, match="invalid_grant"):
+        await _locked_worker(store, Expired).get_credentials("example")
+
+
+@respx.mock
+async def test_a_store_that_fails_after_invalid_grant_leaves_the_grant_dead_and_cooling():
+    route = respx.post(TOKEN_URL).mock(side_effect=_RotatingServer(live="rt-other"))
+    reads = 0
+
+    async def flaky():
+        nonlocal reads
+        reads += 1
+        if reads > 1:
+            raise ConnectionError("db down")
+        return "rt-0"
+
+    client = OAuth2Client(SERVER, client_id="cid", client_secret="csec", refresh_token=flaky)
+    with pytest.raises(CredentialError, match="invalid_grant"):
+        await client.get_credentials("example")
+    with pytest.raises(CredentialError, match="invalid_grant"):
+        await client.get_credentials("example")
+
+    assert route.call_count == 1
+
+
+@respx.mock
+async def test_a_reconnected_grant_in_the_store_ends_the_cool_down_at_once():
+    """The user connected again through another process; this one notices now."""
+    server = _RotatingServer(live="rt-new")
+    route = respx.post(TOKEN_URL).mock(side_effect=server)
+    store = _GrantStore("rt-dead")
+    client = _sharing_worker(store)
+
+    with pytest.raises(CredentialError, match="invalid_grant"):
+        await client.get_credentials("example")
+    store.refresh_token = "rt-new"  # what the other process's exchange stored
+    credentials = await client.get_credentials("example")
+
+    assert credentials.token == "at-1"
+    assert route.call_count == 2
+
+
+@respx.mock
+async def test_the_cool_down_holds_while_the_store_still_has_the_dead_grant():
+    route = respx.post(TOKEN_URL).mock(side_effect=_RotatingServer(live="rt-other"))
+    store = _GrantStore("rt-dead")
+    client = _sharing_worker(store)
+
+    for _ in range(3):
+        with pytest.raises(CredentialError, match="invalid_grant"):
+            await client.get_credentials("example")
+
+    assert route.call_count == 1
+
+
+@respx.mock
+async def test_from_grant_takes_a_loader_and_a_lock():
+    route = respx.post(TOKEN_URL).mock(side_effect=_RotatingServer(live="rt-1"))
+    store = _GrantStore("rt-1", access_token="at-0", expires_at=_in(3000))
+    grant = TokenGrant(access_token="at-0", refresh_token="rt-1", expires_at=_in(3000))
+
+    client = OAuth2Client.from_grant(
+        SERVER,
+        grant,
+        client_id="cid",
+        client_secret="csec",
+        refresh_token=store.load,
+        on_refresh=store.save,
+        refresh_lock=asyncio.Lock,
+    )
+    assert (await client.get_credentials("example")).token == "at-0"
+    client.invalidate(Credentials(token="at-0"))
+    assert (await client.get_credentials("example")).token == "at-1"
+    assert route.call_count == 1
+
+
+@respx.mock
+async def test_a_declared_short_lifetime_lets_a_worker_take_a_stored_token_inside_ninety_seconds():
+    """The leeway is capped at half the lifetime from the first call, not after a refresh."""
+    route = respx.post(TOKEN_URL).mock(side_effect=_RotatingServer())
+    short = dataclasses.replace(SERVER, default_expires_in=120)
+    store = _GrantStore("rt-0", access_token="at-stored", expires_at=_in(80))
+
+    client = OAuth2Client(
+        short,
+        client_id="cid",
+        client_secret="csec",
+        refresh_token=store.load,
+        on_refresh=store.save,
+    )
+
+    assert (await client.get_credentials("example")).token == "at-stored"
+    assert route.call_count == 0
+
+
+def test_a_loader_with_the_client_credentials_grant_is_refused():
+    with pytest.raises(ValueError, match="client_credentials grant has none to read"):
+        OAuth2Client(
+            SERVER,
+            client_id="cid",
+            client_secret="csec",
+            grant="client_credentials",
+            refresh_token=lambda: "rt",
+        )

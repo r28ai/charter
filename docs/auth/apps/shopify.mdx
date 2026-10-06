@@ -125,10 +125,11 @@ Shopify App Store. Listing it means going through Shopify's review.
 At the callback, **check Shopify's `hmac` parameter before anything else**. It's
 an HMAC-SHA256 of the other query parameters, keyed with your client secret.
 Charter doesn't check it for you, because it's Shopify's own convention rather
-than part of OAuth. Then exchange the code with `expect_refresh_token=False`,
-since the default offline token doesn't expire and comes without a refresh
-token, and store the shop and its token against the user. The full shape,
-including the per-call store, is in the
+than part of OAuth. Then exchange the code, with `exchange_params={"expiring": "1"}`
+on the server so Shopify issues an expiring offline token and a refresh token.
+Public apps must use that token for the GraphQL Admin API by January 1, 2027.
+Store the shop and the grant against the user. The full shape, including the
+per-call store and the refresh, is in the
 [Shopify section of Every pack](/auth/your-users#shopify).
 
 </Step>

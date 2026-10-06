@@ -9,6 +9,97 @@ here, with the migration in the same entry.
 
 ## [Unreleased]
 
+### Added
+
+- **Several processes can serve one user against a server that rotates.**
+  Each worker's client held its own copy of the grant. Once one worker
+  refreshed, the others' refresh tokens were spent, so their next refresh
+  answered `invalid_grant` and Charter told the user to authorize again, for a
+  grant that was fine. Against Stripe it is worse: a refresh revokes the
+  previous access token within seconds, so two workers that each refreshed
+  failed each other's calls in turn. Both reproduced against Stripe.
+  `OAuth2Client`'s `refresh_token` now also takes a `GrantLoader`: a function
+  reading the grant `on_refresh` stored. It is read whenever the worker's token
+  is due or refused, and once more on `invalid_grant`. When it returns a
+  `TokenGrant` whose access token is still good, that token is used and no
+  refresh is made, so one refresh serves every worker. Passing a string works
+  as before.
+- **`OAuth2Client(refresh_lock=...)`**, a lock across processes held while
+  the client reads the stored grant, refreshes, and stores the result. Against
+  a server with reuse detection (RFC 9700 §4.14), two processes presenting one
+  refresh token revoke the grant, and quietly: the loser takes the winner's
+  stored access token, so nothing fails until the next renewal finds no
+  refresh token left. Rereading the store cannot recover that, so there the
+  lock is mandatory. Charter holds no connection to your store, so the lock is
+  yours; it requires a `GrantLoader`.
+- **`OAuth2Server(exchange_params=...)`**, vendor fields for the code
+  exchange. Shopify issues its expiring offline token, with a refresh token,
+  only when the exchange carries `expiring=1`, and public apps must use that
+  token for the GraphQL Admin API by January 1, 2027. The Shopify guides
+  told you to exchange for the non-expiring token, which the pack's own API
+  stops accepting from public apps on that date. They now declare
+  `exchange_params={"expiring": "1"}` and renew per store through
+  `OAuth2Client`.
+- **`OAuth2Server(default_expires_in=...)`**, the token lifetime for a server
+  that documents one but leaves `expires_in` out of its response. Stripe's
+  tokens last an hour and its response never says so. Without a lifetime the
+  client kept a token until the API refused it, and that call failed; with
+  one, it renews the token shortly before the hour. A response's `expires_in`
+  still wins. The documented `STRIPE_APPS` declares `3600`.
+- **`scripts/live_oauth_check.py`**, one live check for every provider
+  Charter documents: Google, Slack, GitHub, Linear, Notion, Shopify and Stripe.
+  `connect` installs through Charter's own consent link, or on the endpoint of
+  a link the provider gave you (Stripe's External test link). `check` calls
+  read-only tools, has two workers share one grant through a hand-over, and
+  sets each provider's documented refresh behaviour against what it does: a
+  row of the provider table that disagrees fails. `expiry` holds a token until
+  it lapses, and measures the lifetime of one with no stated expiry.
+- **`GrantLoader` and `RefreshLock` are exported from `charter.auth`**, beside
+  `OnRefresh`, so a host can name them. `OAuth2Client.from_grant` takes a
+  loader and a lock too.
+
+### Fixed
+
+- **A token endpoint's error no longer carries the credential it refused.**
+  Servers quote what they reject: Stripe answers a used refresh token with
+  "Refresh token does not exist: rt_...", and that text became the
+  `CredentialError` message, and from there a log line. The refresh token,
+  code, PKCE verifier and client secret a request sent are now replaced by
+  `***` wherever the server's error repeats them, in `OAuth2Client` and
+  `OAuth2Flow.exchange` alike.
+
+### Documentation
+
+- **What each provider does**, in Getting the grant: for Google, Slack, GitHub,
+  Linear, Notion, Shopify and Stripe, the access token's lifetime and whether
+  `expires_in` is sent, whether the refresh token rotates, whether a refresh
+  retires the previous access token, and what a spent refresh token gets. Read
+  from each provider's own documentation, linked, and marked where it was
+  measured instead. The provider pages for GitHub and Slack, and the Linear and
+  Notion sections, now say what their refreshes do to the tokens other
+  processes hold.
+- **A lock around the refresh**: when it is mandatory, with a Postgres
+  example, and why an `on_refresh` that fails matters more with several
+  processes.
+
+- **Register a Stripe App**, beside the other providers' app guides: the CLI,
+  the manifest's OAuth fields and the permission each tool needs, the upload,
+  and the External test link. Written from a live run against Stripe. Until an
+  app is published, Stripe honours only the test link, whose path names a
+  channel, and the documented `/oauth/v2/authorize` endpoint is not active. A
+  token for the account that owns the app is refused on every call, so the
+  test needs a second account.
+- The Stripe section of Every pack says both, and that the access token is a
+  restricted key limited to the manifest's permissions. The guide also covers
+  publishing, and what the public link answers until Stripe approves the app.
+- **More than one process**, in Getting the grant: why a copied grant goes
+  stale across workers, why Stripe's workers have to share the access token
+  too, and the loader that does both, with Stripe's measured behaviour.
+- **The `OnRefresh` reference showed the wrong signature.** It described a
+  callback taking a `TokenGrant`. Charter calls it with the new credentials and
+  the refresh token, so the example raised, and because an `on_refresh` that
+  raises is only logged, the rotated token was silently never stored.
+
 ## [0.4.0] — 2026-10-05
 
 ### Added

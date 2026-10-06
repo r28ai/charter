@@ -42,6 +42,7 @@ DOCS = [
     ROOT / "docs/auth/setup/slack.mdx",
     ROOT / "docs/auth/setup/github.mdx",
     ROOT / "docs/auth/setup/notion.mdx",
+    ROOT / "docs/auth/apps/stripe.mdx",
     ROOT / "docs/auth/providers/google.mdx",
     ROOT / "docs/auth/providers/slack.mdx",
     ROOT / "docs/auth/providers/github.mdx",
@@ -71,9 +72,9 @@ class _Keys:
 
 class _Grants:
     async def get(self, subject, provider):
-        return SimpleNamespace(refresh_token="rt-stored")
+        return SimpleNamespace(refresh_token="rt-stored", access_token="at-stored", expires_at=None)
 
-    async def put(self, subject, provider, refresh_token):
+    async def put(self, subject, provider, refresh_token, **shared):
         self.stored = (subject, provider, refresh_token)
 
 
@@ -82,6 +83,8 @@ def _stubs() -> dict:
 
     ``GOOGLE`` is in here for the same reason ``db`` is: the setup page uses the
     constant without restating it, because google.mdx is where it is maintained.
+    ``STRIPE_APPS`` likewise: the Stripe app guide derives its test-link server
+    from the one your-users.mdx declares.
     Stubbing it with the canonical declaration rather than a fresh literal is
     what keeps that page honest — a snippet written against a constant nobody
     checks is the failure this whole file exists to prevent.
@@ -89,6 +92,7 @@ def _stubs() -> dict:
     db = SimpleNamespace(grants=_Grants(), keys=_Keys())
     return {
         "GOOGLE": _declared_server(ROOT / "docs/auth/providers/google.mdx", "GOOGLE"),
+        "STRIPE_APPS": _declared_server(ROOT / "docs/auth/your-users.mdx", "STRIPE_APPS"),
         "__name__": "__charter_docs__",
         **{name: getattr(charter, name) for name in charter.__all__ if name != "__version__"},
         **{name: getattr(charter.auth, name) for name in charter.auth.__all__},
@@ -285,6 +289,46 @@ def test_the_google_constant_has_one_definition():
     from charter.packs._google import GOOGLE
 
     assert canonical == GOOGLE
+
+
+LIVE_CHECK = ROOT / "scripts/live_oauth_check.py"
+
+
+@pytest.mark.parametrize(
+    ("page", "name"),
+    [
+        ("docs/auth/providers/google.mdx", "GOOGLE"),
+        ("docs/auth/providers/slack.mdx", "SLACK"),
+        ("docs/auth/providers/github.mdx", "GITHUB"),
+        ("docs/auth/your-users.mdx", "LINEAR"),
+        ("docs/auth/your-users.mdx", "NOTION"),
+        ("docs/auth/your-users.mdx", "STRIPE_APPS"),
+    ],
+)
+def test_the_live_check_holds_the_constant_the_page_tells_readers_to_paste(page, name):
+    """So a live check that passes is a check of the page, not of a private
+    copy beside it."""
+    assert _declared_server(ROOT / page, name) == _declared_server(LIVE_CHECK, name)
+
+
+def test_the_live_check_builds_shopify_s_server_as_the_page_does():
+    """A function on both sides, since the store is part of the server."""
+
+    def built(source: str):
+        for node in ast.parse(source).body:
+            if isinstance(node, ast.FunctionDef) and node.name == "shopify_server":
+                namespace: dict = {"OAuth2Server": charter.auth.OAuth2Server}
+                exec(
+                    compile(ast.Module(body=[node], type_ignores=[]), "<shopify_server>", "exec"),
+                    namespace,
+                )  # noqa: S102
+                return namespace["shopify_server"]("my-store")
+        raise AssertionError("no shopify_server")
+
+    page = next(
+        b for b in _python_blocks(ROOT / "docs/auth/your-users.mdx") if "def shopify_server" in b
+    )
+    assert built(page) == built(LIVE_CHECK.read_text())
 
 
 async def test_the_grant_snippet_really_reaches_storage(monkeypatch):

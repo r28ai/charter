@@ -40,6 +40,13 @@ OpenAI tools interface and the Claude Agent SDK. No per-call header has to get
 through the agent framework. A call with no user set raises instead of using
 someone else's credential.
 
+Serving users from more than one process? Where the provider rotates refresh
+tokens (Stripe, Linear, Slack with rotation on), pass the client a function
+that reads the stored grant rather than the refresh token itself, as the
+Linear and Stripe examples below do. A copy goes stale the moment another
+process refreshes, and Stripe's refresh also revokes the other processes'
+access tokens: [More than one process](/auth/oauth-flow#more-than-one-process).
+
 ## Every pack
 
 The *connect* column is what your user does. *Store* is what you keep
@@ -69,17 +76,19 @@ the scopes, and the client ID and secret the flow is built from. Each of these
 has a screenshot for every screen:
 [Google](/auth/apps/google), [Slack](/auth/apps/slack),
 [GitHub](/auth/apps/github), [Linear](/auth/apps/linear),
-[Notion](/auth/apps/notion) and [Shopify](/auth/apps/shopify).
+[Notion](/auth/apps/notion), [Stripe](/auth/apps/stripe) and
+[Shopify](/auth/apps/shopify).
 
 ## Linear
 
-Linear access tokens last 24 hours, and Linear's refresh tokens rotate. It
-documents scopes as a comma-separated list. The OAuth application is registered
+Linear access tokens last 24 hours, and Linear's refresh tokens rotate, with
+a 30-minute grace period in which a used one is still accepted. It documents
+scopes as a comma-separated list. The OAuth application is registered
 at [linear.app/settings/api](https://linear.app/settings/api):
 [Register a Linear OAuth application](/auth/apps/linear).
 
 ```python linear_users.py
-from charter.auth import OAuth2Client, OAuth2Flow, OAuth2Server, SubjectProvider
+from charter.auth import OAuth2Client, OAuth2Flow, OAuth2Server, SubjectProvider, TokenGrant
 from charter.packs import linear
 
 LINEAR = OAuth2Server(
@@ -100,13 +109,20 @@ request = flow.authorize(["read", "write"])  # the link your "Connect Linear" bu
 
 
 async def linear_for(user_id: str):
-    row = await db.grants.get(user_id, "linear")
+    async def stored_grant():  # read before every refresh: Linear rotates
+        row = await db.grants.get(user_id, "linear")
+        return TokenGrant(
+            access_token=row.access_token,
+            refresh_token=row.refresh_token,
+            expires_at=row.expires_at,
+        )
+
     return OAuth2Client(
         LINEAR,
         client_id=os.environ["LINEAR_CLIENT_ID"],
         client_secret=os.environ["LINEAR_CLIENT_SECRET"],
-        refresh_token=row.refresh_token,
-        on_refresh=partial(save_to_db, user_id),
+        refresh_token=stored_grant,
+        on_refresh=partial(save_to_db, user_id),  # stores the token, its expiry, the refresh token
     )
 
 
@@ -127,17 +143,19 @@ picks an account, and comes back. The app's permissions are set in its manifest,
 not in the link, so the flow sends no scopes. Stripe's token endpoint takes
 your app's own **secret key** as the credential: passed as `client_secret`, it is
 sent the way `curl -u sk_live_...:` sends it.
+[Register a Stripe App](/auth/apps/stripe) builds the app and tests it.
 
 ```python stripe_users.py
-from charter.auth import OAuth2Client, OAuth2Flow, OAuth2Server, SubjectProvider
+from charter.auth import OAuth2Client, OAuth2Flow, OAuth2Server, SubjectProvider, TokenGrant
 from charter.packs import stripe
 
 STRIPE_APPS = OAuth2Server(
     issuer="https://marketplace.stripe.com",
-    authorization_endpoint="https://marketplace.stripe.com/oauth/v2/authorize",
+    authorization_endpoint="https://marketplace.stripe.com/oauth/v2/authorize",  # once published
     token_endpoint="https://api.stripe.com/v1/oauth/token",
     token_endpoint_auth_method="secret_key_basic",
     uses_scopes=False,
+    default_expires_in=3600,  # an hour, which Stripe's token response never says
 )
 
 flow = OAuth2Flow(
@@ -150,24 +168,41 @@ request = flow.authorize()
 
 
 async def stripe_for(user_id: str):
-    row = await db.grants.get(user_id, "stripe")
+    async def stored_grant():  # read before every refresh: Stripe rotates
+        row = await db.grants.get(user_id, "stripe")
+        return TokenGrant(
+            access_token=row.access_token,
+            refresh_token=row.refresh_token,
+            expires_at=row.expires_at,
+        )
+
     return OAuth2Client(
         STRIPE_APPS,
         client_id=os.environ["STRIPE_APP_CLIENT_ID"],
         client_secret=os.environ["STRIPE_SECRET_KEY"],
-        refresh_token=row.refresh_token,
-        on_refresh=partial(save_to_db, user_id),
+        refresh_token=stored_grant,
+        on_refresh=partial(save_to_db, user_id),  # stores the token, its expiry, the refresh token
     )
 
 
 stripe.configure(credential_provider=SubjectProvider(stripe_for))
 ```
 
-Stripe access tokens last an hour. Its refresh tokens roll on every use, so
-`on_refresh` has to store the new one. Stripe's documented token response has
-no `expires_in`. If yours has none either, the client finds out a token expired
-from the 401 that refuses it, and the next call refreshes. That first call
-still fails, so your agent should retry it.
+Until the app is published, that consent link is not active. Stripe honours
+only the link on the app's External test tab, whose path names a channel:
+`/oauth/v2/chnlink_.../authorize`. Point the flow at that path while you test,
+and install from an account other than the one that owns the app. Stripe issues
+a token for the owner's own account and then refuses it on every call.
+
+The access token is a restricted key, `rk_live_...` or `rk_test_...`, limited
+to the permissions in the app's manifest, and it goes out as `Bearer` like any
+other. Stripe access tokens last an hour, and its token response doesn't say
+so. The constant declares it with `default_expires_in`, so the client renews
+each token shortly before the hour instead of learning from a refused call.
+Stripe's refresh tokens roll on every use, and a refresh revokes the previous
+access token within seconds. So `on_refresh` stores the new access token, its
+expiry and the refresh token, and `stored_grant` reads them back: every
+process uses the token one refresh produced instead of refreshing on its own.
 
 Not every product wants to publish a Stripe App. The other path is a
 [restricted key](https://docs.stripe.com/keys/restricted-api-keys) (`rk_...`):
@@ -224,6 +259,11 @@ async def notion_for(user_id: str):
 notion.configure(credential_provider=SubjectProvider(notion_for))
 ```
 
+Notion's token response carries a `refresh_token` and no `expires_in`, and its
+docs don't say how long an access token lasts or whether the refresh token
+rotates. So the client keeps a token until the API refuses it, and that one
+call fails before the next refreshes.
+
 ## Shopify
 
 A merchant connects a store, and the store is part of the connection: the API
@@ -232,12 +272,20 @@ named per call as well as the token. `shop=` takes a function for exactly this,
 and it is called on every request. The app is one Dev Dashboard app for every
 store: [Register a Shopify app](/auth/apps/shopify).
 
+Ask for an **expiring** offline token. Shopify requires public apps to use one
+for the GraphQL Admin API, which is what the pack calls, by
+[January 1, 2027](https://shopify.dev/docs/apps/build/authentication-authorization/access-tokens/offline-access-tokens).
+It lasts an hour and comes with a refresh token that lasts 90 days, and both
+are replaced on every refresh. `exchange_params={"expiring": "1"}` on the server
+is what asks for it.
+
 ```python shopify_users.py
 from charter.auth import (
+    OAuth2Client,
     OAuth2Flow,
     OAuth2Server,
-    StaticTokenProvider,
     SubjectProvider,
+    TokenGrant,
     current_subject,
 )
 from charter.packs import shopify
@@ -248,6 +296,7 @@ def shopify_server(shop: str) -> OAuth2Server:
         authorization_endpoint=f"https://{shop}.myshopify.com/admin/oauth/authorize",
         token_endpoint=f"https://{shop}.myshopify.com/admin/oauth/access_token",
         scope_separator=",",
+        exchange_params={"expiring": "1"},  # an offline token that expires, with a refresh token
     )
 
 
@@ -258,16 +307,29 @@ flow = OAuth2Flow(
     redirect_uri="https://app.example.com/oauth/shopify/callback",
 )
 request = flow.authorize(["read_products", "read_orders"])
-# Callback: also verify Shopify's `hmac` parameter before exchanging. Then
-# grant = await flow.exchange(code, expect_refresh_token=False)
-# and store the shop and grant.access_token for the user.
+# Callback: verify Shopify's `hmac` parameter before exchanging. Then
+# grant = await flow.exchange(code)
+# and store the shop and the grant against the user.
 
 stores = {"u1": "merchant-store"}  # yours: user id to store
-tokens = {"u1": "shpua_stored"}  # yours: user id to token
 
 
 async def shopify_for(user_id: str):
-    return StaticTokenProvider(tokens[user_id])
+    async def stored_grant():  # Shopify retires the previous access token on refresh
+        row = await db.grants.get(user_id, "shopify")
+        return TokenGrant(
+            access_token=row.access_token,
+            refresh_token=row.refresh_token,
+            expires_at=row.expires_at,
+        )
+
+    return OAuth2Client(
+        shopify_server(stores[user_id]),
+        client_id=os.environ["SHOPIFY_CLIENT_ID"],
+        client_secret=os.environ["SHOPIFY_CLIENT_SECRET"],
+        refresh_token=stored_grant,
+        on_refresh=partial(save_to_db, user_id),
+    )
 
 
 shopify.configure(
@@ -276,10 +338,11 @@ shopify.configure(
 )
 ```
 
-`exchange(..., expect_refresh_token=False)` is because Shopify's default
-offline token does not expire and comes with no refresh token. Pairing a
-per-call store with a single `access_token` raises: one store's token would go
-to every other store.
+The pack sends the token in `X-Shopify-Access-Token`, wherever it came from. A
+store that holds a non-expiring offline token, issued before expiring tokens or
+to a custom app, keeps working as `StaticTokenProvider(token)`, exchanged with
+`expect_refresh_token=False`. Pairing a per-call store with a single
+`access_token` raises: one store's token would go to every other store.
 
 ## What stays yours
 
