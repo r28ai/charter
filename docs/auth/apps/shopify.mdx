@@ -62,9 +62,15 @@ callback route under **Redirect URLs**.
   />
 </Frame>
 
-The scopes here are what Shopify grants on install. The flow sends the same
+The scopes here are what Shopify grants on install, whatever the link asks
+for. In a live install the link asked for `read_products`, and the install
+screen listed every scope of the released version. The flow still sends the
 list in its link, separated by commas, and the server constant on
 [Every pack](/auth/your-users#shopify) already declares that separator.
+
+For development, a plain `http://localhost` callback works: Shopify accepted
+`http://localhost:8765/callback` on a store installing the app for the first
+time.
 
 Leave **Use legacy install flow** unticked.
 
@@ -148,8 +154,9 @@ per-call store and the refresh, is in the
     In a live test, redirect URLs added in later released versions were all
     refused on such a store, over `http` and `https` alike, and with the app
     URL moved onto the same host. The URL the app had when it was installed
-    was accepted. Test new URLs against a store that hasn't installed the app
-    yet, or use the URL from the install.
+    was accepted. After uninstalling the app and installing it again through
+    the flow, the new URL was accepted. So test a new URL on a store that
+    hasn't installed the app, or reinstall it.
   </Accordion>
   <Accordion title="A scope you added is not granted">
     Scope changes reach a store only through a released version, and a store
