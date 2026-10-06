@@ -103,7 +103,7 @@ class OAuth2Server:
   Error codes, besides RFC 6749's `invalid_grant`, that the server uses to say
   a grant is gone. Slack answers a spent refresh token with
   `invalid_refresh_token` and an uninstalled app with `token_revoked`, both in
-  an HTTP 200; GitHub uses `bad_refresh_token`. A declared code is handled
+  an HTTP 200; GitHub uses `bad_refresh_token`, and Linear `invalid_request`. A declared code is handled
   like `invalid_grant`: a 60-second cool-down, one more read of a
   [`GrantLoader`](#grantloader), and a `CredentialError` whose `reauthorize` is
   true. `invalid_grant` always counts. A bare string, or an empty or
@@ -213,7 +213,9 @@ many users by wrapping it in
   it still has to, and runs `on_refresh`, so the next holder reads that result
   instead of refreshing again. Mandatory against a server with reuse
   detection, where two processes presenting one refresh token revoke the
-  grant: [A lock around the refresh](/auth/oauth-flow#a-lock-around-the-refresh).
+  grant, and against one whose refresh retires the previous access token,
+  where they revoke each other's tokens and calls fail:
+  [A lock around the refresh](/auth/oauth-flow#a-lock-around-the-refresh).
   Requires `refresh_token` to be a [`GrantLoader`](#grantloader), or raises
   `ValueError`. A lock that cannot be taken raises `CredentialError`.
 </ParamField>

@@ -215,7 +215,7 @@ Call `reset()` — or build a new client — after re-authorizing. The error's
 `reauthorize` is true, so your app can tell this from a failure worth retrying.
 A server that names a dead grant its own way declares the codes in
 `dead_grant_errors`: Slack answers `invalid_refresh_token` or `token_revoked`,
-GitHub `bad_refresh_token`.
+GitHub `bad_refresh_token`, Linear `invalid_request`.
 
 **A token the API refuses is dropped, not kept until it expires.** A token can
 die early: an app uninstalled and reinstalled, a secret rotated, a grant revoked

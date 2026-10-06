@@ -107,10 +107,12 @@ with commas, which the constant already declares.
     [linear.app/settings/api](https://linear.app/settings/api), switch it on and
     save.
   </Accordion>
-  <Accordion title="invalid_grant on a refresh that worked yesterday">
+  <Accordion title="invalid_request: Invalid refresh token, on a refresh that worked yesterday">
     The refresh token was used and its replacement was never saved. Linear
-    rotates refresh tokens, so the old one stops working once it has been used.
-    Store the new one in `on_refresh`, then have the user connect again.
+    rotates refresh tokens, and the old one stops working 30 minutes after it
+    was used. Linear says so with `invalid_request` rather than
+    `invalid_grant`. Store the new one in `on_refresh`, then have the user
+    connect again.
   </Accordion>
   <Accordion title="401 on a token that should be valid">
     Linear wants an OAuth token sent as `Bearer` and a personal API key sent

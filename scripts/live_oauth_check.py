@@ -103,6 +103,7 @@ LINEAR = OAuth2Server(
     token_endpoint="https://api.linear.app/oauth/token",
     token_endpoint_auth_method="client_secret_post",
     scope_separator=",",
+    dead_grant_errors=("invalid_request",),
 )
 
 NOTION = OAuth2Server(
@@ -207,7 +208,9 @@ PROVIDERS = {
         sends_expires_in=True,
         rotates=True,
         retires_previous_access=False,  # measured: still accepted 30 seconds on
-        spent_refresh_token="accepted",  # a 30-minute grace period
+        # A 30-minute grace period, answered with the current refresh token;
+        # measured refused at 32 minutes with invalid_request.
+        spent_refresh_token="accepted",
     ),
     "notion": Provider(
         "notion",

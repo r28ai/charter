@@ -198,7 +198,7 @@ measured rather than read, it says so.
 | [Google](https://developers.google.com/identity/protocols/oauth2/web-server#offline) | `expires_in` sent | not rotated | not documented. Measured: still accepted 30 seconds after a refresh | — |
 | [Slack](https://docs.slack.dev/authentication/using-token-rotation), rotation on | 12 hours, `expires_in` sent | rotated; the old one revoked "after a short grace period" | at most two are active: a refresh beyond that revokes the oldest. Measured: one refresh leaves the previous one working | fails after the grace period. Measured: accepted at 4 minutes, and answered with the current refresh token rather than a new one; refused at 8, with `invalid_refresh_token` in an HTTP 200 |
 | [GitHub App](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/refreshing-user-access-tokens), expiry on | 8 hours, `expires_in` sent; refresh token 6 months | rotated | yes, at once (measured: about 2 seconds) | not documented. Measured: refused, with `bad_refresh_token` in an HTTP 200, and the grant survives |
-| [Linear](https://linear.app/developers/oauth-2-0-authentication) | 24 hours, `expires_in` sent | rotated | not documented. Measured: still accepted 30 seconds after a refresh | accepted for 30 minutes, "to allow for network errors". Measured: answered with the current refresh token rather than a new one |
+| [Linear](https://linear.app/developers/oauth-2-0-authentication) | 24 hours, `expires_in` sent | rotated | not documented. Measured: still accepted 30 seconds after a refresh | accepted for 30 minutes, "to allow for network errors". Measured: answered with the current refresh token rather than a new one; accepted at 29 minutes, refused at 32 with `invalid_request` in a 400 |
 | [Notion](https://developers.notion.com/reference/refresh-a-token) | not documented; no `expires_in` | not documented. Measured: rotated | not documented. Measured: yes, about 3 seconds after the refresh | not documented. Measured: refused, and the grant survives |
 | [Shopify](https://shopify.dev/docs/apps/build/authentication-authorization/access-tokens/offline-access-tokens), expiring offline token | 1 hour, `expires_in` sent; refresh token 90 days. Measured: accepted at 55 minutes, refused at 60 | rotated | documented: it "retires your previous expiring offline token". Measured: still accepted 10 minutes after the refresh | usable until the newer one is used, or for 30 days (measured: accepted) |
 | [Stripe App](https://docs.stripe.com/stripe-apps/api-authentication/oauth) | 1 hour, **no `expires_in`**: declare `default_expires_in=3600`. Measured: accepted at 58 minutes, refused at 60 with a `401` | rotated | yes, [`platform_api_key_expired`](https://docs.stripe.com/error-codes/platform-api-key-expired); measured at 2 to 7 seconds | refused, and the grant survives (measured) |
@@ -207,10 +207,11 @@ Two things follow for several workers. Wherever a refresh retires the previous
 access token (GitHub, Notion, Stripe, and Slack beyond two), the workers have to
 share the access token as well as the refresh token, so the loader returns the
 whole grant. Returning it is right for the others too: it saves the refreshes.
-And none of the seven documents reuse detection, and none showed it: a spent
+None of the seven documents reuse detection, and none showed it: a spent
 refresh token presented again was accepted or refused, and in every run the
-grant kept working. So for these the lock below is a safeguard rather than a
-requirement.
+grant kept working. That does not make the lock below optional. Where a
+refresh retires the previous access token, workers that refresh together
+revoke each other's tokens, and calls fail.
 
 ### A lock around the refresh
 
@@ -218,9 +219,16 @@ Two workers that find the stored token due at the same moment both read the
 store before either has written to it, so both refresh with the same token.
 What that costs depends on the server:
 
-- **Stripe, and servers like it**, accept both refreshes. Stripe then revokes
-  the access token of whichever finished first, so one call fails and the
-  next reads the other's token from the store. A lock is optional.
+- **Stripe, and servers like it**, accept some of the refreshes and revoke
+  the access token of each one that finished before the last, within seconds.
+  Measured with four processes on one Stripe grant, every one due at the same
+  moment every 15 seconds: without the lock, 104 of 1,976 calls failed in
+  three minutes, and a worker whose refresh token another had just spent got
+  `invalid_grant`, which reads as "the user has to authorize again" for a grant
+  that was fine. With the lock, 6,969 calls in ten minutes, none failed, and
+  one refresh per renewal. With the Postgres lock below, across nine
+  processes on three machines in Paris, Virginia and Singapore, 8,803 calls,
+  none failed, and again one refresh per renewal. Take the lock.
 - **A server with reuse detection** treats the second presentation as theft.
   [RFC 9700 §4.14](https://www.rfc-editor.org/rfc/rfc9700#section-4.14) says
   it "will revoke the active refresh token", and it recommends this design.
@@ -261,7 +269,10 @@ async def stripe_for(user_id: str):
     )
 ```
 
-A Redis lock with a timeout works the same way. The lock needs a loader: a
+The lock holds a pooled connection while the loader and `on_refresh` take
+another, so the pool needs at least two: with one, the client waits inside the
+lock for a connection the lock is holding. A Redis lock with a timeout works
+the same way. The lock needs a loader: a
 refresh token passed as a string is a copy, and holding a lock cannot make a
 copy current, so `refresh_lock` without one raises `ValueError`. A lock that
 cannot be taken raises `CredentialError` and makes no refresh.

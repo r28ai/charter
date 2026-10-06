@@ -97,6 +97,7 @@ LINEAR = OAuth2Server(
     token_endpoint="https://api.linear.app/oauth/token",
     token_endpoint_auth_method="client_secret_post",
     scope_separator=",",
+    dead_grant_errors=("invalid_request",),
 )
 
 flow = OAuth2Flow(
@@ -128,6 +129,13 @@ async def linear_for(user_id: str):
 
 linear.configure(credential_provider=SubjectProvider(linear_for))
 ```
+
+Linear refuses a refresh token that is spent, past its 30-minute grace, or
+unknown with `invalid_request` ("Invalid refresh token") in a `400`, where RFC
+6749 says `invalid_grant`. `dead_grant_errors` declares it, so a disconnected
+user is asked about once a minute and the error's `reauthorize` is true. Linear
+uses the same code for a missing parameter, which a refresh from Charter never
+has.
 
 A user who pastes a personal API key instead gets a `StaticTokenProvider(key)`
 from the same `linear_for`. Linear wants a personal key with no scheme and an
@@ -203,6 +211,11 @@ Stripe's refresh tokens roll on every use, and a refresh revokes the previous
 access token within seconds. So `on_refresh` stores the new access token, its
 expiry and the refresh token, and `stored_grant` reads them back: every
 process uses the token one refresh produced instead of refreshing on its own.
+Processes that find the token due at the same moment still refresh together,
+and each refresh revokes the token of the one before. Serving from more than
+one process, pass `refresh_lock` as well:
+[A lock around the refresh](/auth/oauth-flow#a-lock-around-the-refresh) has the
+code and what it measured without one.
 
 Not every product wants to publish a Stripe App. The other path is a
 [restricted key](https://docs.stripe.com/keys/restricted-api-keys) (`rk_...`):
@@ -273,7 +286,8 @@ refresh token, and the access token before it stops working about three
 seconds later. That is why the loader returns the whole grant. A worker holding
 only its own copy of the refresh token presents one another worker has spent,
 which Notion refuses, and a worker that refreshes on its own retires the token
-the others are still using. With no lifetime to go on, the client keeps a token
+the others are still using. For the same reason, more than one process passes
+`refresh_lock` too: [A lock around the refresh](/auth/oauth-flow#a-lock-around-the-refresh). With no lifetime to go on, the client keeps a token
 until the API refuses it, and that one call fails before the next refreshes.
 
 ## Shopify

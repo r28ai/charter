@@ -65,22 +65,31 @@ here, with the migration in the same entry.
   only the user authorizing again brings it back. Until now your app could tell
   that from a failure worth retrying only by reading the message, so it could
   not reliably show a reconnect button.
+- **`scripts/live_oauth_stress.py`**, several real processes on one Stripe
+  grant, built the way the docs say, every one finding the token due at the
+  same moment. Run with four processes on one machine, through a SQLite store
+  and a file lock: 6,969 calls in ten minutes, none failed, and one refresh
+  per renewal. Run with nine processes on Fly machines in Paris, Virginia and
+  Singapore, through Postgres and the documented `pg_advisory_xact_lock`:
+  8,803 calls, none failed, and one refresh per renewal. Its `no-lock` mode is
+  the control: 104 of 1,976 calls failed, so the harness sees a broken setup.
 - **`GrantLoader` and `RefreshLock` are exported from `charter.auth`**, beside
   `OnRefresh`, so a host can name them. `OAuth2Client.from_grant` takes a
   loader and a lock too.
 
 ### Fixed
 
-- **Slack's and GitHub's dead grants are recognised as dead.** Charter knew a
-  dead grant only by RFC 6749's `invalid_grant`. Slack answers a bad refresh
-  token with `invalid_refresh_token` and an uninstalled app with
-  `token_revoked`, inside an HTTP 200; GitHub answers `bad_refresh_token`. So
-  against either, every tool call for a disconnected user asked the token
-  endpoint again instead of once a minute. The error did not say the user had
+- **Slack's, GitHub's and Linear's dead grants are recognised as dead.**
+  Charter knew a dead grant only by RFC 6749's `invalid_grant`. Slack answers a
+  bad refresh token with `invalid_refresh_token` and an uninstalled app with
+  `token_revoked`, inside an HTTP 200; GitHub answers `bad_refresh_token`, and
+  Linear `invalid_request`. All three were measured against the live services.
+  So against any of them, every tool call for a disconnected user asked the
+  token endpoint again instead of once a minute. The error did not say the user had
   to authorize again, and a worker holding a refresh token another had spent
   failed instead of reading the store for the successor. `OAuth2Server` takes
   `dead_grant_errors`, the server's own codes for a dead grant, and the
-  documented Slack and GitHub declarations list theirs.
+  documented Slack, GitHub and Linear declarations list theirs.
 - **A token endpoint's error no longer carries the credential it refused.**
   Servers quote what they reject: Stripe answers a used refresh token with
   "Refresh token does not exist: rt_...", and that text became the
@@ -140,6 +149,12 @@ here, with the migration in the same entry.
   worker following it failed the other's calls, and presented refresh tokens
   already spent. It now reads the whole grant from the store, as the Linear and
   Stripe sections do.
+- **The lock was called optional for Stripe.** Measured with four processes
+  due together and no lock, 104 of 1,976 calls failed, and a refresh that
+  lost the race read as `invalid_grant`, which tells the user to authorize
+  again for a grant that was fine. The lock section now says to take the lock
+  wherever a refresh retires the previous access token (Stripe, GitHub,
+  Notion), and the Stripe and Notion sections point to it.
 - **Every pack's "Many end users" snippet reads the stored grant** through a
   loader, instead of handing the client a copy of the refresh token that goes
   stale when another worker refreshes.
