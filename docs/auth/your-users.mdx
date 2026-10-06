@@ -315,7 +315,7 @@ stores = {"u1": "merchant-store"}  # yours: user id to store
 
 
 async def shopify_for(user_id: str):
-    async def stored_grant():  # Shopify retires the previous access token on refresh
+    async def stored_grant():  # read before every refresh: Shopify rotates
         row = await db.grants.get(user_id, "shopify")
         return TokenGrant(
             access_token=row.access_token,

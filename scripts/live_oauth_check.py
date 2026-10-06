@@ -214,7 +214,9 @@ PROVIDERS = {
         scopes=("read_products",),
         sends_expires_in=True,
         rotates=True,
-        retires_previous_access=True,
+        # Documented as retired, yet measured still accepted ten minutes after
+        # the refresh, so the run reports what it sees rather than failing.
+        retires_previous_access=None,
         spent_refresh_token="accepted",  # until the newer one is used, or 30 days
     ),
     "stripe": Provider(
@@ -359,10 +361,24 @@ async def read_with(provider: Provider, credentials: CredentialProvider) -> Opti
 # -----------------------------------------------------
 
 
-def wait_for_redirect(redirect_uri: str) -> dict[str, str]:
-    """The callback's query: caught on localhost, or pasted from the address bar."""
+def wait_for_redirect(
+    redirect_uri: str, listen: Optional[int] = None, landed_file: Optional[FsPath] = None
+) -> dict[str, str]:
+    """The callback's query: caught on localhost, or pasted from the address bar.
+
+    ``listen`` catches it on a local port even though the redirect URL is
+    public: a tunnel (ngrok, cloudflared) forwarding an ``https`` URL here, for
+    a provider that refuses plain ``http`` redirects even to localhost, as
+    Shopify does.
+    """
     parts = urlsplit(redirect_uri)
-    if parts.hostname not in ("localhost", "127.0.0.1"):
+    if listen is None and parts.hostname not in ("localhost", "127.0.0.1"):
+        if landed_file is not None:
+            print(f"Waiting for the address the browser landed on, in {landed_file}…", flush=True)
+            while not (landed_file.is_file() and landed_file.read_text().strip()):
+                time.sleep(1)
+            landed = landed_file.read_text()
+            return {k: v[0] for k, v in parse_qs(urlsplit(landed.strip()).query).items()}
         landed = input("Approve in the browser, then paste the address it landed on:\n> ")
         return {k: v[0] for k, v in parse_qs(urlsplit(landed.strip()).query).items()}
 
@@ -382,14 +398,22 @@ def wait_for_redirect(redirect_uri: str) -> dict[str, str]:
         def log_message(self, *args: Any) -> None:
             pass
 
-    with HTTPServer((parts.hostname or "localhost", parts.port or 80), Callback) as server:
+    host, port = (
+        ("localhost", listen) if listen else (parts.hostname or "localhost", parts.port or 80)
+    )
+    with HTTPServer((host, port), Callback) as server:
         while not captured:
             server.handle_request()
     return captured
 
 
 async def connect(
-    provider: Provider, link: Optional[str], redirect: Optional[str], shop: Optional[str]
+    provider: Provider,
+    link: Optional[str],
+    redirect: Optional[str],
+    shop: Optional[str],
+    listen: Optional[int] = None,
+    landed_file: Optional[FsPath] = None,
 ) -> None:
     if provider.name == "shopify":
         if not shop:
@@ -414,7 +438,7 @@ async def connect(
     request = flow.authorize(list(provider.scopes)) if server.uses_scopes else flow.authorize()
     print(f"Open this:\n\n{request.url}\n", flush=True)
 
-    params = wait_for_redirect(redirect_uri)
+    params = wait_for_redirect(redirect_uri, listen, landed_file)
     if "code" not in params:
         sys.exit(f"No code came back: {params.get('error')} {params.get('error_description', '')}")
     report(states_match(request.state, params.get("state", "")), "state matches")
@@ -605,13 +629,23 @@ def main() -> None:
     )
     parser.add_argument("--shop", help="Shopify: the store's subdomain")
     parser.add_argument(
+        "--listen", type=int, help="catch a public (tunnelled) redirect on this local port"
+    )
+    parser.add_argument(
+        "--landed-file",
+        type=FsPath,
+        help="read the address the browser landed on from this file, instead of a prompt",
+    )
+    parser.add_argument(
         "--max-wait-minutes", type=int, default=70, help="expiry: the longest it will wait"
     )
     args = parser.parse_args()
     provider = PROVIDERS[args.provider]
 
     if args.command == "connect":
-        asyncio.run(connect(provider, args.link, args.redirect, args.shop))
+        asyncio.run(
+            connect(provider, args.link, args.redirect, args.shop, args.listen, args.landed_file)
+        )
     elif args.command == "check":
         asyncio.run(check(provider))
     else:

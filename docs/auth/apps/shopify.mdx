@@ -143,6 +143,13 @@ per-call store and the refresh, is in the
     The flow sent a URL that isn't under **Redirect URLs** in the active
     version. Add it, then release a new version, because an edit that isn't
     released doesn't count.
+
+    On a store where the app is already installed, that may not be enough.
+    In a live test, redirect URLs added in later released versions were all
+    refused on such a store, over `http` and `https` alike, and with the app
+    URL moved onto the same host. The URL the app had when it was installed
+    was accepted. Test new URLs against a store that hasn't installed the app
+    yet, or use the URL from the install.
   </Accordion>
   <Accordion title="A scope you added is not granted">
     Scope changes reach a store only through a released version, and a store

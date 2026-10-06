@@ -54,6 +54,11 @@ here, with the migration in the same entry.
   sets each provider's documented refresh behaviour against what it does: a
   row of the provider table that disagrees fails. `expiry` holds a token until
   it lapses, and measures the lifetime of one with no stated expiry.
+  `--listen` catches a tunnelled `https` redirect on a local port, and
+  `--landed-file` takes the address a browser landed on from a file, for a
+  redirect no local listener can reach. Against a real store, Shopify's
+  expiring offline token is issued for Charter's exchange as sent, refreshes,
+  rotates, and serves two workers from one refresh.
 - **`GrantLoader` and `RefreshLock` are exported from `charter.auth`**, beside
   `OnRefresh`, so a host can name them. `OAuth2Client.from_grant` takes a
   loader and a lock too.
