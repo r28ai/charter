@@ -2261,6 +2261,7 @@ First release.
   pagination loops, no multi-call orchestration, no streaming. See *What this
   can't express* in the README.
 
+[0.5.1]: https://github.com/r28ai/charter/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/r28ai/charter/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/r28ai/charter/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/r28ai/charter/compare/v0.3.0...v0.3.1
