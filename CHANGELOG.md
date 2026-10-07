@@ -9,6 +9,8 @@ here, with the migration in the same entry.
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-10-07
+
 ### Added
 
 - **Disconnecting a user revokes the grant.** Charter could connect a user and
@@ -118,17 +120,19 @@ here, with the migration in the same entry.
 
 ### Fixed
 
-- **Slack's, GitHub's and Linear's dead grants are recognised as dead.**
-  Charter knew a dead grant only by RFC 6749's `invalid_grant`. Slack answers a
-  bad refresh token with `invalid_refresh_token` and an uninstalled app with
-  `token_revoked`, inside an HTTP 200; GitHub answers `bad_refresh_token`, and
-  Linear `invalid_request`. All three were measured against the live services.
+- **Slack's, GitHub's, Linear's and Shopify's dead grants are recognised as
+  dead.** Charter knew a dead grant only by RFC 6749's `invalid_grant`. Slack
+  answers a bad refresh token with `invalid_refresh_token` and an uninstalled
+  app with `token_revoked`, inside an HTTP 200; GitHub answers
+  `bad_refresh_token`; Linear `invalid_request`; and Shopify `invalid_request`
+  in a 401, for the refresh token an uninstalled app leaves behind. All four
+  were measured against the live services.
   So against any of them, every tool call for a disconnected user asked the
   token endpoint again instead of once a minute. The error did not say the user had
   to authorize again, and a worker holding a refresh token another had spent
   failed instead of reading the store for the successor. `OAuth2Server` takes
   `dead_grant_errors`, the server's own codes for a dead grant, and the
-  documented Slack, GitHub and Linear declarations list theirs.
+  documented Slack, GitHub, Linear and Shopify declarations list theirs.
 - **A token endpoint's error no longer carries the credential it refused.**
   Servers quote what they reject: Stripe answers a used refresh token with
   "Refresh token does not exist: rt_...", and that text became the
@@ -2170,6 +2174,7 @@ First release.
   pagination loops, no multi-call orchestration, no streaming. See *What this
   can't express* in the README.
 
+[0.5.0]: https://github.com/r28ai/charter/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/r28ai/charter/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/r28ai/charter/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/r28ai/charter/compare/v0.2.7...v0.3.0
