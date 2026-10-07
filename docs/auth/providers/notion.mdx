@@ -30,7 +30,7 @@ NOTION = OAuth2Server(
 
 `uses_scopes=False` because the link carries none. `token_request_format` and
 `client_secret_basic` are the JSON body and Basic auth Notion's token endpoint
-takes. `revocation` is how a user is disconnected: [Disconnecting](#disconnecting).
+takes. [`revocation`](/reference/oauth#revocation) is how a user is disconnected: [Disconnecting](#disconnecting).
 
 ## Connecting a user
 
@@ -79,18 +79,19 @@ only its own copy of the refresh token presents one another worker has spent,
 which Notion refuses once the newer grant has served a call, and a worker that
 refreshes on its own retires the token
 the others are still using. For the same reason, more than one process passes
-`refresh_lock` too: [A lock around the refresh](/auth/oauth-flow#a-lock-around-the-refresh).
+[`refresh_lock`](/reference/oauth#refreshlock) too: [A lock around the refresh](/auth/oauth-flow#a-lock-around-the-refresh).
 With no lifetime to go on, the client keeps a token until the API refuses it,
 and that one call fails before the next refreshes.
 
 ## Disconnecting
 
-The `SubjectProvider` the pack is configured with builds the user's client from
+The [`SubjectProvider`](/reference/credentials#subjectprovider) the pack is configured with builds the user's client from
 your store and revokes the grant, in one call:
 
-```python notion_disconnect.py
-notion_users = SubjectProvider(notion_for)  # the one given to notion.configure()
+```python notion_disconnect.py {6}
+from charter.auth import SubjectProvider
 
+notion_users = SubjectProvider(notion_for)  # the one given to notion.configure()
 
 async def disconnect(user_id: str):
     await notion_users.revoke(user_id)
@@ -104,9 +105,9 @@ token is refused within a second and the refresh token is dead.
 Notion answers `200` to any token, though: one already revoked, one a refresh
 has retired, a refresh token, or a string it never issued, none of which end
 anything. RFC 7009 asks exactly that of a server, so Notion is right by the
-standard, but it means `revoke()` returns `True` either way, and only the token
+standard, but it means [`revoke()`](/reference/oauth#attributes-and-methods) returns `True` either way, and only the token
 sent decides whether the user was disconnected. `OAuth2Client.revoke()` sends
-the access token your store holds, under `refresh_lock`, so it is the live one.
+the access token your store holds, under [`refresh_lock`](/reference/oauth#refreshlock), so it is the live one.
 A stale token passed to [`revoke_token`](/reference/oauth#revoke_token) reports
 `True` and leaves the grant alive.
 

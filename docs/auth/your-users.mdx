@@ -56,7 +56,7 @@ afterwards. *Provider* is what `for_user` returns.
 |---|---|---|---|
 | Gmail, Calendar, Sheets, Docs, Drive, Forms | an OAuth link | a refresh token | `OAuth2Client(GOOGLE, ...)` — [Google](/auth/providers/google) |
 | Slack | an OAuth link | the bot token, or a refresh token with rotation on | [Slack](/auth/providers/slack) |
-| GitHub | an OAuth link | a refresh token, or the token of an app that does not expire them | `OAuth2Client(GITHUB, ...)` or `StaticTokenProvider` — [GitHub](/auth/providers/github) |
+| GitHub | an OAuth link | a refresh token, or the token of an app that does not expire them | `OAuth2Client(GITHUB, ...)` or [`StaticTokenProvider`](/reference/credentials#statictokenprovider) — [GitHub](/auth/providers/github) |
 | Notion | an OAuth link | a refresh token | `OAuth2Client(NOTION, ...)` — [Notion](/auth/providers/notion) |
 | Linear | an OAuth link, or a pasted personal key | a refresh token, or the key | `OAuth2Client(LINEAR, ...)` or `StaticTokenProvider` — [Linear](/auth/providers/linear) |
 | Stripe | a Stripe App install link, or a pasted restricted key | a refresh token, or the key | `OAuth2Client(STRIPE_APPS, ...)` or `StaticTokenProvider` — [Stripe](/auth/providers/stripe) |
@@ -111,12 +111,11 @@ The original three are [Google](/auth/providers/google),
 
 A "Disconnect" button revokes the grant at the provider, then deletes your
 row. Deleting the row alone leaves the grant live, with every scope it was
-given, and your app still listed on the user's account. The `SubjectProvider`
+given, and your app still listed on the user's account. The [`SubjectProvider`](/reference/credentials#subjectprovider)
 the pack is configured with does both lookups for you:
 
-```python disconnect.py
+```python disconnect.py {15}
 from charter.auth import OAuth2Client, SubjectProvider
-
 
 async def google_for(user_id: str):
     row = await db.grants.get(user_id, "google")
@@ -127,9 +126,7 @@ async def google_for(user_id: str):
         refresh_token=row.refresh_token,
     )
 
-
 google_users = SubjectProvider(google_for)  # the one given to the Google packs' configure()
-
 
 async def disconnect(user_id: str):
     await google_users.revoke(user_id)  # builds their client from the row, and revokes
@@ -140,7 +137,7 @@ async def disconnect(user_id: str):
 when the grant was already gone (the user removed the app on the provider's
 side first) and raises only when the provider refused for some other reason.
 Delete the row after it, not before: the client reads the grant from your
-store to know what to revoke, and under `refresh_lock` it is the grant the
+store to know what to revoke, and under [`refresh_lock`](/reference/oauth#refreshlock) it is the grant the
 store holds, not one another process has already rotated.
 
 What each server is sent is on its declaration, so the call is the same for

@@ -31,7 +31,7 @@ STRIPE_APPS = OAuth2Server(
 
 `secret_key_basic` is the secret key as Basic auth. `default_expires_in` is the
 lifetime Stripe's token response leaves out: [Refresh behaviour](#refresh-behaviour).
-`revocation` uninstalls the app, which is how Stripe ends a grant:
+[`revocation`](/reference/oauth#revocation) uninstalls the app, which is how Stripe ends a grant:
 [Disconnecting](#disconnecting).
 
 ## Connecting a user
@@ -86,12 +86,12 @@ other. Stripe access tokens last an hour, and its token response doesn't say
 so. The constant declares it with `default_expires_in`, so the client renews
 each token shortly before the hour instead of learning from a refused call.
 Stripe's refresh tokens roll on every use, and a refresh revokes the previous
-access token within seconds. So `on_refresh` stores the new access token, its
+access token within seconds. So [`on_refresh`](/reference/oauth#onrefresh) stores the new access token, its
 expiry and the refresh token, and `stored_grant` reads them back: every
 process uses the token one refresh produced instead of refreshing on its own.
 Processes that find the token due at the same moment still refresh together,
 and each refresh revokes the token of the one before. Serving from more than
-one process, pass `refresh_lock` as well:
+one process, pass [`refresh_lock`](/reference/oauth#refreshlock) as well:
 [A lock around the refresh](/auth/oauth-flow#a-lock-around-the-refresh) has the
 code and what it measured without one.
 
@@ -100,7 +100,7 @@ code and what it measured without one.
 Not every product wants to publish a Stripe App. The other path is a
 [restricted key](https://docs.stripe.com/keys/restricted-api-keys) (`rk_...`):
 the user creates it with read-only permissions and pastes it, and `stripe_for`
-returns `StaticTokenProvider(row.api_key)`. Many tools start this way.
+returns [`StaticTokenProvider(row.api_key)`](/reference/credentials#statictokenprovider). Many tools start this way.
 
 A Connect platform is different again. It acts on its connected accounts with
 its own key and a `Stripe-Account` header, which is
@@ -117,9 +117,10 @@ it, with your secret key. The client keeps the account from the exchange or any
 refresh, and refreshes once first if it has seen neither, so nothing extra needs
 storing. The call is the same as for every other provider:
 
-```python stripe_disconnect.py
-stripe_users = SubjectProvider(stripe_for)  # the one given to stripe.configure()
+```python stripe_disconnect.py {6}
+from charter.auth import SubjectProvider
 
+stripe_users = SubjectProvider(stripe_for)  # the one given to stripe.configure()
 
 async def disconnect(user_id: str):
     await stripe_users.revoke(user_id)
@@ -132,7 +133,7 @@ fifteen seconds, the access and refresh tokens were refused, Stripe sent
 account without the app returns `False`; a wrong app ID or another account's
 key raises.
 
-`revoke()` returns once Stripe accepts the uninstall (`status: uninstalling`),
+[`revoke()`](/reference/oauth#attributes-and-methods) returns once Stripe accepts the uninstall (`status: uninstalling`),
 not once it is done. Charter stops using the grant at once; Stripe finishes
 seconds later, 10 to 15 measured, and until then the old access token still
 works. Treat the disconnect the way Stripe's own states suggest: delete your

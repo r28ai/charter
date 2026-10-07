@@ -213,10 +213,10 @@ means the refresh token is dead until a human re-authorizes; retrying cannot hel
 Token endpoints rate-limit per *client*, so an agent that keeps calling tools for a
 revoked user would degrade every other user of your app. The client remembers the
 refusal for 60 seconds and raises the same [`CredentialError`](/reference/errors#credentialerror) without asking again.
-Call `reset()` — or build a new client — after re-authorizing. The error's
+Call [`reset()`](/reference/oauth#attributes-and-methods) — or build a new client — after re-authorizing. The error's
 `reauthorize` is true, so your app can tell this from a failure worth retrying.
 A server that names a dead grant its own way declares the codes in
-`dead_grant_errors`: Slack answers `invalid_refresh_token` or `token_revoked`,
+[`dead_grant_errors`](/reference/oauth#oauth2server): Slack answers `invalid_refresh_token` or `token_revoked`,
 GitHub `bad_refresh_token`, Linear `invalid_request`.
 
 **A token the API refuses is dropped, not kept until it expires.** A token can
@@ -231,7 +231,7 @@ replacement stays — and the grant is kept, so a dead *grant* still lands on th
 cool-down above.
 
 A provider of your own can take part by defining `invalidate(credentials)`.
-`SubjectProvider` passes it on to the current subject's provider, and the packs'
+[`SubjectProvider`](/reference/credentials#subjectprovider) passes it on to the current subject's provider, and the packs'
 own providers pass it on to the client they hold.
 
 ## Disconnecting a user
@@ -246,7 +246,7 @@ server, and it is one more piece of protocol:
 The server says how it takes that request in its declaration, as
 [`revocation`](/reference/oauth#revocation), and the client sends it:
 
-```python acme_disconnect.py
+```python acme_disconnect.py {12}
 from charter.auth import OAuth2Client, OAuth2Server, Revocation
 
 server = OAuth2Server(
@@ -270,17 +270,16 @@ rather than the refresh token, GitHub and Shopify with a `DELETE`. The
 declarations on the provider pages already carry them. One server departs
 further: Stripe Apps ends a grant by uninstalling the app, two requests and
 no token, so its declaration is a [`Revoker`](/reference/oauth#revoker), a
-procedure kept in the Stripe pack, and the call is still `revoke()`.
+procedure kept in the Stripe pack, and the call is still [`revoke()`](/reference/oauth#attributes-and-methods).
 
 Serving many users, [`SubjectProvider.revoke(user_id)`](/reference/credentials#subjectprovider)
 builds that user's client from your store and revokes the grant, in one
 call:
 
-```python acme_disconnect_route.py
+```python acme_disconnect_route.py {6}
 from charter.auth import SubjectProvider
 
 users = SubjectProvider(for_user)  # give this one to the factory, and keep it
-
 
 async def disconnect(user_id: str):
     await users.revoke(user_id)
@@ -315,7 +314,7 @@ your store again on the next lookup.
 
 **Delete your row after the revocation, not before.** The client needs the
 refresh token to send. A loader-backed client reads the store under its
-`refresh_lock` first, so in a multi-process deployment the token revoked is
+[`refresh_lock`](/reference/oauth#refreshlock) first, so in a multi-process deployment the token revoked is
 the one the store holds, not one another process has already rotated away
 from.
 
@@ -331,8 +330,8 @@ from.
 
 ## What Charter does not do
 
-**It does not hold anything between `authorize()` and `exchange()`.** The two
-protocol steps of obtaining a grant are `OAuth2Flow`'s ([the flow
+**It does not hold anything between [`authorize()`](/reference/oauth#oauth2flow-authorize) and [`exchange()`](/reference/oauth#oauth2flow-exchange).** The two
+protocol steps of obtaining a grant are [`OAuth2Flow`](/reference/oauth#oauth2flow)'s ([the flow
 guide](/auth/oauth-flow)); the callback route, the session holding `state` and the
 PKCE verifier, storage and the consent UI belong to your web framework, forever.
 
@@ -342,7 +341,7 @@ SigV4 out. Two grants are supported, both a plain form POST:
 `refresh_token` and `client_credentials`.
 
 **It does not store a token.** The access token lives in memory for the seconds
-it is valid. Persistence is yours, through `on_refresh` — which is also how a
+it is valid. Persistence is yours, through [`on_refresh`](/reference/oauth#onrefresh) — which is also how a
 multi-process deployment shares one refresh: your store is the shared cache.
 Deleting the row when a user disconnects is yours for the same reason;
 revoking the grant at the server is Charter's.

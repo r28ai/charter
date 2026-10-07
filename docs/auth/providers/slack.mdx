@@ -29,7 +29,7 @@ SLACK = OAuth2Server(
 )
 ```
 
-`dead_grant_errors` is how Slack says a grant is gone. Where RFC 6749 says
+[`dead_grant_errors`](/reference/oauth#oauth2server) is how Slack says a grant is gone. Where RFC 6749 says
 `invalid_grant`, `oauth.v2.access` answers a bad refresh token with
 `invalid_refresh_token`, and an app the workspace removed with `token_revoked`.
 Declared, those get what `invalid_grant` gets: no second request for a
@@ -37,7 +37,7 @@ minute, and a [`CredentialError`](/reference/errors#credentialerror) whose
 `reauthorize` is true. Left out, they read as any other failure, and every tool
 call for that user asks Slack's token endpoint again.
 
-`revocation` is [`apps.uninstall`](https://docs.slack.dev/reference/methods/apps.uninstall),
+[`revocation`](/reference/oauth#revocation) is [`apps.uninstall`](https://docs.slack.dev/reference/methods/apps.uninstall),
 which removes the app from the workspace and revokes every token the
 installation holds: [Disconnecting](#disconnecting).
 
@@ -123,7 +123,7 @@ eleven shared bot scopes for that tool too. Ask for it explicitly, or
 accept that one of the eighteen tools will fail with `not_allowed_token_type`.
 
 **Slack splits scopes across two parameters.** `scope` asks for bot scopes;
-user-token scopes go in a separate `user_scope`. `authorize()` puts your scopes
+user-token scopes go in a separate `user_scope`. [`authorize()`](/reference/oauth#oauth2flow-authorize) puts your scopes
 in `scope`, so the user half travels as a vendor parameter:
 
 ```python slack_connect.py
@@ -163,20 +163,20 @@ async def callback():
 scopes and, under rotation, its own refresh token. The two refresh
 independently; whichever refresh token you store is the one you get back.
 
-On an app without rotation, `exchange()` raises: no refresh token came back and
+On an app without rotation, [`exchange()`](/reference/oauth#oauth2flow-exchange) raises: no refresh token came back and
 the default `expect_refresh_token=True` says that is the silent-death case. Here
 it is not, so say so — `flow.exchange(code, expect_refresh_token=False)` — and
-hold the result in a `StaticTokenProvider`.
+hold the result in a [`StaticTokenProvider`](/reference/credentials#statictokenprovider).
 
 ## Refresh behaviour
 
 **Rotation invalidates the token you just used.** Slack returns a new refresh
 token on every refresh and kills the old one, so a refresh token you failed to
-persist is a dead integration at the next refresh. `on_refresh` is where that
+persist is a dead integration at the next refresh. [`on_refresh`](/reference/oauth#onrefresh) is where that
 write goes, and it is not optional on a rotating app.
 
 **Concurrency is the trap rotation brings.** Twelve parallel tool calls each
-firing their own refresh would poison eleven of them. One `OAuth2Client`
+firing their own refresh would poison eleven of them. One [`OAuth2Client`](/reference/oauth#oauth2client)
 serialises refreshes across those calls; what it cannot see is your *other*
 process holding the same refresh token. Across processes, your store is the
 shared cache — one writer through `on_refresh`, readers rebuilding the client
@@ -222,9 +222,8 @@ declaration sends. It wants the app's client ID and secret as well as a token.
 With rotation off there is no client, only the bot token you stored, so revoke
 it as a string:
 
-```python slack_disconnect.py
+```python slack_disconnect.py {5-10}
 from charter.auth import revoke_token
-
 
 async def disconnect():
     row = await db.keys.get(user.id, "slack")
@@ -236,7 +235,7 @@ async def disconnect():
     )
 ```
 
-With rotation on, `OAuth2Client.revoke()` does the same with its current
+With rotation on, [`OAuth2Client.revoke()`](/reference/oauth#attributes-and-methods) does the same with its current
 access token, refreshing first if it has lapsed. An installation already
 removed answers `invalid_auth`, `account_inactive` or `token_revoked` inside an
 `HTTP 200`, and both calls return `False` for it rather than raising.

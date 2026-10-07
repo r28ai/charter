@@ -27,7 +27,7 @@ This is the canonical copy. `scripts/live_google_check.py` holds the same
 constant in Python and fails if Google's own discovery document stops agreeing
 with it.
 
-`revocation` is how a user is disconnected: [Disconnecting](#disconnecting).
+[`revocation`](/reference/oauth#revocation) is how a user is disconnected: [Disconnecting](#disconnecting).
 Google documents its revocation endpoint with the token alone, so
 `auth_method="none"` keeps the client secret out of that request.
 
@@ -151,7 +151,7 @@ async def callback():
 
 Google's consent screen lets a user approve some scopes and refuse others, and
 the exchange still succeeds. `grant.scopes` is what was really issued; comparing
-it against `scopes_for` is the only place that gap is visible before a tool call
+it against [`scopes_for`](/reference/oauth#scopes_for) is the only place that gap is visible before a tool call
 returns `403`.
 
 [`OAuth2Client.from_grant(GOOGLE, grant, client_id=..., client_secret=...)`](/reference/oauth#oauth2client-from_grant) turns
@@ -161,12 +161,12 @@ that grant into the provider above without spending a refresh.
 
 **Google does not rotate refresh tokens.** A refresh response carries an
 `access_token`, an `expires_in` of about an hour, and no `refresh_token` — so
-`on_refresh` hands you back the same string you passed in. The row worth writing
-is the one `exchange()` returned; `on_refresh` still earns its place as the hook
+[`on_refresh`](/reference/oauth#onrefresh) hands you back the same string you passed in. The row worth writing
+is the one [`exchange()`](/reference/oauth#oauth2flow-exchange) returned; `on_refresh` still earns its place as the hook
 that tells your store the grant is alive.
 
 **Concurrent refreshes are harmless here**, because nothing is invalidated by a
-second one. `OAuth2Client` serialises them anyway — twelve parallel tool calls
+second one. [`OAuth2Client`](/reference/oauth#oauth2client) serialises them anyway — twelve parallel tool calls
 wait on one refresh — which is what makes the same code safe against the
 rotating servers on the other two provider pages.
 
@@ -174,7 +174,7 @@ rotating servers on the other two provider pages.
 `myaccount.google.com/permissions`, or when a Workspace admin removes the app.
 Charter raises [`CredentialError`](/reference/errors#credentialerror) and then
 stops asking for 60 seconds, because the token endpoint rate-limits per client
-and one dead user must not degrade the rest. Call `reset()` after re-authorizing.
+and one dead user must not degrade the rest. Call [`reset()`](/reference/oauth#attributes-and-methods) after re-authorizing.
 
 ## What fails silently
 
@@ -183,7 +183,7 @@ no refresh token at all. Without the second, a returning user who already
 approved your app gets a token response with no refresh token in it — Google
 only re-issues one on a *consenting* authorization. Nothing errors either way:
 the access token works, and the integration dies within the hour. That is why
-the lore lives on the [`OAuth2Server`](/reference/oauth#oauth2server) declaration, and why `exchange()` defaults
+the lore lives on the [`OAuth2Server`](/reference/oauth#oauth2server) declaration, and why [`exchange()`](/reference/oauth#oauth2flow-exchange) defaults
 to `expect_refresh_token=True` and names both parameters when none comes back.
 
 **A hundred refresh tokens per account, per client.** Google caps them and
@@ -208,7 +208,9 @@ under the user's [third-party connections](https://myaccount.google.com/connecti
 with every scope it was given, and Google's refresh tokens do not expire on
 their own.
 
-```python google_disconnect.py
+```python google_disconnect.py {11}
+from charter.auth import OAuth2Client
+
 async def disconnect():
     row = await db.grants.get(user.id, "google")
     client = OAuth2Client(
@@ -241,7 +243,7 @@ token. Handed only an access token,
 [`revoke_token`](/reference/oauth#revoke_token) raises rather than return
 `False` when Google calls it dead. A live access token ends the whole grant.
 
-Serving many users through `SubjectProvider`, `await provider.revoke(user.id)`
+Serving many users through [`SubjectProvider`](/reference/credentials#subjectprovider), `await provider.revoke(user.id)`
 does the lookup and the revocation, then forgets the user's client:
 [Disconnecting a user](/auth/authorization-servers#disconnecting-a-user).
 

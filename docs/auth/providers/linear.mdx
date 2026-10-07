@@ -31,9 +31,9 @@ LINEAR = OAuth2Server(
 )
 ```
 
-`scope_separator` is the comma Linear documents. `dead_grant_errors` is how
+`scope_separator` is the comma Linear documents. [`dead_grant_errors`](/reference/oauth#oauth2server) is how
 Linear says a grant is gone: [Refresh behaviour](#refresh-behaviour).
-`revocation` is how a user is disconnected: [Disconnecting](#disconnecting).
+[`revocation`](/reference/oauth#revocation) is how a user is disconnected: [Disconnecting](#disconnecting).
 
 ## Connecting a user
 
@@ -80,14 +80,14 @@ moment another process refreshes.
 
 Linear refuses a refresh token that is spent, past its 30-minute grace, or
 unknown with `invalid_request` ("Invalid refresh token") in a `400`, where RFC
-6749 says `invalid_grant`. `dead_grant_errors` declares it, so a disconnected
+6749 says `invalid_grant`. [`dead_grant_errors`](/reference/oauth#oauth2server) declares it, so a disconnected
 user is asked about once a minute and the error's `reauthorize` is true. Linear
 uses the same code for a missing parameter, which a refresh from Charter never
 has.
 
 ## A pasted personal key
 
-A user who pastes a personal API key instead gets a `StaticTokenProvider(key)`
+A user who pastes a personal API key instead gets a [`StaticTokenProvider(key)`](/reference/credentials#statictokenprovider)
 from the same `linear_for`. Linear wants a personal key with no scheme and an
 OAuth token as `Bearer`, and refuses each in the other's shape. The pack tells
 them apart by Linear's `lin_api_` prefix, so the two kinds of user can share
@@ -95,12 +95,13 @@ one configuration.
 
 ## Disconnecting
 
-The `SubjectProvider` the pack is configured with builds the user's client from
+The [`SubjectProvider`](/reference/credentials#subjectprovider) the pack is configured with builds the user's client from
 your store and revokes the grant, in one call:
 
-```python linear_disconnect.py
-linear_users = SubjectProvider(linear_for)  # the one given to linear.configure()
+```python linear_disconnect.py {6}
+from charter.auth import SubjectProvider
 
+linear_users = SubjectProvider(linear_for)  # the one given to linear.configure()
 
 async def disconnect(user_id: str):
     await linear_users.revoke(user_id)
@@ -115,7 +116,7 @@ stays. With it, Linear answers `200` and the access token is refused at once.
 
 A token already revoked gets `401` ("Token has already been revoked."), where
 Linear's docs give "token was already revoked" as their example of a `400`, so
-both count as gone and `revoke()` returns `False`.
+both count as gone and [`revoke()`](/reference/oauth#attributes-and-methods) returns `False`.
 
 A pasted personal key was made by the user, and only they can delete it, in
 Linear's settings. Delete your row.

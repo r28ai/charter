@@ -41,9 +41,9 @@ def shopify_server(shop: str) -> OAuth2Server:
 ```
 
 A function rather than a constant, because every endpoint is on the merchant's
-store. `scope_separator` is the comma Shopify documents. `dead_grant_errors` is
+store. `scope_separator` is the comma Shopify documents. [`dead_grant_errors`](/reference/oauth#oauth2server) is
 how Shopify says a grant is gone: [Refresh behaviour](#refresh-behaviour).
-`revocation` uninstalls the app: [Disconnecting](#disconnecting).
+[`revocation`](/reference/oauth#revocation) uninstalls the app: [Disconnecting](#disconnecting).
 
 ## Connecting a merchant
 
@@ -96,7 +96,7 @@ The pack sends the token in `X-Shopify-Access-Token`, wherever it came from.
 Shopify refuses a refresh token it no longer honours, the grant's after the
 app was uninstalled or one it never issued, with `invalid_request` ("This
 request requires an active refresh_token") in a `401`, measured, where RFC 6749
-says `invalid_grant`. `dead_grant_errors` declares it, so once a merchant
+says `invalid_grant`. [`dead_grant_errors`](/reference/oauth#oauth2server) declares it, so once a merchant
 uninstalls your app their tool calls stop asking Shopify again and the error's
 `reauthorize` is true. As with Linear, the same code would answer a missing
 parameter, which a refresh from Charter never has.
@@ -104,18 +104,19 @@ parameter, which a refresh from Charter never has.
 ## A non-expiring token
 
 A store that holds a non-expiring offline token, issued before expiring tokens
-or to a custom app, keeps working as `StaticTokenProvider(token)`, exchanged
+or to a custom app, keeps working as [`StaticTokenProvider(token)`](/reference/credentials#statictokenprovider), exchanged
 with `expect_refresh_token=False`. Pairing a per-call store with a single
 `access_token` raises: one store's token would go to every other store.
 
 ## Disconnecting
 
-The `SubjectProvider` the pack is configured with builds the merchant's client
+The [`SubjectProvider`](/reference/credentials#subjectprovider) the pack is configured with builds the merchant's client
 from your store and revokes the grant, in one call:
 
-```python shopify_disconnect.py
-shopify_users = SubjectProvider(shopify_for)  # the one given to shopify.configure()
+```python shopify_disconnect.py {6}
+from charter.auth import SubjectProvider
 
+shopify_users = SubjectProvider(shopify_for)  # the one given to shopify.configure()
 
 async def disconnect(user_id: str):
     await shopify_users.revoke(user_id)
@@ -131,7 +132,7 @@ Measured, the access token was refused at once and the refresh token with it.
 Uninstalling ends every grant your app holds on that store, not only this one:
 the app's client credentials grant on the store answered `app_not_installed`
 until the app was installed again. A store already uninstalled answers `401`,
-which counts as gone, and `revoke()` returns `False`.
+which counts as gone, and [`revoke()`](/reference/oauth#attributes-and-methods) returns `False`.
 
 ## Where the rest is
 

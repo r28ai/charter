@@ -33,18 +33,18 @@ GITHUB = OAuth2Server(
 ```
 
 GitHub publishes no authorization-server metadata for these endpoints, so
-`discover()` has nothing to read and the constant is the declaration. Both URLs
+[`discover()`](/reference/oauth#oauth2server-discover) has nothing to read and the constant is the declaration. Both URLs
 are on `github.com`, not `api.github.com` — the API host the pack calls is a
 different host from the one that issues the token.
 
 No `authorization_params`: GitHub takes its refresh behaviour from the app's own
 settings rather than from the authorization request.
 
-`revocation` deletes the user's authorization of your app, which is
+[`revocation`](/reference/oauth#revocation) deletes the user's authorization of your app, which is
 [GitHub's REST API](https://docs.github.com/en/rest/apps/oauth-applications#delete-an-app-authorization)
 rather than an RFC 7009 endpoint: [Disconnecting](#disconnecting).
 
-`dead_grant_errors` is GitHub's name for a dead grant. A spent, expired or
+[`dead_grant_errors`](/reference/oauth#oauth2server) is GitHub's name for a dead grant. A spent, expired or
 revoked refresh token comes back as `bad_refresh_token` in an `HTTP 200`, rather
 than RFC 6749's `invalid_grant` in a `400`; measured against a live GitHub App,
 where the grant itself kept working. Declared, it gets what `invalid_grant` gets: no second request
@@ -55,7 +55,7 @@ whose `reauthorize` is true.
 
 | token | expires | refresh | provider |
 |---|---|---|---|
-| GitHub App user-to-server, expiry **on** | 8 hours | yes, rotating | `OAuth2Client` |
+| GitHub App user-to-server, expiry **on** | 8 hours | yes, rotating | [`OAuth2Client`](/reference/oauth#oauth2client) |
 | GitHub App user-to-server, expiry **off** | never | none issued | [`StaticTokenProvider`](/reference/credentials#statictokenprovider) |
 | Classic OAuth App | never | none issued | `StaticTokenProvider` |
 | Personal access token (classic or fine-grained) | when you said | none | `StaticTokenProvider` |
@@ -123,7 +123,7 @@ pack's twenty-nine tools. The other two token types do not use them:
   plus Metadata.
 - A **GitHub App** derives its permissions from the app's installation, and
   ignores the `scope` parameter on the authorization URL entirely. Pass
-  [`scopes_for(github.TOOLS)`](/reference/oauth#scopes_for) anyway — `authorize()` refuses an empty scope list,
+  [`scopes_for(github.TOOLS)`](/reference/oauth#scopes_for) anyway — [`authorize()`](/reference/oauth#oauth2flow-authorize) refuses an empty scope list,
   since an authorization request for nothing is a bug upstream — and set the real
   permissions on the app.
 
@@ -155,26 +155,26 @@ async def callback():
 ```
 
 RFC 6749 says the `scope` field is space-delimited; GitHub sends
-`repo,read:user`. `TokenGrant.scopes` splits on commas as well as spaces, so it
+`repo,read:user`. [`TokenGrant.scopes`](/reference/oauth#tokengrant) splits on commas as well as spaces, so it
 arrives as the two scopes, ready to compare. A GitHub App user token reports no
 scopes at all, which is correct rather than empty — its permissions live on the
 installation.
 
-If the app does not expire its tokens, `exchange()` raises: no refresh token came
+If the app does not expire its tokens, [`exchange()`](/reference/oauth#oauth2flow-exchange) raises: no refresh token came
 back, and the default `expect_refresh_token=True` treats that as the silent-death
 case. On GitHub it often is not, so say so with
 `flow.exchange(code, expect_refresh_token=False)` and hold the result in a
-`StaticTokenProvider`.
+[`StaticTokenProvider`](/reference/credentials#statictokenprovider).
 
 ## Refresh behaviour
 
 **Every refresh rotates.** GitHub returns a new refresh token with each refresh
 and retires the old one, alongside `refresh_token_expires_in` — roughly six
-months. Persist the new value through `on_refresh` or the next refresh fails with
+months. Persist the new value through [`on_refresh`](/reference/oauth#onrefresh) or the next refresh fails with
 `bad_refresh_token`, and note that the six-month clock is on the *refresh* token: an
 integration nobody uses for six months needs the user back on the consent screen.
 
-**Concurrency across processes is yours to solve.** One `OAuth2Client`
+**Concurrency across processes is yours to solve.** One [`OAuth2Client`](/reference/oauth#oauth2client)
 serialises refreshes, so parallel tool calls in one process wait on a single
 one. Two processes each holding the same refresh token will invalidate each
 other's. Your store is the shared cache — one writer through `on_refresh`.
@@ -202,15 +202,43 @@ on `api.github.com`, authenticated with the app's client ID and secret as Basic
 auth, given any live access token of the user's in a JSON body. It deletes
 every token the app holds for that user, and the app leaves their list of
 authorized apps. A refresh token cannot be presented there, so the declaration
-asks for an access token, and `OAuth2Client.revoke()` refreshes first if its
-own has lapsed.
+asks for an access token. Which call sends it depends on your row of the table
+above.
 
-Every token type in the table above revokes the same way. A token that never
-expires has no client around it, so revoke it as a string:
+**With expiry on, the client revokes.**
+[`OAuth2Client.revoke()`](/reference/oauth#attributes-and-methods) sends the
+freshest access token it has, and refreshes first if none is still valid:
 
-```python github_disconnect.py
+```python github_disconnect.py {14}
+from functools import partial
+
+from charter.auth import OAuth2Client
+
+async def disconnect():
+    row = await db.grants.get(user.id, "github")
+    client = OAuth2Client(
+        GITHUB,
+        client_id=os.environ["GITHUB_CLIENT_ID"],
+        client_secret=os.environ["GITHUB_CLIENT_SECRET"],
+        refresh_token=row.refresh_token,
+        on_refresh=partial(save_to_db, user.id),  # it may refresh first, and GitHub rotates
+    )
+    await client.revoke()
+    await db.grants.delete(user.id, "github")
+```
+
+A GitHub App's user token expires after eight hours, and every refresh retires
+the one before it while the grant lives on, so an access token GitHub calls
+dead is renewed and sent once more. Serving many users through
+[`SubjectProvider`](/reference/credentials#subjectprovider), `await github_users.revoke(user_id)` builds the user's
+client from your store and does the same:
+[Disconnecting a user](/auth/authorization-servers#disconnecting-a-user).
+
+**A token that never expires is revoked as a string.** With expiry off, or
+from a classic OAuth App, there is no client around it:
+
+```python github_token_disconnect.py {5-10}
 from charter.auth import revoke_token
-
 
 async def disconnect():
     row = await db.keys.get(user.id, "github")
@@ -226,15 +254,12 @@ GitHub answers `204` when it deleted the authorization. Its reference lists
 one other status, `422`, "Validation failed, or the endpoint has been
 spammed", and says nothing of a token it does not know. Measured against a
 live GitHub App, that token (revoked, retired by a refresh, or never issued)
-gets `404`. The declaration counts both as gone, and `revoke_token` returns
-`False`. A wrong
-client secret gets `401`, which still raises.
+gets `404`. The declaration counts both as gone, and both calls return
+`False`. A wrong client secret gets `401`, which still raises.
 
-That `False` is only about the token sent. A GitHub App's user token expires
-after eight hours, and every refresh retires the one before it, while the
-grant lives on, so revoke an expiring token through `OAuth2Client.revoke()`:
-it sends the token your store holds and, if GitHub calls that one dead,
-refreshes and sends the new one. A personal access token is not an
+That `False` is only about the token sent, which is why an expiring token goes
+through the client: handed to [`revoke_token`](/reference/oauth#revoke_token), one a refresh has retired gets
+`404` while the grant lives on. A personal access token is not an
 authorization of your app, so there is nothing for the app to revoke; its
 owner deletes it in their settings.
 
