@@ -1,0 +1,117 @@
+---
+title: "Notion OAuth"
+sidebarTitle: "Notion"
+description: "The constant, a token endpoint that takes JSON and Basic auth, what a refresh does that Notion's docs leave out, and a revocation that answers 200 to anything."
+---
+
+A [public connection](https://developers.notion.com/docs/authorization) asks for
+nothing in its link. The user picks which pages to share on Notion's consent
+screen, and the connection's capabilities are set where you registered it.
+Notion's token endpoint takes JSON and HTTP Basic, where most servers take a
+form. [Register a public Notion integration](/auth/apps/notion) has the
+screens.
+
+## The server
+
+```python notion_server.py
+from charter.auth import OAuth2Server, Revocation
+
+NOTION = OAuth2Server(
+    issuer="https://api.notion.com",
+    authorization_endpoint="https://api.notion.com/v1/oauth/authorize",
+    token_endpoint="https://api.notion.com/v1/oauth/token",
+    token_endpoint_auth_method="client_secret_basic",
+    authorization_params={"owner": "user"},
+    uses_scopes=False,
+    token_request_format="json",
+    revocation=Revocation("https://api.notion.com/v1/oauth/revoke", token_type="access_token"),
+)
+```
+
+`uses_scopes=False` because the link carries none. `token_request_format` and
+`client_secret_basic` are the JSON body and Basic auth Notion's token endpoint
+takes. `revocation` is how a user is disconnected: [Disconnecting](#disconnecting).
+
+## Connecting a user
+
+```python notion_users.py
+from charter.auth import OAuth2Client, OAuth2Flow, SubjectProvider, TokenGrant
+from charter.packs import notion
+
+flow = OAuth2Flow(
+    NOTION,
+    client_id=os.environ["NOTION_CLIENT_ID"],
+    client_secret=os.environ["NOTION_CLIENT_SECRET"],
+    redirect_uri="https://app.example.com/oauth/notion/callback",
+)
+request = flow.authorize()
+
+
+async def notion_for(user_id: str):
+    async def stored_grant():  # read before every refresh: Notion rotates
+        row = await db.grants.get(user_id, "notion")
+        return TokenGrant(
+            access_token=row.access_token,
+            refresh_token=row.refresh_token,
+            expires_at=row.expires_at,
+        )
+
+    return OAuth2Client(
+        NOTION,
+        client_id=os.environ["NOTION_CLIENT_ID"],
+        client_secret=os.environ["NOTION_CLIENT_SECRET"],
+        refresh_token=stored_grant,
+        on_refresh=partial(save_to_db, user_id),  # stores the token and the refresh token
+    )
+
+
+notion.configure(credential_provider=SubjectProvider(notion_for))
+```
+
+## Refresh behaviour
+
+Notion's token response carries a `refresh_token` and no `expires_in`, and its
+docs don't say how long an access token lasts or what a refresh does to the
+tokens before it. Measured against a live connection: every refresh rotates the
+refresh token, and the access token before it stops working about three
+seconds later. That is why the loader returns the whole grant. A worker holding
+only its own copy of the refresh token presents one another worker has spent,
+which Notion refuses, and a worker that refreshes on its own retires the token
+the others are still using. For the same reason, more than one process passes
+`refresh_lock` too: [A lock around the refresh](/auth/oauth-flow#a-lock-around-the-refresh).
+With no lifetime to go on, the client keeps a token until the API refuses it,
+and that one call fails before the next refreshes.
+
+## Disconnecting
+
+The `SubjectProvider` the pack is configured with builds the user's client from
+your store, revokes, and forgets it, in one call:
+
+```python notion_disconnect.py
+notion_users = SubjectProvider(notion_for)  # the one given to notion.configure()
+
+
+async def disconnect(user_id: str):
+    await notion_users.revoke(user_id)
+    await db.grants.delete(user_id, "notion")  # your row, after
+```
+
+The declaration sends the access token, as JSON with the client's Basic auth,
+to `v1/oauth/revoke`. Measured live, a live token ends the grant: the access
+token is refused within a second and the refresh token is dead.
+
+Notion answers `200` to any token, though: one already revoked, one a refresh
+has retired, a refresh token, or a string it never issued, none of which end
+anything. RFC 7009 asks exactly that of a server, so Notion is right by the
+standard, but it means `revoke()` returns `True` either way, and only the token
+sent decides whether the user was disconnected. `OAuth2Client.revoke()` sends
+the access token your store holds, under `refresh_lock`, so it is the live one.
+A stale token passed to [`revoke_token`](/reference/oauth#revoke_token) reports
+`True` and leaves the grant alive.
+
+## Where the rest is
+
+- [Register a public Notion integration](/auth/apps/notion) — the screens, the redirect URL, the capabilities
+- [Getting the grant](/auth/oauth-flow) — the route, the session, `state`, PKCE
+- [Connect your users' accounts](/auth/your-users) — every pack's providers, side by side
+- [Packs](/packs/notion) — the Notion tools

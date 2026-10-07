@@ -1,0 +1,128 @@
+---
+title: "Linear OAuth"
+sidebarTitle: "Linear"
+description: "The constant, refresh tokens that rotate with a 30-minute grace, a pasted personal key beside OAuth, and the hint Linear's revocation needs."
+---
+
+Linear access tokens last 24 hours, and Linear's refresh tokens rotate, with a
+30-minute grace period in which a used one is still accepted. It documents
+scopes as a comma-separated list. The OAuth application is registered at
+[linear.app/settings/api](https://linear.app/settings/api):
+[Register a Linear OAuth application](/auth/apps/linear).
+
+## The server
+
+```python linear_server.py
+from charter.auth import OAuth2Server, Revocation
+
+LINEAR = OAuth2Server(
+    issuer="https://linear.app",
+    authorization_endpoint="https://linear.app/oauth/authorize",
+    token_endpoint="https://api.linear.app/oauth/token",
+    token_endpoint_auth_method="client_secret_post",
+    scope_separator=",",
+    dead_grant_errors=("invalid_request",),
+    revocation=Revocation(
+        "https://api.linear.app/oauth/revoke",
+        auth_method="none",
+        token_type_hint=True,
+        gone_statuses=(400, 401),
+    ),
+)
+```
+
+`scope_separator` is the comma Linear documents. `dead_grant_errors` is how
+Linear says a grant is gone: [Refresh behaviour](#refresh-behaviour).
+`revocation` is how a user is disconnected: [Disconnecting](#disconnecting).
+
+## Connecting a user
+
+```python linear_users.py
+from charter.auth import OAuth2Client, OAuth2Flow, SubjectProvider, TokenGrant
+from charter.packs import linear
+
+flow = OAuth2Flow(
+    LINEAR,
+    client_id=os.environ["LINEAR_CLIENT_ID"],
+    client_secret=os.environ["LINEAR_CLIENT_SECRET"],
+    redirect_uri="https://app.example.com/oauth/linear/callback",
+)
+request = flow.authorize(["read", "write"])  # the link your "Connect Linear" button opens
+
+
+async def linear_for(user_id: str):
+    async def stored_grant():  # read before every refresh: Linear rotates
+        row = await db.grants.get(user_id, "linear")
+        return TokenGrant(
+            access_token=row.access_token,
+            refresh_token=row.refresh_token,
+            expires_at=row.expires_at,
+        )
+
+    return OAuth2Client(
+        LINEAR,
+        client_id=os.environ["LINEAR_CLIENT_ID"],
+        client_secret=os.environ["LINEAR_CLIENT_SECRET"],
+        refresh_token=stored_grant,
+        on_refresh=partial(save_to_db, user_id),  # stores the token, its expiry, the refresh token
+    )
+
+
+linear.configure(credential_provider=SubjectProvider(linear_for))
+```
+
+The client reads the stored grant before every refresh rather than holding a
+copy of the refresh token, because Linear rotates it: a copy goes stale the
+moment another process refreshes.
+[More than one process](/auth/oauth-flow#more-than-one-process) has the rest.
+
+## Refresh behaviour
+
+Linear refuses a refresh token that is spent, past its 30-minute grace, or
+unknown with `invalid_request` ("Invalid refresh token") in a `400`, where RFC
+6749 says `invalid_grant`. `dead_grant_errors` declares it, so a disconnected
+user is asked about once a minute and the error's `reauthorize` is true. Linear
+uses the same code for a missing parameter, which a refresh from Charter never
+has.
+
+## A pasted personal key
+
+A user who pastes a personal API key instead gets a `StaticTokenProvider(key)`
+from the same `linear_for`. Linear wants a personal key with no scheme and an
+OAuth token as `Bearer`, and refuses each in the other's shape. The pack tells
+them apart by Linear's `lin_api_` prefix, so the two kinds of user can share
+one configuration.
+
+## Disconnecting
+
+The `SubjectProvider` the pack is configured with builds the user's client from
+your store, revokes, and forgets it, in one call:
+
+```python linear_disconnect.py
+linear_users = SubjectProvider(linear_for)  # the one given to linear.configure()
+
+
+async def disconnect(user_id: str):
+    await linear_users.revoke(user_id)
+    await db.grants.delete(user_id, "linear")  # your row, after
+```
+
+The declaration sends the refresh token to `oauth/revoke`, with no client
+credentials and with `token_type_hint=refresh_token`. Linear's docs offer the
+hint "to help the server identify the token"; measured live, it is needed:
+without it, a live refresh token gets `401 Token not found` and the grant
+stays. With it, Linear answers `200` and the access token is refused at once.
+
+A token already revoked gets `401` ("Token has already been revoked."), where
+Linear's docs give "token was already revoked" as their example of a `400`, so
+both count as gone and `revoke()` returns `False`.
+
+A pasted personal key was made by the user, and only they can delete it, in
+Linear's settings. Delete your row.
+
+## Where the rest is
+
+- [Register a Linear OAuth application](/auth/apps/linear) — the screens, the redirect URL, the scopes
+- [Getting the grant](/auth/oauth-flow) — the route, the session, `state`, PKCE
+- [Connect your users' accounts](/auth/your-users) — every pack's providers, side by side
+- [Packs](/packs/linear) — the Linear tools

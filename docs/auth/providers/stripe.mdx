@@ -1,0 +1,161 @@
+---
+title: "Stripe Apps OAuth"
+sidebarTitle: "Stripe"
+description: "The constant for a Stripe App, the test link before you publish, an hour-long token Stripe's response never dates, and disconnecting by uninstalling the app."
+---
+
+A [Stripe App](https://docs.stripe.com/stripe-apps/api-authentication/oauth)
+gives the link-and-redirect experience. Your user installs it from the link,
+picks an account, and comes back. The app's permissions are set in its manifest,
+not in the link, so the flow sends no scopes. Stripe's token endpoint takes
+your app's own **secret key** as the credential: passed as `client_secret`, it is
+sent the way `curl -u sk_live_...:` sends it.
+[Register a Stripe App](/auth/apps/stripe) builds the app and tests it.
+
+## The server
+
+```python stripe_server.py
+from charter.auth import OAuth2Server
+from charter.packs.stripe import StripeAppUninstall
+
+STRIPE_APPS = OAuth2Server(
+    issuer="https://marketplace.stripe.com",
+    authorization_endpoint="https://marketplace.stripe.com/oauth/v2/authorize",  # once published
+    token_endpoint="https://api.stripe.com/v1/oauth/token",
+    token_endpoint_auth_method="secret_key_basic",
+    uses_scopes=False,
+    default_expires_in=3600,  # an hour, which Stripe's token response never says
+    revocation=StripeAppUninstall(app="app_..."),  # your app's ID, from its Dashboard page
+)
+```
+
+`secret_key_basic` is the secret key as Basic auth. `default_expires_in` is the
+lifetime Stripe's token response leaves out: [Refresh behaviour](#refresh-behaviour).
+`revocation` uninstalls the app, which is how Stripe ends a grant:
+[Disconnecting](#disconnecting).
+
+## Connecting a user
+
+```python stripe_users.py
+from charter.auth import OAuth2Client, OAuth2Flow, SubjectProvider, TokenGrant
+from charter.packs import stripe
+
+flow = OAuth2Flow(
+    STRIPE_APPS,
+    client_id=os.environ["STRIPE_APP_CLIENT_ID"],  # ca_..., from the app's settings
+    client_secret=os.environ["STRIPE_SECRET_KEY"],  # your developer account's sk_...
+    redirect_uri="https://app.example.com/oauth/stripe/callback",
+)
+request = flow.authorize()
+
+
+async def stripe_for(user_id: str):
+    async def stored_grant():  # read before every refresh: Stripe rotates
+        row = await db.grants.get(user_id, "stripe")
+        return TokenGrant(
+            access_token=row.access_token,
+            refresh_token=row.refresh_token,
+            expires_at=row.expires_at,
+        )
+
+    return OAuth2Client(
+        STRIPE_APPS,
+        client_id=os.environ["STRIPE_APP_CLIENT_ID"],
+        client_secret=os.environ["STRIPE_SECRET_KEY"],
+        refresh_token=stored_grant,
+        on_refresh=partial(save_to_db, user_id),  # stores the token, its expiry, the refresh token
+    )
+
+
+stripe.configure(credential_provider=SubjectProvider(stripe_for))
+```
+
+## Before you publish
+
+Until the app is published, that consent link is not active. Stripe honours
+only the link on the app's External test tab, whose path names a channel:
+`/oauth/v2/chnlink_.../authorize`. Point the flow at that path while you test,
+and install from an account other than the one that owns the app. Stripe issues
+a token for the owner's own account and then refuses it on every call.
+
+## Refresh behaviour
+
+The access token is a restricted key, `rk_live_...` or `rk_test_...`, limited
+to the permissions in the app's manifest, and it goes out as `Bearer` like any
+other. Stripe access tokens last an hour, and its token response doesn't say
+so. The constant declares it with `default_expires_in`, so the client renews
+each token shortly before the hour instead of learning from a refused call.
+Stripe's refresh tokens roll on every use, and a refresh revokes the previous
+access token within seconds. So `on_refresh` stores the new access token, its
+expiry and the refresh token, and `stored_grant` reads them back: every
+process uses the token one refresh produced instead of refreshing on its own.
+Processes that find the token due at the same moment still refresh together,
+and each refresh revokes the token of the one before. Serving from more than
+one process, pass `refresh_lock` as well:
+[A lock around the refresh](/auth/oauth-flow#a-lock-around-the-refresh) has the
+code and what it measured without one.
+
+## A pasted restricted key
+
+Not every product wants to publish a Stripe App. The other path is a
+[restricted key](https://docs.stripe.com/keys/restricted-api-keys) (`rk_...`):
+the user creates it with read-only permissions and pastes it, and `stripe_for`
+returns `StaticTokenProvider(row.api_key)`. Many tools start this way.
+
+A Connect platform is different again. It acts on its connected accounts with
+its own key and a `Stripe-Account` header, which is
+[per call](/packs/stripe), not a credential.
+
+## Disconnecting
+
+Stripe has no endpoint that revokes a token: a grant is an install of your app,
+and it ends when the install does. Stripe's
+[App Installs API](https://docs.stripe.com/api/apps/installs) uninstalls it, and
+`StripeAppUninstall` is that, declared as the revocation. It looks the install
+up for the `stripe_user_id` Stripe's token response carries, then uninstalls
+it, with your secret key. The client keeps the account from the exchange or any
+refresh, and refreshes once first if it has seen neither, so nothing extra needs
+storing. The call is the same as for every other provider:
+
+```python stripe_disconnect.py
+stripe_users = SubjectProvider(stripe_for)  # the one given to stripe.configure()
+
+
+async def disconnect(user_id: str):
+    await stripe_users.revoke(user_id)
+    await db.grants.delete(user_id, "stripe")  # your row, after
+```
+
+Measured, the uninstall answered `200`, the install was gone within about
+fifteen seconds, the access and refresh tokens were refused, Stripe sent
+`apps.install.deleted`, and the next install from your link was a fresh one. An
+account without the app returns `False`; a wrong app ID or another account's
+key raises.
+
+`revoke()` returns once Stripe accepts the uninstall (`status: uninstalling`),
+not once it is done. Charter stops using the grant at once; Stripe finishes
+seconds later, 10 to 15 measured, and until then the old access token still
+works. Treat the disconnect the way Stripe's own states suggest: delete your
+row, show the user "Disconnecting", and offer Reconnect when
+`apps.install.deleted` arrives, which your Connect webhook endpoint receives
+with `account` set to theirs. Reconnecting before then can land on the install
+still being removed. A script or a test that must not go on until the install
+is gone declares `StripeAppUninstall(app="app_...", wait_seconds=30)` instead;
+still uninstalling at the deadline is logged, and the call still returns
+`True`. It waits holding the client's refresh lock, which is one more reason to
+keep it out of a server.
+
+Not Connect's `oauth/deauthorize`: Stripe documents it for Standard accounts
+only, and measured against an app's grant it ended the access but left the app
+installed, so your install link answered "already installed" and issued tokens
+Stripe refused until the user uninstalled the app from their Dashboard.
+
+A pasted restricted key was made by the user, and only they can delete it, in
+their Dashboard. Delete your row.
+
+## Where the rest is
+
+- [Register a Stripe App](/auth/apps/stripe) — the CLI, the manifest, the test link
+- [Getting the grant](/auth/oauth-flow) — the route, the session, `state`, PKCE
+- [Connect your users' accounts](/auth/your-users) — every pack's providers, side by side
+- [Packs](/packs/stripe) — the Stripe tools

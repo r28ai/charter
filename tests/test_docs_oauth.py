@@ -51,6 +51,10 @@ DOCS = [
     ROOT / "docs/auth/providers/google.mdx",
     ROOT / "docs/auth/providers/slack.mdx",
     ROOT / "docs/auth/providers/github.mdx",
+    ROOT / "docs/auth/providers/linear.mdx",
+    ROOT / "docs/auth/providers/notion.mdx",
+    ROOT / "docs/auth/providers/stripe.mdx",
+    ROOT / "docs/auth/providers/shopify.mdx",
 ]
 
 # The language, then whatever the fence carries after it: a filename, and on a
@@ -92,7 +96,7 @@ def _stubs() -> dict:
     ``GOOGLE`` is in here for the same reason ``db`` is: the setup page uses the
     constant without restating it, because google.mdx is where it is maintained.
     ``STRIPE_APPS`` likewise: the Stripe app guide derives its test-link server
-    from the one your-users.mdx declares.
+    from the one providers/stripe.mdx declares.
     Stubbing it with the canonical declaration rather than a fresh literal is
     what keeps that page honest — a snippet written against a constant nobody
     checks is the failure this whole file exists to prevent.
@@ -100,7 +104,7 @@ def _stubs() -> dict:
     db = SimpleNamespace(grants=_Grants(), keys=_Keys())
     return {
         "GOOGLE": _declared_server(ROOT / "docs/auth/providers/google.mdx", "GOOGLE"),
-        "STRIPE_APPS": _declared_server(ROOT / "docs/auth/your-users.mdx", "STRIPE_APPS"),
+        "STRIPE_APPS": _declared_server(ROOT / "docs/auth/providers/stripe.mdx", "STRIPE_APPS"),
         "__name__": "__charter_docs__",
         **{name: getattr(charter, name) for name in charter.__all__ if name != "__version__"},
         **{name: getattr(charter.auth, name) for name in charter.auth.__all__},
@@ -316,9 +320,9 @@ LIVE_CHECK = ROOT / "scripts/live_oauth_check.py"
         ("docs/auth/providers/google.mdx", "GOOGLE"),
         ("docs/auth/providers/slack.mdx", "SLACK"),
         ("docs/auth/providers/github.mdx", "GITHUB"),
-        ("docs/auth/your-users.mdx", "LINEAR"),
-        ("docs/auth/your-users.mdx", "NOTION"),
-        ("docs/auth/your-users.mdx", "STRIPE_APPS"),
+        ("docs/auth/providers/linear.mdx", "LINEAR"),
+        ("docs/auth/providers/notion.mdx", "NOTION"),
+        ("docs/auth/providers/stripe.mdx", "STRIPE_APPS"),
     ],
 )
 def test_the_live_check_holds_the_constant_the_page_tells_readers_to_paste(page, name):
@@ -343,7 +347,9 @@ def _shopify_server_from(source: str):
 def test_the_live_check_builds_shopify_s_server_as_the_page_does():
     """A function on both sides, since the store is part of the server."""
     page = next(
-        b for b in _python_blocks(ROOT / "docs/auth/your-users.mdx") if "def shopify_server" in b
+        b
+        for b in _python_blocks(ROOT / "docs/auth/providers/shopify.mdx")
+        if "def shopify_server" in b
     )
     built = _shopify_server_from(page)("my-store")
     assert built == _shopify_server_from(LIVE_CHECK.read_text())("my-store")
@@ -512,7 +518,7 @@ async def test_github_deletes_the_grant_by_access_token():
 
 @respx.mock
 async def test_linear_is_sent_the_refresh_token_named_as_one():
-    linear = _declared_server(YOUR_USERS, "LINEAR")
+    linear = _declared_server(PROVIDERS / "linear.mdx", "LINEAR")
     route = respx.post("https://api.linear.app/oauth/revoke").mock(
         return_value=httpx.Response(200, json={"success": True})
     )
@@ -532,7 +538,7 @@ async def test_linear_is_sent_the_refresh_token_named_as_one():
 
 @respx.mock
 async def test_notion_is_sent_json_with_basic_auth():
-    notion = _declared_server(YOUR_USERS, "NOTION")
+    notion = _declared_server(PROVIDERS / "notion.mdx", "NOTION")
     route = respx.post("https://api.notion.com/v1/oauth/revoke").mock(
         return_value=httpx.Response(200, json={"request_id": "r1"})
     )
@@ -544,7 +550,7 @@ async def test_notion_is_sent_json_with_basic_auth():
 
 @respx.mock
 async def test_shopify_uninstalls_the_app_from_the_store():
-    (block,) = [b for b in _python_blocks(YOUR_USERS) if "def shopify_server" in b]
+    (block,) = [b for b in _python_blocks(PROVIDERS / "shopify.mdx") if "def shopify_server" in b]
     shopify = _shopify_server_from(block)("merchant")
     route = respx.delete("https://merchant.myshopify.com/admin/api_permissions/current.json").mock(
         return_value=httpx.Response(200, json={})
@@ -562,7 +568,7 @@ async def test_shopify_uninstalls_the_app_from_the_store():
 async def test_shopify_s_dead_refresh_token_asks_the_merchant_to_reconnect():
     """Measured: an uninstalled app's refresh token, and one never issued, get
     invalid_request ("This request requires an active refresh_token") in a 401."""
-    (block,) = [b for b in _python_blocks(YOUR_USERS) if "def shopify_server" in b]
+    (block,) = [b for b in _python_blocks(PROVIDERS / "shopify.mdx") if "def shopify_server" in b]
     shopify = _shopify_server_from(block)("merchant")
     respx.post("https://merchant.myshopify.com/admin/oauth/access_token").mock(
         return_value=httpx.Response(
@@ -583,7 +589,7 @@ async def test_shopify_s_dead_refresh_token_asks_the_merchant_to_reconnect():
 async def test_stripe_apps_uninstalls_the_app():
     """Stripe has no endpoint that revokes a Stripe App's token: the grant ends
     with the install, which its App Installs API looks up and uninstalls."""
-    stripe = _declared_server(YOUR_USERS, "STRIPE_APPS")
+    stripe = _declared_server(PROVIDERS / "stripe.mdx", "STRIPE_APPS")
     assert stripe.revocation == StripeAppUninstall(app="app_...")
     lookup = respx.get("https://api.stripe.com/v1/apps/installs").mock(
         return_value=httpx.Response(

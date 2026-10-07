@@ -317,10 +317,10 @@ from.
 | Google | the refresh token, alone | [Google](/auth/providers/google#disconnecting) |
 | Slack | `apps.uninstall`, with the bot token | [Slack](/auth/providers/slack#disconnecting) |
 | GitHub | `DELETE /applications/{client_id}/grant`, with an access token | [GitHub](/auth/providers/github#disconnecting) |
-| Linear | the refresh token, with `token_type_hint` | [Your users](/auth/your-users#disconnecting-a-user) |
-| Notion | the access token, as JSON with Basic auth | [Your users](/auth/your-users#disconnecting-a-user) |
-| Shopify | `DELETE api_permissions/current.json`, which uninstalls the app | [Your users](/auth/your-users#disconnecting-a-user) |
-| Stripe Apps | an uninstall through the App Installs API, `StripeAppUninstall` | [Your users](/auth/your-users#disconnecting-a-user) |
+| Linear | the refresh token, with `token_type_hint` | [Linear](/auth/providers/linear#disconnecting) |
+| Notion | the access token, as JSON with Basic auth | [Notion](/auth/providers/notion#disconnecting) |
+| Shopify | `DELETE api_permissions/current.json`, which uninstalls the app | [Shopify](/auth/providers/shopify#disconnecting) |
+| Stripe Apps | an uninstall through the App Installs API, `StripeAppUninstall` | [Stripe](/auth/providers/stripe#disconnecting) |
 
 ## What Charter does not do
 

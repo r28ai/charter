@@ -13,7 +13,7 @@ upload. It takes about ten minutes, most of them installing the CLI.
 Only connecting your own account? A secret or restricted key is all the
 [`stripe`](/packs/stripe) pack needs: [Set up Stripe](/auth/setup/stripe).
 Users who would rather paste a restricted key need no app either:
-[Every pack: Stripe](/auth/your-users#stripe).
+[Stripe OAuth](/auth/providers/stripe#a-pasted-restricted-key).
 
 <Note>
 The test takes two Stripe accounts. Upload the app from one whose business is
@@ -161,7 +161,7 @@ ones App Review asks for.
 
 The link's `client_id` is the app's client ID. Its path, up to `authorize`, is
 the consent endpoint until you publish. After that it's the one in
-`STRIPE_APPS`, the constant in [Every pack](/auth/your-users#stripe).
+`STRIPE_APPS`, the constant on [Stripe's provider page](/auth/providers/stripe).
 
 ```python stripe_test_link.py
 import dataclasses
@@ -200,7 +200,7 @@ The callback receives `code` and `state`, and Stripe adds `stripe_user_id`: the
 account that installed. Exchange the code as on
 [Getting the grant](/auth/oauth-flow). The access token begins `rk_test_`, and
 the refresh token rolls on every use. From here the per-user client is the one
-in the [Stripe section of Every pack](/auth/your-users#stripe).
+in the [Stripe provider page](/auth/providers/stripe).
 
 [`scripts/live_oauth_check.py`](https://github.com/r28ai/charter/blob/main/scripts/live_oauth_check.py)
 runs this step from a terminal against your app, then checks the result: the
@@ -296,6 +296,6 @@ uv run python scripts/live_oauth_check.py check --provider stripe
 
 ## Related
 
-- [Every pack: Stripe](/auth/your-users#stripe) — the server constant, the per-user client, and a pasted restricted key beside OAuth
+- [Stripe OAuth](/auth/providers/stripe) — the server constant, the per-user client, and a pasted restricted key beside OAuth
 - [Getting the grant](/auth/oauth-flow) — the two routes, `state` and PKCE, inside your app
 - [Stripe](/packs/stripe) — the pack, form encoding, idempotency and Connect

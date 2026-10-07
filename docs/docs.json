@@ -95,7 +95,11 @@
                 "pages": [
                   "auth/providers/google",
                   "auth/providers/slack",
-                  "auth/providers/github"
+                  "auth/providers/github",
+                  "auth/providers/linear",
+                  "auth/providers/notion",
+                  "auth/providers/stripe",
+                  "auth/providers/shopify"
                 ]
               }
             ]

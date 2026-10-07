@@ -1,0 +1,141 @@
+---
+title: "Shopify OAuth"
+sidebarTitle: "Shopify"
+description: "A server per store, the expiring offline token Shopify now requires, what its refresh says when an app is gone, and disconnecting by uninstalling."
+---
+
+A merchant connects a store, and the store is part of the connection: the API
+host, the consent page and the token endpoint all sit on it. So the store is
+named per call as well as the token. `shop=` takes a function for exactly this,
+and it is called on every request. The app is one Dev Dashboard app for every
+store: [Register a Shopify app](/auth/apps/shopify).
+
+Ask for an **expiring** offline token. Shopify requires public apps to use one
+for the GraphQL Admin API, which is what the pack calls, by
+[January 1, 2027](https://shopify.dev/docs/apps/build/authentication-authorization/access-tokens/offline-access-tokens).
+It lasts an hour and comes with a refresh token that lasts 90 days, and both
+are replaced on every refresh. `exchange_params={"expiring": "1"}` on the server
+is what asks for it.
+
+## The server
+
+```python shopify_server.py
+from charter.auth import OAuth2Server, Revocation
+
+
+def shopify_server(shop: str) -> OAuth2Server:
+    return OAuth2Server(
+        authorization_endpoint=f"https://{shop}.myshopify.com/admin/oauth/authorize",
+        token_endpoint=f"https://{shop}.myshopify.com/admin/oauth/access_token",
+        scope_separator=",",
+        exchange_params={"expiring": "1"},  # an offline token that expires, with a refresh token
+        dead_grant_errors=("invalid_request",),
+        revocation=Revocation(  # uninstalls the app from the store
+            f"https://{shop}.myshopify.com/admin/api_permissions/current.json",
+            token_type="access_token",
+            token_header="X-Shopify-Access-Token",
+            auth_method="none",
+            http_method="DELETE",
+        ),
+    )
+```
+
+A function rather than a constant, because every endpoint is on the merchant's
+store. `scope_separator` is the comma Shopify documents. `dead_grant_errors` is
+how Shopify says a grant is gone: [Refresh behaviour](#refresh-behaviour).
+`revocation` uninstalls the app: [Disconnecting](#disconnecting).
+
+## Connecting a merchant
+
+```python shopify_users.py
+from charter.auth import OAuth2Client, OAuth2Flow, SubjectProvider, TokenGrant, current_subject
+from charter.packs import shopify
+
+flow = OAuth2Flow(
+    shopify_server("merchant-store"),
+    client_id=os.environ["SHOPIFY_CLIENT_ID"],
+    client_secret=os.environ["SHOPIFY_CLIENT_SECRET"],
+    redirect_uri="https://app.example.com/oauth/shopify/callback",
+)
+request = flow.authorize(["read_products", "read_orders"])
+# Callback: verify Shopify's `hmac` parameter before exchanging. Then
+# grant = await flow.exchange(code)
+# and store the shop and the grant against the user.
+
+stores = {"u1": "merchant-store"}  # yours: user id to store
+
+
+async def shopify_for(user_id: str):
+    async def stored_grant():  # read before every refresh: Shopify rotates
+        row = await db.grants.get(user_id, "shopify")
+        return TokenGrant(
+            access_token=row.access_token,
+            refresh_token=row.refresh_token,
+            expires_at=row.expires_at,
+        )
+
+    return OAuth2Client(
+        shopify_server(stores[user_id]),
+        client_id=os.environ["SHOPIFY_CLIENT_ID"],
+        client_secret=os.environ["SHOPIFY_CLIENT_SECRET"],
+        refresh_token=stored_grant,
+        on_refresh=partial(save_to_db, user_id),
+    )
+
+
+shopify.configure(
+    shop=lambda: stores[current_subject.get()],
+    credential_provider=SubjectProvider(shopify_for),
+)
+```
+
+The pack sends the token in `X-Shopify-Access-Token`, wherever it came from.
+
+## Refresh behaviour
+
+Shopify refuses a refresh token it no longer honours, the grant's after the
+app was uninstalled or one it never issued, with `invalid_request` ("This
+request requires an active refresh_token") in a `401`, measured, where RFC 6749
+says `invalid_grant`. `dead_grant_errors` declares it, so once a merchant
+uninstalls your app their tool calls stop asking Shopify again and the error's
+`reauthorize` is true. As with Linear, the same code would answer a missing
+parameter, which a refresh from Charter never has.
+
+## A non-expiring token
+
+A store that holds a non-expiring offline token, issued before expiring tokens
+or to a custom app, keeps working as `StaticTokenProvider(token)`, exchanged
+with `expect_refresh_token=False`. Pairing a per-call store with a single
+`access_token` raises: one store's token would go to every other store.
+
+## Disconnecting
+
+The `SubjectProvider` the pack is configured with builds the merchant's client
+from your store, revokes, and forgets it, in one call:
+
+```python shopify_disconnect.py
+shopify_users = SubjectProvider(shopify_for)  # the one given to shopify.configure()
+
+
+async def disconnect(user_id: str):
+    await shopify_users.revoke(user_id)
+    await db.grants.delete(user_id, "shopify")  # your row, after
+```
+
+Shopify has no revocation endpoint. Its documented way to end an installation's
+access is to uninstall the app with the store's own token,
+`DELETE /admin/api_permissions/current.json`, so that is the declaration. The
+merchant can install it again from your link.
+
+Measured, the access token was refused at once and the refresh token with it.
+Uninstalling ends every grant your app holds on that store, not only this one:
+the app's client credentials grant on the store answered `app_not_installed`
+until the app was installed again. A store already uninstalled answers `401`,
+which counts as gone, and `revoke()` returns `False`.
+
+## Where the rest is
+
+- [Register a Shopify app](/auth/apps/shopify) — the Dev Dashboard app, the scopes, the redirect URL
+- [Getting the grant](/auth/oauth-flow) — the route, the session, `state`, PKCE
+- [Connect your users' accounts](/auth/your-users) — every pack's providers, side by side
+- [Packs](/packs/shopify) — the Shopify tools

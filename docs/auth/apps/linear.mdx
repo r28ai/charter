@@ -90,7 +90,7 @@ shows what the app is asking for, and the user clicks **Authorize**.
 line about managing settings and people to this screen, and no tool needs it.
 
 The server constant and the per-user client are in the
-[Linear section of Every pack](/auth/your-users#linear). Two details from there
+[Linear provider page](/auth/providers/linear). Two details from there
 matter here. Linear's access tokens last 24 hours and its refresh tokens
 rotate, so `on_refresh` has to store each new one. And Linear separates scopes
 with commas, which the constant already declares.
@@ -124,6 +124,6 @@ with commas, which the constant already declares.
 
 ## Related
 
-- [Every pack: Linear](/auth/your-users#linear) — the server constant, and a pasted key beside OAuth in one configuration
+- [Linear OAuth](/auth/providers/linear) — the server constant, and a pasted key beside OAuth in one configuration
 - [Getting the grant](/auth/oauth-flow) — the two routes, `state` and PKCE, inside your app
 - [Linear](/packs/linear) — the pack, and why a personal key goes out with no scheme

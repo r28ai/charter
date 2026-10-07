@@ -43,7 +43,7 @@ someone else's credential.
 Serving users from more than one process? Where the provider rotates refresh
 tokens (Stripe, Linear, Slack with rotation on), pass the client a function
 that reads the stored grant rather than the refresh token itself, as the
-Linear and Stripe examples below do. A copy goes stale the moment another
+[Linear](/auth/providers/linear) and [Stripe](/auth/providers/stripe) pages do. A copy goes stale the moment another
 process refreshes, and Stripe's refresh also revokes the other processes'
 access tokens: [More than one process](/auth/oauth-flow#more-than-one-process).
 
@@ -57,10 +57,10 @@ afterwards. *Provider* is what `for_user` returns.
 | Gmail, Calendar, Sheets, Docs, Drive, Forms | an OAuth link | a refresh token | `OAuth2Client(GOOGLE, ...)` — [Google](/auth/providers/google) |
 | Slack | an OAuth link | the bot token, or a refresh token with rotation on | [Slack](/auth/providers/slack) |
 | GitHub | an OAuth link | a refresh token, or the token of an app that does not expire them | `OAuth2Client(GITHUB, ...)` or `StaticTokenProvider` — [GitHub](/auth/providers/github) |
-| Notion | an OAuth link | a refresh token | `OAuth2Client(NOTION, ...)` — [below](#notion) |
-| Linear | an OAuth link, or a pasted personal key | a refresh token, or the key | `OAuth2Client(LINEAR, ...)` or `StaticTokenProvider` — [below](#linear) |
-| Stripe | a Stripe App install link, or a pasted restricted key | a refresh token, or the key | `OAuth2Client(STRIPE_APPS, ...)` or `StaticTokenProvider` — [below](#stripe) |
-| Shopify | an OAuth link on the merchant's store | the store, and its token | `StaticTokenProvider`, with `shop=` per call — [below](#shopify) |
+| Notion | an OAuth link | a refresh token | `OAuth2Client(NOTION, ...)` — [Notion](/auth/providers/notion) |
+| Linear | an OAuth link, or a pasted personal key | a refresh token, or the key | `OAuth2Client(LINEAR, ...)` or `StaticTokenProvider` — [Linear](/auth/providers/linear) |
+| Stripe | a Stripe App install link, or a pasted restricted key | a refresh token, or the key | `OAuth2Client(STRIPE_APPS, ...)` or `StaticTokenProvider` — [Stripe](/auth/providers/stripe) |
+| Shopify | an OAuth link on the merchant's store | the store, and its token | `OAuth2Client(shopify_server(shop), ...)`, with `shop=` per call — [Shopify](/auth/providers/shopify) |
 | Granola | a pasted API key | the key | `StaticTokenProvider` |
 | Firecrawl, Tavily | nothing: these are services you pay for | your own key | `configure(api_key=...)`, once |
 
@@ -79,336 +79,33 @@ has a screenshot for every screen:
 [Notion](/auth/apps/notion), [Stripe](/auth/apps/stripe) and
 [Shopify](/auth/apps/shopify).
 
-## Linear
+## Each provider
 
-Linear access tokens last 24 hours, and Linear's refresh tokens rotate, with
-a 30-minute grace period in which a used one is still accepted. It documents
-scopes as a comma-separated list. The OAuth application is registered
-at [linear.app/settings/api](https://linear.app/settings/api):
-[Register a Linear OAuth application](/auth/apps/linear).
+Every OAuth provider has a page with its server constant, the flow and the
+per-user client, what a refresh does, and how a user is disconnected.
 
-```python linear_users.py
-from charter.auth import (
-    OAuth2Client,
-    OAuth2Flow,
-    OAuth2Server,
-    Revocation,
-    SubjectProvider,
-    TokenGrant,
-)
-from charter.packs import linear
+### Linear
 
-LINEAR = OAuth2Server(
-    issuer="https://linear.app",
-    authorization_endpoint="https://linear.app/oauth/authorize",
-    token_endpoint="https://api.linear.app/oauth/token",
-    token_endpoint_auth_method="client_secret_post",
-    scope_separator=",",
-    dead_grant_errors=("invalid_request",),
-    revocation=Revocation(
-        "https://api.linear.app/oauth/revoke",
-        auth_method="none",
-        token_type_hint=True,
-        gone_statuses=(400, 401),
-    ),
-)
+[Linear](/auth/providers/linear): refresh tokens that rotate with a 30-minute
+grace, and a pasted personal key beside OAuth in one configuration.
 
-flow = OAuth2Flow(
-    LINEAR,
-    client_id=os.environ["LINEAR_CLIENT_ID"],
-    client_secret=os.environ["LINEAR_CLIENT_SECRET"],
-    redirect_uri="https://app.example.com/oauth/linear/callback",
-)
-request = flow.authorize(["read", "write"])  # the link your "Connect Linear" button opens
+### Stripe
 
+[Stripe](/auth/providers/stripe): a Stripe App, its test link before you
+publish, and a pasted restricted key as the other path.
 
-async def linear_for(user_id: str):
-    async def stored_grant():  # read before every refresh: Linear rotates
-        row = await db.grants.get(user_id, "linear")
-        return TokenGrant(
-            access_token=row.access_token,
-            refresh_token=row.refresh_token,
-            expires_at=row.expires_at,
-        )
+### Notion
 
-    return OAuth2Client(
-        LINEAR,
-        client_id=os.environ["LINEAR_CLIENT_ID"],
-        client_secret=os.environ["LINEAR_CLIENT_SECRET"],
-        refresh_token=stored_grant,
-        on_refresh=partial(save_to_db, user_id),  # stores the token, its expiry, the refresh token
-    )
+[Notion](/auth/providers/notion): a link that asks for no scopes, and what a
+refresh does that Notion's docs leave out.
 
+### Shopify
 
-linear.configure(credential_provider=SubjectProvider(linear_for))
-```
+[Shopify](/auth/providers/shopify): a server per store, `shop=` per call, and
+the expiring offline token Shopify now requires.
 
-Linear refuses a refresh token that is spent, past its 30-minute grace, or
-unknown with `invalid_request` ("Invalid refresh token") in a `400`, where RFC
-6749 says `invalid_grant`. `dead_grant_errors` declares it, so a disconnected
-user is asked about once a minute and the error's `reauthorize` is true. Linear
-uses the same code for a missing parameter, which a refresh from Charter never
-has.
-
-A user who pastes a personal API key instead gets a `StaticTokenProvider(key)`
-from the same `linear_for`. Linear wants a personal key with no scheme and an
-OAuth token as `Bearer`, and refuses each in the other's shape. The pack tells
-them apart by Linear's `lin_api_` prefix, so the two kinds of user can share one
-configuration.
-
-## Stripe
-
-A [Stripe App](https://docs.stripe.com/stripe-apps/api-authentication/oauth)
-gives the link-and-redirect experience. Your user installs it from the link,
-picks an account, and comes back. The app's permissions are set in its manifest,
-not in the link, so the flow sends no scopes. Stripe's token endpoint takes
-your app's own **secret key** as the credential: passed as `client_secret`, it is
-sent the way `curl -u sk_live_...:` sends it.
-[Register a Stripe App](/auth/apps/stripe) builds the app and tests it.
-
-```python stripe_users.py
-from charter.auth import OAuth2Client, OAuth2Flow, OAuth2Server, SubjectProvider, TokenGrant
-from charter.packs import stripe
-from charter.packs.stripe import StripeAppUninstall
-
-STRIPE_APPS = OAuth2Server(
-    issuer="https://marketplace.stripe.com",
-    authorization_endpoint="https://marketplace.stripe.com/oauth/v2/authorize",  # once published
-    token_endpoint="https://api.stripe.com/v1/oauth/token",
-    token_endpoint_auth_method="secret_key_basic",
-    uses_scopes=False,
-    default_expires_in=3600,  # an hour, which Stripe's token response never says
-    revocation=StripeAppUninstall(app="app_..."),  # your app's ID, from its Dashboard page
-)
-
-flow = OAuth2Flow(
-    STRIPE_APPS,
-    client_id=os.environ["STRIPE_APP_CLIENT_ID"],  # ca_..., from the app's settings
-    client_secret=os.environ["STRIPE_SECRET_KEY"],  # your developer account's sk_...
-    redirect_uri="https://app.example.com/oauth/stripe/callback",
-)
-request = flow.authorize()
-
-
-async def stripe_for(user_id: str):
-    async def stored_grant():  # read before every refresh: Stripe rotates
-        row = await db.grants.get(user_id, "stripe")
-        return TokenGrant(
-            access_token=row.access_token,
-            refresh_token=row.refresh_token,
-            expires_at=row.expires_at,
-        )
-
-    return OAuth2Client(
-        STRIPE_APPS,
-        client_id=os.environ["STRIPE_APP_CLIENT_ID"],
-        client_secret=os.environ["STRIPE_SECRET_KEY"],
-        refresh_token=stored_grant,
-        on_refresh=partial(save_to_db, user_id),  # stores the token, its expiry, the refresh token
-    )
-
-
-stripe.configure(credential_provider=SubjectProvider(stripe_for))
-```
-
-Until the app is published, that consent link is not active. Stripe honours
-only the link on the app's External test tab, whose path names a channel:
-`/oauth/v2/chnlink_.../authorize`. Point the flow at that path while you test,
-and install from an account other than the one that owns the app. Stripe issues
-a token for the owner's own account and then refuses it on every call.
-
-The access token is a restricted key, `rk_live_...` or `rk_test_...`, limited
-to the permissions in the app's manifest, and it goes out as `Bearer` like any
-other. Stripe access tokens last an hour, and its token response doesn't say
-so. The constant declares it with `default_expires_in`, so the client renews
-each token shortly before the hour instead of learning from a refused call.
-Stripe's refresh tokens roll on every use, and a refresh revokes the previous
-access token within seconds. So `on_refresh` stores the new access token, its
-expiry and the refresh token, and `stored_grant` reads them back: every
-process uses the token one refresh produced instead of refreshing on its own.
-Processes that find the token due at the same moment still refresh together,
-and each refresh revokes the token of the one before. Serving from more than
-one process, pass `refresh_lock` as well:
-[A lock around the refresh](/auth/oauth-flow#a-lock-around-the-refresh) has the
-code and what it measured without one.
-
-Not every product wants to publish a Stripe App. The other path is a
-[restricted key](https://docs.stripe.com/keys/restricted-api-keys) (`rk_...`):
-the user creates it with read-only permissions and pastes it, and `stripe_for`
-returns `StaticTokenProvider(row.api_key)`. Many tools start this way.
-
-A Connect platform is different again. It acts on its connected accounts with
-its own key and a `Stripe-Account` header, which is
-[per call](/packs/stripe), not a credential.
-
-## Notion
-
-A [public connection](https://developers.notion.com/docs/authorization) asks for
-nothing in its link. The user picks which pages to share on Notion's consent
-screen, and the connection's capabilities are set where you registered it.
-Notion's token endpoint takes JSON and HTTP Basic, where most servers take a
-form. [Register a public Notion integration](/auth/apps/notion) has the
-screens.
-
-```python notion_users.py
-from charter.auth import (
-    OAuth2Client,
-    OAuth2Flow,
-    OAuth2Server,
-    Revocation,
-    SubjectProvider,
-    TokenGrant,
-)
-from charter.packs import notion
-
-NOTION = OAuth2Server(
-    issuer="https://api.notion.com",
-    authorization_endpoint="https://api.notion.com/v1/oauth/authorize",
-    token_endpoint="https://api.notion.com/v1/oauth/token",
-    token_endpoint_auth_method="client_secret_basic",
-    authorization_params={"owner": "user"},
-    uses_scopes=False,
-    token_request_format="json",
-    revocation=Revocation("https://api.notion.com/v1/oauth/revoke", token_type="access_token"),
-)
-
-flow = OAuth2Flow(
-    NOTION,
-    client_id=os.environ["NOTION_CLIENT_ID"],
-    client_secret=os.environ["NOTION_CLIENT_SECRET"],
-    redirect_uri="https://app.example.com/oauth/notion/callback",
-)
-request = flow.authorize()
-
-
-async def notion_for(user_id: str):
-    async def stored_grant():  # read before every refresh: Notion rotates
-        row = await db.grants.get(user_id, "notion")
-        return TokenGrant(
-            access_token=row.access_token,
-            refresh_token=row.refresh_token,
-            expires_at=row.expires_at,
-        )
-
-    return OAuth2Client(
-        NOTION,
-        client_id=os.environ["NOTION_CLIENT_ID"],
-        client_secret=os.environ["NOTION_CLIENT_SECRET"],
-        refresh_token=stored_grant,
-        on_refresh=partial(save_to_db, user_id),  # stores the token and the refresh token
-    )
-
-
-notion.configure(credential_provider=SubjectProvider(notion_for))
-```
-
-Notion's token response carries a `refresh_token` and no `expires_in`, and its
-docs don't say how long an access token lasts or what a refresh does to the
-tokens before it. Measured against a live connection: every refresh rotates the
-refresh token, and the access token before it stops working about three
-seconds later. That is why the loader returns the whole grant. A worker holding
-only its own copy of the refresh token presents one another worker has spent,
-which Notion refuses, and a worker that refreshes on its own retires the token
-the others are still using. For the same reason, more than one process passes
-`refresh_lock` too: [A lock around the refresh](/auth/oauth-flow#a-lock-around-the-refresh). With no lifetime to go on, the client keeps a token
-until the API refuses it, and that one call fails before the next refreshes.
-
-## Shopify
-
-A merchant connects a store, and the store is part of the connection: the API
-host, the consent page and the token endpoint all sit on it. So the store is
-named per call as well as the token. `shop=` takes a function for exactly this,
-and it is called on every request. The app is one Dev Dashboard app for every
-store: [Register a Shopify app](/auth/apps/shopify).
-
-Ask for an **expiring** offline token. Shopify requires public apps to use one
-for the GraphQL Admin API, which is what the pack calls, by
-[January 1, 2027](https://shopify.dev/docs/apps/build/authentication-authorization/access-tokens/offline-access-tokens).
-It lasts an hour and comes with a refresh token that lasts 90 days, and both
-are replaced on every refresh. `exchange_params={"expiring": "1"}` on the server
-is what asks for it.
-
-```python shopify_users.py
-from charter.auth import (
-    OAuth2Client,
-    OAuth2Flow,
-    OAuth2Server,
-    Revocation,
-    SubjectProvider,
-    TokenGrant,
-    current_subject,
-)
-from charter.packs import shopify
-
-
-def shopify_server(shop: str) -> OAuth2Server:
-    return OAuth2Server(
-        authorization_endpoint=f"https://{shop}.myshopify.com/admin/oauth/authorize",
-        token_endpoint=f"https://{shop}.myshopify.com/admin/oauth/access_token",
-        scope_separator=",",
-        exchange_params={"expiring": "1"},  # an offline token that expires, with a refresh token
-        dead_grant_errors=("invalid_request",),
-        revocation=Revocation(  # uninstalls the app from the store
-            f"https://{shop}.myshopify.com/admin/api_permissions/current.json",
-            token_type="access_token",
-            token_header="X-Shopify-Access-Token",
-            auth_method="none",
-            http_method="DELETE",
-        ),
-    )
-
-
-flow = OAuth2Flow(
-    shopify_server("merchant-store"),
-    client_id=os.environ["SHOPIFY_CLIENT_ID"],
-    client_secret=os.environ["SHOPIFY_CLIENT_SECRET"],
-    redirect_uri="https://app.example.com/oauth/shopify/callback",
-)
-request = flow.authorize(["read_products", "read_orders"])
-# Callback: verify Shopify's `hmac` parameter before exchanging. Then
-# grant = await flow.exchange(code)
-# and store the shop and the grant against the user.
-
-stores = {"u1": "merchant-store"}  # yours: user id to store
-
-
-async def shopify_for(user_id: str):
-    async def stored_grant():  # read before every refresh: Shopify rotates
-        row = await db.grants.get(user_id, "shopify")
-        return TokenGrant(
-            access_token=row.access_token,
-            refresh_token=row.refresh_token,
-            expires_at=row.expires_at,
-        )
-
-    return OAuth2Client(
-        shopify_server(stores[user_id]),
-        client_id=os.environ["SHOPIFY_CLIENT_ID"],
-        client_secret=os.environ["SHOPIFY_CLIENT_SECRET"],
-        refresh_token=stored_grant,
-        on_refresh=partial(save_to_db, user_id),
-    )
-
-
-shopify.configure(
-    shop=lambda: stores[current_subject.get()],
-    credential_provider=SubjectProvider(shopify_for),
-)
-```
-
-Shopify refuses a refresh token it no longer honours, the grant's after the
-app was uninstalled or one it never issued, with `invalid_request` ("This
-request requires an active refresh_token") in a `401`, measured, where RFC 6749
-says `invalid_grant`. `dead_grant_errors` declares it, so once a merchant
-uninstalls your app their tool calls stop asking Shopify again and the error's
-`reauthorize` is true. As with Linear, the same code would answer a missing
-parameter, which a refresh from Charter never has.
-
-The pack sends the token in `X-Shopify-Access-Token`, wherever it came from. A
-store that holds a non-expiring offline token, issued before expiring tokens or
-to a custom app, keeps working as `StaticTokenProvider(token)`, exchanged with
-`expect_refresh_token=False`. Pairing a per-call store with a single
-`access_token` raises: one store's token would go to every other store.
+The original three are [Google](/auth/providers/google),
+[Slack](/auth/providers/slack) and [GitHub](/auth/providers/github).
 
 ## Disconnecting a user
 
@@ -418,14 +115,25 @@ given, and your app still listed on the user's account. The `SubjectProvider`
 the pack is configured with does both lookups for you:
 
 ```python disconnect.py
-from charter.auth import SubjectProvider
+from charter.auth import OAuth2Client, SubjectProvider
 
-linear_users = SubjectProvider(linear_for)  # the one given to linear.configure()
+
+async def google_for(user_id: str):
+    row = await db.grants.get(user_id, "google")
+    return OAuth2Client(
+        GOOGLE,  # the constant on the Google page
+        client_id=os.environ["GOOGLE_CLIENT_ID"],
+        client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
+        refresh_token=row.refresh_token,
+    )
+
+
+google_users = SubjectProvider(google_for)  # the one given to the Google packs' configure()
 
 
 async def disconnect(user_id: str):
-    await linear_users.revoke(user_id)  # builds their client, revokes, forgets it
-    await db.grants.delete(user_id, "linear")
+    await google_users.revoke(user_id)  # builds their client, revokes, forgets it
+    await db.grants.delete(user_id, "google")
 ```
 
 [`revoke(user_id)`](/reference/credentials#subjectprovider) returns `False`
@@ -436,66 +144,18 @@ store to know what to revoke, and under `refresh_lock` it is the grant the
 store holds, not one another process has already rotated.
 
 What each server is sent is on its declaration, so the call is the same for
-every pack:
+every pack. What each one does with it, measured live, is on its page:
 
-- **Linear** takes the refresh token at `oauth/revoke`, with no client
-  credentials and with `token_type_hint=refresh_token`. Linear's docs offer
-  the hint "to help the server identify the token"; measured live, it is
-  needed: without it, a live refresh token gets `401 Token not found` and the
-  grant stays. A token already revoked gets `401` too ("Token has already
-  been revoked."), where the docs give "token was already revoked" as their
-  example of a `400`, so both count as gone.
-- **Notion** takes the access token, as JSON with the client's Basic auth,
-  at `v1/oauth/revoke`. Measured live, it answers `200` to any token: a live
-  one, which ends the grant, but also one already revoked, one a refresh has
-  retired, a refresh token, or a string it never issued, none of which end
-  anything. So `revoke()` returns `True` either way, and only the token sent
-  decides whether the user was disconnected. `OAuth2Client.revoke()` sends
-  the access token your store holds, under `refresh_lock`, so it is the live
-  one; a stale token passed to `revoke_token` reports `True` and leaves the
-  grant alive.
-- **Shopify** has no revocation endpoint. Its documented way to end an
-  installation's access is to uninstall the app with the store's own token,
-  `DELETE /admin/api_permissions/current.json`, so that is the declaration.
-  The merchant can install it again from your link. Measured, the access
-  token was refused at once and the refresh token with it, and the app's
-  client credentials grant on that store answered `app_not_installed` until
-  the app was installed again. A store already uninstalled answers `401`,
-  which counts as gone.
-- **Stripe Apps** has no endpoint that revokes a token: a grant is an install
-  of your app, and it ends when the install does. Stripe's
-  [App Installs API](https://docs.stripe.com/api/apps/installs) uninstalls
-  it, and `StripeAppUninstall` is that, declared as the revocation: it looks
-  the install up for the `stripe_user_id` Stripe's token response carries,
-  then uninstalls it, with your secret key. The client keeps the account from
-  the exchange or any refresh, and refreshes once first if it has seen
-  neither, so nothing extra needs storing. Measured, the uninstall answered
-  `200`, the install was gone within about fifteen seconds, the access and
-  refresh tokens were refused, Stripe sent `apps.install.deleted`, and the
-  next install from your link was a fresh one. An account without the app
-  returns `False`; a wrong app ID or another account's key raises.
+- [Google](/auth/providers/google#disconnecting): the refresh token, which ends every grant your app holds for that account
+- [Slack](/auth/providers/slack#disconnecting): `apps.uninstall`, which removes the installation
+- [GitHub](/auth/providers/github#disconnecting): `DELETE /applications/{client_id}/grant`, with an access token
+- [Linear](/auth/providers/linear#disconnecting): the refresh token, with the `token_type_hint` Linear needs
+- [Notion](/auth/providers/notion#disconnecting): the access token; Notion answers `200` to any token
+- [Shopify](/auth/providers/shopify#disconnecting): uninstalls the app, and with it every grant on that store
+- [Stripe](/auth/providers/stripe#disconnecting): uninstalls the Stripe App, through the App Installs API
 
-  `revoke()` returns once Stripe accepts the uninstall (`status:
-  uninstalling`), not once it is done. Charter stops using the grant at
-  once; Stripe finishes seconds later, 10 to 15 measured, and until then the
-  old access token still works. Treat the disconnect the way Stripe's own
-  states suggest: delete your row, show the user "Disconnecting", and offer
-  Reconnect when `apps.install.deleted` arrives, which your Connect webhook
-  endpoint receives with `account` set to theirs. Reconnecting before then
-  can land on the install still being removed. A script or a test that must
-  not go on until the install is gone declares
-  `StripeAppUninstall(app="app_...", wait_seconds=30)` instead; still
-  uninstalling at the deadline is logged, and the call still returns `True`.
-  It waits holding the client's refresh lock, which is one more reason to
-  keep it out of a server.
-
-  Not Connect's `oauth/deauthorize`: Stripe documents it for Standard
-  accounts only, and measured against an app's grant it ended the access but
-  left the app installed, so your install link answered "already installed"
-  and issued tokens Stripe refused until the user uninstalled the app from
-  their Dashboard.
-- **A pasted key** (Linear's personal key, a Stripe restricted key, Granola)
-  was made by the user, and only they can delete it. Delete the row.
+A pasted key (Linear's personal key, a Stripe restricted key, Granola) was
+made by the user, and only they can delete it. Delete the row.
 
 ## What stays yours
 

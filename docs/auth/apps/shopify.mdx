@@ -66,7 +66,7 @@ The scopes here are what Shopify grants on install, whatever the link asks
 for. In a live install the link asked for `read_products`, and the install
 screen listed every scope of the released version. The flow still sends the
 list in its link, separated by commas, and the server constant on
-[Every pack](/auth/your-users#shopify) already declares that separator.
+[Shopify's provider page](/auth/providers/shopify) already declares that separator.
 
 For development, a plain `http://localhost` callback works: Shopify accepted
 `http://localhost:8765/callback` on a store installing the app for the first
@@ -136,7 +136,7 @@ on the server so Shopify issues an expiring offline token and a refresh token.
 Public apps must use that token for the GraphQL Admin API by January 1, 2027.
 Store the shop and the grant against the user. The full shape, including the
 per-call store and the refresh, is in the
-[Shopify section of Every pack](/auth/your-users#shopify).
+[Shopify provider page](/auth/providers/shopify).
 
 </Step>
 
@@ -171,7 +171,7 @@ per-call store and the refresh, is in the
 
 ## Related
 
-- [Every pack: Shopify](/auth/your-users#shopify) — the per-store server, `shop=` per call, and what you store
+- [Shopify OAuth](/auth/providers/shopify) — the per-store server, `shop=` per call, and what you store
 - [Getting the grant](/auth/oauth-flow) — the two routes, `state` and PKCE, inside your app
 - [Shopify](/packs/shopify) — the pack, and the credential shapes it accepts
 - [Set up Shopify](/auth/setup/shopify) — a store you own, with no consent route

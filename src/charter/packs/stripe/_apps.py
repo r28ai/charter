@@ -38,7 +38,7 @@ INSTALLS_URL = "https://api.stripe.com/v1/apps/installs"
 INSTALLS_API_VERSION = "2026-09-30.endive"
 _VERSION = {"Stripe-Version": INSTALLS_API_VERSION}
 
-_DOCS = "auth/your-users#disconnecting-a-user"
+_DOCS = "auth/providers/stripe#disconnecting"
 
 # How often the opt-in wait asks whether the install is gone.
 _POLL_SECONDS = 2.0
