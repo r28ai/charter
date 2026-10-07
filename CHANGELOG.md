@@ -9,6 +9,8 @@ here, with the migration in the same entry.
 
 ## [Unreleased]
 
+## [0.5.1] — 2026-10-07
+
 ### Fixed
 
 - **A refresh whose caller was cancelled lost the rotated refresh token.** A
