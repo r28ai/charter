@@ -559,6 +559,27 @@ async def test_shopify_uninstalls_the_app_from_the_store():
 
 
 @respx.mock
+async def test_shopify_s_dead_refresh_token_asks_the_merchant_to_reconnect():
+    """Measured: an uninstalled app's refresh token, and one never issued, get
+    invalid_request ("This request requires an active refresh_token") in a 401."""
+    (block,) = [b for b in _python_blocks(YOUR_USERS) if "def shopify_server" in b]
+    shopify = _shopify_server_from(block)("merchant")
+    respx.post("https://merchant.myshopify.com/admin/oauth/access_token").mock(
+        return_value=httpx.Response(
+            401,
+            json={
+                "error": "invalid_request",
+                "error_description": "This request requires an active refresh_token",
+            },
+        )
+    )
+    client = OAuth2Client(shopify, client_id="cid", client_secret="csec", refresh_token="shprt_1")
+    with pytest.raises(charter.CredentialError) as caught:
+        await client.get_credentials("shopify")
+    assert caught.value.reauthorize
+
+
+@respx.mock
 async def test_stripe_apps_uninstalls_the_app():
     """Stripe has no endpoint that revokes a Stripe App's token: the grant ends
     with the install, which its App Installs API looks up and uninstalls."""

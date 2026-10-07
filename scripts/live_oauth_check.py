@@ -166,6 +166,7 @@ def shopify_server(shop: str) -> OAuth2Server:
         token_endpoint=f"https://{shop}.myshopify.com/admin/oauth/access_token",
         scope_separator=",",
         exchange_params={"expiring": "1"},  # an offline token that expires, with a refresh token
+        dead_grant_errors=("invalid_request",),
         revocation=Revocation(  # uninstalls the app from the store
             f"https://{shop}.myshopify.com/admin/api_permissions/current.json",
             token_type="access_token",
