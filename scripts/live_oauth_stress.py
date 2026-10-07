@@ -185,19 +185,24 @@ class PostgresStore:
     def __init__(self, url: str) -> None:
         self.url = url
         self.pool: Any = None
+        self.lock_pool: Any = None
 
     async def open(self) -> None:
         import asyncpg  # only the Postgres store needs it
 
-        # Two connections at least: the lock holds one while the loader and
-        # on_refresh need another. A pool of one deadlocks inside the lock.
-        self.pool = await asyncpg.create_pool(self.url, min_size=2, max_size=4)
+        self.pool = await asyncpg.create_pool(self.url, min_size=1, max_size=4)
+        # The lock's connections come from a pool of their own. The lock holds
+        # one while the loader and on_refresh take others, so from one shared
+        # pool, as many grants refreshing at once as it has connections would
+        # each hold one and wait for another, forever.
+        self.lock_pool = await asyncpg.create_pool(self.url, min_size=1, max_size=4)
         async with self.pool.acquire() as conn:
             for statement in SCHEMA:
                 await conn.execute(statement)
 
     async def close(self) -> None:
         await self.pool.close()
+        await self.lock_pool.close()
 
     async def load(self) -> dict[str, Any]:
         async with self.pool.acquire() as conn:
@@ -219,7 +224,7 @@ class PostgresStore:
             )
 
     def lock(self) -> Any:
-        pool = self.pool
+        pool = self.lock_pool
 
         @asynccontextmanager
         async def held() -> AsyncIterator[None]:

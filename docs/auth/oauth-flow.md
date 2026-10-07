@@ -136,10 +136,15 @@ defenses, layered:
 ## More than one process
 
 The client caches a user's access token and refreshes it under a lock, so
-twelve concurrent tool calls in one process share one refresh. That lock is
-per process. Run several workers (gunicorn, a few containers, serverless
-instances) and each builds its own client for the same user, each holding its
-own copy of the grant.
+twelve concurrent tool calls in one process share one refresh, and its
+outcome: when it fails, all twelve get its error, rather than each asking the
+token endpoint in turn. That holds for calls on several threads too. A refresh
+whose caller is cancelled midway, by a timeout or a client hanging up, still
+finishes, because by then the server may have rotated the refresh token and
+the answer is the only place the new one exists. That lock is per process. Run
+several workers (gunicorn, a few containers, serverless instances) and each
+builds its own client for the same user, each holding its own copy of the
+grant.
 
 Against a server that keeps one refresh token for the life of the grant, as
 Google does, that costs nothing. Against one that rotates (Stripe, Linear,
@@ -188,6 +193,12 @@ the client refreshes with the stored refresh token, and if the server answers
 successor in the moment between. `on_refresh` has finished before the call that
 triggered the refresh goes out.
 
+When the store holds no grant for the user, because they disconnected in
+another worker, have the loader return `None`. The client then raises a
+[`CredentialError`](/reference/errors#credentialerror) whose `reauthorize` is
+true, the signal to show a reconnect button, and asks the token endpoint
+nothing.
+
 A loader may return only the refresh token, as a string. That is enough
 against a server that rotates refresh tokens but leaves earlier access tokens
 alone. Returning the whole grant is right everywhere, and it saves the extra
@@ -207,7 +218,7 @@ measured rather than read, it says so.
 | [Slack](https://docs.slack.dev/authentication/using-token-rotation), rotation on | 12 hours, `expires_in` sent | rotated; the old one revoked "after a short grace period" | at most two are active: a refresh beyond that revokes the oldest. Measured: one refresh leaves the previous one working | fails after the grace period. Measured: accepted at 4 minutes, and answered with the current refresh token rather than a new one; refused at 8, with `invalid_refresh_token` in an HTTP 200 |
 | [GitHub App](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/refreshing-user-access-tokens), expiry on | 8 hours, `expires_in` sent; refresh token 6 months | rotated | yes, at once (measured: about 2 seconds) | not documented. Measured: refused, with `bad_refresh_token` in an HTTP 200, and the grant survives |
 | [Linear](https://linear.app/developers/oauth-2-0-authentication) | 24 hours, `expires_in` sent | rotated | not documented. Measured: still accepted 30 seconds after a refresh | accepted for 30 minutes, "to allow for network errors". Measured: answered with the current refresh token rather than a new one; accepted at 29 minutes, refused at 32 with `invalid_request` in a 400 |
-| [Notion](https://developers.notion.com/reference/refresh-a-token) | not documented; no `expires_in`. Measured: still accepted after 130 minutes | not documented. Measured: rotated | not documented. Measured: yes, about 3 seconds after the refresh | not documented. Measured: refused, and the grant survives |
+| [Notion](https://developers.notion.com/reference/refresh-a-token) | not documented; no `expires_in`. Measured: still accepted after 130 minutes | not documented. Measured: rotated | not documented. Measured: yes, about 3 seconds after the refresh | not documented. Measured: accepted until the newer grant has served a call, refused after, and the grant survives |
 | [Shopify](https://shopify.dev/docs/apps/build/authentication-authorization/access-tokens/offline-access-tokens), expiring offline token | 1 hour, `expires_in` sent; refresh token 90 days. Measured: accepted at 55 minutes, refused at 60 | rotated | documented: it "retires your previous expiring offline token". Measured: still accepted 10 minutes after the refresh | usable until the newer one is used, or for 30 days (measured: accepted) |
 | [Stripe App](https://docs.stripe.com/stripe-apps/api-authentication/oauth) | 1 hour, **no `expires_in`**: declare `default_expires_in=3600`. Measured: accepted at 58 minutes, refused at 60 with a `401` | rotated | yes, [`platform_api_key_expired`](https://docs.stripe.com/error-codes/platform-api-key-expired); measured at 2 to 7 seconds | refused, and the grant survives (measured) |
 
@@ -234,7 +245,7 @@ What that costs depends on the server:
   three minutes, and a worker whose refresh token another had just spent got
   `invalid_grant`, which reads as "the user has to authorize again" for a grant
   that was fine. With the lock, 6,969 calls in ten minutes, none failed, and
-  one refresh per renewal. With the Postgres lock below, across nine
+  one refresh per renewal. With a lock held through a database, across nine
   processes on three machines in Paris, Virginia and Singapore, 8,803 calls,
   none failed, and again one refresh per renewal. Take the lock.
 - **A server with reuse detection** treats the second presentation as theft.
@@ -245,26 +256,14 @@ What that costs depends on the server:
   Reading the store after `invalid_grant` cannot help, because the grant is
   already gone. Here the lock is mandatory.
 
-Charter holds no connection to your store, so you supply the lock, as an async
-context manager scoped to the grant. The client holds it while it reads the
-store, refreshes if it still has to, and runs `on_refresh`. Whoever takes it
-next reads the stored result instead of refreshing again:
+Charter holds no connection to your store, so you supply the lock: a function
+returning an async context manager that one process at a time can hold for a
+grant, such as your database's advisory lock or a Redis lock. The client holds
+it while it reads the store, refreshes if it still has to, and runs
+`on_refresh`. Whoever takes it next reads the stored result instead of
+refreshing again:
 
-```python grant_lock.py
-from contextlib import asynccontextmanager
-
-
-def grant_lock(user_id: str, provider: str):
-    @asynccontextmanager
-    async def held():
-        async with pool.acquire() as conn, conn.transaction():
-            # Postgres: released when the transaction ends, whatever happens.
-            await conn.execute("SELECT pg_advisory_xact_lock(hashtext($1))", f"{user_id}:{provider}")
-            yield
-
-    return held
-
-
+```python stripe_locked_workers.py
 async def stripe_for(user_id: str):
     ...
     return OAuth2Client(
@@ -273,23 +272,34 @@ async def stripe_for(user_id: str):
         client_secret=os.environ["STRIPE_SECRET_KEY"],
         refresh_token=stored_grant,
         on_refresh=store,
-        refresh_lock=grant_lock(user_id, "stripe"),
+        refresh_lock=grant_lock(user_id, "stripe"),  # yours, over your store
     )
 ```
 
-The lock holds a pooled connection while the loader and `on_refresh` take
-another, so the pool needs at least two: with one, the client waits inside the
-lock for a connection the lock is holding. A Redis lock with a timeout works
-the same way. The lock needs a loader: a
+One rule keeps it safe with many users: whatever the lock holds while it is
+held, the loader and `on_refresh` must not need. A lock that takes a connection
+from the pool they read and write through deadlocks as soon as as many users
+refresh at once as the pool has connections: each holds one for its lock and
+waits for another, and every refresh in the process stops, along with
+everything else sharing that pool. Give the lock connections of its own. The
+lock needs a loader: a
 refresh token passed as a string is a copy, and holding a lock cannot make a
 copy current, so `refresh_lock` without one raises `ValueError`. A lock that
 cannot be taken raises `CredentialError` and makes no refresh.
 
 `on_refresh` carries more weight here than in one process. An `on_refresh` that
 raises is logged and the call goes ahead, since the token is still good for
-this process. But the store then holds a refresh token the server has already
-spent, and the next worker presents it. Against reuse detection, that one
-failed write disconnects the user, so make sure it alerts you.
+this process. The store then holds a refresh token the server has already
+spent. The client that refreshed does not read it back over the one it holds:
+it goes on refreshing with its own. And it runs `on_refresh` again, in the
+background and under the lock, as soon as that refresh is done, then, while the
+store keeps failing, on a call at least five seconds after each try. It only
+writes while the store still holds the spent token, leaving alone a store that
+has moved on to another grant, or to none, and no call waits on it. Until that
+second write lands, other workers read the spent token. Against a server that
+refuses one (Stripe, GitHub, Notion) their refreshes fail as a dead grant, and
+against reuse detection the first of them disconnects the user. So make sure a
+failing `on_refresh` alerts you.
 
 ## Ending the grant
 

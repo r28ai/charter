@@ -201,6 +201,23 @@ class CallbackProvider:
 # Serving many end users
 # -----------------------------------------------------
 
+
+class _BuildAbandoned(Exception):
+    """The caller building a subject's provider was cancelled before it finished."""
+
+
+def _sees_reconnects(provider: object) -> bool:
+    """Whether a provider that has revoked its grant will notice a new one.
+
+    An :class:`~charter.auth.OAuth2Client` reading a store does: it refuses the
+    revoked grant while the store holds it, and takes up another as soon as one
+    is stored. Anything else either refuses for good or holds what it was built
+    with, so it is built again from the store on the next lookup instead.
+    """
+    rereads = getattr(provider, "_rereads_store", None)
+    return callable(rereads) and rereads() is True
+
+
 current_subject: ContextVar[str] = ContextVar("charter_current_subject")
 """Who the next tool call acts for.
 
@@ -325,17 +342,24 @@ class SubjectProvider:
             ) from None
 
     async def _provider_for(self, subject: str) -> CredentialProvider:
-        existing = self._providers.get(subject)
-        if existing is not None:
-            self._providers.move_to_end(subject)
-            return existing
+        while True:
+            existing = self._providers.get(subject)
+            if existing is not None:
+                self._providers.move_to_end(subject)
+                return existing
 
-        in_flight = self._pending.get(subject)
-        if in_flight is not None:
+            in_flight = self._pending.get(subject)
+            if in_flight is None:
+                break
             # Someone is already building this one. Wait for theirs rather than
             # starting a second read of the token store — and share the result,
             # so both callers get one cached token and one refresh lock.
-            return await asyncio.shield(in_flight)
+            try:
+                return await asyncio.shield(in_flight)
+            except _BuildAbandoned:
+                # Its builder was cancelled (a client that hung up, a timeout),
+                # which says nothing about this call: build it here instead.
+                continue
 
         loop = asyncio.get_running_loop()
         future: asyncio.Future[CredentialProvider] = loop.create_future()
@@ -349,12 +373,17 @@ class SubjectProvider:
                     f"SubjectProvider's factory returned no provider for subject {subject!r}.",
                     docs="reference/credentials#subjectprovider",
                 )
-            self._providers[subject] = built
-            if len(self._providers) > self._max_subjects:
-                self._providers.popitem(last=False)
+            self._hold(subject, built)
             if not future.done():
                 future.set_result(built)
             return built
+        except asyncio.CancelledError:
+            # The cancellation is this caller's, not the waiters': handed the
+            # CancelledError, each would end as though it had been cancelled
+            # itself. They build the provider again instead.
+            if not future.done():
+                future.set_exception(_BuildAbandoned())
+            raise
         except BaseException as exc:
             # Waiters must fail the same way rather than hanging, and the next
             # caller gets a clean attempt.
@@ -362,29 +391,44 @@ class SubjectProvider:
                 future.set_exception(exc)
             raise
         finally:
-            self._pending.pop(subject, None)
+            if self._pending.get(subject) is future:
+                del self._pending[subject]
             # A future nobody awaited is not an error; say so, or asyncio warns
             # at collection time about an exception that was in fact delivered.
             if future.done() and not future.cancelled():
                 future.exception()
+
+    def _hold(self, subject: str, provider: CredentialProvider) -> None:
+        """Keep ``provider`` as the subject's, most recently used, within the cap."""
+        self._providers[subject] = provider
+        self._providers.move_to_end(subject)
+        if len(self._providers) > self._max_subjects:
+            self._providers.popitem(last=False)
 
     def forget(self, subject: str) -> None:
         """Drop a subject's provider — after a revocation, or a sign-out."""
         self._providers.pop(subject, None)
 
     async def revoke(self, subject: str) -> bool:
-        """Disconnect one subject: end their grant at the server, then forget them.
+        """Disconnect one subject: end their grant at the server.
 
         Builds the subject's provider if it is not held (your factory reads
-        their stored grant, as for a tool call), calls its ``revoke()`` —
-        :meth:`OAuth2Client.revoke <charter.auth.OAuth2Client.revoke>` — and
-        drops it. Named rather than read from :data:`current_subject`: a
-        disconnect is a request about one user, not a tool call made as one.
+        their stored grant, as for a tool call) and calls its ``revoke()`` —
+        :meth:`OAuth2Client.revoke <charter.auth.OAuth2Client.revoke>`. Named
+        rather than read from :data:`current_subject`: a disconnect is a request
+        about one user, not a tool call made as one.
 
         Returns what ``revoke()`` returned: ``True`` when the server confirmed
-        it, ``False`` when the grant was already gone. The provider is
-        forgotten either way, and on a failure too, so the next lookup reads
-        your store again. Deleting the stored grant is yours, after this.
+        it, ``False`` when the grant was already gone. Deleting the stored grant
+        is yours, after this.
+
+        A client that reads your store (an ``OAuth2Client`` given a
+        :data:`~charter.auth.GrantLoader`) is kept afterwards. It refuses the
+        revoked grant while your store still holds it, so a call made in the
+        moment before you delete the row is not sent with it, and it takes up a
+        new grant as soon as you store one. Any other provider is forgotten,
+        and so is one whose revocation failed, so the next lookup builds it
+        from your store again.
 
         A provider with no ``revoke()``, such as a
         :class:`StaticTokenProvider`, raises :class:`CredentialError`: it holds
@@ -393,6 +437,7 @@ class SubjectProvider:
         if not subject:
             raise CredentialError("revoke() requires a non-empty subject")
         built = await self._provider_for(subject)
+        keep = False
         try:
             revoke = getattr(built, "revoke", None)
             if not callable(revoke):
@@ -406,9 +451,15 @@ class SubjectProvider:
             result = revoke()
             if inspect.isawaitable(result):
                 result = await result
+            keep = _sees_reconnects(built)
             return bool(result)
         finally:
-            self.forget(subject)
+            if keep:
+                # Back in place even if it was evicted meanwhile, over any
+                # provider built from the row while the revocation ran.
+                self._hold(subject, built)
+            else:
+                self.forget(subject)
 
     def invalidate(self, credentials: Credentials) -> None:
         """Pass a rejection on to the provider of the subject this call is for.

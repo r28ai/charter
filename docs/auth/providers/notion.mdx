@@ -76,7 +76,8 @@ tokens before it. Measured against a live connection: every refresh rotates the
 refresh token, and the access token before it stops working about three
 seconds later. That is why the loader returns the whole grant. A worker holding
 only its own copy of the refresh token presents one another worker has spent,
-which Notion refuses, and a worker that refreshes on its own retires the token
+which Notion refuses once the newer grant has served a call, and a worker that
+refreshes on its own retires the token
 the others are still using. For the same reason, more than one process passes
 `refresh_lock` too: [A lock around the refresh](/auth/oauth-flow#a-lock-around-the-refresh).
 With no lifetime to go on, the client keeps a token until the API refuses it,
@@ -85,7 +86,7 @@ and that one call fails before the next refreshes.
 ## Disconnecting
 
 The `SubjectProvider` the pack is configured with builds the user's client from
-your store, revokes, and forgets it, in one call:
+your store and revokes the grant, in one call:
 
 ```python notion_disconnect.py
 notion_users = SubjectProvider(notion_for)  # the one given to notion.configure()

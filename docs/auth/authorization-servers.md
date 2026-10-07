@@ -273,7 +273,7 @@ no token, so its declaration is a [`Revoker`](/reference/oauth#revoker), a
 procedure kept in the Stripe pack, and the call is still `revoke()`.
 
 Serving many users, [`SubjectProvider.revoke(user_id)`](/reference/credentials#subjectprovider)
-builds that user's client from your store, revokes, and forgets it, in one
+builds that user's client from your store and revokes the grant, in one
 call:
 
 ```python acme_disconnect_route.py
@@ -298,13 +298,20 @@ secret, raises [`CredentialError`](/reference/errors#credentialerror) and
 leaves the client as it was, so the call can be retried. RFC 7009 itself has
 a server answer `200` for a token it does not know, and a server that follows
 it, Notion among them, never says "already gone": there `revoke()` returns
-`True` either way.
+`True` either way. Only the server's answer to the revocation decides it: a
+grant in the 60-second cool-down is still sent, with any access token the
+client holds that is still valid, since the `invalid_grant` that began the
+cool-down may have been about one spent refresh token rather than the grant.
 
 **A revoked client does not refresh.** Afterwards `get_credentials` raises a
 `CredentialError` whose `reauthorize` is true, without asking the token
 endpoint. A client built with a [`GrantLoader`](/reference/oauth#grantloader)
 recovers on its own once the store holds a new grant: the user connected
-again.
+again. That is why `SubjectProvider.revoke` keeps such a client in place: a
+call made in the moment before you delete the row is refused, rather than sent
+with the access token the row still holds, which Stripe goes on accepting for
+seconds after an uninstall. Any other provider is forgotten and built from
+your store again on the next lookup.
 
 **Delete your row after the revocation, not before.** The client needs the
 refresh token to send. A loader-backed client reads the store under its

@@ -143,7 +143,8 @@ class CredentialError(CharterError):
   Whether the grant itself is gone, so only the user authorizing again brings
   it back. True when a token endpoint answered `invalid_grant` or a code its
   [`OAuth2Server`](/reference/oauth#oauth2server) declares in
-  `dead_grant_errors`, and for the repeats of that error during the cool-down.
+  `dead_grant_errors`, for the repeats of that error during the cool-down, and
+  when a [`GrantLoader`](/reference/oauth#grantloader) finds no grant stored.
   False for everything else, including an access token the API refused, which
   the next call replaces by refreshing.
 

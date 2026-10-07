@@ -96,7 +96,7 @@ one configuration.
 ## Disconnecting
 
 The `SubjectProvider` the pack is configured with builds the user's client from
-your store, revokes, and forgets it, in one call:
+your store and revokes the grant, in one call:
 
 ```python linear_disconnect.py
 linear_users = SubjectProvider(linear_for)  # the one given to linear.configure()

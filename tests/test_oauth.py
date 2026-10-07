@@ -944,13 +944,31 @@ async def test_a_refused_token_the_store_still_holds_is_dead_without_a_second_tr
     assert store.reads == 2
 
 
-@pytest.mark.parametrize("returned", [None, "", 42])
+@pytest.mark.parametrize("returned", [42, TokenGrant(access_token="at-1")])
 @respx.mock
 async def test_a_loader_that_returns_no_token_says_so(returned):
     respx.post(TOKEN_URL).mock(return_value=_token_response())
 
-    with pytest.raises(CredentialError, match="loader returned no refresh token"):
+    with pytest.raises(CredentialError, match="loader returned no refresh token") as caught:
         await _client(refresh_token=lambda: returned).get_credentials("example")
+    assert caught.value.reauthorize is False  # a bug in the loader, not a user to reconnect
+
+
+@pytest.mark.parametrize("returned", [None, ""])
+@respx.mock
+async def test_a_store_holding_no_grant_asks_the_user_to_connect_again(returned):
+    """The row is gone: the user disconnected in another process, or never connected.
+
+    That is the reconnect button's case, not a loader failure, and nothing is
+    asked of the token endpoint, which cannot bring a deleted grant back.
+    """
+    route = respx.post(TOKEN_URL).mock(return_value=_token_response())
+
+    with pytest.raises(CredentialError, match="No grant is stored") as caught:
+        await _client(refresh_token=lambda: returned).get_credentials("example")
+    assert caught.value.reauthorize is True
+    assert caught.value.provider == "example"
+    assert route.call_count == 0
 
 
 @respx.mock
@@ -1354,3 +1372,149 @@ def test_a_loader_with_the_client_credentials_grant_is_refused():
             grant="client_credentials",
             refresh_token=lambda: "rt",
         )
+
+
+# -----------------------------------------------------
+# When on_refresh fails to store a refresh
+# -----------------------------------------------------
+#
+# The server has spent the refresh token the store still holds, and the one
+# that works exists only in this client. Read back before the next refresh, the
+# store's copy replaced it: one failed write, and against a server that refuses
+# a spent token (Stripe, GitHub, Notion) the user had to connect again.
+
+
+def _failing_writes(store: _GrantStore, failures: int):
+    """An on_refresh whose first ``failures`` writes raise, as a database blip would."""
+    attempts: list = []
+
+    def save(credentials, refresh_token) -> None:
+        attempts.append(refresh_token)
+        if len(attempts) <= failures:
+            raise ConnectionError("database unavailable")
+        store.save(credentials, refresh_token)
+
+    return save, attempts
+
+
+async def _stored_again(client: OAuth2Client) -> None:
+    """Wait for the background try at storing a lost refresh again, if one is running."""
+    task = client._restoring
+    if task is not None:
+        await asyncio.wait([task])
+
+
+def _writing_client(store: _GrantStore, save) -> OAuth2Client:
+    return OAuth2Client(
+        SERVER, client_id="cid", client_secret="csec", refresh_token=store.load, on_refresh=save
+    )
+
+
+@respx.mock
+async def test_a_store_on_refresh_failed_to_write_is_not_read_back_over_the_newer_token():
+    route = respx.post(TOKEN_URL).mock(side_effect=_RotatingServer())
+    store = _GrantStore()
+    save, attempts = _failing_writes(store, failures=2)  # the write, and the try again
+    client = _writing_client(store, save)
+
+    first = await client.get_credentials("example")
+    await _stored_again(client)
+    assert store.refresh_token == "rt-0"  # both lost
+    client.invalidate(first)  # or the hour is up
+
+    assert (await client.get_credentials("example")).token == "at-2"
+    assert route.call_count == 2
+    assert store.refresh_token == "rt-2"  # and that refresh's write caught the store up
+
+
+@respx.mock
+async def test_a_refresh_on_refresh_failed_to_store_is_stored_again_at_once():
+    """Until it is, every other process reads a spent refresh token from the store."""
+    server = _RotatingServer()
+    respx.post(TOKEN_URL).mock(side_effect=server)
+    store = _GrantStore()
+    save, attempts = _failing_writes(store, failures=1)
+    client = _writing_client(store, save)
+
+    assert (await client.get_credentials("example")).token == "at-1"
+    await _stored_again(client)
+
+    assert attempts == ["rt-1", "rt-1"]
+    assert (store.refresh_token, store.access_token) == ("rt-1", "at-1")
+    assert client._unstored is None
+    # Another process now takes the grant from the store rather than presenting rt-0.
+    assert (await _sharing_worker(store).get_credentials("example")).token == "at-1"
+    assert server.issued == 1
+
+
+@respx.mock
+async def test_a_store_still_down_is_tried_again_after_the_back_off_and_never_holds_up_a_call(
+    caplog,
+):
+    respx.post(TOKEN_URL).mock(side_effect=_RotatingServer())
+    store = _GrantStore()
+    save, attempts = _failing_writes(store, failures=2)
+    client = _writing_client(store, save)
+
+    with caplog.at_level("WARNING", logger="charter"):
+        await client.get_credentials("example")
+        await _stored_again(client)
+    assert attempts == ["rt-1", "rt-1"]  # the write, and the try at once
+    assert "trying again" in caplog.text
+
+    for _ in range(3):  # within the back-off: the cached token, and no write
+        assert (await client.get_credentials("example")).token == "at-1"
+    await _stored_again(client)
+    assert attempts == ["rt-1", "rt-1"]
+
+    client._restore_after = 0.0  # the back-off has passed
+    assert (await client.get_credentials("example")).token == "at-1"
+    await _stored_again(client)
+    assert attempts == ["rt-1", "rt-1", "rt-1"]
+    assert (store.refresh_token, client._unstored) == ("rt-1", None)
+
+
+@respx.mock
+async def test_a_store_that_hangs_does_not_hold_up_a_call_with_a_token_in_hand():
+    """Storing again needs the store; the call that finds it due does not."""
+    respx.post(TOKEN_URL).mock(side_effect=_RotatingServer())
+    store = _GrantStore()
+    hanging = asyncio.Event()
+    writes: list = []
+
+    async def save(credentials, refresh_token):
+        writes.append(refresh_token)
+        if len(writes) == 1:
+            raise ConnectionError("database unavailable")
+        await hanging.wait()  # the database stopped answering
+
+    client = _writing_client(store, save)
+    await client.get_credentials("example")
+
+    client._restore_after = 0.0
+    token = await asyncio.wait_for(client.get_credentials("example"), timeout=1)
+    assert token.token == "at-1"
+    hanging.set()
+    await _stored_again(client)
+
+
+@pytest.mark.parametrize(
+    "now_stored", ["rt-reconnected", None], ids=["user connected again", "user disconnected"]
+)
+@respx.mock
+async def test_a_store_that_has_moved_on_is_not_written_over_with_the_lost_refresh(now_stored):
+    respx.post(TOKEN_URL).mock(side_effect=_RotatingServer())
+    store = _GrantStore()
+    save, attempts = _failing_writes(store, failures=99)
+    client = _writing_client(store, save)
+    await client.get_credentials("example")
+    await _stored_again(client)
+    assert attempts == ["rt-1", "rt-1"]
+    store.refresh_token = now_stored  # written by another process meanwhile
+
+    client._restore_after = 0.0
+    assert (await client.get_credentials("example")).token == "at-1"
+    await _stored_again(client)
+    assert attempts == ["rt-1", "rt-1"]  # not written over the store
+    assert store.refresh_token == now_stored
+    assert client._unstored is None

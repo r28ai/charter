@@ -440,7 +440,9 @@ many users by wrapping it in
   refresh tokens. A string is a
   copy, and it goes stale as soon as another process refreshes:
   [More than one process](/auth/oauth-flow#more-than-one-process). A loader
-  that raises, or returns no refresh token, raises `CredentialError`.
+  that returns `None` says no grant is stored (the user disconnected), and
+  raises a `CredentialError` whose `reauthorize` is true. One that raises, or
+  returns something with no refresh token in it, raises `CredentialError`.
 </ParamField>
 
 <ParamField path="grant" type='"refresh_token" | "client_credentials"' default='"refresh_token"'>
@@ -458,7 +460,11 @@ many users by wrapping it in
   Called after every successful refresh with the new credentials and the refresh
   token to store next time — which may be a new one, since some servers rotate
   on every use. This is where persistence lives. A callback that raises is
-  logged at WARNING and does not fail the call the token was fetched for.
+  logged at WARNING and does not fail the call the token was fetched for. With
+  a [`GrantLoader`](#grantloader), the client keeps the refresh token it
+  holds rather than read back the spent one the store still has, and runs the
+  callback again in the background, at once and then every five seconds of
+  calls, while the store still holds the spent token.
 </ParamField>
 
 <ParamField path="refresh_lock" type="Optional[RefreshLock]" default="None">
@@ -491,7 +497,13 @@ many users by wrapping it in
 The access token is cached in memory until the leeway window and written
 nowhere. Concurrent callers wait on a single refresh: some servers invalidate
 the previous refresh token on use, so twelve parallel tool calls each firing
-their own refresh would poison eleven of them.
+their own refresh would poison eleven of them. They share its outcome, so a
+refresh that fails is asked once for all of them rather than once each, in
+turn, and they share it across threads too: one client can serve tools called
+through `Tool.invoke()` from several threads at once. A refresh runs to the end
+even if every call waiting on it is cancelled, since the server may already
+have rotated the refresh token, and the new one is read, adopted and handed to
+`on_refresh`.
 
 An `invalid_grant` answer, or a code the server declares in
 `dead_grant_errors`, marks the grant dead for 60 seconds and re-raises the same
@@ -542,8 +554,10 @@ stream of requests against an endpoint that rate-limits per client. The error's
 <ResponseField name="revoke()" type="bool">
   End the grant at the server, then stop using it: the disconnect button.
   Sends the server's [`Revocation`](#revocation) with the current refresh
-  token, or with a live access token where the server takes one, refreshing
-  first if the cached one lapsed. With a [`GrantLoader`](#grantloader) the
+  token, or with a live access token where the server takes one: any still
+  valid for the request, refreshing first only if none is. A grant in its
+  dead-grant cool-down is still sent, since only the server's answer to this
+  request decides that the grant is gone. With a [`GrantLoader`](#grantloader) the
   store is read first, under `refresh_lock`, so the grant revoked is the one
   stored and not one another process has rotated away from. A refresh in
   flight in this process finishes first, for the same reason. A
@@ -557,10 +571,12 @@ stream of requests against an endpoint that rate-limits per client. The error's
   gone. Either way the client then refuses to refresh: `get_credentials`
   raises a `CredentialError` whose `reauthorize` is true, without asking the
   token endpoint, until `reset()` or until the loader returns a different
-  refresh token. A `client_credentials` client revokes its cached token and
-  only drops it. Any other refusal raises `CredentialError` and leaves the
-  client working. No `revocation` on the server raises `DeclarationError`
-  before any request. Deleting the stored grant is yours, afterwards.
+  refresh token, and revoking it again asks nothing and returns `False`. A
+  `client_credentials` client revokes its cached token and only drops it. Any
+  other refusal raises `CredentialError` and leaves the client working. It runs
+  to the end even if the caller is cancelled. No `revocation` on the server
+  raises `DeclarationError` before any request. Deleting the stored grant is
+  yours, afterwards.
 </ResponseField>
 
 ### `OAuth2Client.from_grant`
@@ -750,7 +766,8 @@ What a code exchange returned — the one moment a refresh token is visible.
 
 <ResponseField name="scopes" type="list[str]">
   What the server says was actually granted, which is not always what was asked
-  for: some consent screens let a user deselect.
+  for: some consent screens let a user deselect. One scope per item, split on
+  spaces as RFC 6749 says and on commas as GitHub, Slack and Shopify send them.
 </ResponseField>
 
 <ResponseField name="raw" type="Dict[str, Any]">
@@ -864,7 +881,10 @@ client = OAuth2Client(GOOGLE, client_id=..., client_secret=..., refresh_token=..
 
 An `on_refresh` that raises is logged as a warning and does not fail the call:
 the token is still good for this process. So a callback with the wrong
-signature fails quietly, and the rotated token is never stored.
+signature fails quietly, and the rotated token is never stored. A client with a
+[`GrantLoader`](#grantloader) calls it again for that refresh in the
+background, at once and then every five seconds of calls, while the store
+still holds the refresh token the server spent.
 
 ## `GrantLoader`
 
@@ -879,7 +899,12 @@ token and its expiry too, and a process whose own token is due takes the stored
 one instead of refreshing, so one refresh serves every process. That is
 required against Stripe, whose refresh revokes the previous access token within
 seconds. A stored token is skipped when it is inside the renewal window, or is
-the one the API just refused.
+the one the API just refused. So is a stored refresh token this client has
+already rotated away from: the store is behind it, because `on_refresh` failed.
+
+Return `None` when no grant is stored, because the user disconnected or never
+connected. The client raises a `CredentialError` whose `reauthorize` is true,
+and asks the token endpoint nothing.
 
 ```python
 async def stored_grant() -> TokenGrant:
@@ -902,19 +927,14 @@ RefreshLock = Callable[[], AsyncContextManager[Any]]
 ```
 
 Passed as `refresh_lock`, it takes a lock scoped to one grant, across every
-process that serves it: a Postgres advisory lock, a Redis lock. Called once per
-refresh, and held from the read of the store to the end of `on_refresh`.
+process that serves it, over your own store: a database's advisory lock, a
+Redis lock. Called once per refresh, and held from the read of the store to the
+end of `on_refresh`.
 
-```python
-def grant_lock(user_id: str, provider: str) -> RefreshLock:
-    @asynccontextmanager
-    async def held():
-        async with pool.acquire() as conn, conn.transaction():
-            await conn.execute("SELECT pg_advisory_xact_lock(hashtext($1))", f"{user_id}:{provider}")
-            yield
-
-    return held
-```
+Whatever it holds while held, the loader and `on_refresh` must not need. A lock
+that takes a connection from the pool they use deadlocks once as many users
+refresh at once as the pool has connections: each holds one for its lock and
+waits for another. [A lock around the refresh](/auth/oauth-flow#a-lock-around-the-refresh).
 
 ## Related
 

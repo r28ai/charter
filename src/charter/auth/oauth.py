@@ -52,8 +52,11 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import copy
 import inspect
 import logging
+import threading
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from time import monotonic
@@ -64,12 +67,14 @@ from typing import (
     Awaitable,
     Callable,
     Collection,
+    Deque,
     Dict,
     Iterable,
     Literal,
     Mapping,
     Optional,
     Protocol,
+    Tuple,
     TypeVar,
     Union,
     runtime_checkable,
@@ -79,7 +84,7 @@ from urllib.parse import quote_plus
 import httpx
 
 from charter.auth.credentials import Credentials
-from charter.types.errors import CredentialError, DeclarationError
+from charter.types.errors import CharterError, CredentialError, DeclarationError
 
 __all__ = [
     "OAuth2Server",
@@ -157,6 +162,37 @@ user's dead grant degrades every other user of the same app.
 
 A window rather than a permanent mark, because some servers answer
 ``invalid_grant`` for transient reasons such as clock skew.
+"""
+
+_FOREVER = float("inf")
+"""The cool-down of a grant this client revoked: it is not refreshed again."""
+
+_SENDABLE_SECONDS = 10
+"""How long an access token must still be valid to be sent once more, by a revocation.
+
+A refresh renews ``leeway_seconds`` early so that no tool call goes out with a
+token about to lapse. A revocation is one request, and a token inside that
+window still authenticates it. Renewing first instead spends a refresh token,
+and where the refresh is what failed (a grant in its cool-down), it gives up
+the one token that could still end the grant. Ten seconds is the runtime's own
+guard for sending a token, ``expiry_leeway_seconds``.
+"""
+
+_SPENT_REMEMBERED = 16
+"""How many refresh tokens a client remembers rotating away from.
+
+A store still holding one of them is behind the client: an ``on_refresh``
+write failed, or never ran. One per refresh whose write was lost, so a handful
+covers any outage a client survives.
+"""
+
+_RESTORE_BACKOFF_SECONDS = 5.0
+"""How long a client waits between tries at storing a refresh ``on_refresh`` failed to store.
+
+The first try is at once, since a database blip is usually over by then.
+Long enough that a store which stays down is not asked on every tool call;
+short enough that the other processes reading it, which present the refresh
+token this client has already spent, are not refused for long.
 """
 
 RevocationAuthMethod = Literal[
@@ -972,7 +1008,15 @@ class OAuth2Client:
     expires, and concurrent callers wait on a single refresh rather than each
     starting their own. That matters more than it looks: some servers invalidate
     the previous refresh token on use, so twelve parallel tool calls each firing
-    their own refresh will poison eleven of them.
+    their own refresh will poison eleven of them. The callers share its outcome
+    either way: when it fails, they all get its error, rather than each asking
+    the token endpoint again in turn. It holds across threads too, so one client
+    serves tools called through ``Tool.invoke()`` from several threads at once.
+
+    A refresh, once started, runs to the end even if the call that started it
+    is cancelled (a timeout, a client hanging up). By then the server may have
+    rotated the refresh token, and the answer is the only place the new one
+    exists, so it is always read, adopted and handed to ``on_refresh``.
 
     That single refresh is per process. Run two workers and each holds its own
     copy of the grant. Against a server that rotates, the first to refresh
@@ -1066,34 +1110,84 @@ class OAuth2Client:
         # The token-response fields a Revoker names (Stripe's stripe_user_id),
         # from the last response that carried them.
         self._grant_fields: Dict[str, str] = {}
-        # A Lock binds to the event loop that first awaits it. Tool.invoke() runs
-        # asyncio.run() per call, so a client built once and used from several
-        # successive loops would otherwise raise. Rebinding on a loop change
-        # keeps that working; the exotic case of two live loops in two threads
-        # degrades to one extra refresh, never to a wrong token.
-        self._lock: Optional[asyncio.Lock] = None
-        self._lock_loop: Optional[asyncio.AbstractEventLoop] = None
+        # Held by every refresh and revocation of this grant, whichever thread
+        # or event loop runs it. Not an asyncio.Lock: that binds to one loop,
+        # and Tool.invoke() runs asyncio.run() per call, so two threads each
+        # had a lock of their own and refreshed the grant twice, the second
+        # presenting a refresh token the first had just spent.
+        self._mutex = _GrantLock()
+        # The refresh in flight, which every caller on its loop waits on until
+        # it ends, however it ends.
+        self._refreshing: Optional[asyncio.Task[Credentials]] = None
+        # Refresh tokens this client rotated away from. A store still holding
+        # one is behind this client, not ahead of it: on_refresh never stored
+        # the successor, and the store's token is spent.
+        self._spent: Deque[str] = deque(maxlen=_SPENT_REMEMBERED)
+        # A refresh on_refresh failed to store, with a loader to check the
+        # store against, when to try storing it again, and the try in flight.
+        self._unstored: Optional[Tuple[Credentials, Optional[str]]] = None
+        self._restore_after = 0.0
+        self._restoring: Optional[asyncio.Task[None]] = None
 
     # -- provider protocol ------------------------------
 
     async def get_credentials(self, provider: str) -> Credentials:
-        leeway = self._effective_leeway()
         cached = self._cached
-        if cached is not None and not cached.is_expired(leeway):
+        if cached is not None and not cached.is_expired(self._effective_leeway()):
+            if self._restore_due():
+                self._start_restore(provider)
             return cached
+        if self._load_grant is None:
+            # No store could hold a grant the user connected since, so the
+            # cool-down is answered here, without waiting on anything.
+            self._raise_if_grant_is_dead(provider)
+        return await self._join_refresh(provider)
 
-        if self._dead_reason is not None and self._load_grant is not None:
-            await self._lift_if_reconnected()
-        self._raise_if_grant_is_dead(provider)
+    async def _join_refresh(self, provider: str) -> Credentials:
+        """Wait on the refresh in flight on this loop, starting one if there is none.
 
-        async with self._get_lock():
-            # Someone may have refreshed while we waited for the lock — or found
-            # out the grant is dead, in which case do not queue up behind them.
+        The refresh is a task of its own. A caller cancelled while it is on the
+        wire does not cancel it, since by then the server may have rotated the
+        refresh token and the task is all that will ever read the new one. And
+        it is shared until it ends, however it ends, so the callers waiting on
+        a refresh that fails get its error rather than each asking again in turn.
+        """
+        if self._mutex.held_here():
+            # Asked from inside a refresh or revocation of this grant: by an
+            # on_refresh or a loader that makes a call with this client. Waiting
+            # on the lock its own caller holds would wait forever, so the token
+            # just taken up is the answer, if there is one yet.
             cached = self._cached
             if cached is not None and not cached.is_expired(self._effective_leeway()):
                 return cached
+            raise CredentialError(
+                "The client was asked for a token from inside its own refresh, by "
+                "on_refresh or the loader, before it had one to give.",
+                provider=provider,
+                docs="auth/oauth-flow#more-than-one-process",
+            )
+        loop = asyncio.get_running_loop()
+        task = self._refreshing
+        if task is None or task.done() or task.get_loop() is not loop:
+            task = loop.create_task(self._refresh_exclusively(provider))
+            task.add_done_callback(_retrieve)
+            self._refreshing = task
+        return await _outcome(task, provider)
+
+    async def _refresh_exclusively(self, provider: str) -> Credentials:
+        held = await self._mutex.acquire()
+        try:
+            # Another thread may have refreshed while this one waited for the
+            # lock, or found out the grant is dead: then nothing is asked again.
+            cached = self._cached
+            if cached is not None and not cached.is_expired(self._effective_leeway()):
+                return cached
+            if self._dead_reason is not None and self._load_grant is not None:
+                await self._lift_if_reconnected()
             self._raise_if_grant_is_dead(provider)
-            return await self._refresh(provider)
+            return await self._under_refresh_lock(provider, lambda: self._renew(provider))
+        finally:
+            self._mutex.release(held)
 
     def _effective_leeway(self) -> int:
         """``leeway_seconds``, capped at half the lifetime the server granted.
@@ -1148,25 +1242,35 @@ class OAuth2Client:
         Sends the server's :class:`Revocation`. With the RFC's shape that is the
         refresh token, which ends the grant and every access token issued from
         it. With a vendor's that takes an access token it is the freshest one
-        to be had, renewed first if it has lapsed. A client built with a
-        :data:`GrantLoader` reads the store first, under its ``refresh_lock``,
-        so it revokes the grant the store holds and not one another process
-        has since rotated. An access token the server calls dead is renewed
-        and sent again once: GitHub and Notion retire the previous access token
-        when another process refreshes, and that says nothing about the grant.
+        to be had: any still valid for the request, renewed only if none is.
+        A client built with a :data:`GrantLoader` reads the store first, under
+        its ``refresh_lock``, so it revokes the grant the store holds and not
+        one another process has since rotated. An access token the server calls
+        dead is renewed and sent again once: GitHub and Notion retire the
+        previous access token when another process refreshes, and that says
+        nothing about the grant.
+
+        A grant in its dead-grant cool-down is still sent. The cool-down keeps
+        tool calls off the token endpoint, and it can follow an answer that was
+        about one refresh token rather than the grant (GitHub's
+        ``bad_refresh_token`` for a spent one) or a transient one, so only the
+        server's answer to this request decides that the grant is gone.
 
         Returns ``True`` when the server confirmed the revocation and ``False``
         when it said the grant was already gone (revoked from the account's
         settings, expired, or revoked before). Both leave the user
         disconnected, so neither raises. A refusal for any other reason does
         raise :class:`CredentialError`, and the client is left as it was so
-        the call can be retried.
+        the call can be retried. Once started, it runs to the end even if the
+        caller is cancelled: it may refresh first, and a refresh, once sent,
+        is always taken up and stored.
 
         Afterwards the client does not refresh again: ``get_credentials``
         raises a ``CredentialError`` whose ``reauthorize`` is true, until
         :meth:`reset`, or until a loader returns a refresh token other than the
-        revoked one (the user connected again). A ``client_credentials`` client
-        only drops its token, since its next one is always to be had.
+        revoked one (the user connected again). Revoking it a second time asks
+        nothing and returns ``False``. A ``client_credentials`` client only
+        drops its token, since its next one is always to be had.
 
         Deleting the stored grant stays yours, after this returns.
         """
@@ -1179,29 +1283,33 @@ class OAuth2Client:
                 "alone leaves it live at the server.",
                 docs="reference/oauth#revocation",
             )
-        work: Callable[[], Awaitable[bool]]
-        if not isinstance(revocation, Revocation):
-            work = self._run_revoker
-        elif revocation.token_type == "access_token":
-            if self._dead_reason is not None and self._load_grant is not None:
-                await self._lift_if_reconnected()
-            try:
-                self._raise_if_grant_is_dead("")
-            except CredentialError:
-                # The server has already called the grant dead, so no access
-                # token can be had to present, and there is nothing left to end.
-                self._mark_revoked()
-                return False
-            work = self._revoke_by_access_token
-        else:
-            work = self._revoke_held_grant
+        task = asyncio.get_running_loop().create_task(self._revoke_exclusively(revocation))
+        task.add_done_callback(_retrieve)
+        return await _outcome(task)
+
+    async def _revoke_exclusively(self, revocation: Union[Revocation, Revoker]) -> bool:
         # Under the lock a refresh takes, so a refresh in flight lands first and
         # the token revoked is the one it rotated to, and no call waiting on the
         # lock refreshes a grant that has just been revoked.
-        async with self._get_lock():
+        held = await self._mutex.acquire()
+        try:
+            if self._dead_until == _FOREVER and self._load_grant is not None:
+                await self._lift_if_reconnected()
+            if self._dead_until == _FOREVER:
+                # Revoked here already, and no other grant has been stored since.
+                return False
+            work: Callable[[], Awaitable[bool]]
+            if not isinstance(revocation, Revocation):
+                work = self._run_revoker
+            elif revocation.token_type == "access_token":
+                work = self._revoke_by_access_token
+            else:
+                work = self._revoke_held_grant
             revoked = await self._under_refresh_lock("", work)
             self._mark_revoked()
-        return revoked
+            return revoked
+        finally:
+            self._mutex.release(held)
 
     async def _run_revoker(self) -> bool:
         """Hand the server's :class:`Revoker` the grant, with the fields it names."""
@@ -1289,14 +1397,18 @@ class OAuth2Client:
     async def _freshest_access_token(self) -> Optional[str]:
         """The store's live token when a loader has one, else the cached one, else a renewal.
 
-        ``None`` when the server calls the grant dead.
+        Any token still valid for one request will do, inside the refresh's
+        early-renewal window too: renewing first would spend a refresh token,
+        and where the refresh is what fails, the token in hand is the only way
+        left to end the grant. ``None`` when there is none and the server calls
+        the grant dead.
         """
         if self._load_grant is not None:
-            stored = await self._read_store()
+            stored = await self._read_store(leeway=_SENDABLE_SECONDS)
             if stored is not None:
                 self._cached = stored
         cached = self._cached
-        if cached is not None and not cached.is_expired(self._effective_leeway()):
+        if cached is not None and not cached.is_expired(_SENDABLE_SECONDS):
             return cached.token
         return await self._renewed_access_token()
 
@@ -1347,12 +1459,24 @@ class OAuth2Client:
     def _mark_revoked(self) -> None:
         """Drop the token, and refuse to refresh a grant known to be revoked."""
         self._cached = None
+        # A refresh on_refresh failed to store belongs to the revoked grant, and
+        # is not to be written back over what the host stores next.
+        self._unstored = None
         if self.grant == "client_credentials":
             return
         self._dead_reason = "The grant was revoked with revoke(); the user has to authorize again."
         self._dead_status = None
-        self._dead_until = float("inf")
+        self._dead_until = _FOREVER
         self._dead_refresh_token = self._refresh_token
+
+    def _rereads_store(self) -> bool:
+        """Whether this client reads its grant through a loader.
+
+        :meth:`SubjectProvider.revoke <charter.auth.SubjectProvider.revoke>`
+        keeps such a client once it has revoked: it refuses the revoked grant
+        while the store holds it, and takes up a new one when one is stored.
+        """
+        return self._load_grant is not None
 
     @property
     def refresh_token(self) -> Optional[str]:
@@ -1449,23 +1573,17 @@ class OAuth2Client:
         The cool-down protects the token endpoint, not the store. A user who
         connects again in another process leaves a new grant in the store, and
         this client should use it now rather than repeat a dead error for a
-        minute. A store that can't be read leaves the cool-down as it is.
+        minute. A store that can't be read, or holds no grant, leaves the
+        cool-down as it is. Called holding the client's lock, as every read of
+        the store is, so nothing changes the refresh token while it reads.
         """
         dead = self._dead_refresh_token
         try:
             await self._read_store()
         except CredentialError:
-            self._refresh_token = dead
             return
         if self._refresh_token != dead:
             self._clear_dead()
-
-    def _get_lock(self) -> asyncio.Lock:
-        loop = asyncio.get_running_loop()
-        if self._lock is None or self._lock_loop is not loop:
-            self._lock = asyncio.Lock()
-            self._lock_loop = loop
-        return self._lock
 
     def _build_request(self) -> tuple[Dict[str, str], Dict[str, str]]:
         """The form body and headers for one token request."""
@@ -1495,9 +1613,12 @@ class OAuth2Client:
         )
         return resp, (data.get("refresh_token"), self._client_secret)
 
-    async def _read_store(self) -> Optional[Credentials]:
-        """Read the grant through the loader: adopt its refresh token, and return
-        its access token if it is still worth sending instead of refreshing."""
+    async def _load(self) -> Optional[Tuple[str, Optional[Credentials], Mapping[str, Any]]]:
+        """Call the loader: the stored refresh token, access token and response fields.
+
+        ``None`` when the store holds no grant, which a loader says by returning
+        ``None`` or an empty string: the user disconnected, or never connected.
+        """
         assert self._load_grant is not None
         try:
             value = self._load_grant()
@@ -1508,6 +1629,8 @@ class OAuth2Client:
                 f"Reading the stored grant failed: {type(exc).__name__}: {exc}",
                 docs="auth/oauth-flow#more-than-one-process",
             ) from exc
+        if value is None or (isinstance(value, str) and not value):
+            return None
 
         stored: Optional[Credentials] = None
         raw: Mapping[str, Any] = {}
@@ -1521,9 +1644,40 @@ class OAuth2Client:
         if not isinstance(refresh_token, str) or not refresh_token:
             raise CredentialError(
                 "The refresh_token loader returned no refresh token. It should return "
-                "what on_refresh last stored for this grant.",
+                "what on_refresh last stored for this grant, or None when no grant is stored.",
                 docs="auth/oauth-flow#more-than-one-process",
             )
+        return refresh_token, stored, raw
+
+    async def _read_store(self, leeway: Optional[int] = None) -> Optional[Credentials]:
+        """Read the grant through the loader: adopt its refresh token, and return
+        its access token if it is still worth sending instead of refreshing.
+
+        ``leeway`` is how long that token must still be valid, the early-renewal
+        window unless said otherwise.
+        """
+        loaded = await self._load()
+        if loaded is None:
+            # Nothing in the store: no refresh can bring the grant back, only the
+            # user connecting again, which is what reauthorize tells the host.
+            raise CredentialError(
+                "No grant is stored for this user: the refresh_token loader returned "
+                "nothing. The user has to connect again.",
+                docs="auth/oauth-flow#more-than-one-process",
+                reauthorize=True,
+            )
+        refresh_token, stored, raw = loaded
+        if refresh_token in self._spent:
+            # The store is behind this client: on_refresh never stored the
+            # refresh token this client rotated to. Keep that one, which is the
+            # only live one, and take nothing from the row, whose access token is
+            # the one that rotation replaced.
+            logger.warning(
+                "charter: the stored grant for %s holds a refresh token this client has "
+                "already spent; it keeps the newer one it holds",
+                self.server.issuer or self.server.token_endpoint,
+            )
+            return None
         if refresh_token != self._refresh_token:
             # Another grant than the one the fields were taken with: the user
             # may have connected another account, so they are learnt again.
@@ -1534,10 +1688,83 @@ class OAuth2Client:
         if (
             stored is None
             or stored.token == self._refused_token
-            or stored.is_expired(self._effective_leeway())
+            or stored.is_expired(self._effective_leeway() if leeway is None else leeway)
         ):
             return None
         return stored
+
+    def _restore_due(self) -> bool:
+        """Whether a refresh ``on_refresh`` failed to store is due to be stored again."""
+        return self._unstored is not None and monotonic() >= self._restore_after
+
+    def _start_restore(self, provider: str) -> None:
+        """Store again, in the background, a refresh ``on_refresh`` failed to store.
+
+        In the background because it needs the store, the lock and a write,
+        and the call that finds it due already holds a token it can use: a
+        store that hangs must not hang that call. One try at a time, the next
+        no sooner than the back-off.
+        """
+        loop = asyncio.get_running_loop()
+        task = self._restoring
+        if task is not None and not task.done() and task.get_loop() is loop:
+            return
+        self._restore_after = monotonic() + _RESTORE_BACKOFF_SECONDS
+        task = loop.create_task(self._restore_exclusively(provider))
+        task.add_done_callback(_retrieve)
+        self._restoring = task
+
+    async def _restore_exclusively(self, provider: str) -> None:
+        # The client's lock, as a refresh takes: a refresh in flight lands first
+        # and its own write, if it succeeds, leaves nothing to store again.
+        held = await self._mutex.acquire()
+        try:
+            if self._unstored is not None:
+                await self._restore(provider)
+        finally:
+            self._mutex.release(held)
+
+    async def _restore(self, provider: str) -> None:
+        """Store again a refresh ``on_refresh`` failed to store, if the store still lacks it.
+
+        Only while the store still holds a refresh token this client rotated
+        away from. Then it is provably behind, and every other process that
+        reads it presents a spent token, which a server that rotates refuses as
+        a dead grant. A store holding anything else has moved on (another
+        process refreshed, or the user connected again or disconnected) and is
+        not written over. Under the refresh lock, as a refresh's own write is. A
+        failure is logged and tried again after the back-off, never raised:
+        nothing waits on this but the store.
+        """
+        unstored = self._unstored
+        assert unstored is not None
+
+        async def store_again() -> None:
+            loaded = await self._load()
+            if loaded is not None and loaded[0] in self._spent:
+                await self._store(*unstored)
+                logger.debug(
+                    "OAuth grant for %s stored on a later try",
+                    provider or self.server.issuer or self.server.token_endpoint,
+                )
+            self._unstored = None
+
+        try:
+            await self._under_refresh_lock(provider, store_again)
+        except Exception:
+            self._restore_after = monotonic() + _RESTORE_BACKOFF_SECONDS
+            logger.warning(
+                "charter: storing the refreshed grant again failed; trying again in %ss",
+                _RESTORE_BACKOFF_SECONDS,
+                exc_info=True,
+            )
+
+    async def _store(self, credentials: Credentials, refresh_token: Optional[str]) -> None:
+        """Hand a refresh to ``on_refresh``, raising whatever it raises."""
+        assert self._on_refresh is not None
+        result = self._on_refresh(credentials, refresh_token)
+        if inspect.isawaitable(result):
+            await result
 
     def _adopt(self, stored: Credentials, provider: str) -> Credentials:
         """Use an access token another process obtained and stored."""
@@ -1547,9 +1774,6 @@ class OAuth2Client:
             provider or self.server.issuer or self.server.token_endpoint,
         )
         return stored
-
-    async def _refresh(self, provider: str) -> Credentials:
-        return await self._under_refresh_lock(provider, lambda: self._renew(provider))
 
     async def _under_refresh_lock(self, provider: str, work: Callable[[], Awaitable[_T]]) -> _T:
         """Run ``work`` holding the refresh lock, when there is one.
@@ -1653,9 +1877,13 @@ class OAuth2Client:
 
         # A rotated refresh token announces itself by being in the response, so
         # there is nothing to declare and nothing to configure — take whatever
-        # comes back, keep the old one when nothing does.
+        # comes back, keep the old one when nothing does. The one it replaces is
+        # spent, and remembered as such, so a store still holding it is known to
+        # be behind rather than read back over the one that works.
         rotated = payload.get("refresh_token")
         if isinstance(rotated, str) and rotated:
+            if self._refresh_token and rotated != self._refresh_token:
+                self._spent.append(self._refresh_token)
             self._refresh_token = rotated
         self._note_grant_fields(payload)
 
@@ -1671,9 +1899,7 @@ class OAuth2Client:
 
         if self._on_refresh is not None:
             try:
-                result = self._on_refresh(credentials, self._refresh_token)
-                if inspect.isawaitable(result):
-                    await result
+                await self._store(credentials, self._refresh_token)
             except Exception:
                 # Persistence is the host's problem, and a failure to write the
                 # token down must not fail the call the token was fetched for.
@@ -1682,6 +1908,16 @@ class OAuth2Client:
                     "charter: on_refresh raised; the new token was not persisted",
                     exc_info=True,
                 )
+                if self._load_grant is not None:
+                    # Other processes read the store, which now holds a refresh
+                    # token the server has spent. Try storing this one again as
+                    # soon as this refresh lets go of the lock, rather than at
+                    # the next refresh: a database blip is usually over by then.
+                    self._unstored = (credentials, self._refresh_token)
+                    self._restore_after = 0.0
+                    self._start_restore(provider)
+            else:
+                self._unstored = None
 
         return credentials
 
@@ -1700,6 +1936,90 @@ class OAuth2Client:
             f"OAuth2Client(token_endpoint={self.server.token_endpoint!r}, "
             f"grant={self.grant!r}, client_secret=***)"
         )
+
+
+class _GrantLock:
+    """The lock one grant's refreshes and revocations take, whichever loop runs them.
+
+    A threading lock would block the loop of whoever waits on it, and an
+    asyncio one binds to a single loop; this holds across both. It is taken by
+    polling, from a millisecond up to fifty, so waiting never blocks a loop and
+    a wait that is cancelled never leaves it taken. Waits are rare and short: a
+    revocation meeting a refresh, or two threads' loops finding the token due
+    at once.
+
+    Each holder is handed a token to release with, and the loop that took it
+    is remembered. A task whose loop was closed before it could finish (a loop
+    closed by hand, without cancelling its tasks) will never release it, so
+    the next taker has it instead, and the stranded holder's release, if it
+    ever comes, is a no-op. A closed loop cannot run that task again, so the
+    two never hold it at once.
+    """
+
+    def __init__(self) -> None:
+        self._state = threading.Lock()  # held only to read and write the three below
+        self._holder: Optional[object] = None
+        self._holder_loop: Optional[asyncio.AbstractEventLoop] = None
+        self._holder_task: Optional[asyncio.Task[Any]] = None
+
+    def _try(self, loop: asyncio.AbstractEventLoop) -> Optional[object]:
+        with self._state:
+            stranded = self._holder_loop is not None and self._holder_loop.is_closed()
+            if self._holder is not None and not stranded:
+                return None
+            held = object()
+            self._holder, self._holder_loop = held, loop
+            self._holder_task = asyncio.current_task(loop)
+            return held
+
+    async def acquire(self) -> object:
+        loop = asyncio.get_running_loop()
+        delay = 0.001
+        while (held := self._try(loop)) is None:
+            await asyncio.sleep(delay)
+            delay = min(delay * 2, 0.05)
+        return held
+
+    def release(self, held: object) -> None:
+        with self._state:
+            if self._holder is held:
+                self._holder, self._holder_loop, self._holder_task = None, None, None
+
+    def held_here(self) -> bool:
+        """Whether the task running now is the one holding the lock."""
+        task = self._holder_task
+        return task is not None and task is asyncio.current_task()
+
+
+def _retrieve(task: asyncio.Task[Any]) -> None:
+    """Mark a finished task's exception as seen.
+
+    A refresh or revocation task outlives a caller that was cancelled. When
+    every caller was, nobody awaits its outcome, and asyncio would log the
+    exception as never retrieved, although it was the expected end of a task
+    that ran on its own.
+    """
+    if not task.cancelled():
+        task.exception()
+
+
+async def _outcome(task: asyncio.Task[_T], provider: Optional[str] = None) -> _T:
+    """``await task`` without being able to cancel it, raising an error of the caller's own.
+
+    Cancelling the caller leaves the task running: by then a refresh may be on
+    the wire, and the task is all that will ever read the answer. Every caller
+    waiting on one task is handed the exception it raised, and raising one
+    instance from several places grows its traceback with each (the reason the
+    cool-down keeps a reason rather than an exception), so each caller raises a
+    copy, labelled with its own provider.
+    """
+    try:
+        return await asyncio.shield(task)
+    except CharterError as exc:
+        fresh = copy.copy(exc)
+        if provider is not None and isinstance(fresh, CredentialError):
+            fresh.provider = provider
+        raise fresh.with_traceback(exc.__traceback__) from exc.__cause__
 
 
 def _expires_in_seconds(expires_in: Any) -> Optional[int]:

@@ -150,16 +150,15 @@ At the callback:
 async def callback():
     grant = await flow.exchange(code, code_verifier=verifier)
 
-    granted = set(",".join(grant.scopes).split(","))   # GitHub delimits with commas
+    granted = set(grant.scopes)   # {'repo', 'read:user'}
     await db.grants.put(user.id, "github", grant.refresh_token)
 ```
 
-That `split` is not decoration. RFC 6749 says the `scope` field is
-space-delimited and `TokenGrant.scopes` splits on whitespace accordingly; GitHub
-sends `repo,read:user`, so `grant.scopes` arrives as a single comma-joined
-element. Split it yourself before comparing against anything. A GitHub App user
-token reports no scopes at all, which is correct rather than empty — its
-permissions live on the installation.
+RFC 6749 says the `scope` field is space-delimited; GitHub sends
+`repo,read:user`. `TokenGrant.scopes` splits on commas as well as spaces, so it
+arrives as the two scopes, ready to compare. A GitHub App user token reports no
+scopes at all, which is correct rather than empty — its permissions live on the
+installation.
 
 If the app does not expire its tokens, `exchange()` raises: no refresh token came
 back, and the default `expect_refresh_token=True` treats that as the silent-death

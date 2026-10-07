@@ -33,6 +33,7 @@ from charter.auth import (
     SubjectProvider,
     TokenGrant,
     revoke_token,
+    use_subject,
 )
 
 TOKEN_URL = "https://oauth2.example.com/token"
@@ -1065,6 +1066,141 @@ async def test_a_provider_without_revoke_says_how_to_revoke_instead():
 async def test_a_subject_must_be_named():
     with pytest.raises(CredentialError):
         await SubjectProvider(lambda subject: _client()).revoke("")
+
+
+@respx.mock
+async def test_a_revoked_subject_s_row_is_not_sent_in_the_moment_before_it_is_deleted():
+    """Stripe accepts an uninstalled app's access token for seconds after.
+
+    The revoked client was forgotten, so a call in the moment between revoke()
+    and deleting the row built a new one from the row, which took the stored
+    access token and sent it. A client that reads the store is kept instead:
+    it refuses the revoked grant, and takes up a new one when there is one.
+    """
+    respx.post(REVOKE_URL).mock(return_value=httpx.Response(200))
+    later = datetime.now(timezone.utc) + timedelta(hours=1)
+    row: dict = {"grant": TokenGrant(access_token="at-1", refresh_token="rt-1", expires_at=later)}
+    built: list[str] = []
+
+    def for_user(subject: str) -> OAuth2Client:
+        built.append(subject)
+        return _client(refresh_token=lambda: row["grant"])
+
+    users = SubjectProvider(for_user)
+    assert await users.revoke("u1") is True
+
+    async def call():
+        with use_subject("u1"):
+            return await users.get_credentials("api")
+
+    with pytest.raises(CredentialError) as caught:
+        await call()  # before the host deletes the row
+    assert caught.value.reauthorize
+
+    row["grant"] = None  # the host deletes it
+    with pytest.raises(CredentialError) as caught:
+        await call()
+    assert caught.value.reauthorize
+
+    row["grant"] = TokenGrant(access_token="at-again", refresh_token="rt-again", expires_at=later)
+    assert (await call()).token == "at-again"  # the user connected again
+    assert built == ["u1"]
+
+
+# -----------------------------------------------------
+# A cool-down is not an answer about the grant
+# -----------------------------------------------------
+
+# GitHub answers a spent refresh token, as well as a revoked grant, with
+# bad_refresh_token, and "the grant itself kept working".
+GITHUBISH = OAuth2Server(
+    token_endpoint=TOKEN_URL,
+    dead_grant_errors=("bad_refresh_token",),
+    revocation=Revocation(REVOKE_URL, token_type="access_token", token_header="Authorization"),
+)
+
+
+@respx.mock
+async def test_a_grant_in_its_cool_down_is_still_revoked_with_a_token_that_works():
+    """revoke() returned False, "already gone", from the cool-down alone.
+
+    The host then deleted its row, and the app stayed authorized on the user's
+    account, though this client held a token that could have ended it.
+    """
+    token = respx.post(TOKEN_URL).mock(
+        return_value=httpx.Response(200, json={"error": "bad_refresh_token"})
+    )
+    revoke = respx.post(REVOKE_URL).mock(return_value=httpx.Response(200, json={"ok": True}))
+    grant = TokenGrant(
+        access_token="at-live",
+        refresh_token="rt-spent",
+        # Inside the 90 seconds a refresh renews early in, and still valid.
+        expires_at=datetime.now(timezone.utc) + timedelta(seconds=60),
+    )
+    client = OAuth2Client.from_grant(GITHUBISH, grant, client_id="cid", client_secret="csec")
+    with pytest.raises(CredentialError) as caught:
+        await client.get_credentials("github")
+    assert caught.value.reauthorize  # the cool-down has begun
+
+    assert await client.revoke() is True
+    assert revoke.calls.last.request.headers["Authorization"] == "Bearer at-live"
+    assert token.call_count == 1
+
+
+@respx.mock
+async def test_a_grant_in_its_cool_down_with_no_token_left_is_asked_about_once_more():
+    token = respx.post(TOKEN_URL).mock(
+        return_value=httpx.Response(400, json={"error": "invalid_grant"})
+    )
+    revoke = respx.post(REVOKE_URL)
+    client = _client(BEARER)
+    with pytest.raises(CredentialError):
+        await client.get_credentials("api")
+
+    assert await client.revoke() is False  # the server's answer, not the cool-down's
+    assert token.call_count == 2
+    assert revoke.call_count == 0
+
+
+@respx.mock
+async def test_revoking_again_asks_nothing():
+    revoke = respx.post(REVOKE_URL).mock(return_value=httpx.Response(200))
+    client = _client()
+    assert await client.revoke() is True
+    assert await client.revoke() is False
+    assert revoke.call_count == 1
+
+
+async def test_a_revocation_whose_caller_is_cancelled_still_finishes():
+    """It may refresh first, and a refresh, once sent, has to be taken up and stored."""
+    started, release = asyncio.Event(), asyncio.Event()
+
+    @dataclass(frozen=True)
+    class Slow:
+        grant_fields: ClassVar[tuple[str, ...]] = ("account_id",)
+
+        async def revoke(self, grant: GrantToRevoke) -> bool:
+            started.set()
+            await release.wait()
+            return True
+
+    grant = TokenGrant(access_token="at-1", refresh_token="rt-1", raw={"account_id": "acct_1"})
+    client = OAuth2Client.from_grant(
+        OAuth2Server(token_endpoint=TOKEN_URL, revocation=Slow()),
+        grant,
+        client_id="cid",
+        client_secret="csec",
+    )
+    caller = asyncio.create_task(client.revoke())
+    await started.wait()
+    caller.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await caller
+
+    release.set()
+    with pytest.raises(CredentialError) as caught:
+        await client.get_credentials("api")
+    assert caught.value.reauthorize
 
 
 # -----------------------------------------------------

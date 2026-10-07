@@ -28,6 +28,7 @@ import base64
 import hashlib
 import hmac
 import os
+import re
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -64,6 +65,12 @@ __all__ = [
 # vendor lore that could smuggle a different client or callback is not lore.
 _RESERVED_PARAMS = ("client_id", "redirect_uri", "state")
 _RESERVED_PREFIX = "code_challenge"
+
+# What separates the scopes a token response says were granted. RFC 6749 §3.3
+# says a space; GitHub, Slack and Shopify answer with commas, whatever the
+# consent link was sent with, so both are read. No scope any of them issues
+# contains either.
+_GRANTED_SCOPE_SEPARATORS = re.compile(r"[\s,]+")
 
 
 def _pkce_verifier() -> str:
@@ -134,7 +141,9 @@ class TokenGrant(BaseModel):
     into a working provider without spending a refresh.
 
     ``scopes`` is what the server says was actually granted (users can deselect
-    scopes on some consent screens), and ``raw`` is the untouched response body
+    scopes on some consent screens), one scope per item whether the server
+    separated them with spaces or, as GitHub, Slack and Shopify do, with
+    commas. ``raw`` is the untouched response body
     for whatever vendor extras came with it.
     """
 
@@ -370,7 +379,11 @@ class OAuth2Flow:
             access_token=access_token,
             refresh_token=refresh_token,
             expires_at=expires_at,
-            scopes=scope.split() if isinstance(scope, str) else [],
+            scopes=(
+                [s for s in _GRANTED_SCOPE_SEPARATORS.split(scope) if s]
+                if isinstance(scope, str)
+                else []
+            ),
             raw=payload,
         )
 

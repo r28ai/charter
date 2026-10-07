@@ -8,8 +8,11 @@ where a secret could escape.
 from __future__ import annotations
 
 import asyncio
+import gc
 import json
 import logging
+import threading
+import time
 from datetime import timedelta
 from typing import Annotated
 
@@ -901,3 +904,282 @@ async def test_a_refresh_does_not_close_a_client_it_was_lent():
     async with httpx.AsyncClient() as client:
         await _client(client=client).get_credentials("example")
         assert not client.is_closed
+
+
+# -----------------------------------------------------
+# A refresh is shared, and finished, whatever its callers do
+# -----------------------------------------------------
+
+
+class _RotatingSlowly:
+    """Spends the refresh token on receipt, then takes a while to answer.
+
+    The window a cancelled caller leaves open: the server has moved on to a new
+    refresh token, and the answer on its way back is the only place it exists.
+    A spent token is refused, as Stripe, GitHub and Notion refuse one.
+    """
+
+    def __init__(self) -> None:
+        self.live = {"rt-1"}
+        self.issued = 0
+        self.received = asyncio.Event()
+
+    async def __call__(self, request: httpx.Request) -> httpx.Response:
+        sent = dict(httpx.QueryParams(request.content.decode()))["refresh_token"]
+        if sent not in self.live:
+            return httpx.Response(400, json={"error": "invalid_grant"})
+        self.live.discard(sent)
+        self.issued += 1
+        self.live.add(f"rt-{self.issued + 1}")
+        self.received.set()
+        await asyncio.sleep(0.05)
+        return httpx.Response(
+            200,
+            json={
+                "access_token": f"at-{self.issued}",
+                "refresh_token": f"rt-{self.issued + 1}",
+                "expires_in": 3600,
+            },
+        )
+
+
+@respx.mock
+async def test_a_caller_cancelled_mid_refresh_does_not_lose_the_rotated_refresh_token():
+    """A client hanging up, a timeout: either cancelled the refresh with the call.
+
+    The server had already spent rt-1, and rt-2 was in an answer nobody read, so
+    the next call presented rt-1 and told the user to connect again.
+    """
+    server = _RotatingSlowly()
+    respx.post(TOKEN_URL).mock(side_effect=server)
+    stored: list = []
+    client = _client(on_refresh=lambda credentials, refresh_token: stored.append(refresh_token))
+
+    call = asyncio.create_task(client.get_credentials("example"))
+    await server.received.wait()
+    call.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await call
+
+    assert (await client.get_credentials("example")).token == "at-1"
+    assert client.refresh_token == "rt-2"
+    assert stored == ["rt-2"]
+    assert server.issued == 1
+
+
+@respx.mock
+async def test_a_refresh_that_outlives_every_caller_still_reaches_the_store():
+    server = _RotatingSlowly()
+    respx.post(TOKEN_URL).mock(side_effect=server)
+    stored = asyncio.Event()
+    client = _client(on_refresh=lambda credentials, refresh_token: stored.set())
+
+    with pytest.raises(asyncio.TimeoutError):
+        await asyncio.wait_for(client.get_credentials("example"), timeout=0.01)
+
+    await asyncio.wait_for(stored.wait(), timeout=1)
+    assert client.refresh_token == "rt-2"
+
+
+@respx.mock
+async def test_callers_waiting_on_a_refresh_that_fails_share_its_failure():
+    """A token endpoint that is down was asked once per waiting caller, in turn.
+
+    Each waiter took the lock, found no token, and refreshed again: twelve
+    callers against a slow 503 made twelve requests, the last caller waiting
+    twelve times as long, while the endpoint needed fewer requests, not more.
+    """
+
+    async def unavailable(request):
+        await asyncio.sleep(0.02)
+        return httpx.Response(503, json={"error": "temporarily_unavailable"})
+
+    route = respx.post(TOKEN_URL).mock(side_effect=unavailable)
+    client = _client()
+
+    results = await asyncio.gather(
+        *(client.get_credentials(f"pack-{i}") for i in range(12)), return_exceptions=True
+    )
+
+    assert route.call_count == 1
+    assert all(isinstance(r, CredentialError) for r in results)
+    # Each caller raises an error of its own, labelled with its own provider,
+    # rather than one instance whose traceback grows with every raise.
+    assert [r.provider for r in results] == [f"pack-{i}" for i in range(12)]
+    assert len({id(r) for r in results}) == 12
+    assert len({_frames(r) for r in results}) == 1
+
+
+def _frames(exc: BaseException) -> int:
+    count, tb = 0, exc.__traceback__
+    while tb:
+        count, tb = count + 1, tb.tb_next
+    return count
+
+
+def test_two_threads_with_loops_of_their_own_share_one_refresh():
+    """Tool.invoke() runs asyncio.run() per call, so two threads are two loops.
+
+    The client's lock was an asyncio.Lock per loop, so each thread had its own
+    and both refreshed. Against a server that rotates, the second presented the
+    refresh token the first had just spent, was told the user had to connect
+    again, and put a healthy grant into its cool-down.
+    """
+    guard = threading.Lock()
+    live = {"rt-1"}
+    issued: list = []
+
+    def rotating(request: httpx.Request) -> httpx.Response:
+        time.sleep(0.05)  # long enough for the other thread to be due as well
+        sent = dict(httpx.QueryParams(request.content.decode()))["refresh_token"]
+        with guard:
+            if sent not in live:
+                return httpx.Response(400, json={"error": "invalid_grant"})
+            live.discard(sent)
+            issued.append(sent)
+            successor = f"rt-{len(issued) + 1}"
+            live.add(successor)
+            return httpx.Response(
+                200,
+                json={
+                    "access_token": f"at-{len(issued)}",
+                    "refresh_token": successor,
+                    "expires_in": 3600,
+                },
+            )
+
+    client = _client()
+    barrier = threading.Barrier(2)
+    outcomes: list = []
+
+    def call() -> None:
+        barrier.wait()
+        try:
+            outcomes.append(asyncio.run(client.get_credentials("example")).token)
+        except Exception as exc:  # recorded, so the assertion names it
+            outcomes.append(exc)
+
+    with respx.mock:
+        respx.post(TOKEN_URL).mock(side_effect=rotating)
+        threads = [threading.Thread(target=call) for _ in range(2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+    assert outcomes == ["at-1", "at-1"]
+    assert issued == ["rt-1"]
+    assert client._dead_reason is None
+
+
+async def test_a_cancelled_cold_start_does_not_cancel_the_calls_waiting_on_it():
+    """The builder's CancelledError was handed to every caller waiting on it.
+
+    Those calls had not been cancelled, but ended as though they had: asyncio
+    marked their tasks cancelled, and the host's ``except Exception`` let it by.
+    """
+    release = asyncio.Event()
+    builds: list = []
+
+    async def slow(subject: str):
+        builds.append(subject)
+        await release.wait()
+        return _client()
+
+    provider = SubjectProvider(slow)
+    builder = asyncio.create_task(provider._provider_for("u1"))
+    await asyncio.sleep(0)
+    waiters = [asyncio.create_task(provider._provider_for("u1")) for _ in range(3)]
+    await asyncio.sleep(0)
+
+    builder.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await builder
+    release.set()
+    built = await asyncio.gather(*waiters)
+
+    assert len({id(b) for b in built}) == 1  # one of them built it, the others shared it
+    assert builds == ["u1", "u1"]
+    assert provider._pending == {}
+    assert not any(w.cancelled() for w in waiters)
+
+
+# The abandoned request's connection pool is collected outside any loop, and
+# httpcore says so; abandoning it is the point of the test.
+@pytest.mark.filterwarnings("ignore::pytest.PytestUnraisableExceptionWarning")
+def test_a_refresh_stranded_on_a_loop_closed_by_hand_does_not_wedge_the_client():
+    """A loop closed without cancelling its tasks never lets its refresh finish.
+
+    The refresh holds the client's lock, which no other loop could then take:
+    every later call would wait forever. A closed loop cannot run that task
+    again, so the next caller takes the lock over.
+    """
+    answered: list = []
+
+    async def endpoint(request):
+        answered.append(len(answered) + 1)
+        if len(answered) == 1:
+            await asyncio.sleep(30)  # its loop is closed before this returns
+        return httpx.Response(200, json={"access_token": "at-2", "expires_in": 3600})
+
+    client = _client()
+    with respx.mock:
+        respx.post(TOKEN_URL).mock(side_effect=endpoint)
+        stranded = asyncio.new_event_loop()
+        with pytest.raises(asyncio.TimeoutError):
+            stranded.run_until_complete(
+                asyncio.wait_for(client.get_credentials("example"), timeout=0.05)
+            )
+        stranded.close()  # by hand: its pending refresh is never cancelled
+
+        later = asyncio.run(asyncio.wait_for(client.get_credentials("example"), timeout=5))
+
+    assert later.token == "at-2"
+    assert answered == [1, 2]
+    del client, stranded
+    gc.collect()  # here, under the filter above, rather than in whichever test runs next
+
+
+def test_a_stranded_holder_releasing_late_does_not_release_the_new_holder():
+    from charter.auth.oauth import _GrantLock
+
+    lock = _GrantLock()
+    loop = asyncio.new_event_loop()
+    stranded = loop.run_until_complete(lock.acquire())
+    loop.close()
+
+    async def take_over() -> None:
+        held = await asyncio.wait_for(lock.acquire(), timeout=1)
+        lock.release(stranded)  # the stranded holder's release, arriving late
+        assert lock._try(asyncio.get_running_loop()) is None  # still held, by this taker
+        lock.release(held)
+        assert lock._try(asyncio.get_running_loop()) is not None
+
+    asyncio.run(take_over())
+
+
+@respx.mock
+async def test_a_call_made_from_inside_the_client_s_own_refresh_does_not_wait_on_it():
+    """on_refresh and the loader run while the client holds its lock.
+
+    A call either makes with the same client cannot wait on that lock without
+    waiting forever, so it is handed the token just taken up, or told there is
+    none yet.
+    """
+    respx.post(TOKEN_URL).mock(return_value=_ok(access_token="at-1"))
+    seen: list = []
+    client: OAuth2Client
+
+    async def save(credentials, refresh_token):
+        seen.append((await client.get_credentials("example")).token)
+
+    client = _client(on_refresh=save)
+    await asyncio.wait_for(client.get_credentials("example"), timeout=2)
+    assert seen == ["at-1"]
+
+    async def load():
+        return (await reading.get_credentials("example")).token
+
+    reading = _client(refresh_token=load)
+    with pytest.raises(CredentialError, match="inside its own refresh"):
+        await asyncio.wait_for(reading.get_credentials("example"), timeout=2)

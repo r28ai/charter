@@ -9,6 +9,91 @@ here, with the migration in the same entry.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A refresh whose caller was cancelled lost the rotated refresh token.** A
+  timeout, a client hanging up or an MCP cancel cancelled the refresh with the
+  call. By then the server had spent the old refresh token and put the new one
+  in an answer nobody read, so `on_refresh` never stored it and the next call
+  presented the spent one. Against a server that refuses a spent token even
+  before its successor is used, as GitHub does, measured live, the user had to
+  connect again. (Notion keeps the spent one valid until the newer grant
+  serves a call, which hides this case.) A refresh now runs as a task
+  of its own, shared by every call waiting on it, and finishes whatever
+  happens to them: its answer is always adopted and stored. Measured with
+  eight processes on two machines sharing one store, serving sixteen users
+  for ninety seconds with three calls in ten given a timeout: before, 638
+  cancelled calls lost seven rotations and four users' grants, with 1,140
+  calls told to reconnect. After, 586 cancelled calls lost nothing, and
+  every one of 128 refreshes was stored.
+
+- **One failed `on_refresh` write disconnected the user in the process that
+  refreshed.** The docs said the token stayed good for that process. But a
+  client given a `GrantLoader` reads the store before every refresh, and it
+  read back the spent refresh token the failed write had left there, over the
+  new one it held. A client now remembers the refresh tokens it has rotated
+  away from and never adopts one from the store. It runs `on_refresh` again
+  in the background, as soon as the refresh is done and then every five
+  seconds of calls while the store still holds the spent token, so the other
+  processes stop presenting it, and no call waits on it. It writes nothing
+  over a store that has moved on to another grant, or to none.
+
+- **The documented refresh lock deadlocked under many users.** The example
+  took the lock's connection from the pool the loader and `on_refresh` use.
+  Each refresh then held one connection and waited for a second, so as many
+  users refreshing at once as the pool had connections stopped every refresh
+  in the process, and every query sharing the pool. Measured with a pool of
+  four, four users refreshing at once made no progress in twenty seconds. The
+  docs no longer show a database-specific lock: they give the lock's contract,
+  and the rule that it must not hold what the loader and `on_refresh` need.
+
+- **Calls waiting on a refresh that failed each tried it again, in turn.**
+  Twelve calls against a token endpoint answering a slow `503` made twelve
+  requests, one after another, the last call waiting twelve times as long,
+  all of it holding the refresh lock. They now share the failure, each with an
+  error of its own.
+
+- **Two threads refreshed one grant twice.** The client's lock was an
+  `asyncio.Lock`, one per event loop, and `Tool.invoke()` runs a loop per
+  call. Against a server that rotates, the second thread presented the refresh
+  token the first had just spent and was told the user had to connect again.
+  The lock now holds across threads and loops.
+
+- **A cancelled first call for a user cancelled the calls waiting on it.**
+  `SubjectProvider` shares one read of the store among concurrent first
+  calls, and handed the reader's `CancelledError` to the rest, which ended as
+  though they had been cancelled too. One of them now reads the store instead.
+
+- **`revoke()` reported "already gone" from the cool-down alone.** On a server
+  revoked by access token (GitHub, Slack, Shopify, Notion), a client in the
+  60-second dead-grant cool-down returned `False` without a request, even while
+  holding a valid token. The cool-down can follow an answer about one spent
+  refresh token rather than the grant (GitHub's `bad_refresh_token`), so the
+  host deleted its row and the app stayed authorized. `revoke()` now sends the
+  revocation with any token still valid for the request, and only the server's
+  answer decides.
+
+### Changed
+
+- **`SubjectProvider.revoke()` keeps a client that reads your store.** It used
+  to forget the revoked client. A call in the moment before the host deleted
+  the row then built a new one from the row and sent its access token, which
+  Stripe accepts for seconds after an uninstall. An `OAuth2Client` given a
+  `GrantLoader` is now kept: it refuses the revoked grant while the store holds
+  it, and takes up a new one when the user connects again. Other providers are
+  forgotten as before. Revoking a client a second time asks nothing and returns
+  `False`.
+
+- **A `GrantLoader` that returns `None` means no grant is stored.** The error
+  is a `CredentialError` whose `reauthorize` is true, so a user who
+  disconnected in another worker is shown a reconnect button, not a storage
+  error. A loader that returns something with no refresh token in it still
+  raises as a bug.
+
+- **`TokenGrant.scopes` splits on commas as well as spaces.** GitHub, Slack and
+  Shopify send `repo,read:user`, which came back as one scope. The GitHub page
+  told readers to split it themselves, which still works.
+
 ## [0.5.0] — 2026-10-07
 
 ### Added

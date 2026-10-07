@@ -177,8 +177,8 @@ def _mock_the_servers_the_docs_call() -> None:
             },
         )
     )
-    # GitHub delimits `scope` with commas rather than spaces, which is the point
-    # of the split on the provider page.
+    # GitHub delimits `scope` with commas rather than spaces, which
+    # TokenGrant.scopes splits on, as the provider page compares them.
     respx.post("https://github.com/login/oauth/access_token").mock(
         return_value=httpx.Response(
             200,

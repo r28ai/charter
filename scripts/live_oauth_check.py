@@ -264,6 +264,9 @@ PROVIDERS = {
         # None of these three is documented; all measured.
         rotates=True,
         retires_previous_access=True,  # about 3 seconds after the refresh
+        # Refused once the newer grant has served a call, as it has by the time
+        # this check replays it; measured accepted before that, any number of
+        # seconds later.
         spent_refresh_token="refused",
         reports_already_gone=False,  # measured: 200 for any token, even one never issued
     ),

@@ -111,7 +111,7 @@ with `expect_refresh_token=False`. Pairing a per-call store with a single
 ## Disconnecting
 
 The `SubjectProvider` the pack is configured with builds the merchant's client
-from your store, revokes, and forgets it, in one call:
+from your store and revokes the grant, in one call:
 
 ```python shopify_disconnect.py
 shopify_users = SubjectProvider(shopify_for)  # the one given to shopify.configure()

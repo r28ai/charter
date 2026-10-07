@@ -330,6 +330,19 @@ async def test_the_happy_path_returns_a_grant_with_parsed_scopes():
 
 
 @respx.mock
+@pytest.mark.parametrize("scope", ["repo,read:user", "repo, read:user", " repo  read:user "])
+async def test_granted_scopes_are_split_on_commas_as_well_as_spaces(scope):
+    """GitHub, Slack and Shopify answer with commas, whatever RFC 6749 says.
+
+    Split on spaces alone, a Shopify grant came back as one fused scope, and
+    ``"read_products" in grant.scopes`` was false for a scope that was granted.
+    """
+    respx.post(TOKEN_URL).mock(return_value=_exchange_response(scope=scope))
+    grant = await _flow().exchange("code-1")
+    assert grant.scopes == ["repo", "read:user"]
+
+
+@respx.mock
 async def test_an_absent_scope_field_parses_to_an_empty_list():
     respx.post(TOKEN_URL).mock(return_value=_exchange_response())
     grant = await _flow().exchange("code-1")

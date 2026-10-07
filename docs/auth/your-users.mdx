@@ -132,7 +132,7 @@ google_users = SubjectProvider(google_for)  # the one given to the Google packs'
 
 
 async def disconnect(user_id: str):
-    await google_users.revoke(user_id)  # builds their client, revokes, forgets it
+    await google_users.revoke(user_id)  # builds their client from the row, and revokes
     await db.grants.delete(user_id, "google")
 ```
 
