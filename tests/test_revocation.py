@@ -14,7 +14,9 @@ import asyncio
 import base64
 import json
 from contextlib import asynccontextmanager
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from typing import ClassVar
 from urllib.parse import parse_qs
 
 import httpx
@@ -23,6 +25,7 @@ import respx
 
 from charter import CredentialError, DeclarationError
 from charter.auth import (
+    GrantToRevoke,
     OAuth2Client,
     OAuth2Server,
     Revocation,
@@ -42,6 +45,23 @@ BEARER = OAuth2Server(
     token_endpoint=TOKEN_URL,
     revocation=Revocation(REVOKE_URL, token_type="access_token", token_header="Authorization"),
 )
+
+
+@dataclass(frozen=True)
+class _Uninstall:
+    """A Revoker, as a pack ships one: here it records what it was handed."""
+
+    seen: list = field(default_factory=list, compare=False)
+    answer: bool = True
+    grant_fields: ClassVar[tuple[str, ...]] = ("account_id",)
+
+    async def revoke(self, grant: GrantToRevoke) -> bool:
+        self.seen.append(grant)
+        return self.answer
+
+
+def _procedure(revoker: _Uninstall) -> OAuth2Server:
+    return OAuth2Server(token_endpoint=TOKEN_URL, revocation=revoker)
 
 
 def _client(server: OAuth2Server = SERVER, **kw) -> OAuth2Client:
@@ -109,6 +129,36 @@ def test_the_token_goes_in_one_place():
 def test_only_an_access_token_can_be_a_request_s_credential():
     with pytest.raises(DeclarationError, match="token_type='access_token'"):
         Revocation(REVOKE_URL, token_header="Authorization")
+
+
+def test_a_hint_names_a_token_in_the_body():
+    with pytest.raises(DeclarationError, match="token_type_hint"):
+        Revocation(REVOKE_URL, token_type_hint="yes")  # type: ignore[arg-type]
+    with pytest.raises(DeclarationError, match="one or the other"):
+        Revocation(
+            REVOKE_URL,
+            token_type="access_token",
+            token_header="Authorization",
+            token_type_hint=True,
+        )
+
+
+def test_a_revoker_is_a_procedure_naming_the_fields_it_needs():
+    assert _procedure(_Uninstall()).revocation == _Uninstall()
+
+    class NoFields:
+        async def revoke(self, grant):
+            return True
+
+    class StringFields:
+        grant_fields = "account_id"
+
+        async def revoke(self, grant):
+            return True
+
+    for wrong in (NoFields(), StringFields()):
+        with pytest.raises(DeclarationError, match="Revoker"):
+            OAuth2Server(token_endpoint=TOKEN_URL, revocation=wrong)
 
 
 def test_a_bare_url_is_not_a_revocation():
@@ -218,6 +268,19 @@ async def test_auth_none_sends_the_token_alone_and_needs_no_client():
 
 
 @respx.mock
+async def test_a_declared_hint_names_the_token_sent():
+    server = OAuth2Server(
+        token_endpoint=TOKEN_URL,
+        revocation=Revocation(REVOKE_URL, auth_method="none", token_type_hint=True),
+    )
+    route = respx.post(REVOKE_URL).mock(return_value=httpx.Response(200))
+    assert await revoke_token(server, refresh_token="rt-1", access_token="at-1")
+    assert _form(route.calls.last.request) == {"token": "rt-1", "token_type_hint": "refresh_token"}
+    assert await revoke_token(server, access_token="at-1")
+    assert _form(route.calls.last.request) == {"token": "at-1", "token_type_hint": "access_token"}
+
+
+@respx.mock
 async def test_a_json_server_is_sent_json_with_basic_auth():
     server = OAuth2Server(
         token_endpoint=TOKEN_URL,
@@ -287,9 +350,10 @@ async def test_the_client_id_is_filled_into_the_endpoint():
 @pytest.mark.parametrize(
     "response",
     [
-        # RFC 7009 §2.2.1, and Google's answer for a token already revoked
+        # RFC 6750's code, which is Google's answer for a refresh token
+        # already revoked, measured on 2026-10-06
         httpx.Response(
-            400, json={"error": "invalid_token", "error_description": "Token expired or revoked"}
+            400, json={"error": "invalid_token", "error_description": "Token is not revocable."}
         ),
         httpx.Response(400, json={"error": "invalid_grant"}),
     ],
@@ -300,6 +364,21 @@ async def test_a_token_already_dead_is_not_a_failure(response):
     assert (
         await revoke_token(SERVER, refresh_token="rt-1", client_id="c", client_secret="s") is False
     )
+
+
+@respx.mock
+async def test_an_access_token_called_dead_says_nothing_about_the_grant():
+    # Google answers a lapsed access token exactly as it answers a revoked
+    # grant, measured on 2026-10-06, while the refresh token it came from still
+    # refreshed. False would tell the host the user was disconnected.
+    respx.post(REVOKE_URL).mock(
+        return_value=httpx.Response(
+            400, json={"error": "invalid_token", "error_description": "Token is not revocable."}
+        )
+    )
+    with pytest.raises(CredentialError, match="Pass refresh_token") as caught:
+        await revoke_token(SERVER, access_token="at-lapsed", client_id="c", client_secret="s")
+    assert not caught.value.reauthorize
 
 
 @respx.mock
@@ -392,7 +471,7 @@ async def test_notion_s_error_shape_is_read():
 
 async def test_a_server_with_no_revocation_says_what_to_do_instead():
     server = OAuth2Server(token_endpoint=TOKEN_URL)
-    with pytest.raises(DeclarationError, match="deleting the stored grant"):
+    with pytest.raises(DeclarationError, match="Deleting the stored grant alone leaves it live"):
         await revoke_token(server, refresh_token="rt", client_id="c", client_secret="s")
 
 
@@ -531,6 +610,310 @@ async def test_an_access_token_server_with_a_dead_grant_has_nothing_to_revoke():
 
 
 @respx.mock
+async def test_an_access_token_server_is_sent_the_token_the_store_holds():
+    # Another worker refreshed, and GitHub and Notion retired this worker's
+    # token when it did. The store holds the one that works.
+    later = datetime.now(timezone.utc) + timedelta(hours=1)
+    stored = TokenGrant(access_token="at-other-worker", refresh_token="rt-2", expires_at=later)
+    token = respx.post(TOKEN_URL)
+    revoke = respx.post(REVOKE_URL).mock(return_value=httpx.Response(200, json={"ok": True}))
+    grant = TokenGrant(access_token="at-retired", refresh_token="rt-1", expires_at=later)
+    client = OAuth2Client.from_grant(
+        BEARER, grant, client_id="cid", client_secret="csec", refresh_token=lambda: stored
+    )
+    assert await client.revoke() is True
+    assert revoke.calls.last.request.headers["Authorization"] == "Bearer at-other-worker"
+    assert token.call_count == 0
+
+
+@respx.mock
+async def test_an_access_token_called_dead_is_renewed_and_sent_again():
+    # Measured on GitHub: a worker whose token another worker's refresh retired
+    # got 404 for it, and raised, with the grant still live.
+    respx.post(TOKEN_URL).mock(
+        return_value=httpx.Response(200, json={"access_token": "at-new", "expires_in": 3600})
+    )
+    revoke = respx.post(REVOKE_URL).mock(
+        side_effect=[httpx.Response(401), httpx.Response(200, json={"ok": True})]
+    )
+    grant = TokenGrant(
+        access_token="at-retired",
+        refresh_token="rt-1",
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+    )
+    client = OAuth2Client.from_grant(BEARER, grant, client_id="cid", client_secret="csec")
+    assert await client.revoke() is True
+    sent = [call.request.headers["Authorization"] for call in revoke.calls]
+    assert sent == ["Bearer at-retired", "Bearer at-new"]
+
+
+@respx.mock
+async def test_a_dead_token_on_a_grant_that_no_longer_renews_is_gone():
+    respx.post(TOKEN_URL).mock(return_value=httpx.Response(400, json={"error": "invalid_grant"}))
+    revoke = respx.post(REVOKE_URL).mock(return_value=httpx.Response(401))
+    grant = TokenGrant(
+        access_token="at-1",
+        refresh_token="rt-1",
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+    )
+    client = OAuth2Client.from_grant(BEARER, grant, client_id="cid", client_secret="csec")
+    assert await client.revoke() is False
+    assert revoke.call_count == 1
+
+
+@respx.mock
+async def test_a_stored_token_called_dead_is_not_read_back_as_the_renewal():
+    later = datetime.now(timezone.utc) + timedelta(hours=1)
+    stored = {"grant": TokenGrant(access_token="at-stale", refresh_token="rt-1", expires_at=later)}
+    respx.post(TOKEN_URL).mock(
+        return_value=httpx.Response(200, json={"access_token": "at-new", "expires_in": 3600})
+    )
+    revoke = respx.post(REVOKE_URL).mock(
+        side_effect=[httpx.Response(401), httpx.Response(200, json={"ok": True})]
+    )
+    client = _client(BEARER, refresh_token=lambda: stored["grant"])
+    assert await client.revoke() is True
+    assert revoke.calls.last.request.headers["Authorization"] == "Bearer at-new"
+
+
+async def test_a_revoker_is_handed_the_field_the_exchange_carried():
+    revoker = _Uninstall()
+    grant = TokenGrant(access_token="at-1", refresh_token="rt-1", raw={"account_id": "acct_1"})
+    client = OAuth2Client.from_grant(
+        _procedure(revoker), grant, client_id="cid", client_secret="csec"
+    )
+    with respx.mock(assert_all_called=False) as mock:
+        assert await client.revoke() is True
+        assert not mock.calls
+    (handed,) = revoker.seen
+    assert handed.fields == {"account_id": "acct_1"}
+    assert (handed.client_id, handed.client_secret, handed.refresh_token) == ("cid", "csec", "rt-1")
+    with pytest.raises(CredentialError) as caught:
+        await client.get_credentials("api")
+    assert caught.value.reauthorize
+
+
+@respx.mock
+async def test_a_client_that_has_seen_no_field_refreshes_to_learn_it():
+    # Stripe's refresh response carries stripe_user_id, measured, as its exchange does.
+    respx.post(TOKEN_URL).mock(
+        return_value=httpx.Response(
+            200, json={"access_token": "at-2", "refresh_token": "rt-2", "account_id": "acct_1"}
+        )
+    )
+    revoker = _Uninstall()
+    stored: list = []
+    client = OAuth2Client(
+        _procedure(revoker),
+        client_id="cid",
+        client_secret="csec",
+        refresh_token=lambda: TokenGrant(
+            access_token="at-1",
+            refresh_token="rt-1",
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        ),
+        on_refresh=lambda credentials, refresh_token: stored.append(refresh_token),
+    )
+    assert await client.revoke() is True
+    assert revoker.seen[0].fields == {"account_id": "acct_1"}
+    assert stored == ["rt-2"]  # the refresh it took was stored, rotation and all
+
+
+async def test_a_loader_can_hand_back_the_field_with_the_grant():
+    revoker = _Uninstall()
+    client = _client(
+        _procedure(revoker),
+        refresh_token=lambda: TokenGrant(
+            access_token="at-1", refresh_token="rt-1", raw={"account_id": "acct_9"}
+        ),
+    )
+    with respx.mock(assert_all_called=False) as mock:
+        assert await client.revoke() is True
+        assert not mock.calls
+    assert revoker.seen[0].fields == {"account_id": "acct_9"}
+
+
+@respx.mock
+async def test_a_grant_dead_at_the_token_endpoint_is_not_handed_to_the_revoker():
+    respx.post(TOKEN_URL).mock(return_value=httpx.Response(400, json={"error": "invalid_grant"}))
+    revoker = _Uninstall()
+    assert await _client(_procedure(revoker)).revoke() is False
+    assert revoker.seen == []
+
+
+@respx.mock
+async def test_a_server_that_never_names_the_field_says_so():
+    respx.post(TOKEN_URL).mock(return_value=httpx.Response(200, json={"access_token": "at-2"}))
+    with pytest.raises(CredentialError, match="account_id"):
+        await _client(_procedure(_Uninstall())).revoke()
+
+
+async def test_a_revoker_s_answer_is_the_client_s():
+    revoker = _Uninstall(answer=False)
+    grant = TokenGrant(access_token="at-1", refresh_token="rt-1", raw={"account_id": "acct_1"})
+    client = OAuth2Client.from_grant(
+        _procedure(revoker), grant, client_id="cid", client_secret="csec"
+    )
+    assert await client.revoke() is False
+
+
+async def test_no_call_is_given_the_token_while_it_is_being_revoked():
+    # A Revoker may wait on the server for seconds (StripeAppUninstall's
+    # wait_seconds); a call made meanwhile must not be handed the old token.
+    started, release = asyncio.Event(), asyncio.Event()
+
+    @dataclass(frozen=True)
+    class Slow:
+        grant_fields: ClassVar[tuple[str, ...]] = ("account_id",)
+
+        async def revoke(self, grant: GrantToRevoke) -> bool:
+            started.set()
+            await release.wait()
+            return True
+
+    grant = TokenGrant(
+        access_token="at-1",
+        refresh_token="rt-1",
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        raw={"account_id": "acct_1"},
+    )
+    client = OAuth2Client.from_grant(
+        OAuth2Server(token_endpoint=TOKEN_URL, revocation=Slow()),
+        grant,
+        client_id="cid",
+        client_secret="csec",
+    )
+    revoking = asyncio.create_task(client.revoke())
+    await started.wait()
+    meanwhile = asyncio.create_task(client.get_credentials("api"))
+    await asyncio.sleep(0.01)
+    assert not meanwhile.done()  # waiting on the revocation, not handed at-1
+    release.set()
+    assert await revoking is True
+    with pytest.raises(CredentialError) as caught:
+        await meanwhile
+    assert caught.value.reauthorize
+
+
+@respx.mock
+async def test_a_reconnected_account_is_learnt_again_not_remembered():
+    # The user connected account A, then, in another process, account B: the
+    # store holds B's grant, and an uninstall must not go to A.
+    respx.post(TOKEN_URL).mock(
+        return_value=httpx.Response(
+            200, json={"access_token": "at-B2", "refresh_token": "rt-B2", "account_id": "acct_B"}
+        )
+    )
+    later = datetime.now(timezone.utc) + timedelta(hours=1)
+    store = {"grant": TokenGrant(access_token="at-A", refresh_token="rt-A", expires_at=later)}
+    revoker = _Uninstall()
+    client = OAuth2Client.from_grant(
+        _procedure(revoker),
+        TokenGrant(
+            access_token="at-A",
+            refresh_token="rt-A",
+            expires_at=later,
+            raw={"account_id": "acct_A"},
+        ),
+        client_id="cid",
+        client_secret="csec",
+        refresh_token=lambda: store["grant"],
+    )
+    store["grant"] = TokenGrant(access_token="at-B", refresh_token="rt-B", expires_at=later)
+    assert await client.revoke() is True
+    assert revoker.seen[0].fields == {"account_id": "acct_B"}
+
+
+@respx.mock
+async def test_learning_the_field_survives_a_refresh_token_spent_elsewhere():
+    later = datetime.now(timezone.utc) + timedelta(hours=1)
+    store = {"refresh_token": "rt-1"}
+
+    def token_endpoint(request):
+        if _form(request)["refresh_token"] == "rt-1":
+            store["refresh_token"] = "rt-2"  # another worker rotated it first
+            return httpx.Response(400, json={"error": "invalid_grant"})
+        return httpx.Response(
+            200, json={"access_token": "at-3", "refresh_token": "rt-3", "account_id": "acct_1"}
+        )
+
+    respx.post(TOKEN_URL).mock(side_effect=token_endpoint)
+    revoker = _Uninstall()
+    client = _client(
+        _procedure(revoker),
+        refresh_token=lambda: TokenGrant(
+            access_token="at-2", refresh_token=store["refresh_token"], expires_at=later
+        ),
+    )
+    assert await client.revoke() is True
+    assert revoker.seen[0].fields == {"account_id": "acct_1"}
+
+
+def test_a_revoker_must_revoke_asynchronously():
+    @dataclass(frozen=True)
+    class Blocking:
+        grant_fields: ClassVar[tuple[str, ...]] = ("account_id",)
+
+        def revoke(self, grant):
+            return True
+
+    with pytest.raises(DeclarationError, match="Revoker"):
+        OAuth2Server(token_endpoint=TOKEN_URL, revocation=Blocking())
+
+
+@respx.mock
+async def test_the_refresh_token_path_stops_using_the_token_before_it_sends():
+    grant = TokenGrant(
+        access_token="at-1",
+        refresh_token="rt-1",
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+    )
+    client = OAuth2Client.from_grant(SERVER, grant, client_id="cid", client_secret="csec")
+    cached_while_sending: list = []
+
+    def endpoint(request):
+        cached_while_sending.append(client._cached)
+        return httpx.Response(200)
+
+    respx.post(REVOKE_URL).mock(side_effect=endpoint)
+    assert await client.revoke() is True
+    assert cached_while_sending == [None]
+
+
+@pytest.mark.parametrize("server", [SERVER, BEARER], ids=["refresh_token", "access_token"])
+@respx.mock
+async def test_a_failed_revocation_does_not_spend_a_refresh(server):
+    later = datetime.now(timezone.utc) + timedelta(hours=1)
+    token = respx.post(TOKEN_URL)
+    respx.post(REVOKE_URL).mock(return_value=httpx.Response(503))
+    client = _client(
+        server,
+        refresh_token=lambda: TokenGrant(
+            access_token="at-1", refresh_token="rt-1", expires_at=later
+        ),
+    )
+    with pytest.raises(CredentialError):
+        await client.revoke()
+    # The stored token is still good, so it is used again rather than renewed:
+    # against a server that rotates, a needless refresh spends a refresh token.
+    assert (await client.get_credentials("api")).token == "at-1"
+    assert token.call_count == 0
+
+
+async def test_revoke_token_hands_a_revoker_the_fields_given():
+    revoker = _Uninstall()
+    server = _procedure(revoker)
+    assert await revoke_token(
+        server, client_id="cid", client_secret="csec", fields={"account_id": "acct_1"}
+    )
+    assert revoker.seen[0].fields == {"account_id": "acct_1"}
+    with pytest.raises(CredentialError, match="account_id"):
+        await revoke_token(server, client_id="cid", client_secret="csec")
+    with pytest.raises(CredentialError, match="client_id and client_secret"):
+        await revoke_token(server, fields={"account_id": "acct_1"})
+
+
+@respx.mock
 async def test_a_loader_is_read_so_the_stored_grant_is_the_one_revoked():
     revoke = respx.post(REVOKE_URL).mock(return_value=httpx.Response(200))
     stored = {"refresh_token": "rt-stored-by-another-process"}
@@ -622,6 +1005,19 @@ async def test_a_client_credentials_client_revokes_its_token_and_can_mint_anothe
     assert (await client.get_credentials("api")).token == "at-2"
 
 
+@respx.mock
+async def test_a_client_credentials_token_called_dead_is_nothing_left_to_revoke():
+    # Its token is the whole grant, so the answer an access token gets from
+    # revoke_token does not apply.
+    respx.post(TOKEN_URL).mock(
+        return_value=httpx.Response(200, json={"access_token": "at-1", "expires_in": 3600})
+    )
+    respx.post(REVOKE_URL).mock(return_value=httpx.Response(400, json={"error": "invalid_token"}))
+    client = OAuth2Client(SERVER, client_id="cid", client_secret="csec", grant="client_credentials")
+    await client.get_credentials("api")
+    assert await client.revoke() is False
+
+
 async def test_a_client_credentials_client_with_no_token_has_nothing_to_revoke():
     client = OAuth2Client(SERVER, client_id="cid", client_secret="csec", grant="client_credentials")
     with respx.mock(assert_all_called=False) as mock:
@@ -669,3 +1065,139 @@ async def test_a_provider_without_revoke_says_how_to_revoke_instead():
 async def test_a_subject_must_be_named():
     with pytest.raises(CredentialError):
         await SubjectProvider(lambda subject: _client()).revoke("")
+
+
+# -----------------------------------------------------
+# GrantToRevoke.send — a Revoker's requests, authenticated and read as Charter's are
+# -----------------------------------------------------
+
+STEP_URL = "https://api.example.com/v1/installs"
+
+
+def _handed(server: OAuth2Server, http: httpx.AsyncClient, **kw) -> GrantToRevoke:
+    base = dict(
+        server=server,
+        client_id="cid",
+        client_secret="csec-secret",
+        refresh_token="rt-secret-1",
+        access_token="at-secret-1",
+        fields={},
+        http=http,
+    )
+    base.update(kw)
+    return GrantToRevoke(**base)
+
+
+@pytest.mark.parametrize(
+    ("declared", "override", "expected"),
+    [
+        ("client_secret_basic", None, "cid:csec-secret"),
+        ("client_secret_post", "secret_key_basic", "csec-secret:"),
+        ("secret_key_basic", None, "csec-secret:"),
+    ],
+)
+@respx.mock
+async def test_send_authenticates_in_a_header_as_declared(declared, override, expected):
+    route = respx.get(STEP_URL).mock(return_value=httpx.Response(200, json={}))
+    server = OAuth2Server(token_endpoint=TOKEN_URL, token_endpoint_auth_method=declared)
+    async with httpx.AsyncClient() as http:
+        await _handed(server, http).send("GET", STEP_URL, doing="Looking", auth_method=override)
+    assert _basic(route.calls.last.request) == expected
+
+
+@respx.mock
+async def test_send_puts_post_credentials_in_the_body_it_sends():
+    form = respx.post(STEP_URL).mock(return_value=httpx.Response(200, json={}))
+    async with httpx.AsyncClient() as http:
+        grant = _handed(SERVER, http)  # client_secret_post, the default
+        await grant.send("POST", STEP_URL, doing="Ending", data={"account": "acct_1"})
+        assert _form(form.calls.last.request) == {
+            "account": "acct_1",
+            "client_id": "cid",
+            "client_secret": "csec-secret",
+        }
+        await grant.send("POST", STEP_URL, doing="Ending", json={"account": "acct_1"})
+        assert json.loads(form.calls.last.request.content)["client_secret"] == "csec-secret"
+        with pytest.raises(DeclarationError, match="GET"):
+            await grant.send("GET", STEP_URL, doing="Looking")
+
+
+@respx.mock
+async def test_send_with_auth_none_sends_no_client_credentials():
+    route = respx.post(STEP_URL).mock(return_value=httpx.Response(200, json={}))
+    async with httpx.AsyncClient() as http:
+        await _handed(SERVER, http).send("POST", STEP_URL, doing="Ending", auth_method="none")
+    request = route.calls.last.request
+    assert "Authorization" not in request.headers
+    assert not request.content
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        (
+            {"error": "invalid_client", "error_description": "Bad secret"},
+            "invalid_client — Bad secret",
+        ),
+        (
+            {"error": {"code": "resource_missing", "message": "No such app"}},
+            "resource_missing — No such app",
+        ),
+        ({"error": {"message": "The account filter must be..."}}, "HTTP 400 — The account filter"),
+        ({"message": "Not Found"}, "HTTP 400 — Not Found"),
+        (
+            {"code": "unauthorized", "message": "API token is invalid."},
+            "unauthorized — API token is",
+        ),
+    ],
+    ids=["rfc6749", "stripe", "stripe-no-code", "github", "notion"],
+)
+@respx.mock
+async def test_send_reads_a_refusal_in_any_shape(body, expected):
+    respx.get(STEP_URL).mock(return_value=httpx.Response(400, json=body))
+    async with httpx.AsyncClient() as http:
+        with pytest.raises(CredentialError) as caught:
+            await _handed(SERVER, http).send(
+                "GET", STEP_URL, doing="Looking up", auth_method="none", provider="acme"
+            )
+    assert f"Looking up failed: {expected}" in str(caught.value)
+    assert caught.value.status_code == 400
+    assert caught.value.provider == "acme"
+    assert not caught.value.reauthorize
+
+
+@respx.mock
+async def test_send_redacts_every_credential_the_grant_holds():
+    respx.get(STEP_URL).mock(
+        return_value=httpx.Response(
+            401, json={"error": {"message": "Bad key csec-secret for rt-secret-1 / at-secret-1"}}
+        )
+    )
+    async with httpx.AsyncClient() as http:
+        with pytest.raises(CredentialError) as caught:
+            await _handed(SERVER, http).send(
+                "GET", STEP_URL, doing="Looking", auth_method="secret_key_basic"
+            )
+    text = str(caught.value)
+    assert "csec-secret" not in text and "rt-secret-1" not in text and "at-secret-1" not in text
+
+
+@respx.mock
+async def test_send_hands_back_a_status_the_caller_allows():
+    respx.get(STEP_URL).mock(return_value=httpx.Response(404, json={"error": {"message": "gone"}}))
+    async with httpx.AsyncClient() as http:
+        resp = await _handed(SERVER, http).send(
+            "GET", STEP_URL, doing="Checking", auth_method="none", allow=(404,)
+        )
+    assert resp.status_code == 404
+
+
+@respx.mock
+async def test_a_revocation_refused_in_stripe_s_shape_says_why():
+    respx.post(REVOKE_URL).mock(
+        return_value=httpx.Response(
+            400, json={"error": {"code": "parameter_missing", "message": "Missing token"}}
+        )
+    )
+    with pytest.raises(CredentialError, match="parameter_missing — Missing token"):
+        await revoke_token(SERVER, refresh_token="rt-1", client_id="c", client_secret="s")

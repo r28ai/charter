@@ -29,7 +29,7 @@ class OAuth2Server:
     default_expires_in: Optional[int] = None
     exchange_params: Mapping[str, str] = field(default_factory=dict)
     dead_grant_errors: tuple[str, ...] = ()
-    revocation: Optional[Revocation] = None
+    revocation: Optional[Union[Revocation, Revoker]] = None
 ```
 
 <ParamField path="token_endpoint" type="str" required>
@@ -112,12 +112,14 @@ class OAuth2Server:
   non-string code, raises `DeclarationError`.
 </ParamField>
 
-<ParamField path="revocation" type="Optional[Revocation]" default="None">
+<ParamField path="revocation" type="Optional[Union[Revocation, Revoker]]" default="None">
   How the server ends a grant, for a "disconnect" button: a
-  [`Revocation`](#revocation), which is RFC 7009 unless it says otherwise.
+  [`Revocation`](#revocation), which is RFC 7009 unless it says otherwise, or
+  a [`Revoker`](#revoker), for a server whose disconnect is more than one
+  request carrying a token (Stripe Apps).
   [`OAuth2Client.revoke`](#attributes-and-methods) and
   [`revoke_token`](#revoke_token) send it. `None` means the server documents
-  no way to; Stripe Apps is the case. Anything but a `Revocation`, a bare URL
+  no way to end a grant. Anything else, a bare URL
   included, raises `DeclarationError`, and so does a revocation sending its
   token in the `Authorization` header to a server whose client authentication
   uses that header too.
@@ -170,6 +172,7 @@ class Revocation:
     request_format: Optional[Literal["form", "json"]] = None
     gone_errors: tuple[str, ...] = ()
     gone_statuses: tuple[int, ...] = ()
+    token_type_hint: bool = False
 ```
 
 How a server ends a grant, declared on [`OAuth2Server`](#oauth2server) as
@@ -189,8 +192,8 @@ endpoint's are. Each provider page carries its declaration.
   Which token the endpoint takes. `"access_token"` is for an endpoint that ends
   the whole grant given any live access token: GitHub's
   `DELETE /applications/{client_id}/grant`, Slack's `apps.uninstall`,
-  Shopify's `api_permissions/current.json`. A client sends its cached token,
-  refreshing first if it has lapsed.
+  Shopify's `api_permissions/current.json`. A client sends the freshest token
+  it can get, renewing first if it has lapsed.
 </ParamField>
 
 <ParamField path="auth_method" type="Optional[RevocationAuthMethod]" default="None">
@@ -224,22 +227,34 @@ endpoint's are. Each provider page carries its declaration.
 </ParamField>
 
 <ParamField path="gone_errors" type="tuple[str, ...]" default="()">
-  Error codes with which the server says the token was already dead. RFC
-  7009's `invalid_token`, `invalid_grant` and the server's
-  `dead_grant_errors` always count. Slack declares `invalid_auth`,
+  Error codes with which the server says the token was already dead.
+  `invalid_token` (RFC 6750's code, and Google's answer), `invalid_grant` and
+  the server's `dead_grant_errors` always count. Slack declares `invalid_auth`,
   `account_inactive` and `token_expired`. A bare string raises
   `DeclarationError`.
 </ParamField>
 
 <ParamField path="gone_statuses" type="tuple[int, ...]" default="()">
   Statuses that say the same, for a server that answers without an OAuth error
-  code: GitHub's `422`, Linear's `400`. A `401` always counts when the token is
-  the request's own credential. Anything but 4xx codes raises
-  `DeclarationError`.
+  code: GitHub's `404` and `422`, Linear's `400` and `401`. A `401` always
+  counts when the token is the request's own credential. Anything but 4xx
+  codes raises `DeclarationError`.
+</ParamField>
+
+<ParamField path="token_type_hint" type="bool" default="False">
+  Send RFC 7009's optional `token_type_hint`, `refresh_token` or
+  `access_token` for whichever token is sent. Linear's docs suggest it "to
+  help the server identify the token"; measured, Linear only finds a refresh
+  token when told, and answers a live one `401 Token not found` otherwise, so
+  its declaration sets this. Combined with `token_header`, raises `DeclarationError`.
 </ParamField>
 
 A token already dead is not a failure: for a disconnect it is the outcome
-asked for, so it returns `False` rather than raising. Any other refusal raises
+asked for, so it returns `False` rather than raising. That needs a server that
+says so, which RFC 7009 does not ask of one: its §2.2 has the server answer
+`200` for a token it does not know. Google, Linear, GitHub and Slack answer
+with an error instead; Notion follows the RFC, so there `revoke()` returns
+`True` either way. Any other refusal raises
 `CredentialError`, with the error code and description and the token and
 client secret redacted from both.
 
@@ -253,6 +268,7 @@ async def revoke_token(
     access_token: Optional[str] = None,
     client_id: Optional[str] = None,
     client_secret: Optional[str] = None,
+    fields: Optional[Mapping[str, str]] = None,
     timeout: int = 20,
     client: Optional[httpx.AsyncClient] = None,
 ) -> bool: ...
@@ -268,11 +284,111 @@ Pass what you have. A server that revokes by refresh token is sent
 `access_token` otherwise. One declared with `token_type="access_token"` needs
 a live `access_token`, and raises `CredentialError` without one.
 `client_id` and `client_secret` are needed wherever the client authenticates,
-or `{client_id}` is in the endpoint.
+or `{client_id}` is in the endpoint. A server whose revocation is a
+[`Revoker`](#revoker) is handed `fields`, the token-response fields it names
+(Stripe's `stripe_user_id`), and raises `CredentialError` without them.
 
 Returns `True` when the server confirmed the revocation, and `False` when it
 said the token was already dead. Raises `DeclarationError` when the server
 declares no `revocation`, and `CredentialError` for any other refusal.
+
+An access token sent to a server that revokes by refresh token is the
+exception. If the server calls it dead, that says nothing about the grant: an
+access token lapses while its refresh token stays live, and Google answers a
+lapsed one exactly as it answers a revoked grant. That raises
+`CredentialError` asking for the `refresh_token`, rather than returning a
+`False` that would read as disconnected.
+
+A server that takes an access token can only answer for the one it was sent.
+For a token that expires (a GitHub App's, or Slack's with rotation on), a
+`False` may mean only that this token lapsed or was retired by a refresh, and
+the grant is still live; revoke those through
+[`OAuth2Client.revoke`](#attributes-and-methods), which renews the token first.
+Notion answers `200` to any token at all, so there `True` says nothing either.
+
+## `Revoker`
+
+```python
+@runtime_checkable
+class Revoker(Protocol):
+    @property
+    def grant_fields(self) -> tuple[str, ...]: ...
+    async def revoke(self, grant: GrantToRevoke) -> bool: ...
+```
+
+A server's own way of ending a grant, declared as `revocation` where one
+request carrying a token is not it. Stripe Apps is the case: a grant is an
+install of the app, and ending it is two requests, finding the account's
+install and uninstalling it, neither carrying a token. A `Revoker` is such a
+procedure, kept in the provider's pack, and
+[`OAuth2Client.revoke`](#attributes-and-methods),
+[`SubjectProvider.revoke`](/reference/credentials#subjectprovider) and
+[`revoke_token`](#revoke_token) run it where they would send a
+[`Revocation`](#revocation), so disconnecting is the same call for every
+server. Charter ships one,
+[`charter.packs.stripe.StripeAppUninstall`](/auth/your-users#disconnecting-a-user).
+
+`grant_fields` names the token-response fields it needs. A client keeps them
+from the exchange (`TokenGrant.raw`), from a `TokenGrant` its loader returns,
+or from any refresh, and refreshes once before revoking if it has seen none.
+A grant the token endpoint calls dead is `False` without the `Revoker` being
+asked. `revoke` returns `True` when the server confirmed the grant ended and
+`False` when it was already gone, and raises
+[`CredentialError`](/reference/errors#credentialerror) for any other refusal.
+Its requests go through [`GrantToRevoke.send`](#granttorevokesend), which
+authenticates them and reads a refusal as the rest of Charter does. Make it a
+frozen dataclass, so two declarations of one server compare equal.
+
+## `GrantToRevoke`
+
+```python
+@dataclass(frozen=True)
+class GrantToRevoke:
+    server: OAuth2Server
+    client_id: str
+    client_secret: str
+    refresh_token: Optional[str]
+    access_token: Optional[str]
+    fields: Mapping[str, str]
+    http: httpx.AsyncClient
+```
+
+What a [`Revoker`](#revoker) is handed: the grant, the client it was issued
+to, and the token-response fields its `grant_fields` names. `http` is the
+client Charter owns and closes; `send` is how a `Revoker` uses it.
+
+### `GrantToRevoke.send`
+
+```python
+async def send(
+    self,
+    method: str,
+    url: str,
+    *,
+    doing: str,
+    auth_method: Optional[RevocationAuthMethod] = None,
+    allow: Collection[int] = (),
+    provider: Optional[str] = None,
+    headers: Optional[Mapping[str, str]] = None,
+    params: Optional[Mapping[str, str]] = None,
+    data: Optional[Mapping[str, str]] = None,
+    json: Optional[Mapping[str, Any]] = None,
+) -> httpx.Response: ...
+```
+
+One request as the app, so a `Revoker` writes its steps and nothing else. The
+client authenticates as `auth_method` says, inheriting the server's
+`token_endpoint_auth_method` when `None`, as a [`Revocation`](#revocation)
+does; `"none"` sends no client credentials. `client_secret_post` puts them in
+the body, `data` or `json`, and raises `DeclarationError` on a `GET`, which
+has none.
+
+A response at `300` or above raises
+[`CredentialError`](/reference/errors#credentialerror), unless its status is
+in `allow`: `doing` says what failed, followed by the server's code and
+explanation, read from whichever error shape it uses (RFC 6749's, Stripe's,
+GitHub's, Notion's), with every credential the grant holds redacted.
+`provider` names it on the error.
 
 ## `OAuth2Client`
 
@@ -430,7 +546,12 @@ stream of requests against an endpoint that rate-limits per client. The error's
   first if the cached one lapsed. With a [`GrantLoader`](#grantloader) the
   store is read first, under `refresh_lock`, so the grant revoked is the one
   stored and not one another process has rotated away from. A refresh in
-  flight in this process finishes first, for the same reason.
+  flight in this process finishes first, for the same reason. A
+  [`Revoker`](#revoker) is handed the grant with the token-response fields it
+  names, refreshing first if none has carried them. An access
+  token the server calls dead is renewed and sent once more, since GitHub
+  and Notion retire a worker's token when another worker refreshes, and
+  that says nothing about the grant.
 
   `True` when the server confirmed it, `False` when the grant was already
   gone. Either way the client then refuses to refresh: `get_credentials`

@@ -44,6 +44,7 @@ from charter.auth.oauth import (
     AuthorizationRequest,
     Grant,
     GrantLoader,
+    GrantToRevoke,
     OAuth2Client,
     OAuth2Flow,
     OAuth2Server,
@@ -51,6 +52,7 @@ from charter.auth.oauth import (
     RefreshLock,
     Revocation,
     RevocationAuthMethod,
+    Revoker,
     TokenEndpointAuthMethod,
     TokenGrant,
     revoke_token,
@@ -84,6 +86,8 @@ __all__ = [
     "scopes_for",
     # ending the grant — the disconnect button
     "Revocation",
+    "Revoker",
+    "GrantToRevoke",
     "revoke_token",
     # the types those signatures are declared in — a host writing its own
     # wrapper has to name them

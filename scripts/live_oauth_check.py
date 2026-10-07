@@ -6,11 +6,12 @@ suite is offline by rule. What the tests prove is that Charter is
 self-consistent; what this proves is that the provider agrees, and that the
 provider does what its documentation says.
 
-Three steps, each its own command::
+Four steps, each its own command::
 
     uv run python scripts/live_oauth_check.py connect --provider linear
     uv run python scripts/live_oauth_check.py check   --provider linear
     uv run python scripts/live_oauth_check.py expiry  --provider linear   # waits out the token
+    uv run python scripts/live_oauth_check.py revoke  --provider linear   # ends the grant
 
 ``connect`` builds Charter's consent link and exchanges the code. The client ID
 and secret come from ``<PROVIDER>_CLIENT_ID`` and ``<PROVIDER>_CLIENT_SECRET``.
@@ -33,8 +34,14 @@ when it comes back. A row that disagrees with the docs is a failure.
 ``expiry`` holds one access token until it lapses and confirms the client
 renewed it first. For a provider that documents no lifetime it measures one.
 
-Nothing writes to the account, and nothing prints a token: shapes, prefixes,
-counts. Grants are kept in ``$CHARTER_LIVE_DIR`` (default ``~/.charter/live``),
+``revoke`` disconnects the stored grant as a "Disconnect" button would, with
+``OAuth2Client.revoke()`` and the page's declaration, then confirms the
+provider let go: the access token refused, the refresh token dead, a second
+revocation reported as already gone. It is the one command that changes the
+account, and the grant has to be connected again after it.
+
+Nothing else writes to the account, and nothing prints a token: shapes,
+prefixes, counts. Grants are kept in ``$CHARTER_LIVE_DIR`` (default ``~/.charter/live``),
 readable by you alone.
 """
 
@@ -63,10 +70,12 @@ from charter.auth import (
     Revocation,
     StaticTokenProvider,
     TokenGrant,
+    revoke_token,
     scopes_for,
     states_match,
 )
 from charter.auth.credentials import CredentialProvider, Credentials
+from charter.packs.stripe import StripeAppUninstall
 from charter.types.errors import CharterError, CredentialError
 
 # -----------------------------------------------------
@@ -110,7 +119,7 @@ GITHUB = OAuth2Server(
         token_field="access_token",
         http_method="DELETE",
         request_format="json",
-        gone_statuses=(422,),
+        gone_statuses=(404, 422),
     ),
 )
 
@@ -122,7 +131,10 @@ LINEAR = OAuth2Server(
     scope_separator=",",
     dead_grant_errors=("invalid_request",),
     revocation=Revocation(
-        "https://api.linear.app/oauth/revoke", auth_method="none", gone_statuses=(400,)
+        "https://api.linear.app/oauth/revoke",
+        auth_method="none",
+        token_type_hint=True,
+        gone_statuses=(400, 401),
     ),
 )
 
@@ -144,6 +156,7 @@ STRIPE_APPS = OAuth2Server(
     token_endpoint_auth_method="secret_key_basic",
     uses_scopes=False,
     default_expires_in=3600,
+    revocation=StripeAppUninstall(app="app_..."),  # your app's ID, from its Dashboard page
 )
 
 
@@ -183,6 +196,7 @@ class Provider:
     rotates: Optional[bool] = None
     retires_previous_access: Optional[bool] = None
     spent_refresh_token: Optional[str] = None  # "refused" | "accepted"
+    reports_already_gone: bool = True  # revoking a dead token answers "gone"
 
 
 def _scopes(pack: str, *tools: str) -> tuple[str, ...]:
@@ -250,6 +264,7 @@ PROVIDERS = {
         rotates=True,
         retires_previous_access=True,  # about 3 seconds after the refresh
         spent_refresh_token="refused",
+        reports_already_gone=False,  # measured: 200 for any token, even one never issued
     ),
     "shopify": Provider(
         "shopify",
@@ -338,9 +353,15 @@ def secret(provider: Provider) -> str:
 
 
 def server_for(provider: Provider) -> OAuth2Server:
-    if provider.server is not None:
-        return provider.server
-    return shopify_server(read_grant(provider)["shop"])
+    if provider.server is None:
+        return shopify_server(read_grant(provider)["shop"])
+    # The page names the app "app_..."; a run uninstalls this one, $STRIPE_APP_ID.
+    if isinstance(provider.server.revocation, StripeAppUninstall) and os.environ.get(
+        "STRIPE_APP_ID"
+    ):
+        app = StripeAppUninstall(app=os.environ["STRIPE_APP_ID"])
+        return dataclasses.replace(provider.server, revocation=app)
+    return provider.server
 
 
 # -----------------------------------------------------
@@ -660,11 +681,90 @@ async def expiry(provider: Provider, max_wait_minutes: int) -> None:
 
 
 # -----------------------------------------------------
+# revoke
+# -----------------------------------------------------
+
+
+async def revoke(provider: Provider) -> None:
+    server = server_for(provider)
+    if server.revocation is None:
+        sys.exit(f"{provider.name} declares no revocation; deleting the grant is all there is.")
+    client = worker(provider)
+    reason = await read_with(provider, client)
+    if reason:
+        sys.exit(f"The grant doesn't read: {reason}")
+    assert client._cached is not None
+
+    # Production's case, not the easy one: the worker that handles the
+    # disconnect is rarely the one that refreshed last, and GitHub and Notion
+    # retire its cached token when another one refreshes.
+    print("Another worker refreshes first:")
+    report(
+        await read_with(provider, refreshing_worker(provider)) is None,
+        "worker B refreshes and reads",
+    )
+    live, spent = read_grant(provider)["access_token"], read_grant(provider)["refresh_token"]
+    report(None, "worker A still holds its own token", str(client._cached.token != live))
+
+    print("Worker A disconnects the user, as the page's declaration says:")
+    report(await client.revoke() is True, "the provider confirmed the revocation")
+    # The store's tokens after the revocation, not before: a client may refresh
+    # first (Stripe's, to learn the account), and that alone retires the older
+    # ones, so they would be refused whether the revocation worked or not.
+    newest = read_grant(provider)
+    # Polled, as retirement is in check: a provider may take a moment.
+    started, refused_after = time.monotonic(), None
+    while time.monotonic() - started < 30:
+        if await read_with(provider, StaticTokenProvider(newest["access_token"])) is not None:
+            refused_after = time.monotonic() - started
+            break
+        await asyncio.sleep(2)
+    report(
+        refused_after is not None,
+        "the grant's newest access token is refused",
+        f"after about {refused_after:.0f} seconds" if refused_after is not None else "",
+    )
+    try:
+        await worker(provider, newest["refresh_token"]).get_credentials(provider.name)
+        report(False, "the grant's refresh token is dead", "it refreshed")
+    except CredentialError as exc:
+        report(exc.reauthorize, "the grant's refresh token is dead", str(exc)[:100])
+    try:
+        await client.get_credentials(provider.name)
+        report(False, "the revoked client refuses to refresh", "it returned a token")
+    except CredentialError as exc:
+        report(exc.reauthorize, "the revoked client refuses to refresh")
+
+    print("A user who disconnects twice:")
+    by_refresh = (
+        not isinstance(server.revocation, Revocation)
+        or server.revocation.token_type == "refresh_token"
+    )
+    again: Any
+    try:
+        again = await revoke_token(
+            server,
+            refresh_token=spent if by_refresh else None,
+            access_token=None if by_refresh else live,
+            client_id=read_grant(provider)["client_id"],
+            client_secret=secret(provider),
+            fields=client._grant_fields,
+        )
+    except CredentialError as exc:
+        again = f"raises: {str(exc)[:110]}"
+    if provider.reports_already_gone:
+        report(again is False, "revoking again reports the grant already gone", str(again))
+    else:
+        report(None, "revoking again", f"{again}; this provider cannot tell")
+    print(f"The grant at {grant_path(provider)} is revoked; `connect` makes a new one.")
+
+
+# -----------------------------------------------------
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("command", choices=("connect", "check", "expiry"))
+    parser.add_argument("command", choices=("connect", "check", "expiry", "revoke"))
     parser.add_argument("--provider", required=True, choices=sorted(PROVIDERS))
     parser.add_argument(
         "--link", help="an install link the provider gave you (Stripe's External test link)"
@@ -693,6 +793,8 @@ def main() -> None:
         )
     elif args.command == "check":
         asyncio.run(check(provider))
+    elif args.command == "revoke":
+        asyncio.run(revoke(provider))
     else:
         asyncio.run(expiry(provider, args.max_wait_minutes))
 

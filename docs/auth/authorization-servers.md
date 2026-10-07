@@ -267,7 +267,10 @@ from the server's `revocation_endpoint`, so most enterprise IdPs need nothing
 written. The vendors depart from the RFC in small ways, each a field on
 `Revocation`: GitHub, Slack and Shopify end a grant given a live access token
 rather than the refresh token, GitHub and Shopify with a `DELETE`. The
-declarations on the provider pages already carry them.
+declarations on the provider pages already carry them. One server departs
+further: Stripe Apps ends a grant by uninstalling the app, two requests and
+no token, so its declaration is a [`Revoker`](/reference/oauth#revoker), a
+procedure kept in the Stripe pack, and the call is still `revoke()`.
 
 Serving many users, [`SubjectProvider.revoke(user_id)`](/reference/credentials#subjectprovider)
 builds that user's client from your store, revokes, and forgets it, in one
@@ -292,7 +295,10 @@ account settings first, or a grant that expired, comes back as the server's
 "invalid token". `revoke()` returns `False` rather than raising, since the
 user is disconnected either way. Any other refusal, such as a wrong client
 secret, raises [`CredentialError`](/reference/errors#credentialerror) and
-leaves the client as it was, so the call can be retried.
+leaves the client as it was, so the call can be retried. RFC 7009 itself has
+a server answer `200` for a token it does not know, and a server that follows
+it, Notion among them, never says "already gone": there `revoke()` returns
+`True` either way.
 
 **A revoked client does not refresh.** Afterwards `get_credentials` raises a
 `CredentialError` whose `reauthorize` is true, without asking the token
@@ -311,10 +317,10 @@ from.
 | Google | the refresh token, alone | [Google](/auth/providers/google#disconnecting) |
 | Slack | `apps.uninstall`, with the bot token | [Slack](/auth/providers/slack#disconnecting) |
 | GitHub | `DELETE /applications/{client_id}/grant`, with an access token | [GitHub](/auth/providers/github#disconnecting) |
-| Linear | the refresh token, alone | [Your users](/auth/your-users#disconnecting-a-user) |
+| Linear | the refresh token, with `token_type_hint` | [Your users](/auth/your-users#disconnecting-a-user) |
 | Notion | the access token, as JSON with Basic auth | [Your users](/auth/your-users#disconnecting-a-user) |
 | Shopify | `DELETE api_permissions/current.json`, which uninstalls the app | [Your users](/auth/your-users#disconnecting-a-user) |
-| Stripe Apps | nothing: Stripe documents no revocation for an app's grant | [Your users](/auth/your-users#disconnecting-a-user) |
+| Stripe Apps | an uninstall through the App Installs API, `StripeAppUninstall` | [Your users](/auth/your-users#disconnecting-a-user) |
 
 ## What Charter does not do
 

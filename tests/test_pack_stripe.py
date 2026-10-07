@@ -2345,3 +2345,165 @@ def test_without_expand_the_trim_is_what_it_was():
         "livemode": False,
     }
     assert asyncio.run(trim_prices(raw)) == {"id": "price_1", "currency": "usd", "unit_amount": 5}
+
+
+# -----------------------------------------------------
+# StripeAppUninstall — disconnecting a Stripe App's user
+# -----------------------------------------------------
+
+
+def test_an_uninstall_names_the_app_by_its_api_id():
+    from charter.packs.stripe import StripeAppUninstall
+    from charter.types.errors import DeclarationError
+
+    with pytest.raises(DeclarationError, match="app_"):
+        StripeAppUninstall(app="com.example.my-app")  # the manifest's ID, which Stripe refuses
+
+
+@respx.mock
+async def test_only_a_live_install_of_that_account_is_uninstalled():
+    import httpx
+
+    from charter.auth import GrantToRevoke, OAuth2Server
+    from charter.packs.stripe import StripeAppUninstall
+
+    respx.get("https://api.stripe.com/v1/apps/installs").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "data": [
+                    {"id": "appinst_gone", "account": "acct_1", "status": "uninstalling"},
+                    {"id": "appinst_other", "account": "acct_2", "status": "installed"},
+                ]
+            },
+        )
+    )
+    uninstall = respx.post(url__regex=r".*/uninstall$")
+    revoker = StripeAppUninstall(app="app_1")
+    async with httpx.AsyncClient() as http:
+        grant = GrantToRevoke(
+            server=OAuth2Server(token_endpoint="https://api.stripe.com/v1/oauth/token"),
+            client_id="ca_1",
+            client_secret="sk_test_key",
+            refresh_token=None,
+            access_token=None,
+            fields={"stripe_user_id": "acct_1"},
+            http=http,
+        )
+        assert await revoker.revoke(grant) is False  # already on its way out
+    assert uninstall.call_count == 0
+
+
+def _uninstall_grant(http):
+    from charter.auth import GrantToRevoke, OAuth2Server
+
+    return GrantToRevoke(
+        server=OAuth2Server(token_endpoint="https://api.stripe.com/v1/oauth/token"),
+        client_id="ca_1",
+        client_secret="sk_test_key",
+        refresh_token=None,
+        access_token=None,
+        fields={"stripe_user_id": "acct_1"},
+        http=http,
+    )
+
+
+def _one_live_install():
+    import httpx
+
+    respx.get("https://api.stripe.com/v1/apps/installs").mock(
+        return_value=httpx.Response(
+            200, json={"data": [{"id": "appinst_1", "account": "acct_1", "status": "installed"}]}
+        )
+    )
+    respx.post("https://api.stripe.com/v1/apps/installs/appinst_1/uninstall").mock(
+        return_value=httpx.Response(200, json={"id": "appinst_1", "status": "uninstalling"})
+    )
+
+
+@respx.mock
+async def test_by_default_an_uninstall_returns_once_stripe_accepts_it():
+    import httpx
+
+    from charter.packs.stripe import StripeAppUninstall
+
+    _one_live_install()
+    check = respx.get("https://api.stripe.com/v1/apps/installs/appinst_1")
+    async with httpx.AsyncClient() as http:
+        assert await StripeAppUninstall(app="app_1").revoke(_uninstall_grant(http)) is True
+    assert check.call_count == 0
+
+
+@respx.mock
+async def test_an_opted_in_wait_lasts_until_the_install_is_gone(monkeypatch):
+    import httpx
+
+    from charter.packs.stripe import StripeAppUninstall, _apps
+
+    naps: list = []
+
+    async def nap(seconds):
+        naps.append(seconds)
+
+    monkeypatch.setattr(_apps.asyncio, "sleep", nap)
+    _one_live_install()
+    # Measured: "uninstalling" for a few seconds, then 404.
+    check = respx.get("https://api.stripe.com/v1/apps/installs/appinst_1").mock(
+        side_effect=[
+            httpx.Response(200, json={"id": "appinst_1", "status": "uninstalling"}),
+            httpx.Response(200, json={"id": "appinst_1", "status": "uninstalling"}),
+            httpx.Response(404, json={"error": {"message": "An app install was not found"}}),
+        ]
+    )
+    async with httpx.AsyncClient() as http:
+        revoker = StripeAppUninstall(app="app_1", wait_seconds=30)
+        assert await revoker.revoke(_uninstall_grant(http)) is True
+    assert check.call_count == 3
+    assert len(naps) == 2
+
+
+@respx.mock
+async def test_a_wait_that_runs_out_logs_and_still_reports_the_uninstall(monkeypatch, caplog):
+    import httpx
+
+    from charter.packs.stripe import StripeAppUninstall, _apps
+
+    clock = iter(range(0, 1000, 10))
+    monkeypatch.setattr(_apps, "monotonic", lambda: next(clock))
+
+    async def nap(seconds):
+        return None
+
+    monkeypatch.setattr(_apps.asyncio, "sleep", nap)
+    _one_live_install()
+    respx.get("https://api.stripe.com/v1/apps/installs/appinst_1").mock(
+        return_value=httpx.Response(200, json={"id": "appinst_1", "status": "uninstalling"})
+    )
+    async with httpx.AsyncClient() as http:
+        revoker = StripeAppUninstall(app="app_1", wait_seconds=30)
+        with caplog.at_level("WARNING", logger="charter"):
+            assert await revoker.revoke(_uninstall_grant(http)) is True
+    assert "had not finished" in caplog.text
+
+
+def test_a_wait_is_seconds():
+    from charter.packs.stripe import StripeAppUninstall
+    from charter.types.errors import DeclarationError
+
+    for wrong in (-1, True, "30"):
+        with pytest.raises(DeclarationError, match="wait_seconds"):
+            StripeAppUninstall(app="app_1", wait_seconds=wrong)
+
+
+@respx.mock
+async def test_a_lookup_stripe_answers_without_json_raises_rather_than_reads_as_gone():
+    import httpx
+
+    from charter.packs.stripe import StripeAppUninstall
+
+    respx.get("https://api.stripe.com/v1/apps/installs").mock(
+        return_value=httpx.Response(200, text="<html>maintenance</html>")
+    )
+    async with httpx.AsyncClient() as http:
+        with pytest.raises(CredentialError, match="without a JSON object"):
+            await StripeAppUninstall(app="app_1").revoke(_uninstall_grant(http))

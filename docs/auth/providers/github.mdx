@@ -27,7 +27,7 @@ GITHUB = OAuth2Server(
         token_field="access_token",
         http_method="DELETE",
         request_format="json",
-        gone_statuses=(422,),
+        gone_statuses=(404, 422),
     ),
 )
 ```
@@ -223,10 +223,21 @@ async def disconnect():
     )
 ```
 
-GitHub answers `204` when it deleted the authorization and `422` when the token
-was not valid, which `revoke_token` returns as `False`: the authorization is
-already gone. A personal access token is not an authorization of your app, so
-there is nothing for the app to revoke; its owner deletes it in their settings.
+GitHub answers `204` when it deleted the authorization. Its reference lists
+one other status, `422`, "Validation failed, or the endpoint has been
+spammed", and says nothing of a token it does not know. Measured against a
+live GitHub App, that token (revoked, retired by a refresh, or never issued)
+gets `404`. The declaration counts both as gone, and `revoke_token` returns
+`False`. A wrong
+client secret gets `401`, which still raises.
+
+That `False` is only about the token sent. A GitHub App's user token expires
+after eight hours, and every refresh retires the one before it, while the
+grant lives on, so revoke an expiring token through `OAuth2Client.revoke()`:
+it sends the token your store holds and, if GitHub calls that one dead,
+refreshes and sends the new one. A personal access token is not an
+authorization of your app, so there is nothing for the app to revoke; its
+owner deletes it in their settings.
 
 ## Where the rest is
 

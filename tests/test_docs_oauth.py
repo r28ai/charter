@@ -36,6 +36,7 @@ from tests._doc_blocks import run_doc_block
 import charter
 import charter.auth
 from charter.auth import OAuth2Client, revoke_token
+from charter.packs.stripe import StripeAppUninstall
 
 ROOT = FsPath(__file__).resolve().parent.parent
 DOCS = [
@@ -260,6 +261,7 @@ async def test_every_python_block_runs(doc, monkeypatch):
 _DECLARATIONS = {
     "OAuth2Server": charter.auth.OAuth2Server,
     "Revocation": charter.auth.Revocation,
+    "StripeAppUninstall": StripeAppUninstall,
 }
 
 
@@ -496,20 +498,34 @@ async def test_github_deletes_the_grant_by_access_token():
     assert _basic(request) == "Iv1.app:csec"
     assert json.loads(request.content) == {"access_token": "gho_1"}
 
-    route.mock(return_value=httpx.Response(422, json={"message": "Validation Failed"}))
-    assert (
-        await revoke_token(github, access_token="gho_1", client_id="Iv1.app", client_secret="csec")
-        is False
-    )
+    # Measured: a token GitHub no longer knows gets 404. Its reference lists
+    # only 204 and 422, "Validation failed, or the endpoint has been spammed".
+    for gone in (404, 422):
+        route.mock(return_value=httpx.Response(gone, json={"message": "Not Found"}))
+        assert (
+            await revoke_token(
+                github, access_token="gho_1", client_id="Iv1.app", client_secret="csec"
+            )
+            is False
+        )
 
 
 @respx.mock
-async def test_linear_is_sent_the_refresh_token_alone():
+async def test_linear_is_sent_the_refresh_token_named_as_one():
     linear = _declared_server(YOUR_USERS, "LINEAR")
-    route = respx.post("https://api.linear.app/oauth/revoke").mock(return_value=httpx.Response(200))
+    route = respx.post("https://api.linear.app/oauth/revoke").mock(
+        return_value=httpx.Response(200, json={"success": True})
+    )
     assert await revoke_token(linear, refresh_token="lin_rt")
-    assert _form(route.calls.last.request) == {"token": "lin_rt"}
+    # Without the hint Linear answered a live refresh token "Token not found".
+    assert _form(route.calls.last.request) == {
+        "token": "lin_rt",
+        "token_type_hint": "refresh_token",
+    }
 
+    # Measured for a token already revoked, where the docs say 400.
+    route.mock(return_value=httpx.Response(401, json={"error": "Token has already been revoked."}))
+    assert await revoke_token(linear, refresh_token="lin_rt") is False
     route.mock(return_value=httpx.Response(400))  # "e.g. token was already revoked"
     assert await revoke_token(linear, refresh_token="lin_rt") is False
 
@@ -542,7 +558,52 @@ async def test_shopify_uninstalls_the_app_from_the_store():
     assert await revoke_token(shopify, access_token="shpat_1") is False
 
 
-def test_stripe_apps_declares_no_revocation():
-    """Stripe documents no endpoint that revokes a Stripe App's grant, so none
-    is declared, and revoke() says so rather than guessing at one."""
-    assert _declared_server(YOUR_USERS, "STRIPE_APPS").revocation is None
+@respx.mock
+async def test_stripe_apps_uninstalls_the_app():
+    """Stripe has no endpoint that revokes a Stripe App's token: the grant ends
+    with the install, which its App Installs API looks up and uninstalls."""
+    stripe = _declared_server(YOUR_USERS, "STRIPE_APPS")
+    assert stripe.revocation == StripeAppUninstall(app="app_...")
+    lookup = respx.get("https://api.stripe.com/v1/apps/installs").mock(
+        return_value=httpx.Response(
+            200,
+            json={"data": [{"id": "appinst_1", "account": "acct_1", "status": "installed"}]},
+        )
+    )
+    uninstall = respx.post("https://api.stripe.com/v1/apps/installs/appinst_1/uninstall").mock(
+        return_value=httpx.Response(200, json={"id": "appinst_1", "status": "uninstalling"})
+    )
+    assert await revoke_token(
+        stripe, client_id="ca_app", client_secret="sk_test_key", fields={"stripe_user_id": "acct_1"}
+    )
+    found = lookup.calls.last.request
+    assert dict(found.url.params) == {"app": "app_...", "account": "acct_1"}
+    assert _basic(found) == "sk_test_key:"
+    assert found.headers["Stripe-Version"] == "2026-09-30.endive"
+    assert "Stripe-Account" not in found.headers  # the developer's view tells the cases apart
+    assert uninstall.calls.last.request.headers["Stripe-Account"] == "acct_1"
+
+    # Measured: an account without the app is an empty list, which is gone...
+    lookup.mock(return_value=httpx.Response(200, json={"data": []}))
+    assert (
+        await revoke_token(
+            stripe,
+            client_id="ca_app",
+            client_secret="sk_test_key",
+            fields={"stripe_user_id": "acct_1"},
+        )
+        is False
+    )
+    # ...and another account's key or a wrong app ID is a 400, which raises.
+    lookup.mock(
+        return_value=httpx.Response(
+            400, json={"error": {"message": "The account filter must be the authenticated account"}}
+        )
+    )
+    with pytest.raises(charter.CredentialError, match="account filter"):
+        await revoke_token(
+            stripe,
+            client_id="ca_app",
+            client_secret="sk_test_key",
+            fields={"stripe_user_id": "acct_1"},
+        )

@@ -106,7 +106,10 @@ LINEAR = OAuth2Server(
     scope_separator=",",
     dead_grant_errors=("invalid_request",),
     revocation=Revocation(
-        "https://api.linear.app/oauth/revoke", auth_method="none", gone_statuses=(400,)
+        "https://api.linear.app/oauth/revoke",
+        auth_method="none",
+        token_type_hint=True,
+        gone_statuses=(400, 401),
     ),
 )
 
@@ -166,6 +169,7 @@ sent the way `curl -u sk_live_...:` sends it.
 ```python stripe_users.py
 from charter.auth import OAuth2Client, OAuth2Flow, OAuth2Server, SubjectProvider, TokenGrant
 from charter.packs import stripe
+from charter.packs.stripe import StripeAppUninstall
 
 STRIPE_APPS = OAuth2Server(
     issuer="https://marketplace.stripe.com",
@@ -174,6 +178,7 @@ STRIPE_APPS = OAuth2Server(
     token_endpoint_auth_method="secret_key_basic",
     uses_scopes=False,
     default_expires_in=3600,  # an hour, which Stripe's token response never says
+    revocation=StripeAppUninstall(app="app_..."),  # your app's ID, from its Dashboard page
 )
 
 flow = OAuth2Flow(
@@ -424,22 +429,59 @@ store holds, not one another process has already rotated.
 What each server is sent is on its declaration, so the call is the same for
 every pack:
 
-- **Linear** takes the refresh token alone at `oauth/revoke`, and answers
-  `400` for one already revoked.
+- **Linear** takes the refresh token at `oauth/revoke`, with no client
+  credentials and with `token_type_hint=refresh_token`. Linear's docs offer
+  the hint "to help the server identify the token"; measured live, it is
+  needed: without it, a live refresh token gets `401 Token not found` and the
+  grant stays. A token already revoked gets `401` too ("Token has already
+  been revoked."), where the docs give "token was already revoked" as their
+  example of a `400`, so both count as gone.
 - **Notion** takes the access token, as JSON with the client's Basic auth,
-  at `v1/oauth/revoke`. Notion's reference documents the endpoint with an
-  access token, so that is what is sent.
+  at `v1/oauth/revoke`. Measured live, it answers `200` to any token: a live
+  one, which ends the grant, but also one already revoked, one a refresh has
+  retired, a refresh token, or a string it never issued, none of which end
+  anything. So `revoke()` returns `True` either way, and only the token sent
+  decides whether the user was disconnected. `OAuth2Client.revoke()` sends
+  the access token your store holds, under `refresh_lock`, so it is the live
+  one; a stale token passed to `revoke_token` reports `True` and leaves the
+  grant alive.
 - **Shopify** has no revocation endpoint. Its documented way to end an
   installation's access is to uninstall the app with the store's own token,
   `DELETE /admin/api_permissions/current.json`, so that is the declaration.
   The merchant can install it again from your link. A store already
   uninstalled answers `401`, which counts as gone.
-- **Stripe Apps** documents no endpoint that revokes an app's grant, so
-  `STRIPE_APPS` declares none and `revoke()` raises
-  [`DeclarationError`](/reference/errors#declarationerror) saying so. Delete
-  the row. The user uninstalls the app from their Dashboard, Stripe sends
-  your app `account.application.deauthorized`, and an unused refresh token
-  expires after a year.
+- **Stripe Apps** has no endpoint that revokes a token: a grant is an install
+  of your app, and it ends when the install does. Stripe's
+  [App Installs API](https://docs.stripe.com/api/apps/installs) uninstalls
+  it, and `StripeAppUninstall` is that, declared as the revocation: it looks
+  the install up for the `stripe_user_id` Stripe's token response carries,
+  then uninstalls it, with your secret key. The client keeps the account from
+  the exchange or any refresh, and refreshes once first if it has seen
+  neither, so nothing extra needs storing. Measured, the uninstall answered
+  `200`, the install was gone within about fifteen seconds, the access and
+  refresh tokens were refused, Stripe sent `apps.install.deleted`, and the
+  next install from your link was a fresh one. An account without the app
+  returns `False`; a wrong app ID or another account's key raises.
+
+  `revoke()` returns once Stripe accepts the uninstall (`status:
+  uninstalling`), not once it is done. Charter stops using the grant at
+  once; Stripe finishes seconds later, 10 to 15 measured, and until then the
+  old access token still works. Treat the disconnect the way Stripe's own
+  states suggest: delete your row, show the user "Disconnecting", and offer
+  Reconnect when `apps.install.deleted` arrives, which your Connect webhook
+  endpoint receives with `account` set to theirs. Reconnecting before then
+  can land on the install still being removed. A script or a test that must
+  not go on until the install is gone declares
+  `StripeAppUninstall(app="app_...", wait_seconds=30)` instead; still
+  uninstalling at the deadline is logged, and the call still returns `True`.
+  It waits holding the client's refresh lock, which is one more reason to
+  keep it out of a server.
+
+  Not Connect's `oauth/deauthorize`: Stripe documents it for Standard
+  accounts only, and measured against an app's grant it ended the access but
+  left the app installed, so your install link answered "already installed"
+  and issued tokens Stripe refused until the user uninstalled the app from
+  their Dashboard.
 - **A pasted key** (Linear's personal key, a Stripe restricted key, Granola)
   was made by the user, and only they can delete it. Delete the row.
 

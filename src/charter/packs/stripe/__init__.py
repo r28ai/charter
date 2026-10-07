@@ -86,6 +86,7 @@ from typing import Optional
 from charter.auth import CredentialProvider
 from charter.factories import oauth_tool_factory
 from charter.packs._config import DeferredCredentialProvider, configure_key_or_provider
+from charter.packs.stripe._apps import StripeAppUninstall
 from charter.packs.stripe.response_handlers import (
     trim_accounts,
     trim_application_fees,
@@ -1144,6 +1145,7 @@ TOOLS: list[Tool] = [
 __all__ = [
     "TOOLS",
     "configure",
+    "StripeAppUninstall",
     "BASE_URL",
     "QUOTA_DOC_URL",
     "API_VERSION",

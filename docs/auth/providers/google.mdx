@@ -222,17 +222,28 @@ async def disconnect():
 ```
 
 [`revoke()`](/reference/oauth#attributes-and-methods) posts the refresh token
-to `https://oauth2.googleapis.com/revoke`, which ends the grant and every
-access token issued from it, for all six packs at once. A grant the user
-already removed from their account answers `invalid_token`, and `revoke()`
-returns `False` rather than raising, since the outcome is the one asked for.
+to `https://oauth2.googleapis.com/revoke`. Measured against Google, it answers
+`200 {}`, every access token issued from the grant is refused in the same
+second, and the refresh token comes back `invalid_grant`.
+
+**It ends every grant your app holds for that account, not only this one.**
+Revoking one Calendar grant also ended a second refresh token issued to the
+same client for the same account, and a third issued for Docs. Google keeps
+one authorization per account per client, and revoking removes all of it. If
+you store a row per pack or per scope, disconnecting one disconnects them all,
+so delete them all.
+
+A grant already gone answers `400 invalid_token` ("Token is not revocable."),
+and `revoke()` returns `False` rather than raising, since the outcome is the
+one asked for. Google gives that same answer to an access token that has
+lapsed while the grant behind it is still live, so revoke with the refresh
+token. Handed only an access token,
+[`revoke_token`](/reference/oauth#revoke_token) raises rather than return
+`False` when Google calls it dead. A live access token ends the whole grant.
+
 Serving many users through `SubjectProvider`, `await provider.revoke(user.id)`
 does the lookup and the revocation, then forgets the user's client:
 [Disconnecting a user](/auth/authorization-servers#disconnecting-a-user).
-
-Revoking also gives back one of the hundred refresh tokens Google allows per
-account per client, which matters to an app whose users connect and disconnect
-often.
 
 ## Where the rest is
 
