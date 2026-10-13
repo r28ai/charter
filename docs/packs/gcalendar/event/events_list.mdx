@@ -37,6 +37,7 @@ result = asyncio.run(gcalendar.events_list.ainvoke({"calendarId": ...}))
 | Field | Type | Description |
 | --- | --- | --- |
 | `eventTypes` | [EventTypes](/packs/gcalendar/event/objects#eventtypes)[] | Event types to return. Optional. This parameter can be repeated multiple times to return events of different types. If unset, returns all event types. Acceptable values are: "birthday" (special all-day events with an annual recurrence), "default" (regular events), "focusTime" (focus time events), "fromGmail" (events from Gmail), "outOfOffice" (out of office events), "workingLocation" (working location events). |
+| `iCalUID` | `string` | Specifies an event ID in the iCalendar format to be provided in the response. Optional. Use this if you want to search for an event by its iCalendar ID. |
 | `maxAttendees` | `integer` | The maximum number of attendees to include in the response. If there are more than the specified number of attendees, only the participant is returned. Optional. <span className="field-constraints">≥ 1</span> |
 | `maxResults` | `integer` | Maximum number of events returned on one result page. The number of events in the resulting page may be less than this value, or none at all, even if there are more events matching the query. Incomplete pages can be detected by a non-empty nextPageToken field in the response. By default the value is 250 events. The page size can never be larger than 2500 events. Optional. <span className="field-constraints">≥ 1; ≤ 2500</span> |
 | `orderBy` | [OrderBy](/packs/gcalendar/event/objects#orderby) | The order of the events returned in the result. Optional. The default is an unspecified, stable order. Acceptable values are: "startTime" (order by the start date/time, ascending; this is only available when querying single events, i.e. the parameter singleEvents is True), "updated" (order by last modification time, ascending). |
@@ -52,15 +53,5 @@ result = asyncio.run(gcalendar.events_list.ainvoke({"calendarId": ...}))
 | `timeMin` | `string` | Lower bound (exclusive) for an event's end time to filter by. Optional. The default is not to filter by end time. Must be an RFC3339 timestamp with mandatory time zone offset, for example, 2011-06-03T10:00:00-07:00, 2011-06-03T10:00:00Z. Milliseconds may be provided but are ignored. If timeMax is set, timeMin must be smaller than timeMax. <span className="field-constraints">format `date-time`</span> |
 | `timeZone` | `string` | Time zone used in the response. Optional. The default is the time zone of the calendar. |
 | `updatedMin` | `string` | Lower bound for an event's last modification time (as a RFC3339 timestamp) to filter by. When specified, entries deleted since this time will always be included regardless of showDeleted. Optional. The default is not to filter by last modification time. <span className="field-constraints">format `date-time`</span> |
-
-</div>
-
-## Body
-
-<div className="reference-table">
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `iCalUID` | `string` | Specifies an event ID in the iCalendar format to be provided in the response. Optional. Use this if you want to search for an event by its iCalendar ID. |
 
 </div>

@@ -135,6 +135,38 @@ async def test_langchain_api_error_is_returned_as_text():
     assert "boom" in result
 
 
+@respx.mock
+async def test_langchain_network_failure_is_returned_as_text():
+    """A dropped connection ends the call, not the agent."""
+    from charter.adapters.langchain import to_langchain
+
+    respx.get(f"{BASE}v1/weather/Tokyo").mock(side_effect=httpx.ConnectTimeout(""))
+    result = await to_langchain(_tool()).ainvoke({"city": "Tokyo"})
+    assert result.startswith("Error: Could not reach api.example.com")
+    assert "not a problem with the arguments" in result
+
+
+async def _broken_handler(response):
+    raise KeyError("temperature")
+
+
+@respx.mock
+async def test_langchain_a_bug_in_a_handler_is_returned_as_text_and_logged(caplog):
+    """Not a CharterError: the model is told it is not its fault, the host gets the trace."""
+    from charter.adapters.langchain import to_langchain
+
+    respx.get(f"{BASE}v1/weather/Tokyo").mock(return_value=httpx.Response(200, json={}))
+    with caplog.at_level("ERROR", logger="charter"):
+        result = await to_langchain(_tool(response_handler=_broken_handler)).ainvoke(
+            {"city": "Tokyo"}
+        )
+
+    assert "get_current_weather failed on its side (KeyError)" in result
+    assert "not caused by the arguments" in result
+    assert "temperature" not in result
+    assert any(r.exc_info and isinstance(r.exc_info[1], KeyError) for r in caplog.records)
+
+
 def test_langchain_tools_helper():
     from charter.adapters.langchain import to_langchain_tools
 
@@ -311,6 +343,39 @@ async def test_mcp_reports_a_failed_call_as_a_tool_error():
                     assert result.is_error
                     assert "upstream down" in result.content[0].text
                 tg.cancel_scope.cancel()
+
+
+@respx.mock
+async def test_mcp_a_network_failure_is_a_tool_error_that_says_so():
+    from mcp.server.mcpserver.exceptions import ToolError
+
+    from charter.adapters.mcp import build_server
+
+    respx.get(f"{BASE}v1/weather/Tokyo").mock(side_effect=httpx.ReadTimeout(""))
+    server = build_server([_tool(pack="weather")])
+    (name,) = [t.name for t in await server.list_tools()]
+
+    with pytest.raises(ToolError, match="No response from api.example.com"):
+        await server.call_tool(name, {"city": "Tokyo"})
+
+
+@respx.mock
+async def test_mcp_a_bug_in_a_handler_is_a_tool_error_not_its_own_text(caplog):
+    from mcp.server.mcpserver.exceptions import ToolError
+
+    from charter.adapters.mcp import build_server
+
+    respx.get(f"{BASE}v1/weather/Tokyo").mock(return_value=httpx.Response(200, json={}))
+    server = build_server([_tool(pack="weather", response_handler=_broken_handler)])
+    (name,) = [t.name for t in await server.list_tools()]
+
+    with caplog.at_level("ERROR", logger="charter"):
+        with pytest.raises(ToolError) as raised:
+            await server.call_tool(name, {"city": "Tokyo"})
+
+    assert "failed on its side (KeyError)" in str(raised.value)
+    assert "temperature" not in str(raised.value)
+    assert any(r.exc_info and isinstance(r.exc_info[1], KeyError) for r in caplog.records)
 
 
 # -----------------------------------------------------

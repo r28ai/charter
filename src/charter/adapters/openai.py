@@ -13,14 +13,17 @@ works, which is also how it is tested.
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
 
 from charter.session import ToolSession, ToolsLike, view_of
 from charter.tool import Tool
-from charter.types.errors import CharterError
+from charter.types.errors import CharterError, unexpected_failure_text
 
 __all__ = ["to_openai_tool", "to_openai_tools", "run", "RunResult"]
+
+logger = logging.getLogger("charter")
 
 
 def to_openai_tool(tool: Tool) -> Dict[str, Any]:
@@ -150,10 +153,13 @@ async def run(
     to it unchanged.
 
     A :class:`~charter.types.errors.CharterError` from a tool becomes that tool's
-    result, because its message is written for a model to read and correct itself
-    from — a rejected argument, or a tool that has not been loaded yet. Anything
-    else propagates: a bug in your handler should not be quietly fed to a model
-    as text.
+    result, because its message is written for a model to read and act on — a
+    rejected argument, a tool that has not been loaded yet, an API that could
+    not be reached. Anything else is a bug, in a handler or a credential
+    provider: it is logged with its traceback on the ``charter`` logger, and the
+    model is told the tool failed on its side and that changing the call will
+    not help (:func:`~charter.types.errors.unexpected_failure_text`). A tool
+    failing ends that call, never the run.
 
     Parallel tool calls are executed in the order the model returned them, which
     is the order their results are appended in.
@@ -195,6 +201,11 @@ async def run(
                     content = _render(await session.dispatch(call.function.name, arguments))
                 except CharterError as exc:
                     content = str(exc)
+                except Exception as exc:
+                    logger.exception(
+                        "charter: tool %s raised %s", call.function.name, type(exc).__name__
+                    )
+                    content = unexpected_failure_text(call.function.name, exc)
             history.append({"role": "tool", "tool_call_id": call.id, "content": content})
 
     return RunResult(messages=history, content=None, turns=max_turns, stop="max_turns")

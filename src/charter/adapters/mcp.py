@@ -9,7 +9,8 @@ Desktop, an IDE, another agent — can call them.
 
 Each tool's LLM view becomes the MCP ``inputSchema``, and ``Tool.ainvoke`` is the
 handler. Charter errors become MCP tool errors rather than crashing the server, so a
-failed call is something the client can read and retry.
+failed call is something the client can read and act on; any other exception
+is logged and reported as a failure on the tool's side, not the caller's.
 
     from charter.adapters.mcp import serve
     from charter.packs import gmail
@@ -27,14 +28,17 @@ low-level surface and is not supported.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from typing import Annotated, Any, Dict, List, Optional, Protocol, Sequence
 
 from charter.discovery import SEARCH_TOOL_NAME
 from charter.session import ToolSession, ToolsLike, view_of
-from charter.types.errors import CharterError
+from charter.types.errors import CharterError, unexpected_failure_text
 
 __all__ = ["LocalToolLike", "PromptLike", "build_server", "serve", "serve_async"]
+
+logger = logging.getLogger("charter")
 
 
 class PromptLike(Protocol):
@@ -271,6 +275,9 @@ def build_server(
                     text = await local.call(arguments or {})
                 except CharterError as exc:
                     raise ToolError(str(exc)) from exc
+                except Exception as exc:
+                    logger.exception("charter: tool %s raised %s", name, type(exc).__name__)
+                    raise ToolError(unexpected_failure_text(name, exc)) from exc
                 return types.CallToolResult(content=[types.TextContent(type="text", text=text)])
 
             loaded_before = len(session.loaded)
@@ -283,6 +290,11 @@ def build_server(
                 # over MCP the reader of a setup failure is whoever configured
                 # the server, and the page is what they need next.
                 raise ToolError(str(exc)) from exc
+            except Exception as exc:
+                # The MCP server would turn this into an error result too, but
+                # with the exception's own text, which was written for nobody.
+                logger.exception("charter: tool %s raised %s", name, type(exc).__name__)
+                raise ToolError(unexpected_failure_text(name, exc)) from exc
 
             if name == SEARCH_TOOL_NAME and len(session.loaded) != loaded_before:
                 await _announce(context)

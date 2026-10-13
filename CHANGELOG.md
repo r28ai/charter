@@ -9,6 +9,55 @@ here, with the migration in the same entry.
 
 ## [Unreleased]
 
+### Added
+
+- **`NetworkError`, a sixth `CharterError`.** A connection that fails, drops
+  or times out raises it, wherever Charter sends a request: a tool's call and
+  each redirect hop, the token request in front of it, a code exchange, a
+  revocation. Its message tells a model the arguments were not the problem, and
+  whether the request can have taken effect — `may_have_taken_effect` is False
+  only when the connection never opened, so a host knows when a retry is safe.
+  The `httpx` exception is `__cause__`.
+
+### Changed
+
+- **A tool failing ends the call, never the agent.** The OpenAI loop, the
+  LangChain adapter and the MCP server used to let an exception that was not a
+  `CharterError` propagate, which ended the run. It is now logged with its
+  traceback on the `charter` logger, and the model is told the tool failed on
+  its side, that its arguments were not the cause, and to tell the user rather
+  than retry. The exception's own text is not passed on.
+  `charter.types.errors.unexpected_failure_text` is that message, for a host
+  running its own loop.
+
+- **An observed call that raised something other than a Charter error is
+  `outcome="error"`**, not `transport_error`. A connection failure is a
+  `NetworkError` now, still `transport_error`, with `error_type` the `httpx`
+  class it wraps.
+
+### Fixed
+
+- **A dropped connection escaped every adapter.** `httpx`'s exceptions are not
+  `CharterError`s, so a connect or read timeout — from the API, or from the
+  token refresh in front of it — passed the adapters' handlers and ended the
+  agent. They are `NetworkError`s now.
+
+- **A `ConflictsWith` on a `Format` field was never enforced.** The `Format`
+  pass moves a field's markers onto its retyped annotation, and the conflict
+  check read them off the view, where they were gone. Rules are now read off the
+  author's schema for the fields the view keeps.
+
+- **A query parameter with a `WireName` was listed under "Body" in the
+  generated tool reference.** The generator keyed placements by the camelCased
+  field name, which a wire name like `iCalUID` or `$select` never matches.
+  Google Calendar's `events_list` (`iCalUID`) and Firecrawl's
+  `developer_search` (`min_stars`, `max_stars`) and `research_papers_search`
+  (`from`) pages had it wrong; each is a query parameter in the vendor's
+  reference, and the packs always sent it as one. The same keying dropped the
+  pills of a field with a wire name: Calendar's `iCalUID` lost the `import`
+  pill that says when it may be set. Every lookup now goes through the name the
+  schema publishes, and a test holds the generator to it.
+
 ## [0.5.1] — 2026-10-07
 
 ### Fixed

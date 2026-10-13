@@ -99,10 +99,13 @@ except CharterError:
 `to_langchain` returns a `StructuredTool` with `handle_validation_error` wired to
 the same formatter, and returns `ToolValidationError`/[`APIError`](/reference/errors#apierror) text as the tool
 *result* rather than raising. Agent frameworks expect a readable result they can
-feed back to the model, not an exception that ends the run.
+feed back to the model, not an exception that ends the run. That holds for every
+failure, not only Charter's own: an exception from a response handler or a
+credential provider is logged and the model is told the tool failed on its
+side — see [in an agent](/reference/errors#in-an-agent).
 
 ## Related
 
-- [Errors](/reference/errors) — `CharterError`, `DeclarationError`, `ToolValidationError`, `APIError`, `CredentialError`, `TransformError`
+- [Errors](/reference/errors) — `CharterError`, `DeclarationError`, `ToolValidationError`, `APIError`, `CredentialError`, `TransformError`, `NetworkError`
 - [Catching the surface](/reference/errors#catching-the-surface) — which exception to catch where
 - [`Tool.ainvoke`](/reference/tool#tool-ainvoke) — where validation runs, and what it raises

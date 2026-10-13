@@ -107,7 +107,9 @@ def _gloss_text(field_info: Any) -> str:
     )
 
 
-def _conflict_validator(fields: Dict[str, Any]) -> Optional[Any]:
+def _conflict_validator(
+    fields: Dict[str, Any], source: Optional[Type[BaseModel]] = None
+) -> Optional[Any]:
     """Build the check that :class:`~charter.types.markers.ConflictsWith` declares.
 
     Synthesised rather than written by the pack author, so the rule has exactly
@@ -115,11 +117,20 @@ def _conflict_validator(fields: Dict[str, Any]) -> Optional[Any]:
     validator is a second place to keep in step, and nothing notices when it
     stops matching.
 
+    The markers are read off ``source`` — the author's schema — for the fields
+    the view keeps, when it is given. The view's own ``FieldInfo`` is not where
+    they live for every field: a ``Format`` field's markers move onto its
+    retyped annotation, and a rule declared there was invisible here.
+
     Returns ``None`` when no field declares a conflict, so a schema without one
     gains no validator and no cost.
     """
+    declared = {
+        name: (source.model_fields[name] if source and name in source.model_fields else info)
+        for name, (_, info) in fields.items()
+    }
     rules: List[tuple] = []
-    for name, (_, info) in fields.items():
+    for name, info in declared.items():
         for marker in getattr(info, "metadata", []):
             if isinstance(marker, ConflictsWith):
                 rules.append((name, marker.fields, marker.reason))
@@ -1044,7 +1055,7 @@ def _create_llm_schema(
     # Validators are not fields, so create_model would drop them. A schema's
     # cross-field rules are part of its contract — carry them across.
     validators = dict(_carry_validators(original_schema, set(fields)))
-    conflicts = _conflict_validator(fields)
+    conflicts = _conflict_validator(fields, original_schema)
     if conflicts is not None:
         validators["_charter_conflicts"] = conflicts
     new_model = create_model(

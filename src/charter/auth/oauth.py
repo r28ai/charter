@@ -85,6 +85,7 @@ import httpx
 
 from charter.auth.credentials import Credentials
 from charter.types.errors import CharterError, CredentialError, DeclarationError
+from charter.types.transport import network_error
 
 __all__ = [
     "OAuth2Server",
@@ -810,10 +811,15 @@ async def _post_token_form(
     client: Optional[httpx.AsyncClient],
     timeout: int,
     request_format: Literal["form", "json"] = "form",
+    doing: str = "requesting a token",
 ) -> httpx.Response:
     """One POST to the token endpoint, owning the HTTP client if none was lent.
 
     A form, as RFC 6749 specifies, unless the server is declared to want JSON.
+    A connection that fails or times out raises :class:`NetworkError`, which
+    names the authorization server and ``doing``: inside a tool call this runs
+    before the API is contacted, and the model reading the error should not be
+    told the API was unreachable.
     """
     owns_client = client is None
     http = client or httpx.AsyncClient(timeout=timeout)
@@ -821,6 +827,8 @@ async def _post_token_form(
         if request_format == "json":
             return await http.post(token_endpoint, json=data, headers=headers)
         return await http.post(token_endpoint, data=data, headers=headers)
+    except httpx.RequestError as exc:
+        raise network_error(exc, token_endpoint, doing=doing) from exc
     finally:
         if owns_client:
             await http.aclose()
@@ -1610,6 +1618,7 @@ class OAuth2Client:
             client=self._http,
             timeout=self._timeout,
             request_format=self.server.token_request_format,
+            doing="getting an access token",
         )
         return resp, (data.get("refresh_token"), self._client_secret)
 

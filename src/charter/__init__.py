@@ -86,6 +86,7 @@ from charter.types import (
     KeyCase,
     ListValue,
     Mode,
+    NetworkError,
     NullValue,
     Pagination,
     Path,
@@ -209,4 +210,5 @@ __all__ = [
     "ToolValidationError",
     "TransformError",
     "APIError",
+    "NetworkError",
 ]

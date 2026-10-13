@@ -24,15 +24,18 @@ where LangChain provides for it rather than by rebuilding the agent::
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any, Dict, List
 
 from charter.discovery import DEFAULT_MAX_RESULTS, SEARCH_TOOL_NAME
 from charter.execution.validation import format_validation_error
 from charter.session import ToolSession, ToolsLike, view_of
 from charter.tool import Tool
-from charter.types.errors import CharterError, ToolValidationError
+from charter.types.errors import CharterError, ToolValidationError, unexpected_failure_text
 
 __all__ = ["to_langchain", "to_langchain_tools", "CharterMiddleware"]
+
+logger = logging.getLogger("charter")
 
 _INSTALL_HINT = "The LangChain adapter needs langchain-core. Install it with: pip install 'charter-ai[langchain]'"
 
@@ -48,11 +51,17 @@ def _require_structured_tool():
 def to_langchain(tool: Tool, *, name: str | None = None) -> Any:
     """Wrap a Charter :class:`~charter.tool.Tool` as a LangChain ``StructuredTool``.
 
-    Validation errors are returned as the tool result rather than raised, which
-    is what LangChain agents expect: the message is already written for a model
-    to read and correct itself from. Everything else propagates.
+    A failed call is returned as the tool result rather than raised, which is
+    what LangChain agents expect. A validation error is the model's own mistake,
+    already written for it to correct; any other :class:`CharterError` is handed
+    back as ``Error: ...``. Anything that is not a Charter error — a bug in a
+    response handler or a credential provider — is logged with its traceback on
+    the ``charter`` logger, and the model is told the tool failed on its side
+    and that changing the call will not help. A tool failing ends the call,
+    never the agent.
     """
     StructuredTool = _require_structured_tool()
+    published = name or tool.name
 
     async def _run(**kwargs: Any) -> Any:
         try:
@@ -62,10 +71,13 @@ def to_langchain(tool: Tool, *, name: str | None = None) -> Any:
             return str(exc)
         except CharterError as exc:
             return f"Error: {exc}"
+        except Exception as exc:
+            logger.exception("charter: tool %s raised %s", published, type(exc).__name__)
+            return f"Error: {unexpected_failure_text(published, exc)}"
 
     return StructuredTool.from_function(
         coroutine=_run,
-        name=name or tool.name,
+        name=published,
         description=tool.description,
         args_schema=tool.llm_schema(),
         # LangChain validates against args_schema *before* the coroutine runs, so
@@ -82,7 +94,13 @@ def _search_tool(session: Any, definition: Dict[str, Any]) -> Any:
     StructuredTool = _require_structured_tool()
 
     async def _run(query: str, max_results: int = DEFAULT_MAX_RESULTS) -> str:
-        return json.dumps(session.search(query, max_results), ensure_ascii=False)
+        try:
+            return json.dumps(session.search(query, max_results), ensure_ascii=False)
+        except CharterError as exc:
+            return f"Error: {exc}"
+        except Exception as exc:
+            logger.exception("charter: %s raised %s", definition["name"], type(exc).__name__)
+            return f"Error: {unexpected_failure_text(definition['name'], exc)}"
 
     return StructuredTool.from_function(
         coroutine=_run,

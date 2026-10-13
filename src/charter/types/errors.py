@@ -36,6 +36,8 @@ __all__ = [
     "ToolValidationError",
     "TransformError",
     "APIError",
+    "NetworkError",
+    "unexpected_failure_text",
 ]
 
 _EXCERPT_LIMIT = 500
@@ -339,3 +341,66 @@ class APIError(CharterError):
         if self.body:
             parts.append(f"body: {self.body}")
         return " — ".join(parts)
+
+
+class NetworkError(CharterError):
+    """The request got no usable answer: the connection failed, dropped or timed out.
+
+    Nothing was learned about the call itself — the arguments, the credentials
+    and the API may all be fine — so the message says that, for the model that
+    reads it as a tool result: no change to the call fixes this. It also says
+    whether the request can have taken effect, which is what decides whether
+    repeating it is safe. A connection that never opened changed nothing; a
+    timeout waiting for the response may have followed a message being sent.
+
+    Charter never retries. ``may_have_taken_effect`` is what a host needs to
+    decide whether to, and the original ``httpx`` exception is ``__cause__``.
+    Built by :func:`charter.types.transport.network_error`, which holds the
+    ``httpx`` half: this module may import only the standard library.
+
+    Attributes
+    ----------
+    url:
+        The request URL without its query string, which can carry identifiers.
+    host:
+        The host that could not be reached.
+    may_have_taken_effect:
+        False when the request cannot have reached the server (the connection
+        never opened), True when it may have been received and acted on.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        url: Optional[str] = None,
+        host: Optional[str] = None,
+        may_have_taken_effect: bool = True,
+    ) -> None:
+        super().__init__(message)
+        self.message = message
+        self.url = url
+        self.host = host
+        self.may_have_taken_effect = may_have_taken_effect
+
+    def __str__(self) -> str:
+        return self.message
+
+
+def unexpected_failure_text(tool_name: str, exc: BaseException) -> str:
+    """What a model is told when a tool failed with something that is not a CharterError.
+
+    A :class:`CharterError` is written to be read, and the adapters hand its own
+    message back. Anything else is a bug — in Charter, in a pack, or in host code
+    the call ran through, such as a credential provider or a response handler —
+    and its text was written for nobody: it can quote internal state, and it
+    tells a model nothing about what to do. So the model gets the exception's
+    type, the fact that its arguments were not the cause, and what to do instead
+    of retrying; the adapter logs the traceback for whoever runs the host.
+    """
+    return (
+        f"The tool {tool_name} failed on its side ({type(exc).__name__}). This was not "
+        "caused by the arguments, and changing or repeating the call will not fix it. "
+        "Tell the user this tool is not working right now; the details are in the "
+        "host's log."
+    )

@@ -65,8 +65,8 @@ from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Tupl
 
 from charter.types.errors import (
     APIError,
-    CharterError,
     CredentialError,
+    NetworkError,
     ToolValidationError,
     TransformError,
 )
@@ -408,10 +408,14 @@ def _classify(error: Optional[BaseException], probe: CallProbe) -> tuple[str, Op
         return "credential_rejected", name
     if isinstance(error, APIError):
         return "http_error", name
-    if isinstance(error, CharterError):
-        return "error", name
-    # httpx timeouts, connection failures, anything else that escaped the wire.
-    return "transport_error", name
+    if isinstance(error, NetworkError):
+        # Reported by the httpx class it wraps: `ConnectTimeout` and `ReadTimeout`
+        # are different problems in a dashboard, and both are `NetworkError` here.
+        cause = error.__cause__
+        return "transport_error", type(cause).__name__ if cause is not None else name
+    # Anything else is a bug — in a handler, a provider, or the runtime — and
+    # filing it as transport would send someone to look at the network.
+    return "error", name
 
 
 # -----------------------------------------------------

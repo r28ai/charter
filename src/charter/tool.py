@@ -283,7 +283,9 @@ def _check_pin_values(exec_schema: Type[BaseModel], pins: Dict[str, Any]) -> Non
     for path, value in pins.items():
         field = exec_schema.model_fields[path]
         try:
-            TypeAdapter(field.annotation).validate_python(value)
+            # pydantic types `annotation` as optional, though a built model's
+            # field always has one; a field without one would constrain nothing.
+            TypeAdapter(field.annotation or Any).validate_python(value)
         except Exception as exc:
             raise DeclarationError(
                 f"pin: the value for {path!r} does not satisfy that field: {exc}",

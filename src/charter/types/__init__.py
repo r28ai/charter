@@ -24,6 +24,7 @@ from charter.types.errors import (
     CharterError,
     CredentialError,
     DeclarationError,
+    NetworkError,
     ToolValidationError,
     TransformError,
 )
@@ -79,4 +80,5 @@ __all__ = [
     "ToolValidationError",
     "TransformError",
     "APIError",
+    "NetworkError",
 ]

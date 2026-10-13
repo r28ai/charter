@@ -35,6 +35,7 @@ from charter.auth.oauth import (
     _redact,
 )
 from charter.types.errors import CredentialError, DeclarationError
+from charter.types.transport import network_error
 
 __all__ = ["revoke_token"]
 
@@ -248,6 +249,8 @@ async def _revoke(
     http = client or httpx.AsyncClient(timeout=timeout)
     try:
         resp = await http.request(revocation.http_method, url, headers=headers, **body)
+    except httpx.RequestError as exc:
+        raise network_error(exc, url, doing="revoking the grant") from exc
     finally:
         if owns_client:
             await http.aclose()

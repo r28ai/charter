@@ -1,6 +1,6 @@
 ---
 title: "Errors"
-description: "CharterError and its five subclasses: what raises each, what each carries, and which of them link to a page."
+description: "CharterError and its six subclasses: what raises each, what each carries, and which of them link to a page."
 ---
 
 Every error the library raises derives from `CharterError`, so a host
@@ -14,7 +14,8 @@ CharterError
 ├── CredentialError      credentials missing, expired, or rejected
 ├── ToolValidationError  the arguments did not satisfy the schema
 ├── TransformError       a Format transform could not resolve or run
-└── APIError             the upstream API returned a non-success
+├── APIError             the upstream API returned a non-success
+└── NetworkError         the connection failed, dropped or timed out
 ```
 
 ## `CharterError`
@@ -307,10 +308,70 @@ async def main():
 asyncio.run(main())
 ```
 
+## `NetworkError`
+
+```python
+class NetworkError(CharterError):
+    def __init__(
+        self,
+        message: str,
+        *,
+        url: Optional[str] = None,
+        host: Optional[str] = None,
+        may_have_taken_effect: bool = True,
+    ) -> None: ...
+```
+
+The request got no usable answer: the connection could not be opened, dropped,
+or timed out. Raised wherever Charter sends a request — the tool's own call and
+every redirect hop, the token request an
+[`OAuth2Client`](/reference/oauth#oauth2client) makes before it, an
+[`OAuth2Flow`](/reference/oauth#oauth2flow) code exchange, and a revocation. The
+`httpx` exception is `__cause__`.
+
+Nothing was learned about the call itself, so the message says that for the
+model reading it: the arguments were not the problem and no change to the call
+fixes it. It also says whether the request can have taken effect, because that
+is what decides whether repeating it is safe:
+
+```text
+Could not reach graph.microsoft.com (timed out connecting). The request was never
+sent, so nothing changed. This is a network problem on the tool's side, not a
+problem with the arguments; the same call may work later.
+
+No response from graph.microsoft.com (timed out waiting for the response). The
+request may have reached the server and taken effect, so check before repeating
+anything that changes data. This is a network problem on the tool's side, not a
+problem with the arguments.
+```
+
+A failed token request names the authorization server and what it was doing —
+`while getting an access token` — so a model is not told the API was down when
+it was never contacted.
+
+<ResponseField name="may_have_taken_effect" type="bool">
+  `False` when the connection never opened (a connect timeout, a refused
+  connection, an exhausted pool), so the request cannot have been received.
+  `True` otherwise — a read timeout can follow a request the server received
+  and acted on, which is how a repeated `send_mail` sends twice.
+</ResponseField>
+
+<ResponseField name="host" type="Optional[str]">
+  The host that could not be reached.
+</ResponseField>
+
+<ResponseField name="url" type="Optional[str]">
+  The request URL without its query string, which can carry identifiers.
+</ResponseField>
+
+Charter never retries; `may_have_taken_effect` is what a host needs to decide
+whether to. In [observability](/reference/observability) the call's outcome is
+`transport_error` and its `error_type` is the `httpx` class it wraps.
+
 ## Catching the surface
 
 ```python
-from charter import APIError, CredentialError, ToolValidationError
+from charter import APIError, CredentialError, NetworkError, ToolValidationError
 
 try:
     ...
@@ -320,9 +381,11 @@ except CredentialError as exc:
     handled = f"re-authorize {exc.provider}"
 except APIError as exc:
     handled = f"upstream said {exc.status_code}"
+except NetworkError as exc:
+    handled = "safe to retry" if not exc.may_have_taken_effect else "check first"
 ```
 
-Order matters only in that the five subclasses are siblings; catching
+Order matters only in that the six subclasses are siblings; catching
 `CharterError` first would swallow them all.
 
 `DeclarationError` is not in that block, and the trailing `except CharterError`
@@ -330,6 +393,37 @@ is what catches it: most of them are raised while a tool is built, but the ones
 that need a request to be detected arrive here instead. Because it is also a
 `ValueError`, code that already guards a declaration with `except ValueError`
 keeps catching the build-time ones.
+
+## In an agent
+
+A tool failing must end the call, never the agent. The OpenAI loop, the
+LangChain adapter and the MCP server hand a `CharterError` back to the model as
+the tool's result, since its message is written to be read. Anything else —
+a bug in a response handler or a credential provider — is logged with its
+traceback on the `charter` logger, and the model is told the tool failed on its
+side, that its arguments were not the cause, and to tell the user instead of
+retrying. The exception's own text is not passed on: it was written for nobody,
+and can quote internal state.
+
+A host running its own loop over `Tool.ainvoke` gets the same text from
+`unexpected_failure_text`:
+
+```python
+import logging
+
+from charter import CharterError
+from charter.types.errors import unexpected_failure_text
+
+
+async def call(tool, args):
+    try:
+        return await tool.ainvoke(args)
+    except CharterError as exc:
+        return str(exc)
+    except Exception as exc:
+        logging.getLogger("charter").exception("tool %s failed", tool.name)
+        return unexpected_failure_text(tool.name, exc)
+```
 
 ## Related
 

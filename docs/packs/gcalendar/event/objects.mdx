@@ -46,7 +46,7 @@ Google Calendar Event resource.
 | `reminders` | [Reminders](#reminders) | Information about the event's reminders for the authenticated user. Note that changing reminders does not also change the updated property of the enclosing event. |
 | `source` | [Source](#source) | Source from which the event was created. For example, a web page, an email message or any document identifiable by an URL with HTTP or HTTPS scheme. Can only be seen or modified by the creator of the event. |
 | `workingLocationProperties` | [WorkingLocationProperties](#workinglocationproperties) | Working location event data. |
-| `iCalUID` | `string` | Event unique identifier as defined in RFC5545. It is used to uniquely identify events across calendaring systems and must be supplied when importing events via the import method. Note that the iCalUID and the id are not identical and only one of them should be supplied at event creation time. |
+| `iCalUID` | `string`<br /><span className="markers"><span className="marker" data-marker="mode">import</span></span> | Event unique identifier as defined in RFC5545. It is used to uniquely identify events across calendaring systems and must be supplied when importing events via the import method. Note that the iCalUID and the id are not identical and only one of them should be supplied at event creation time. |
 
 </div>
 

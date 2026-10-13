@@ -24,6 +24,7 @@ from charter import (
     CredentialError,
     Envelope,
     Format,
+    NetworkError,
     Path,
     Query,
     ToolCall,
@@ -268,11 +269,14 @@ async def test_a_transport_failure_is_recorded():
     respx.get(f"{BASE}v1/things/t1").mock(side_effect=httpx.ConnectTimeout("nope"))
 
     calls = CallCollector()
-    with pytest.raises(httpx.ConnectTimeout):
+    with pytest.raises(NetworkError) as raised:
         await _tool(on_call=calls).ainvoke(thing_id="t1")
+    assert isinstance(raised.value.__cause__, httpx.ConnectTimeout)
 
     (call,) = calls.records
     assert call.outcome == "transport_error"
+    # Named by the httpx class it wraps: a dashboard needs ConnectTimeout and
+    # ReadTimeout apart, and both are NetworkError.
     assert call.error_type == "ConnectTimeout"
     assert call.reached_network is True
     assert call.status_code is None

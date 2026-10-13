@@ -334,6 +334,7 @@ class OAuth2Flow:
             client=self._http,
             timeout=self._timeout,
             request_format=self.server.token_request_format,
+            doing="exchanging the authorization code",
         )
         payload = _json_payload(resp, self.server.token_endpoint, None)
         failure = _token_failure(

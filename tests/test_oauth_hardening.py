@@ -27,6 +27,7 @@ from charter import (
     CharterError,
     CredentialError,
     DeclarationError,
+    NetworkError,
     Path,
     format_call_summary,
     oauth_tool_factory,
@@ -453,7 +454,7 @@ async def test_a_transport_failure_leaves_no_poisoned_state():
     route = respx.post(TOKEN_URL).mock(side_effect=[httpx.ConnectTimeout("down"), _ok()])
     client = _client()
 
-    with pytest.raises(httpx.ConnectTimeout):
+    with pytest.raises(NetworkError):
         await client.get_credentials("example")
     assert (await client.get_credentials("example")).token == "at-1"
     assert route.call_count == 2

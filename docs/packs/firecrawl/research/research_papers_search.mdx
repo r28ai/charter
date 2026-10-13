@@ -26,16 +26,7 @@ result = asyncio.run(firecrawl.research_papers_search.ainvoke({"query": ...}))
 | `k` | `integer` | Maximum number of ranked papers to return. The server applies 40 when this is absent. <span className="field-constraints">≥ 1; ≤ 500</span> |
 | `authors` | `string` | Author substring filter. Repeat or pass a comma-separated value. |
 | `categories` | `string` | Paper category filter. Repeat or pass a comma-separated value. |
-| `to` | `string` | Inclusive upper bound on created/updated date. |
-
-</div>
-
-## Body
-
-<div className="reference-table">
-
-| Field | Type | Description |
-| --- | --- | --- |
 | `from` | `string` | Inclusive lower bound on created/updated date. |
+| `to` | `string` | Inclusive upper bound on created/updated date. |
 
 </div>

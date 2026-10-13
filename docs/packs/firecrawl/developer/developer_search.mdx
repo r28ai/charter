@@ -32,18 +32,9 @@ result = asyncio.run(firecrawl.developer_search.ainvoke({"query": ...}))
 | `language` | `string` | Repository primary language filter for repository results. |
 | `topic` | `string` | Repository topic filter for repository results. |
 | `license` | `string` | Repository license filter for repository results. |
-| `archived` | `boolean` | Include or exclude archived repositories for repository results. |
-| `fork` | `boolean` | Include or exclude forks for repository results. |
-
-</div>
-
-## Body
-
-<div className="reference-table">
-
-| Field | Type | Description |
-| --- | --- | --- |
 | `min_stars` | `integer` | Lower bound on repository stars for repository results. <span className="field-constraints">≥ 0</span> |
 | `max_stars` | `integer` | Upper bound on repository stars for repository results. <span className="field-constraints">≥ 0</span> |
+| `archived` | `boolean` | Include or exclude archived repositories for repository results. |
+| `fork` | `boolean` | Include or exclude forks for repository results. |
 
 </div>

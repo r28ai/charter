@@ -183,9 +183,12 @@ async def test_malformed_arguments_come_back_as_the_tool_result():
     assert "not valid JSON" in tool_result["content"]
 
 
-async def test_a_bug_in_a_tool_is_not_fed_to_the_model_as_text(monkeypatch):
-    """Only CharterError becomes a tool result. A RuntimeError is a bug in the
-    caller's code and has to reach the caller.
+async def test_a_bug_in_a_tool_ends_the_call_not_the_run(monkeypatch, caplog):
+    """An exception that is not a CharterError is a bug, in a handler or a
+    provider. It must not end the run: the model is told the tool failed on its
+    side and that changing the call will not help, and the traceback goes to the
+    log for whoever runs the host. The exception's own text is not the model's
+    to read — it was written for nobody, and can quote internal state.
 
     monkeypatch, not assignment: a pack's tools are module-level singletons, and
     breaking one by hand breaks it for every test that runs afterwards.
@@ -197,9 +200,24 @@ async def test_a_bug_in_a_tool_is_not_fed_to_the_model_as_text(monkeypatch):
         raise RuntimeError("handler is broken")
 
     monkeypatch.setattr(session.tools["gmail_messages_list"], "ainvoke", boom)
-    client = FakeClient([message(tool_calls=[tool_call("1", "gmail_messages_list", {})])])
-    with pytest.raises(RuntimeError, match="handler is broken"):
-        await run(client, model="m", messages=USER, session=session)
+    client = FakeClient(
+        [
+            message(tool_calls=[tool_call("1", "gmail_messages_list", {})]),
+            message(content="told the user"),
+        ]
+    )
+    with caplog.at_level("ERROR", logger="charter"):
+        result = await run(client, model="m", messages=USER, session=session)
+
+    assert result.content == "told the user"
+    tool_result = next(
+        m for m in result.messages if isinstance(m, dict) and m.get("role") == "tool"
+    )
+    assert "gmail_messages_list failed on its side (RuntimeError)" in tool_result["content"]
+    assert "not caused by the arguments" in tool_result["content"]
+    assert "handler is broken" not in tool_result["content"]
+    (record,) = [r for r in caplog.records if r.name == "charter"]
+    assert record.exc_info is not None and "handler is broken" in str(record.exc_info[1])
 
 
 async def test_max_turns_stops_the_loop_and_says_so():

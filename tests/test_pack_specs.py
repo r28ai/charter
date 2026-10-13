@@ -26,6 +26,7 @@ import json
 import re
 import sys
 from pathlib import Path as FsPath
+from typing import Any, Dict
 
 import pytest
 
@@ -267,6 +268,80 @@ def test_arguments_are_grouped_by_where_the_value_lands(pack):
         for where, heading in GEN._SECTIONS:
             if where in placements:
                 assert f"## {heading}" in text, f"{pack}.{tool.name} has no {heading}"
+
+
+def _hidden(field: Any, modes: Any) -> bool:
+    """Absent from a tool's view: ``response_only``/``disabled``, or a custom ``Mode``
+    the tool is not in — Calendar's import-only ``iCalUID`` on ``events_insert``."""
+    from charter.execution.schema import should_include_field
+    from charter.types import Mode
+
+    withheld = any(
+        isinstance(m, Mode) and m.modes & {"response_only", "disabled"} for m in field.metadata
+    )
+    return withheld or not should_include_field(field, modes)
+
+
+def _visible_nodes(model: Any, modes: Any) -> set:
+    """The models a tool's view reaches, through fields it does not hide."""
+    seen: set = set()
+    stack = [model]
+    while stack:
+        node = stack.pop()
+        if node in seen:
+            continue
+        seen.add(node)
+        for field in node.model_fields.values():
+            if not _hidden(field, modes):
+                stack.extend(GEN._referenced_models(field.annotation))
+    return seen
+
+
+def _published(parameters: Dict[str, Any]) -> set:
+    """Every property name a published schema carries, at any depth."""
+    names = set(parameters.get("properties", {}))
+    for definition in parameters.get("$defs", {}).values():
+        names |= set(definition.get("properties", {}))
+    return names
+
+
+@pytest.mark.parametrize("pack", PACKS)
+def test_the_generator_keys_by_names_the_schema_publishes(pack):
+    """Placements and pills are looked up by property name, so a name the schema
+    does not publish is a lookup that silently misses.
+
+    That was a whole class of bug, not one: keyed by ``to_camel`` of the field
+    name, a field with a ``WireName`` matched nothing. Calendar's ``iCalUID``
+    and Firecrawl's ``min_stars``, ``max_stars`` and ``from`` were listed under
+    the body, and ``iCalUID`` lost the ``import`` pill that says when it may be
+    set. Checked against what the schema publishes rather than against the
+    generator's own idea of a name, so the next helper that computes one is
+    caught too. Only the fields the tool's view shows are held to it: a field
+    the view hides has no row, under any name.
+    """
+    from pydantic.alias_generators import to_camel
+
+    for tool in GEN.pack_module(pack).TOOLS:
+        parameters = tool.to_json_schema()["parameters"]
+        published = _published(parameters)
+        modes = tool.modes
+
+        def hidden_keys(node: Any, modes: Any = modes) -> set:
+            # Under either spelling, so a generator that reverts to camelCase
+            # still has its hidden fields excused and its visible ones caught.
+            return {
+                spelling
+                for name, field in node.model_fields.items()
+                if _hidden(field, modes)
+                for spelling in (GEN.published_name(name, field), to_camel(name))
+            }
+
+        top = set(parameters.get("properties", {}))
+        stray = set(GEN._placements(tool)) - top - hidden_keys(tool.args_schema)
+        pills = GEN.marker_map(tool.args_schema)
+        for node in _visible_nodes(tool.args_schema, modes):
+            stray |= set(pills.get(node, {})) - published - hidden_keys(node)
+        assert not stray, f"{pack}.{tool.name} keys by unpublished names: {sorted(stray)}"
 
 
 @pytest.mark.parametrize("pack", PACKS)

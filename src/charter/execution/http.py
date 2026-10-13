@@ -57,6 +57,7 @@ from charter.types.markers import (
     WireName,
     declared_body_fields,
 )
+from charter.types.transport import network_error
 
 __all__ = ["call_api", "BaseUrl", "DEFAULT_CREDENTIAL_STATUSES"]
 
@@ -672,6 +673,14 @@ def _same_origin(a: httpx.URL, b: httpx.URL) -> bool:
     return (a.scheme, a.host, a.port) == (b.scheme, b.host, b.port)
 
 
+async def _send_one(http: httpx.AsyncClient, request: httpx.Request) -> httpx.Response:
+    """One hop, with httpx's transport failures raised as :class:`NetworkError`."""
+    try:
+        return await http.send(request, follow_redirects=False)
+    except httpx.RequestError as exc:
+        raise network_error(exc, request.url) from exc
+
+
 async def _send(
     http: httpx.AsyncClient,
     method: str,
@@ -708,10 +717,12 @@ async def _send(
     The redirect budget is httpx's own, and running out of it raises
     :class:`~charter.types.errors.APIError` rather than ``httpx.TooManyRedirects``
     — an httpx exception escaping here would pass every adapter, all of which
-    catch :class:`~charter.types.errors.CharterError` and nothing else.
+    catch :class:`~charter.types.errors.CharterError` and nothing else. For the
+    same reason a connection that fails, drops or times out raises
+    :class:`~charter.types.errors.NetworkError`, on every hop.
     """
     request = http.build_request(method, url, **request_kwargs)
-    response = await http.send(request, follow_redirects=False)
+    response = await _send_one(http, request)
     if not follow_redirects:
         return response
 
@@ -725,7 +736,7 @@ async def _send(
                     del following.headers[name]
         await response.aclose()
         request = following
-        response = await http.send(request, follow_redirects=False)
+        response = await _send_one(http, request)
 
     # The budget is redirects *followed*, so the answer to the last one still
     # counts. Returning only from inside the loop made the limit one lower than

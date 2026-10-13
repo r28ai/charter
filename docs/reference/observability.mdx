@@ -55,7 +55,10 @@ including the ones that never reached the network.
 </ResponseField>
 
 <ResponseField name="error_type" type="Optional[str]">
-  The exception class name, when the call raised.
+  The exception class name, when the call raised. For `transport_error` it is
+  the `httpx` class the [`NetworkError`](/reference/errors#networkerror) wraps —
+  `ConnectTimeout`, `ReadTimeout` — because those are different problems on a
+  dashboard.
 </ResponseField>
 
 Three of those values exist because a status code cannot express them.
@@ -66,7 +69,10 @@ body, which a generic HTTP metric records as a success.
 
 `cancelled` is separated from `transport_error` on purpose: a caller's timeout
 is not the API failing, and filing it as one puts someone else's latency budget
-in your provider's column.
+in your provider's column. `transport_error` is a connection that failed,
+dropped or timed out — the API's or the authorization server's — and `error` is
+everything else, including an exception that is not Charter's at all, such as a
+bug in a response handler or a credential provider.
 
 ### Timings
 

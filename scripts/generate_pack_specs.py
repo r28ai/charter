@@ -63,7 +63,7 @@ from typing_extensions import get_args, get_origin
 
 from charter.mcp import PACKS
 from charter.tool import Tool
-from charter.types.markers import Case, Format, Mode
+from charter.types.markers import Case, Format, Mode, WireName
 
 ROOT = Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
@@ -301,11 +301,23 @@ def _pills(field: Any) -> List[Tuple[str, str]]:
     return pills
 
 
+def published_name(name: str, field: Any) -> str:
+    """The property name the published schema gives a field: its ``WireName``, or camelCase.
+
+    Every helper here that keys by property name goes through this. Keyed by
+    ``to_camel`` alone, a field with a wire name matched nothing: its argument
+    was listed under the body and its pills were dropped — Calendar's
+    ``iCalUID`` lost the ``import`` pill that says when it may be set.
+    """
+    wire = next((m.name for m in field.metadata if isinstance(m, WireName)), None)
+    return wire or to_camel(name)
+
+
 def marker_map(model: type) -> Dict[type, Dict[str, List[Tuple[str, str]]]]:
-    """``{wire model: {camelCase property: pills}}`` for a whole tree."""
+    """``{wire model: {published property: pills}}`` for a whole tree."""
     out: Dict[type, Dict[str, List[Tuple[str, str]]]] = {}
     for node in model_tree(model):
-        here = {to_camel(name): _pills(f) for name, f in node.model_fields.items()}
+        here = {published_name(name, f): _pills(f) for name, f in node.model_fields.items()}
         out[node] = {name: pills for name, pills in here.items() if pills}
     return out
 
@@ -640,19 +652,26 @@ def route_of(tool: Tool) -> str:
 
 
 def _placements(tool: Tool) -> Dict[str, str]:
-    """Where each top-level argument goes, read off the wire schema's markers."""
+    """Where each top-level argument goes, read off the wire schema's markers.
+
+    Keyed by the name the published schema gives the argument, which is its
+    ``WireName`` where it has one: Graph's ``$select`` is published as
+    ``$select``, and keyed by ``to_camel("select")`` it matched nothing and was
+    listed under the body.
+    """
     from charter.types.markers import Body, Query
     from charter.types.markers import Path as PathMarker
 
     out: Dict[str, str] = {}
     for name, field in tool.args_schema.model_fields.items():
+        key = published_name(name, field)
         for marker in field.metadata:
             if isinstance(marker, PathMarker):
-                out[to_camel(name)] = "path"
+                out[key] = "path"
             elif isinstance(marker, Query):
-                out[to_camel(name)] = "query"
+                out[key] = "query"
             elif isinstance(marker, Body):
-                out[to_camel(name)] = "body"
+                out[key] = "body"
     return out
 
 
