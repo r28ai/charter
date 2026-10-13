@@ -34,6 +34,7 @@ from charter.types.markers import (
     ConflictsWith,
     Format,
     Gloss,
+    Header,
     KeyCase,
     Mode,
     Path,
@@ -53,6 +54,7 @@ __all__ = [
     # markers
     "Path",
     "Query",
+    "Header",
     "Body",
     "Format",
     "Mode",

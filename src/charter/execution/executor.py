@@ -41,6 +41,7 @@ from charter.execution.http import (
     HTTPMethod,
     QueryFormat,
     call_api,
+    render_header,
     unwraps_body,
 )
 from charter.observability import CallProbe
@@ -50,6 +51,7 @@ from charter.types.errors import CredentialError, DeclarationError, TransformErr
 from charter.types.markers import (
     Body,
     Format,
+    Header,
     KeyCase,
     Path,
     Query,
@@ -253,6 +255,7 @@ def _create_auto_transformer(
         result: TransportOverride = {}
         path_overrides: Dict[str, Any] = {}
         query_overrides: Dict[str, Any] = {}
+        header_overrides: Dict[str, str] = {}
         body_override = None
 
         for field_name, transformed_value in transformed_fields.items():
@@ -260,7 +263,7 @@ def _create_auto_transformer(
 
             location = None
             for metadata in field_info.metadata:
-                if isinstance(metadata, (Path, Query, Body)):
+                if isinstance(metadata, (Path, Query, Body, Header)):
                     location = metadata
                     break
 
@@ -270,6 +273,10 @@ def _create_auto_transformer(
                 path_overrides[field_name] = transformed_value
             elif isinstance(location, Query):
                 query_overrides[field_name] = transformed_value
+            elif isinstance(location, Header):
+                header_overrides[location.name] = render_header(
+                    field_name, location, transformed_value
+                )
             elif isinstance(location, Body):
                 if unwraps_body(body_field_count, location, transformed_value):
                     body_override = transformed_value
@@ -285,6 +292,8 @@ def _create_auto_transformer(
             result["path"] = path_overrides
         if query_overrides:
             result["query"] = query_overrides
+        if header_overrides:
+            result["headers"] = header_overrides
         if body_override is not None:
             result["body"] = body_override
 

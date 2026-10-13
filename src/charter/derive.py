@@ -71,7 +71,7 @@ from charter.execution.schema import (
     llm_json_schema,
 )
 from charter.types.errors import DeclarationError
-from charter.types.markers import Body, Path, Query
+from charter.types.markers import Body, Header, Path, Query
 
 __all__ = [
     "PathCost",
@@ -637,12 +637,16 @@ def check_pin_routing(schema: Type[BaseModel], pins: Dict[str, Any]) -> None:
     for path in pins:
         field = _field_at(schema, path)
         marker = next(
-            (m for m in getattr(field, "metadata", []) if isinstance(m, (Path, Query, Body))),
+            (
+                m
+                for m in getattr(field, "metadata", [])
+                if isinstance(m, (Path, Query, Body, Header))
+            ),
             None,
         )
         if marker is None:
             raise DeclarationError(
-                f"pin: {path!r} carries no Path()/Query()/Body() marker, so there is "
+                f"pin: {path!r} carries no Path()/Query()/Body()/Header() marker, so there is "
                 "nowhere to send it.",
                 docs="tools/projections",
             )

@@ -63,7 +63,7 @@ from typing_extensions import get_args, get_origin
 
 from charter.mcp import PACKS
 from charter.tool import Tool
-from charter.types.markers import Case, Format, Mode, WireName
+from charter.types.markers import Case, Format, Header, Mode, WireName
 
 ROOT = Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
@@ -294,6 +294,10 @@ def _pills(field: Any) -> List[Tuple[str, str]]:
     for marker in field.metadata:
         if isinstance(marker, Format):
             pills.append(("transform", marker.transform))
+        elif isinstance(marker, Header):
+            # Which header, and how the value is written into it: the argument
+            # is named for the model, and the wire is a different spelling.
+            pills.append(("header", f"{marker.name}: {marker.template or '{}'}"))
         elif isinstance(marker, Case):
             pills.append(("case", marker.case))
     for mode in sorted(modes):
@@ -670,6 +674,8 @@ def _placements(tool: Tool) -> Dict[str, str]:
                 out[key] = "path"
             elif isinstance(marker, Query):
                 out[key] = "query"
+            elif isinstance(marker, Header):
+                out[key] = "header"
             elif isinstance(marker, Body):
                 out[key] = "body"
     return out
@@ -708,7 +714,12 @@ def preamble(tool: Tool, shared_route: Optional[str] = None) -> Optional[str]:
     return "<Note>\n  " + " ".join(notes) + "\n</Note>"
 
 
-_SECTIONS = [("path", "Path parameters"), ("query", "Query parameters"), ("body", "Body")]
+_SECTIONS = [
+    ("path", "Path parameters"),
+    ("query", "Query parameters"),
+    ("header", "Headers"),
+    ("body", "Body"),
+]
 
 
 # Above this, a tool costs more context than the task the model was given. Seven
@@ -933,7 +944,7 @@ def tool_page(ctx: Context, pack: str, tool: Tool, shared_route: Optional[str]) 
     if wide:
         parts += [wide, ""]
 
-    grouped: Dict[str, Dict[str, Any]] = {"path": {}, "query": {}, "body": {}}
+    grouped: Dict[str, Dict[str, Any]] = {key: {} for key, _ in _SECTIONS}
     for name, node in properties.items():
         grouped[placement.get(name, "body")][name] = node
 

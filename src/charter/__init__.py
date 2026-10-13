@@ -83,6 +83,7 @@ from charter.types import (
     FileContent,
     Format,
     Gloss,
+    Header,
     KeyCase,
     ListValue,
     Mode,
@@ -177,6 +178,7 @@ __all__ = [
     # markers
     "Path",
     "Query",
+    "Header",
     "Body",
     "Format",
     "Mode",

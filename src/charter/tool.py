@@ -58,7 +58,7 @@ from charter.observability import (
     format_call_line,
 )
 from charter.types.envelope import Envelope
-from charter.types.markers import KeyCase, TransportOverride
+from charter.types.markers import KeyCase, TransportOverride, check_header_fields
 from charter.types.pagination import Pagination
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -620,6 +620,18 @@ class Tool:
         # `model_fields` per model on the graph: about 35ms across all 566 tools
         # the shipped packs declare.
         _check_schema_resolvable(args_schema, name, getattr(llm_cache, "verified", None))
+
+        # A header field a model fills in cannot be allowed to replace the
+        # credential, or a value the author fixed for every call.
+        check_header_fields(
+            args_schema,
+            name,
+            static_headers=static_headers,
+            credential_headers=[
+                *(api_key_headers if isinstance(api_key_headers, dict) else ()),
+                *((token_header,) if token_header else ()),
+            ],
+        )
 
         # The label itself, before anything resolves against it. An empty one
         # reads as "no mode at all" everywhere downstream, which is the widest

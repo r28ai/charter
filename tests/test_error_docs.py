@@ -323,7 +323,7 @@ async def test_a_declaration_error_can_arrive_from_a_call_not_only_a_build():
 
     with pytest.raises(DeclarationError) as excinfo:
         await tool.ainvoke(city="Tokyo")
-    assert "has no Path(), Query() or Body() marker" in str(excinfo.value)
+    assert "has no Path(), Query(), Body() or Header() marker" in str(excinfo.value)
     assert isinstance(excinfo.value, CharterError)
 
     # The author's own class, not the generated `Unmarked_LLM` variant they

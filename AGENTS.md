@@ -70,6 +70,12 @@ src/charter/
 connected-account selector). That is `ainvoke(args, headers={...})` — not a schema
 field, and not something Charter generates. See [docs/tools/wire-contract.md](docs/tools/wire-contract.md).
 
+**An argument the model decides that the API takes as a header** (Graph's
+`Prefer: odata.maxpagesize`). That *is* a schema field: mark it
+`Header("Prefer", template="odata.maxpagesize={}")`. Do not route it through a
+`Query()` field that `build_request` deletes and re-sends as a header — the docs
+list it as a query parameter and the next reader has to find the override.
+
 **An OAuth token the API reads from its own header** (Shopify's
 `X-Shopify-Access-Token`). Set `token_header` on `oauth_tool_factory`. Do not
 move the token into `api_key_headers`: those are resolved synchronously and

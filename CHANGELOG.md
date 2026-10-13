@@ -19,6 +19,15 @@ here, with the migration in the same entry.
   only when the connection never opened, so a host knows when a retry is safe.
   The `httpx` exception is `__cause__`.
 
+- **`Header()`: an argument the API takes as a request header.**
+  `Header("Prefer", template="odata.maxpagesize={}")` sends a field's value in
+  that header; the model sees an argument like any other. For what the model
+  decides — a value the host decides per call is still
+  `ainvoke(headers=...)`. A header value holding a line break is refused before
+  the request, and a `Header()` field cannot name `Authorization`, `Cookie`, a
+  header httpx derives, the tool's credential header, or one of its
+  `static_headers`. Generated pack pages list these arguments under Headers.
+
 ### Changed
 
 - **A tool failing ends the call, never the agent.** The OpenAI loop, the

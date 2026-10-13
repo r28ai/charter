@@ -378,13 +378,18 @@ def test_the_placement_is_not_repeated_as_a_marker(pack):
     """The page heads each table with the location, so a pill would restate it.
 
     Asserted because the marker slot is the page's whole differentiator: it is
-    for what nothing else on the page says.
+    for what nothing else on the page says. A ``header`` pill is not a
+    placement: the Headers table says the value is a header, and the pill says
+    which one and how the value is written into it, since the argument is listed
+    under its own name — ``maxPageSize``, sent as ``Prefer``.
     """
     for path, text in PAGES.items():
         if not path.startswith(f"packs/{pack}/"):
             continue
         for marker in re.findall(r'data-marker="(\w+)"', text):
-            assert marker in {"transform", "case", "mode"}, f"{pack}: stray marker {marker}"
+            assert marker in {"transform", "case", "mode", "header"}, (
+                f"{pack}: stray marker {marker}"
+            )
         for value in re.findall(r'data-marker="\w+">(\w+)<', text):
             assert value not in {"path", "query", "body"}, f"{pack}: placement as a marker"
 

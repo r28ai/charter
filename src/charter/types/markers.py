@@ -11,7 +11,17 @@ and how they are transformed or filtered.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, Literal, Type, TypedDict
+import re
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Iterable,
+    Literal,
+    Optional,
+    Type,
+    TypedDict,
+)
 
 from charter.types.errors import DeclarationError
 
@@ -26,6 +36,8 @@ __all__ = [
     "Path",
     "Query",
     "Body",
+    "Header",
+    "check_header_fields",
     "Format",
     "Mode",
     "TransportOverride",
@@ -265,6 +277,130 @@ class Body:
         return f"Body(envelop={self.envelop!r})"
 
 
+# An RFC 9110 field name: a token.
+_HEADER_NAME = re.compile(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$")
+
+# Headers a schema field may not set. The first three carry a credential, and a
+# model choosing one would choose whose account the call runs as. The rest are
+# httpx's to derive from the request it is sending, and a model's value would
+# describe a different request from the one that goes out.
+_RESERVED_HEADERS = frozenset(
+    {
+        "authorization",
+        "proxy-authorization",
+        "cookie",
+        "host",
+        "content-length",
+        "content-type",
+        "transfer-encoding",
+        "connection",
+    }
+)
+
+
+class Header:
+    """Marker for a request header whose value the model chooses.
+
+    For an API that takes an argument as a header rather than in the query or
+    the body: Microsoft Graph sizes a delta page with ``Prefer:
+    odata.maxpagesize=10``, and nothing else it accepts does the same job. The
+    field is an argument like any other — the model sees it under the field's
+    name, with its description — and its value is written into the header.
+
+    A value the *host* decides for a call — an idempotency key, a tenant
+    selector — is not this. That is ``ainvoke(args, headers=...)``, which a model
+    filling in arguments cannot reach.
+
+    Parameters
+    ----------
+    name : str
+        The header, sent as written.
+    template : str, optional
+        How the value is written into the header, with ``{}`` where it goes:
+        ``Header("Prefer", template="odata.maxpagesize={}")``. Without one the
+        value is the whole header.
+
+    The value is a scalar; ``True`` and ``False`` are sent as ``true`` and
+    ``false``. One holding a line break is refused before any request, because a
+    header value cannot contain one and a value that did would be a second
+    header. ``Authorization``, ``Proxy-Authorization`` and ``Cookie`` cannot be
+    named, nor the headers httpx derives from the request; the tool also refuses
+    a header its credential or its ``static_headers`` already set.
+    """
+
+    def __init__(self, name: str, template: Optional[str] = None) -> None:
+        if not isinstance(name, str) or not _HEADER_NAME.match(name):
+            raise DeclarationError(
+                f"Header({name!r}) is not a header name: one token, such as 'Prefer' "
+                "or 'X-Request-Priority'.",
+                docs="reference/markers#header",
+            )
+        if name.lower() in _RESERVED_HEADERS:
+            raise DeclarationError(
+                f"Header({name!r}) names a header a schema field may not set: it carries "
+                "a credential, or httpx derives it from the request. A value the host "
+                "decides per call goes in ainvoke(headers=...).",
+                docs="reference/markers#header",
+            )
+        if template is not None and template.count("{}") != 1:
+            raise DeclarationError(
+                f"Header({name!r}, template={template!r}) needs exactly one {{}} where "
+                "the value goes, e.g. template='odata.maxpagesize={}'.",
+                docs="reference/markers#header",
+            )
+        self.name = name
+        self.template = template
+
+    def render(self, value: Any) -> str:
+        """The header value for ``value``: the template filled, or the value alone."""
+        text = ("true" if value else "false") if isinstance(value, bool) else str(value)
+        return self.template.replace("{}", text) if self.template else text
+
+    def __repr__(self) -> str:
+        if self.template:
+            return f"Header({self.name!r}, template={self.template!r})"
+        return f"Header({self.name!r})"
+
+
+def check_header_fields(
+    schema: Type[BaseModel],
+    tool_name: str,
+    *,
+    static_headers: Optional[Dict[str, str]] = None,
+    credential_headers: Iterable[str] = (),
+) -> None:
+    """Refuse a ``Header`` field that would collide with a header the tool already sends.
+
+    A field naming the credential's header would let a model replace the
+    credential. One naming a static header would replace a value the author fixed
+    for every call — Graph's ``Prefer: outlook.body-content-type`` beside a page
+    size is the case, where the second silently drops the first — so the two are
+    declared as one or the other, not both. Two fields naming one header would
+    leave which one reaches the wire to field order.
+    """
+    taken = {name.lower(): "the credential" for name in credential_headers}
+    taken.update({name.lower(): "static_headers" for name in (static_headers or {})})
+    seen: Dict[str, str] = {}
+    for field_name, field in schema.model_fields.items():
+        for marker in field.metadata:
+            if not isinstance(marker, Header):
+                continue
+            key = marker.name.lower()
+            if key in taken:
+                raise DeclarationError(
+                    f"Tool {tool_name!r}: field {field_name!r} is sent as the "
+                    f"{marker.name} header, which {taken[key]} already sets on every call.",
+                    docs="reference/markers#header",
+                )
+            if key in seen:
+                raise DeclarationError(
+                    f"Tool {tool_name!r}: fields {seen[key]!r} and {field_name!r} are both "
+                    f"sent as the {marker.name} header.",
+                    docs="reference/markers#header",
+                )
+            seen[key] = field_name
+
+
 # -----------------------------------------------------
 # Format Transformation Marker
 # -----------------------------------------------------
@@ -371,7 +507,7 @@ class TransportOverride(TypedDict, total=False):
 def declared_body_fields(schema: Type[BaseModel]) -> int:
     """How many of ``schema``'s fields the wire contract sends in the body.
 
-    Everything that is not ``Path()`` or ``Query()``, which includes a field
+    Everything that is not ``Path()``, ``Query()`` or ``Header()``, which includes a field
     carrying no marker at all — that one is refused later, by name, rather than
     being miscounted here.
 
@@ -396,5 +532,6 @@ def declared_body_fields(schema: Type[BaseModel]) -> int:
     return sum(
         1
         for field in schema.model_fields.values()
-        if not any(isinstance(m, (Path, Query)) for m in field.metadata)
+        if not any(isinstance(m, (Path, Query, Header)) for m in field.metadata)
     )
+

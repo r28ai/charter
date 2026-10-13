@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 from base64 import b64encode
 from datetime import datetime, timezone
+from enum import Enum
 from time import perf_counter
 from typing import (
     Any,
@@ -50,6 +51,7 @@ from charter.types.errors import (
 )
 from charter.types.markers import (
     Body,
+    Header,
     KeyCase,
     Path,
     Query,
@@ -362,7 +364,7 @@ def _extract_http_params(
     )
 
     for name, field in model.__class__.model_fields.items():
-        loc = next((m for m in field.metadata if isinstance(m, (Path, Query, Body))), None)
+        loc = next((m for m in field.metadata if isinstance(m, (Path, Query, Body, Header))), None)
 
         # An unmarked top-level field is an unstated contract, and this is the
         # one place the runtime could paper over one. It used to default to
@@ -377,11 +379,16 @@ def _extract_http_params(
             # code, and `SendEmail_LLM` is nowhere in it.
             declared_name = getattr(model, "charter_declared_name", "") or type(model).__name__
             raise DeclarationError(
-                f"Field '{name}' on {declared_name} has no Path(), Query() "
-                f"or Body() marker, so where it belongs in the request is undeclared. "
+                f"Field '{name}' on {declared_name} has no Path(), Query(), Body() "
+                f"or Header() marker, so where it belongs in the request is undeclared. "
                 f"Mark it — or Mode('response_only') it if the API only ever returns it.",
                 docs="tools/wire-contract",
             )
+
+        # A header is rendered on its own, by `_header_fields`; nothing about
+        # it touches the path, the query or the body.
+        if isinstance(loc, Header):
+            continue
 
         val = getattr(model, name)
         if val is None:
@@ -430,6 +437,44 @@ def _extract_http_params(
             body_params[name] = val
 
     return path_params, query_params, body_params, body_source
+
+
+def render_header(field_name: str, marker: Header, value: Any) -> str:
+    """``value`` as the header a ``Header()`` field sends, or the error it is.
+
+    A header value is one line: a line break in one ends it and starts another
+    header, which from a model is a header the schema never declared. Refused
+    here, before any request, naming the argument.
+    """
+    if isinstance(value, Enum):
+        value = value.value
+    if isinstance(value, (BaseModel, list, tuple, set, dict)):
+        raise DeclarationError(
+            f"Field '{field_name}' is sent as the {marker.name} header, which takes one "
+            f"value, and it holds a {type(value).__name__}. Declare it as a scalar.",
+            docs="reference/markers#header",
+        )
+    rendered = marker.render(value)
+    if any(char in rendered for char in "\r\n\0"):
+        raise ToolValidationError(
+            f"'{field_name}' is sent as the {marker.name} header, and a header value "
+            "cannot contain a line break.",
+            errors=[{"loc": (field_name,), "msg": "a header value cannot contain a line break"}],
+        )
+    return rendered
+
+
+def _header_fields(model: BaseModel) -> Dict[str, str]:
+    """The headers this call's ``Header()`` fields set, by header name."""
+    headers: Dict[str, str] = {}
+    for name, field in type(model).model_fields.items():
+        marker = next((m for m in field.metadata if isinstance(m, Header)), None)
+        if marker is None:
+            continue
+        value = getattr(model, name)
+        if value is not None:
+            headers[marker.name] = render_header(name, marker, value)
+    return headers
 
 
 def _flatten_form(value: Any, prefix: str = "") -> List[Tuple[str, str]]:
@@ -858,6 +903,7 @@ async def call_api(
     """
     # Extract parameters from the Pydantic model
     path, params, body, body_source = _extract_http_params(tool_input, body_field_count)
+    field_headers = _header_fields(tool_input)
 
     # The one marker the path honours. See the interpolation below for why it is
     # this and not the full cascade.
@@ -1048,6 +1094,13 @@ async def call_api(
     # explicit override still wins.
     if static_headers:
         headers.update(static_headers)
+
+    # The arguments a schema routes to headers. After the static ones, which a
+    # `Header()` field is refused for naming when the tool is built, and before
+    # a `build_request` override and the host's own headers, which are more
+    # specific than anything the model chose.
+    if field_headers:
+        headers.update(field_headers)
 
     # Only set Content-Type when we have a JSON body. The form path lets httpx
     # set application/x-www-form-urlencoded itself.

@@ -1,6 +1,6 @@
 ---
 title: "Schema markers"
-description: "Path, Query, Body, Format, Mode, Case, ConflictsWith, WireName, Gloss, KeyCase and TransportOverride: what each takes and where it is legal."
+description: "Path, Query, Body, Header, Format, Mode, Case, ConflictsWith, WireName, Gloss, KeyCase and TransportOverride: what each takes and where it is legal."
 ---
 
 Markers are `Annotated` metadata on the fields of an `args_schema`. They are
@@ -23,9 +23,11 @@ class SendMessage(BaseModel):
     message_id: Annotated[Optional[str], Mode("response_only")] = None
 ```
 
-Order does not matter, and several markers may sit on one field. A field with no
-`Path`, `Query` or `Body` marker goes to the body and raises a `UserWarning`
-naming it — declare the marker rather than relying on that.
+Order does not matter, and several markers may sit on one field. A top-level
+field with no `Path`, `Query`, `Body` or `Header` marker is refused with a
+[`DeclarationError`](/reference/errors#declarationerror) naming it, at the first
+call: where it belongs in the request is undeclared, and the runtime does not
+guess.
 
 ## `Path`
 
@@ -99,6 +101,77 @@ A lone **scalar** does not unwrap. Unwrapping promotes a nested structure's own
 fields to the root of the request, and a scalar has none to promote, so it keeps
 its field name: `join(channel=Body())` sends `{"channel": "C1"}`. Lists still
 unwrap — a list, unlike a scalar, is a document.
+
+## `Header`
+
+```python
+class Header:
+    def __init__(self, name: str, template: Optional[str] = None) -> None: ...
+```
+
+Marks an argument the API takes as a request header. The model sees it like any
+other argument, under the field's own name and with its description; its value
+is written into the header named here. Microsoft Graph sizes a delta page with
+`Prefer: odata.maxpagesize=10`, and nothing in its query or body does the same
+job:
+
+```python
+from typing import Annotated, Optional
+
+from pydantic import BaseModel, Field
+from charter import Header, Path
+
+
+class MessagesDelta(BaseModel):
+    folder_id: Annotated[str, Path()]
+    max_page_size: Annotated[
+        Optional[int],
+        Field(None, ge=1, description="The maximum number of messages in each page."),
+        Header("Prefer", template="odata.maxpagesize={}"),
+    ] = None
+```
+
+A value the *host* decides for one call — an idempotency key, a tenant or
+connected-account selector — is not this. That is
+[`ainvoke(args, headers=...)`](/reference/tool#tool-ainvoke), which a model
+filling in arguments cannot reach.
+
+<ParamField path="name" type="str" required>
+  The header, sent as written. One token, such as `Prefer`.
+</ParamField>
+
+<ParamField path="template" type="str" default="None">
+  How the value is written into the header, with `{}` where it goes. Exactly one
+  `{}`. Without a template the value is the whole header.
+</ParamField>
+
+The value is a scalar; `True` and `False` are sent as `true` and `false`, and an
+enum member as its value. `None` sends no header.
+
+### What a header value cannot do
+
+The value comes from a model, so the header it writes is checked the way a path
+value is:
+
+- **A line break is refused**, with a
+  [`ToolValidationError`](/reference/errors#toolvalidationerror) naming the
+  argument, before any request. A header value is one line; a value that broke
+  it would start a second header the schema never declared.
+- **`Authorization`, `Proxy-Authorization` and `Cookie` cannot be named**, nor the
+  headers httpx derives from the request (`Host`, `Content-Length`,
+  `Content-Type`, `Transfer-Encoding`, `Connection`). A
+  [`DeclarationError`](/reference/errors#declarationerror) when the marker is
+  built.
+- **A header the tool already sends cannot be named.** Building the tool refuses
+  a `Header()` field that names its credential header (`token_header`, an
+  `api_key_headers` key) or one of its `static_headers`, and two fields that name
+  the same header. A static value replaced by a model's is the failure this
+  prevents: Graph's `Prefer: outlook.body-content-type` beside a page size would
+  silently lose one of the two.
+
+A header field is sent after `static_headers` and before a `build_request`
+override and the host's `ainvoke(headers=...)`, which are more specific than
+anything the model chose.
 
 ## `Format`
 

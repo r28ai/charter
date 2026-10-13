@@ -1,6 +1,6 @@
 ---
 title: "The wire contract"
-description: "Body format, static parameters, per-call headers, pagination, and Retry-After."
+description: "Body format, static parameters, per-call headers, header arguments, pagination, and Retry-After."
 ---
 
 Beyond where a field goes and how it is encoded, an API has a handful of
@@ -172,10 +172,34 @@ This is a channel, not a feature.
 arguments has no path to it. Which connected account a call acts as is the host's
 decision, structurally rather than by convention.
 
-Precedence, lowest to highest: auth → `static_headers` → a `build_request`
-override → per-call `headers`. The call site is the most specific authority, so it
-is the final word. A `None` value is dropped rather than sent empty, which lets a
-caller pass an optional header unconditionally.
+Precedence, lowest to highest: auth → `static_headers` → a
+[`Header()`](#header-arguments) argument → a `build_request` override → per-call
+`headers`. The call site is the most specific authority, so it is the final word.
+A `None` value is dropped rather than sent empty, which lets a caller pass an
+optional header unconditionally.
+
+## Header arguments
+
+Some APIs take an argument the *model* decides as a header rather than in the
+query or the body. Microsoft Graph sizes a delta page with
+`Prefer: odata.maxpagesize=10`, and offers nothing else that does it. That is a
+schema field marked [`Header()`](/reference/markers#header):
+
+```python
+max_page_size: Annotated[
+    Optional[int],
+    Field(None, ge=1, description="The maximum number of messages in each page."),
+    Header("Prefer", template="odata.maxpagesize={}"),
+] = None
+```
+
+The two kinds of header answer different questions, and the line between them is
+who decides. A per-call `headers` value is the host's — which account, which
+idempotency key — and a model can never reach it. A `Header()` field is an
+argument like any other, in the schema and filled in by the model, that happens
+to travel as a header. A `Header()` field cannot name the credential's header or
+one the tool already sets in `static_headers`, and a value containing a line
+break is refused before the request is built.
 
 ## Pagination
 
