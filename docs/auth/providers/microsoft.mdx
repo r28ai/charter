@@ -1,0 +1,154 @@
+---
+title: "Microsoft OAuth"
+sidebarTitle: "Microsoft"
+description: "The constant for the Outlook pack, the tenant segment that decides who can connect, the offline_access a refresh token needs, and why disconnecting has no request to send."
+---
+
+The [`outlook`](/packs/outlook) pack calls Microsoft Graph with a delegated
+token from the Microsoft identity platform. One endpoint serves work and school
+accounts and personal Outlook.com accounts alike, and the segment in its path
+decides which of them can sign in. The app is registered in Microsoft Entra ID:
+[Register a Microsoft Entra app](/auth/apps/microsoft) has the screens.
+
+## The server
+
+```python microsoft_server.py
+from charter.auth import OAuth2Server
+
+MICROSOFT = OAuth2Server(
+    issuer="https://login.microsoftonline.com/common/v2.0",
+    authorization_endpoint="https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+    token_endpoint="https://login.microsoftonline.com/common/oauth2/v2.0/token",
+    token_endpoint_auth_method="client_secret_post",
+    dead_grant_errors=("interaction_required",),
+)
+```
+
+`common` matches an app registered for any organisation and personal Microsoft
+accounts, the **All Microsoft account users** of the registration's overview.
+The segment has to agree with the **Supported account types** you chose:
+
+| Supported account types | Segment |
+|---|---|
+| Any organisation, and personal Microsoft accounts | `common` |
+| Any organisation | `organizations` |
+| Personal Microsoft accounts only | `consumers` |
+| One organisation | its **Directory (tenant) ID** |
+
+An app registered for one organisation answers `common` with `AADSTS50194`.
+
+[`dead_grant_errors`](/reference/oauth#oauth2server) is how Microsoft says the
+user has to sign in again: [Refresh behaviour](#refresh-behaviour). There is no
+`revocation`, because Microsoft gives your app nothing to send:
+[Disconnecting](#disconnecting).
+
+## Connecting a user
+
+```python microsoft_users.py
+from charter.auth import OAuth2Client, OAuth2Flow, SubjectProvider, scopes_for
+from charter.packs import outlook
+
+flow = OAuth2Flow(
+    MICROSOFT,
+    client_id=os.environ["MICROSOFT_CLIENT_ID"],
+    client_secret=os.environ["MICROSOFT_CLIENT_SECRET"],
+    redirect_uri="https://app.example.com/oauth/microsoft/callback",
+)
+# The link your "Connect Outlook" button opens. offline_access is what makes
+# Microsoft issue a refresh token.
+request = flow.authorize(scopes=[*scopes_for(outlook.TOOLS), "offline_access"])
+
+
+async def outlook_for(user_id: str):
+    row = await db.grants.get(user_id, "microsoft")
+    return OAuth2Client(
+        MICROSOFT,
+        client_id=os.environ["MICROSOFT_CLIENT_ID"],
+        client_secret=os.environ["MICROSOFT_CLIENT_SECRET"],
+        refresh_token=row.refresh_token,
+        on_refresh=partial(save_to_db, user_id),  # stores the token and the new refresh token
+    )
+
+
+outlook.configure(credential_provider=SubjectProvider(outlook_for))
+```
+
+The client takes a copy of the refresh token rather than reading the store
+before each refresh, as the [Linear](/auth/providers/linear) and
+[Notion](/auth/providers/notion) pages do. That's safe here because Microsoft
+doesn't retire a refresh token when it issues the next one:
+[Refresh behaviour](#refresh-behaviour).
+
+## Scopes
+
+Every Outlook tool declares the least-privileged Graph permission Microsoft's
+reference lists for its operation, and
+[`scopes_for`](/reference/oauth#scopes_for) reads them back. Hand out only the
+reading tools, and the consent screen asks for no write or send permission:
+
+```python microsoft_scopes.py
+from charter.auth import scopes_for
+from charter.packs import outlook
+
+reading = [outlook.messages_list, outlook.messages_get, outlook.mail_folders_list]
+
+scopes_for(reading)
+# ['https://graph.microsoft.com/Mail.Read', 'https://graph.microsoft.com/Mail.ReadBasic']
+```
+
+Each scope is written with its resource, `https://graph.microsoft.com/`, which
+is how Microsoft tells a Graph permission from another API's. `offline_access`
+is not a Graph permission and no tool declares it, so the flow adds it: without
+it, the code exchange returns no refresh token, and
+[`flow.exchange`](/reference/oauth#oauth2flow-exchange) raises rather than store a
+connection that dies within the hour.
+
+Microsoft asks each user for what the link requests, whether or not the app's
+**API permissions** list it. That list is what an administrator approves for a
+whole organisation. A grant covers the scopes it was issued for, so handing
+out a tool that needs a new one means sending the user through consent again.
+
+## Refresh behaviour
+
+An access token lasts about an hour. Each refresh returns a new refresh token as
+well, and Microsoft doesn't revoke the one it replaced, so a process holding an
+older copy can still refresh. Store the new one anyway: a refresh token lasts
+90 days by default, so a connection that refreshes at least that often never
+lapses, and one left idle longer has to be connected again.
+
+A refresh that needs the user, such as a multifactor sign-in their organisation
+now requires, fails with `interaction_required`. Microsoft returns that code
+from its token endpoint, where the standard has it only at the authorization
+endpoint. Declared in
+`dead_grant_errors`, it gets the same handling as `invalid_grant`: the client
+stops asking the token endpoint for a minute at a time, and the
+[`CredentialError`](/reference/errors#credentialerror) it raises has
+`reauthorize` set, so your app can show the user a reconnect button.
+
+## Disconnecting
+
+Microsoft has no revocation endpoint an app can call with the user's token.
+Ending a user's grant takes an administrator's permission over the whole
+directory, which your app doesn't have. So `MICROSOFT` declares no
+`revocation`, and disconnecting is deleting your row:
+
+```python microsoft_disconnect.py
+async def disconnect(user_id: str):
+    await db.grants.delete(user_id, "microsoft")  # no request to send first
+```
+
+[`SubjectProvider.revoke`](/reference/credentials#subjectprovider) raises a
+[`DeclarationError`](/reference/errors#declarationerror) for a server with no
+revocation, rather than report a disconnect that never happened.
+
+The grant itself lasts until its refresh token goes 90 days unused, or until
+the user removes your app. A personal account removes it at
+[account.live.com/consent/Manage](https://account.live.com/consent/Manage). In
+a work or school tenant, an administrator can remove the user's grant.
+
+## Where the rest is
+
+- [Register a Microsoft Entra app](/auth/apps/microsoft) — the screens, the redirect URI, the permissions
+- [Getting the grant](/auth/oauth-flow) — the route, the session, `state`, PKCE
+- [Connect your users' accounts](/auth/your-users) — every pack's providers, side by side
+- [Packs](/packs/outlook) — the Outlook tools

@@ -525,13 +525,13 @@ _SETUP: Dict[str, _Setup] = {
         need="A Microsoft Entra app registration, then a delegated token",
         where=(
             "[App registrations](https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade)"
-            " · [Microsoft's quickstart](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app)"
+            " · [Register an Entra app](/auth/apps/microsoft)"
         ),
         env="`MICROSOFT_ACCESS_TOKEN`",
         lead=(
             "**Before the first call, Outlook needs a token from an app registered with"
             " Microsoft Entra.** Microsoft issues no API key for mail."
-            " [Register an app](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app),"
+            " [Register an app](/auth/apps/microsoft),"
             " grant it the delegated Graph permissions these tools ask for —"
             " `Mail.ReadWrite`, `Mail.Send` and `MailboxSettings.ReadWrite` cover"
             " every write — and sign in through it. To try a tool on your own mailbox"

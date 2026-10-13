@@ -38,7 +38,7 @@ model never chooses a URL.
 ## Authenticating
 
 {/* generated:auth start — do not edit by hand; run scripts/generate_pack_docs.py */}
-**Before the first call, Outlook needs a token from an app registered with Microsoft Entra.** Microsoft issues no API key for mail. [Register an app](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app), grant it the delegated Graph permissions these tools ask for — `Mail.ReadWrite`, `Mail.Send` and `MailboxSettings.ReadWrite` cover every write — and sign in through it. To try a tool on your own mailbox first, [Graph Explorer](https://developer.microsoft.com/graph/graph-explorer) shows the signed-in account's token on its **Access token** tab; `export MICROSOFT_ACCESS_TOKEN=…`.
+**Before the first call, Outlook needs a token from an app registered with Microsoft Entra.** Microsoft issues no API key for mail. [Register an app](/auth/apps/microsoft), grant it the delegated Graph permissions these tools ask for — `Mail.ReadWrite`, `Mail.Send` and `MailboxSettings.ReadWrite` cover every write — and sign in through it. To try a tool on your own mailbox first, [Graph Explorer](https://developer.microsoft.com/graph/graph-explorer) shows the signed-in account's token on its **Access token** tab; `export MICROSOFT_ACCESS_TOKEN=…`.
 
 This pack takes an OAuth bearer token, and [`configure()`](/reference/configuration#configure) is optional when `$MICROSOFT_ACCESS_TOKEN` is set. Which credential provider you hand it depends on whose account the calls run as.
 

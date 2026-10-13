@@ -61,6 +61,7 @@ afterwards. *Provider* is what `for_user` returns.
 | Linear | an OAuth link, or a pasted personal key | a refresh token, or the key | `OAuth2Client(LINEAR, ...)` or `StaticTokenProvider` — [Linear](/auth/providers/linear) |
 | Stripe | a Stripe App install link, or a pasted restricted key | a refresh token, or the key | `OAuth2Client(STRIPE_APPS, ...)` or `StaticTokenProvider` — [Stripe](/auth/providers/stripe) |
 | Shopify | an OAuth link on the merchant's store | the store, and its token | `OAuth2Client(shopify_server(shop), ...)`, with `shop=` per call — [Shopify](/auth/providers/shopify) |
+| Outlook | an OAuth link | a refresh token | `OAuth2Client(MICROSOFT, ...)` — [Microsoft](/auth/providers/microsoft) |
 | Granola | a pasted API key | the key | `StaticTokenProvider` |
 | Firecrawl, Tavily | nothing: these are services you pay for | your own key | `configure(api_key=...)`, once |
 
@@ -76,8 +77,8 @@ the scopes, and the client ID and secret the flow is built from. Each of these
 has a screenshot for every screen:
 [Google](/auth/apps/google), [Slack](/auth/apps/slack),
 [GitHub](/auth/apps/github), [Linear](/auth/apps/linear),
-[Notion](/auth/apps/notion), [Stripe](/auth/apps/stripe) and
-[Shopify](/auth/apps/shopify).
+[Notion](/auth/apps/notion), [Stripe](/auth/apps/stripe),
+[Shopify](/auth/apps/shopify) and [Microsoft](/auth/apps/microsoft).
 
 ## Each provider
 
@@ -103,6 +104,11 @@ refresh does that Notion's docs leave out.
 
 [Shopify](/auth/providers/shopify): a server per store, `shop=` per call, and
 the expiring offline token Shopify now requires.
+
+### Microsoft
+
+[Microsoft](/auth/providers/microsoft): a tenant segment that decides who can
+connect, the `offline_access` a refresh token needs, and no revocation endpoint.
 
 The original three are [Google](/auth/providers/google),
 [Slack](/auth/providers/slack) and [GitHub](/auth/providers/github).

@@ -1,0 +1,199 @@
+---
+title: "Register a Microsoft Entra app"
+sidebarTitle: "Microsoft"
+description: "The app your users connect their Outlook mailboxes through: the account types, the redirect URI, the client secret and the Graph permissions, with a screenshot for each screen."
+---
+
+Microsoft issues no API key for mail. Before your users can connect Outlook,
+you need an app registered in Microsoft Entra ID, Microsoft's identity
+platform: it holds your redirect URI, your client secret, and the Graph
+permissions your tools ask for. A personal Microsoft account is enough to
+register one, and it takes about five minutes.
+
+Every Microsoft link below opens in a new tab, so this page stays where you left it.
+
+<Steps>
+
+<Step title="Start a new registration">
+
+Open [App registrations](https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade)
+in the Microsoft Entra admin center and click **New registration**.
+
+<Frame>
+  <img
+    src="/images/setup/microsoft/01-app-registrations.webp"
+    alt="The App registrations page in the Microsoft Entra admin center, with New registration first in the toolbar and no applications owned yet."
+  />
+</Frame>
+
+</Step>
+
+<Step title="Choose who can connect, and add your redirect URI">
+
+The registration form has three fields:
+
+- **Name**: what your users see on the consent screen.
+- **Supported account types**: who can sign in. For a product, pick the option
+  that includes **personal Microsoft accounts**, so both work or school
+  mailboxes and Outlook.com mailboxes can connect. The app's overview then
+  reads **All Microsoft account users**. Pick one organisation only, and the
+  app serves that organisation alone, through a different endpoint: see
+  [the server](/auth/providers/microsoft#the-server).
+- **Redirect URI**: choose **Web** as the platform and enter your app's
+  callback route, such as `https://app.example.com/oauth/microsoft/callback`.
+  It has to use HTTPS unless it's `localhost`, and match the flow's
+  `redirect_uri` character for character.
+
+Choose **Web**, not **Single-page application**. Microsoft expires refresh
+tokens sent to a single-page redirect after 24 hours, and a single-page app
+can't use a client secret. Click **Register**.
+
+</Step>
+
+<Step title="Copy the client ID">
+
+The app opens on its **Overview**. Copy the **Application (client) ID**.
+
+<Frame>
+  <img
+    src="/images/setup/microsoft/02-overview.webp"
+    alt="The Overview of Example App: its application (client) ID, object ID and directory (tenant) ID, one web redirect URI, and supported account types All Microsoft account users."
+  />
+</Frame>
+
+```bash
+export MICROSOFT_CLIENT_ID=7c2e9b41-5d08-4f3a-a6e1-0b9d84c25f17
+```
+
+You don't need the **Object ID**. The **Directory (tenant) ID** matters only if
+you chose a single organisation, because its endpoints include it.
+
+</Step>
+
+<Step title="Create a client secret">
+
+Under **Manage**, open **Certificates & secrets**. On the **Client secrets** tab,
+click **New client secret**, give it a description, and pick an expiry.
+
+<Frame>
+  <img
+    src="/images/setup/microsoft/03-client-secrets.webp"
+    alt="The Certificates & secrets page of Example App on its Client secrets tab, with New client secret above an empty list."
+  />
+</Frame>
+
+Copy the new secret's **Value**, not its **Secret ID**. Entra shows the value
+once, and only until you leave the page.
+
+```bash
+export MICROSOFT_CLIENT_SECRET=...
+```
+
+A secret lasts at most 24 months, and Microsoft recommends less than 12. When it
+expires, every token request fails until you create another, so put the date
+somewhere you'll see it.
+
+</Step>
+
+<Step title="Add the Graph permissions">
+
+Under **Manage**, open **API permissions** and click **Add a permission** →
+**Microsoft Graph** → **Delegated permissions**. Tick:
+
+- `Mail.ReadWrite`, `Mail.Send` and `MailboxSettings.ReadWrite`
+- `User.Read`, which Entra adds to a new registration by itself
+- `offline_access`, which is how Microsoft issues a refresh token
+
+Between them, they cover every tool in the [Outlook pack](/packs/outlook) but one.
+
+<Frame>
+  <img
+    src="/images/setup/microsoft/04-api-permissions.webp"
+    alt="The API permissions page of Example App: five delegated Microsoft Graph permissions, Mail.ReadWrite, Mail.Send, MailboxSettings.ReadWrite, offline_access and User.Read, none of which needs admin consent."
+  />
+</Frame>
+
+The exception is `translate_exchange_ids`, which needs `User.ReadBasic.All`. Add
+it too if you hand that tool out.
+
+This list is what an administrator approves when they consent for a whole
+organisation. Each user is asked for what your consent link requests, which
+[`scopes_for`](/reference/oauth#scopes_for) builds from the tools you hand out:
+[Scopes](/auth/providers/microsoft#scopes). None of these permissions needs an
+administrator, as the **Admin consent required** column shows.
+
+</Step>
+
+<Step title="Get verified, for other organisations' users">
+
+Skip this if your users sign in with personal Microsoft accounts, or all belong
+to the organisation the app is registered in.
+
+Users in other organisations may not be allowed to consent to an app from an
+**unverified publisher**. Since November 2020, Microsoft has blocked them from
+consenting to a newly registered multitenant app that asks for more than
+sign-in, wherever risk-based step-up consent is on. Many organisations also let
+their users consent only to verified publishers. Either way, the user sees
+**Need admin approval** instead of your consent screen, and until an
+administrator consents for the organisation, they can't connect.
+
+Publisher verification removes that block. It needs:
+
+- An account in the [Microsoft AI Cloud Partner Program](https://partner.microsoft.com/membership) that has completed verification.
+- An app registered with a **work or school account**. One registered with a
+  personal Microsoft account can't be verified, so register the production app
+  in your company's tenant.
+- A publisher domain that isn't `*.onmicrosoft.com`, and that matches the email
+  domain of the partner account.
+
+The [publisher verification overview](https://learn.microsoft.com/en-us/entra/identity-platform/publisher-verification-overview)
+has the rest. It costs nothing.
+
+</Step>
+
+<Step title="Connect a mailbox">
+
+Your app's "Connect Outlook" button opens the link
+[`flow.authorize()`](/reference/oauth#oauth2flow-authorize) builds. The user
+signs in, sees the permissions it asks for, and accepts. The server constant,
+the scopes and the per-user client are on the
+[Microsoft provider page](/auth/providers/microsoft).
+
+</Step>
+
+</Steps>
+
+## When it does not work
+
+<AccordionGroup>
+  <Accordion title="AADSTS50011: the redirect URI does not match">
+    The flow sent a URI that isn't listed for the app, character for character.
+    Check **Authentication** under **Manage**: the URI has to be there, under
+    **Web**. A trailing slash is enough to break the match.
+  </Accordion>
+  <Accordion title="AADSTS50194: not configured as a multi-tenant application">
+    The app was registered for one organisation, and the link went to the
+    `common` endpoint. Use the tenant's own endpoints, or change
+    **Supported account types**:
+    [the server](/auth/providers/microsoft#the-server).
+  </Accordion>
+  <Accordion title="AADSTS7000222: the client secret keys are expired">
+    Every token request fails, for every user. Create a new secret, deploy it,
+    then delete the old one. Users don't need to connect again.
+  </Accordion>
+  <Accordion title="“Need admin approval”">
+    The user's organisation doesn't let users consent to this app. An
+    administrator can consent for the organisation, or the app can be
+    publisher-verified: see the step above.
+  </Accordion>
+  <Accordion title="The exchange raises: no refresh_token">
+    The link didn't ask for `offline_access`. Add it to the scopes the flow
+    authorizes, and have the user connect again.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [Microsoft OAuth](/auth/providers/microsoft) — the server constant and the per-user client
+- [Getting the grant](/auth/oauth-flow) — the two routes, `state` and PKCE, inside your app
+- [Outlook](/packs/outlook) — the pack, and what each tool needs

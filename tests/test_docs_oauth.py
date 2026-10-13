@@ -55,6 +55,7 @@ DOCS = [
     ROOT / "docs/auth/providers/notion.mdx",
     ROOT / "docs/auth/providers/stripe.mdx",
     ROOT / "docs/auth/providers/shopify.mdx",
+    ROOT / "docs/auth/providers/microsoft.mdx",
 ]
 
 # The language, then whatever the fence carries after it: a filename, and on a
@@ -216,7 +217,7 @@ async def _run_block(source: str, namespace: dict, origin: str) -> None:
 
 def _credentials_in_the_environment(monkeypatch) -> None:
     """The registration facts each provider page reads out of os.environ."""
-    for name in ("GOOGLE", "SLACK", "GITHUB", "LINEAR", "NOTION", "SHOPIFY"):
+    for name in ("GOOGLE", "SLACK", "GITHUB", "LINEAR", "NOTION", "SHOPIFY", "MICROSOFT"):
         monkeypatch.setenv(f"{name}_CLIENT_ID", "cid")
         monkeypatch.setenv(f"{name}_CLIENT_SECRET", "csec")
     monkeypatch.setenv("GOOGLE_ACCESS_TOKEN", "at-static")

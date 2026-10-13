@@ -83,7 +83,8 @@
                       "auth/apps/linear",
                       "auth/apps/notion",
                       "auth/apps/stripe",
-                      "auth/apps/shopify"
+                      "auth/apps/shopify",
+                      "auth/apps/microsoft"
                     ]
                   }
                 ]
@@ -99,7 +100,8 @@
                   "auth/providers/linear",
                   "auth/providers/notion",
                   "auth/providers/stripe",
-                  "auth/providers/shopify"
+                  "auth/providers/shopify",
+                  "auth/providers/microsoft"
                 ]
               }
             ]
