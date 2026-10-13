@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 
 from charter import Body, DeclarationError, Format, Header, Path, Query, Tool, ToolValidationError
 from charter.auth import StaticTokenProvider
-from charter.types.markers import declared_body_fields
+from charter.types.markers import declared_body_fields, raw_body_exclusions
 
 BASE = "https://api.example.com/"
 
@@ -168,6 +168,7 @@ class Send(BaseModel):
 def test_a_header_argument_is_not_a_body_field():
     """One Body() field unwraps; a header beside it must not make it two."""
     assert declared_body_fields(Send) == 1
+    assert raw_body_exclusions(dict(Send.model_fields)) == []
 
 
 @respx.mock

@@ -31,7 +31,7 @@ Three shapes, depending on how the API authenticates.
 def configure(credential_provider: CredentialProvider) -> None: ...
 ```
 
-`gmail`, `gcalendar`, `gsheets`, `gdocs`, `gdrive`, `gforms`, `slack`, `github`, `notion`.
+`gmail`, `gcalendar`, `gsheets`, `gdocs`, `gdrive`, `gforms`, `slack`, `github`, `notion`, `outlook`.
 
 ```python
 from charter.auth import StaticTokenProvider
@@ -119,6 +119,7 @@ first use.
 | `notion` | `NOTION_API_KEY` |
 | `granola` | `GRANOLA_API_KEY` |
 | `tavily` | `TAVILY_API_KEY` |
+| `outlook` | `MICROSOFT_ACCESS_TOKEN` |
 
 Every variable is read per call, so one set after import is still found.
 

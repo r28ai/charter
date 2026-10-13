@@ -641,8 +641,15 @@ def code_sample(pack: str, tool: Tool) -> str:
     )
 
 
-def route_of(tool: Tool) -> str:
+def routes_of(tool: Tool) -> List[str]:
+    """Every route the tool is served at, most specific first, as :func:`route_of` spells one."""
+    return [route_of(tool, template) for template in tool.url_templates]
+
+
+def route_of(tool: Tool, template: Optional[str] = None) -> str:
     """The tool's URL template, with placeholders spelled as the arguments are.
+
+    ``template`` is one of the tool's routes; left out, the first.
 
     ``gcalendar`` writes ``calendars/{calendar_id}/events`` while ``gmail``
     writes ``{userId}``; the LLM schema serialises both as camelCase. The
@@ -651,7 +658,8 @@ def route_of(tool: Tool) -> str:
     different parameter. The wire's own spelling stays on the pack page's wire
     table.
     """
-    normalised = re.sub(r"\{(\w+)\}", lambda m: "{" + to_camel(m.group(1)) + "}", tool.url_template)
+    template = tool.url_template if template is None else template
+    normalised = re.sub(r"\{(\w+)\}", lambda m: "{" + to_camel(m.group(1)) + "}", template)
     return "/" + normalised.lstrip("/")
 
 
@@ -912,7 +920,6 @@ def tool_page(ctx: Context, pack: str, tool: Tool, shared_route: Optional[str]) 
 
     base = tool.base_url
     server = "" if callable(base) else str(base).rstrip("/")
-    route = f"{server}{route_of(tool)}"
 
     parts = [
         "---",
@@ -927,11 +934,24 @@ def tool_page(ctx: Context, pack: str, tool: Tool, shared_route: Optional[str]) 
         "",
         _BANNER,
         "",
-        f'<div className="tool-route">'
-        f'<span className="tool-row-method" data-method="{tool.method}">{tool.method}</span>'
-        f"<code>{jsx_string(route)}</code>"
-        f"</div>",
+        *(
+            f'<div className="tool-route">'
+            f'<span className="tool-row-method" data-method="{tool.method}">{tool.method}</span>'
+            f"<code>{jsx_string(server + route)}</code>"
+            f"</div>"
+            for route in routes_of(tool)
+        ),
         "",
+        *(
+            [
+                "The operation is served at each of these routes. A call goes to the first "
+                "one whose path parameters it gives, so leaving an optional one out is how "
+                "the wider route is chosen.",
+                "",
+            ]
+            if len(tool.url_templates) > 1
+            else []
+        ),
         code_sample(pack, tool),
         "",
     ]

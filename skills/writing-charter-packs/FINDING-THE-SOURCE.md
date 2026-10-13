@@ -73,6 +73,34 @@ The opposite failure, so the two sources swap roles:
 Carrying a closed `Literal` from a stale spec rejects a valid call, and the model
 cannot tell that apart from the API refusing it, so it has no way to recover.
 
+## Microsoft Graph: the CSDL with descriptions, then the markdown
+
+Graph publishes its v1.0 schema as OData CSDL at
+`https://graph.microsoft.com/v1.0/$metadata`, which is what Graph validates
+against — types, enum members, and every bound action's parameters. The copy at
+`msgraph-metadata/clean_v10_metadata/cleanMetadataWithDescriptionsv1.0.xml` on
+GitHub is the same schema with each property's description attached, which is
+most of a pack's field text in one file. The reference pages are markdown in
+`microsoftgraph/microsoft-graph-docs-contrib` under `api-reference/v1.0/api/`
+and `.../resources/`; fetch them raw rather than the rendered site.
+
+Four traps:
+
+- **Required is not in the schema.** CSDL marks almost nothing non-nullable, so
+  what a create needs comes from the prose ("Required." in a parameter table, or
+  "At minimum, specify..." in the intro).
+- **"Read-only" in a CSDL description is not always true.** `internetMessageHeaders`
+  and an extended property's `id` say it and are written on create; a category's
+  `displayName` says it and is required on create. Read the operation's own page.
+- **Action parameters are documented in two casings.** The CSDL spells them
+  `DestinationId`; most pages and examples send `destinationId`. `getMailTips`
+  and `createUploadSession` are the exceptions whose examples keep PascalCase
+  (`EmailAddresses`, `AttachmentItem`); follow the example.
+- **A summary that names an endpoint may name the wrong one.** "Permanently
+  delete" is the `permanentDelete` action, not `DELETE`, which moves to Deleted
+  Items; the MIME reply is `/reply` with `text/plain`, not `sendMail`. Each page
+  lists its own HTTP requests; that list is the endpoint.
+
 ## `llms.txt` is a starting point, not a path list
 
 Granola's omits `/v1/audit`. Assume any `llms.txt` is missing endpoints, cross-check

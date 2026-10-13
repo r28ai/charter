@@ -1,0 +1,589 @@
+---
+title: "Outlook"
+description: "Read, search, send, reply to and file mail; drafts, attachments, folders, categories, rules and mailbox settings, over Microsoft Graph."
+sidebarTitle: "Overview"
+---
+
+{/* generated:summary start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="pack-summary">
+  <span><Visibility for="humans"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg></Visibility>56 tools</span>
+  <span><Visibility for="humans"><svg viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /></svg></Visibility>OAuth</span>
+</div>
+{/* generated:summary end */}
+
+```python outlook_example.py {11}
+import asyncio
+
+from charter.auth import EnvTokenProvider
+from charter.packs import outlook
+
+credentials = EnvTokenProvider("MICROSOFT_ACCESS_TOKEN")
+outlook.configure(credentials)
+
+
+async def main():
+    unread = await outlook.messages_list.ainvoke(folder_id="inbox", filter="isRead eq false")
+
+
+asyncio.run(main())
+```
+
+Fifty-six tools over one Outlook mailbox, one per Microsoft Graph v1.0 operation
+and named after it: `messages_update` is `PATCH /me/messages/{id}`, which is how
+Graph marks a message read, flags it, categorises it and edits a draft. Where an
+operation is served at more than one path, or takes its body in more than one
+format, it is still one tool — the difference is an optional argument, and the
+model never chooses a URL.
+
+## Authenticating
+
+{/* generated:auth start — do not edit by hand; run scripts/generate_pack_docs.py */}
+**Before the first call, Outlook needs a token from an app registered with Microsoft Entra.** Microsoft issues no API key for mail. [Register an app](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app), grant it the delegated Graph permissions these tools ask for — `Mail.ReadWrite`, `Mail.Send` and `MailboxSettings.ReadWrite` cover every write — and sign in through it. To try a tool on your own mailbox first, [Graph Explorer](https://developer.microsoft.com/graph/graph-explorer) shows the signed-in account's token on its **Access token** tab; `export MICROSOFT_ACCESS_TOKEN=…`.
+
+This pack takes an OAuth bearer token, and [`configure()`](/reference/configuration#configure) is optional when `$MICROSOFT_ACCESS_TOKEN` is set. Which credential provider you hand it depends on whose account the calls run as.
+
+### A token you hold
+
+For a script, or a notebook. [`EnvTokenProvider`](/reference/credentials#envtokenprovider) re-reads the variable on every call, so a token rotated beside the process is picked up without a restart; [`StaticTokenProvider`](/reference/credentials#statictokenprovider) takes one you already hold as a string. Neither renews anything, so the calls stop when the token expires.
+
+```python outlook_script.py {4}
+from charter.auth import EnvTokenProvider
+from charter.packs import outlook
+
+credentials = EnvTokenProvider("MICROSOFT_ACCESS_TOKEN")
+outlook.configure(credentials)
+```
+
+### One account, refreshed
+
+For an agent or a server acting as you. [`OAuth2Client`](/reference/oauth#oauth2client) turns a client registration and a stored refresh token into an access token, and [renews it](/auth/authorization-servers#what-the-cache-does-precisely) before it lapses.
+
+```python outlook_agent.py {8}
+from charter.auth import OAuth2Client
+from charter.packs import outlook
+
+credentials = OAuth2Client(
+    MICROSOFT,
+    client_id=os.environ["MICROSOFT_CLIENT_ID"],
+    client_secret=os.environ["MICROSOFT_CLIENT_SECRET"],
+    refresh_token=os.environ["MICROSOFT_REFRESH_TOKEN"],
+)
+outlook.configure(credentials)
+```
+
+<Note>
+No refresh token yet? [Getting the grant](/auth/oauth-flow) is the one-time consent flow that hands you one.
+</Note>
+
+### Many end users
+
+For a product whose users each connect their own account. [`SubjectProvider`](/reference/credentials#subjectprovider) builds one credential per user through a factory you write, and [`use_subject`](/reference/credentials#use_subject) names the user a call acts for. [Your users' accounts](/auth/oauth-flow) is the consent route inside your app; [serving many users](/auth/authorization-servers#serving-many-users) is the per-subject cache and its eviction.
+
+The client is handed a function that reads the stored grant, not a copy of the refresh token. A server runs several workers, and a copy goes stale the first time another worker refreshes: [More than one process](/auth/oauth-flow#more-than-one-process).
+
+```python outlook_server.py {24,28}
+from functools import partial
+
+from charter.auth import OAuth2Client, SubjectProvider, TokenGrant, use_subject
+from charter.packs import outlook
+
+# Yours to write: a user id in, that user's credential out.
+async def for_user(user_id: str) -> OAuth2Client:
+    async def stored_grant() -> TokenGrant:  # read again whenever the token is due
+        row = await db.grants.get(user_id, "microsoft")
+        return TokenGrant(
+            access_token=row.access_token,
+            refresh_token=row.refresh_token,
+            expires_at=row.expires_at,
+        )
+
+    return OAuth2Client(
+        MICROSOFT,
+        client_id=os.environ["MICROSOFT_CLIENT_ID"],
+        client_secret=os.environ["MICROSOFT_CLIENT_SECRET"],
+        refresh_token=stored_grant,
+        on_refresh=partial(save_to_db, user_id),
+    )
+
+credentials = SubjectProvider(for_user)
+outlook.configure(credentials)
+
+# Per request: whose grant the tools use.
+with use_subject(request.user_id):
+    ...  # your agent runs here
+```
+{/* generated:auth end */}
+
+The token is a delegated one: the tools act as the signed-in user, on `/me`.
+Microsoft's authorization server publishes its metadata, so the `MICROSOFT`
+constant the snippets above name is one call —
+[`OAuth2Server.discover`](/auth/authorization-servers) against
+`https://login.microsoftonline.com/{tenant}/v2.0`. Ask for `offline_access`
+beside the Graph scopes, or Microsoft issues no refresh token.
+
+## The client
+
+{/* generated:wire start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<Note>
+[`oauth_tool_factory`](/reference/factories#oauth_tool_factory) is the whole client: a thin wrapper over `httpx` that attaches your token and these endpoint constants to each request. No vendor SDK enters your dependency tree.
+</Note>
+
+<div className="named-tabs" data-files="outlook_api_client.py|outlook_pack_client.py">
+<CodeGroup>
+
+```python Without the pack
+from charter import oauth_tool_factory
+
+outlook_api_client = oauth_tool_factory(
+    base_url="https://graph.microsoft.com/v1.0/",
+    provider="microsoft",
+    credential_provider=credentials,
+    pack="outlook",
+    body_format="json",
+    query_format="repeat",
+    body_case="camel",
+    query_case="camel",
+    path_case="snake",
+    static_headers={
+        "Prefer": "outlook.body-content-type=\"text\"",
+    },
+    # this API reports failure with an HTTP status code
+    envelope=None,
+)
+```
+
+```python With the pack
+from charter.packs import outlook
+
+outlook.configure(credentials)
+
+# The base URL, the casing, the envelope and the pagination are
+# already declared. 56 tools, ready to hand to a model:
+tools = outlook.TOOLS
+```
+
+</CodeGroup>
+</div>
+
+`credentials` is whichever of the three you built in [Authenticating](#authenticating). A pack takes it through [`configure()`](/reference/configuration#configure); a client you build takes the same object as `credential_provider`, and has no `configure()` of its own.
+
+### Paging through a list
+
+A cursor belongs to the tool that returns it, so it is declared on that tool's builder call:
+
+```python outlook_pagination.py
+messages_list = outlook_api_client(
+    name="messages_list",
+    args_schema=MessagesListRequest,
+    method="GET",
+    url_template=(
+        "me/mailFolders/{folder_id}/messages",
+        "me/messages",
+    ),
+    pagination=Pagination(
+        cursor_field="next_link",
+        cursor_param="next_link",
+    ),
+)
+```
+
+<Note>
+Pagination is declared on `messages_list`, `messages_delta`, `attachments_list`, `mail_folders_list` and `mail_folders_delta`. The other 51 take no cursor.
+</Note>
+{/* generated:wire end */}
+
+## Tools
+
+Each is a [`Tool`](/reference/tool), called with
+[`ainvoke`](/reference/tool#tool-ainvoke) as in the snippet above. The name
+links to its parameters, its response and what it costs.
+
+{/* generated:tools start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="tool-list">
+  <span className="tool-list-group">Messages</span>
+  <a className="tool-row" href="/packs/outlook/messages/messages_list">
+    <span className="tool-row-head"><span className="tool-row-name">messages_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List or search messages, across the mailbox or in one folder (an ID, or a well-known name such as inbox or sentitems).</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/messages/messages_get">
+    <span className="tool-row-head"><span className="tool-row-name">messages_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Read one message: sender, recipients, subject, date and the body as plain text.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/messages/messages_get_content">
+    <span className="tool-row-head"><span className="tool-row-name">messages_get_content</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get a message's MIME content as text: every header, and each body part as encoded on the wire.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/messages/messages_delta">
+    <span className="tool-row-head"><span className="tool-row-name">messages_delta</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Track changes to the messages in one folder.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/messages/messages_create">
+    <span className="tool-row-head"><span className="tool-row-name">messages_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Save a new draft, in Drafts unless folder_id names another folder, as a JSON message or as MIME. messages_send sends it later.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/messages/messages_update">
+    <span className="tool-row-head"><span className="tool-row-name">messages_update</span><span className="tool-row-method" data-method="PATCH">PATCH</span></span>
+    <span className="tool-row-desc">Change some of a message's properties, leaving the rest: isRead, flag, importance, categories, and on a draft its recipients, subject and body.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/messages/messages_delete">
+    <span className="tool-row-head"><span className="tool-row-name">messages_delete</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Delete a message or a draft.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/messages/messages_permanent_delete">
+    <span className="tool-row-head"><span className="tool-row-name">messages_permanent_delete</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Permanently delete a message.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/messages/messages_move">
+    <span className="tool-row-head"><span className="tool-row-name">messages_move</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Move a message to another folder — archive, deleteditems, or any folder ID.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/messages/messages_copy">
+    <span className="tool-row-head"><span className="tool-row-name">messages_copy</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Copy a message into another folder, by folder ID or well-known name.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/messages/messages_send">
+    <span className="tool-row-head"><span className="tool-row-name">messages_send</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Send a saved draft — a new message, reply, reply-all or forward draft.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/messages/messages_reply">
+    <span className="tool-row-head"><span className="tool-row-name">messages_reply</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Reply to the sender of a message right away.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/messages/messages_reply_all">
+    <span className="tool-row-head"><span className="tool-row-name">messages_reply_all</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Reply to the sender and every recipient of a message right away, as JSON or MIME.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/messages/messages_forward">
+    <span className="tool-row-head"><span className="tool-row-name">messages_forward</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Forward a message right away.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/messages/messages_create_reply">
+    <span className="tool-row-head"><span className="tool-row-name">messages_create_reply</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a draft reply to the sender of a message, to edit with messages_update and send with messages_send.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/messages/messages_create_reply_all">
+    <span className="tool-row-head"><span className="tool-row-name">messages_create_reply_all</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a draft reply to the sender and every recipient of a message.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/messages/messages_create_forward">
+    <span className="tool-row-head"><span className="tool-row-name">messages_create_forward</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a draft forward of a message, to edit and send later.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/messages/send_mail">
+    <span className="tool-row-head"><span className="tool-row-name">send_mail</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Send a new email right away, as a JSON message or as MIME.</span>
+  </a>
+  <span className="tool-list-group">Attachments</span>
+  <a className="tool-row" href="/packs/outlook/attachments/attachments_list">
+    <span className="tool-row-head"><span className="tool-row-name">attachments_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List a message's attachments: name, type, size and id, without the contents.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/attachments/attachments_get">
+    <span className="tool-row-head"><span className="tool-row-name">attachments_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Read one attachment.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/attachments/attachments_get_content">
+    <span className="tool-row-head"><span className="tool-row-name">attachments_get_content</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get an attachment's raw contents: a file's bytes (as text when they are text, otherwise base64), or an attached message's MIME.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/attachments/attachments_create">
+    <span className="tool-row-head"><span className="tool-row-name">attachments_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Attach a file (under 3 MB) or a message to a draft.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/attachments/attachments_create_upload_session">
+    <span className="tool-row-head"><span className="tool-row-name">attachments_create_upload_session</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Start attaching a file of 3 MB to 150 MB to a draft: returns the uploadUrl the file's bytes are then PUT to, in ranges of up to 4 MB, before expirationDateTime.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/attachments/attachments_delete">
+    <span className="tool-row-head"><span className="tool-row-name">attachments_delete</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Delete an attachment from a message or a draft.</span>
+  </a>
+  <span className="tool-list-group">Folders</span>
+  <a className="tool-row" href="/packs/outlook/folders/mail_folders_list">
+    <span className="tool-row-head"><span className="tool-row-name">mail_folders_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the folders under the mailbox root, or under parent_folder_id, with their unread and total counts.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/folders/mail_folders_get">
+    <span className="tool-row-head"><span className="tool-row-name">mail_folders_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Read one folder, by ID or well-known name, with its unread and total counts.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/folders/mail_folders_create">
+    <span className="tool-row-head"><span className="tool-row-name">mail_folders_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a folder under the root or under parent_folder_id, or a search folder — a saved filter over folders you name.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/folders/mail_folders_update">
+    <span className="tool-row-head"><span className="tool-row-name">mail_folders_update</span><span className="tool-row-method" data-method="PATCH">PATCH</span></span>
+    <span className="tool-row-desc">Rename a folder or set its extended properties, or change a search folder's source folders or filter.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/folders/mail_folders_delete">
+    <span className="tool-row-head"><span className="tool-row-name">mail_folders_delete</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Delete a folder, or a search folder, and what is in it.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/folders/mail_folders_permanent_delete">
+    <span className="tool-row-head"><span className="tool-row-name">mail_folders_permanent_delete</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Permanently delete a folder and remove its items from the mailbox.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/folders/mail_folders_move">
+    <span className="tool-row-head"><span className="tool-row-name">mail_folders_move</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Move a folder and everything in it into another folder.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/folders/mail_folders_copy">
+    <span className="tool-row-head"><span className="tool-row-name">mail_folders_copy</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Copy a folder and everything in it into another folder.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/folders/mail_folders_delta">
+    <span className="tool-row-head"><span className="tool-row-name">mail_folders_delta</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Track changes to the mailbox's folders.</span>
+  </a>
+  <span className="tool-list-group">Categories</span>
+  <a className="tool-row" href="/packs/outlook/categories/master_categories_list">
+    <span className="tool-row-head"><span className="tool-row-name">master_categories_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the categories defined for the mailbox, with their colors.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/categories/master_categories_get">
+    <span className="tool-row-head"><span className="tool-row-name">master_categories_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Read one category.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/categories/master_categories_create">
+    <span className="tool-row-head"><span className="tool-row-name">master_categories_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a category.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/categories/master_categories_update">
+    <span className="tool-row-head"><span className="tool-row-name">master_categories_update</span><span className="tool-row-method" data-method="PATCH">PATCH</span></span>
+    <span className="tool-row-desc">Change a category's color.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/categories/master_categories_delete">
+    <span className="tool-row-head"><span className="tool-row-name">master_categories_delete</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Delete a category from the mailbox's list.</span>
+  </a>
+  <span className="tool-list-group">Inbox rules</span>
+  <a className="tool-row" href="/packs/outlook/rules/message_rules_list">
+    <span className="tool-row-head"><span className="tool-row-name">message_rules_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the Inbox rules, in the order they run.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/rules/message_rules_get">
+    <span className="tool-row-head"><span className="tool-row-name">message_rules_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Read one Inbox rule: its conditions, exceptions and actions.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/rules/message_rules_create">
+    <span className="tool-row-head"><span className="tool-row-name">message_rules_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create an Inbox rule: when an incoming message meets the conditions, and none of the exceptions, Outlook takes the actions.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/rules/message_rules_update">
+    <span className="tool-row-head"><span className="tool-row-name">message_rules_update</span><span className="tool-row-method" data-method="PATCH">PATCH</span></span>
+    <span className="tool-row-desc">Change some of an Inbox rule's properties, leaving the rest as they are.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/rules/message_rules_delete">
+    <span className="tool-row-head"><span className="tool-row-name">message_rules_delete</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Delete an Inbox rule.</span>
+  </a>
+  <span className="tool-list-group">Mailbox settings</span>
+  <a className="tool-row" href="/packs/outlook/settings/mailbox_settings_get">
+    <span className="tool-row-head"><span className="tool-row-name">mailbox_settings_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Read the mailbox's settings: automatic replies (out of office), time zone, working hours, language, and date and time formats.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/settings/mailbox_settings_update">
+    <span className="tool-row-head"><span className="tool-row-name">mailbox_settings_update</span><span className="tool-row-method" data-method="PATCH">PATCH</span></span>
+    <span className="tool-row-desc">Change some of the mailbox's settings, leaving the rest: automatic replies, time zone, working hours, language, formats.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/settings/supported_languages">
+    <span className="tool-row-head"><span className="tool-row-name">supported_languages</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the languages and locales the user's mailbox server supports.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/settings/supported_time_zones">
+    <span className="tool-row-head"><span className="tool-row-name">supported_time_zones</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the time zones the user's mailbox server supports, as Windows or IANA names.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/settings/inference_overrides_list">
+    <span className="tool-row-head"><span className="tool-row-name">inference_overrides_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the senders whose mail is always sorted into Focused or Other.</span>
+  </a>
+  <span className="tool-list-group">Focused Inbox</span>
+  <a className="tool-row" href="/packs/outlook/focused_inbox/inference_overrides_create">
+    <span className="tool-row-head"><span className="tool-row-name">inference_overrides_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Always sort a sender's future mail into Focused or Other.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/focused_inbox/inference_overrides_update">
+    <span className="tool-row-head"><span className="tool-row-name">inference_overrides_update</span><span className="tool-row-method" data-method="PATCH">PATCH</span></span>
+    <span className="tool-row-desc">Switch an override between Focused and Other.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/focused_inbox/inference_overrides_delete">
+    <span className="tool-row-head"><span className="tool-row-name">inference_overrides_delete</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Remove an override, so the sender's mail is sorted automatically again.</span>
+  </a>
+  <span className="tool-list-group">Extensions and extended properties</span>
+  <a className="tool-row" href="/packs/outlook/extensions/extensions_get">
+    <span className="tool-row-head"><span className="tool-row-name">extensions_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Read an open extension — an app's own named data — stored on a message.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/extensions/extensions_create">
+    <span className="tool-row-head"><span className="tool-row-name">extensions_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Store an open extension on a message: an extensionName and any custom name-value pairs of primitive values or arrays of them.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/extensions/extensions_delete">
+    <span className="tool-row-head"><span className="tool-row-name">extensions_delete</span><span className="tool-row-method" data-method="DELETE">DELETE</span></span>
+    <span className="tool-row-desc">Delete an open extension from a message.</span>
+  </a>
+  <span className="tool-list-group">MailTips and IDs</span>
+  <a className="tool-row" href="/packs/outlook/other/get_mail_tips">
+    <span className="tool-row-head"><span className="tool-row-name">get_mail_tips</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Check recipients before sending: automatic replies, full mailboxes, delivery restrictions, moderation, external recipients and distribution-list sizes.</span>
+  </a>
+  <a className="tool-row" href="/packs/outlook/other/translate_exchange_ids">
+    <span className="tool-row-head"><span className="tool-row-name">translate_exchange_ids</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Convert up to 1,000 Outlook item IDs from one format to another — for example from restId to the immutable restImmutableEntryId, which survives a move.</span>
+  </a>
+</div>
+{/* generated:tools end */}
+
+## One operation, one tool
+
+**Several paths.** Graph lists messages at `/me/messages` and at
+`/me/mailFolders/{id}/messages`, and folders at the root and under a parent's
+`childFolders`. Each is one tool: `messages_list(folder_id=...)`,
+`mail_folders_list(parent_folder_id=...)`, `messages_create(folder_id=...)`,
+`mail_folders_create(parent_folder_id=...)`. Leave the scope out for the wider
+route. The routes are declared on the tool, most specific first, and the runtime
+calls the first one the arguments fill — see [routes](/tools/wire-contract#routes).
+
+**Two body formats.** `send_mail`, `messages_create` and the reply, reply-all and
+forward operations take a JSON message *or* a MIME document. Fill `message` (and
+`comment`, `toRecipients`) for JSON, or `mime` with an
+[`EmailContent`](/reference/semantic-types#emailcontent) for MIME, which
+[`Format("mime_base64")`](/reference/transforms#built-in-transforms) builds and
+encodes in standard base64 — padded, with `+` and `/`, the alphabet Graph decodes.
+`mime` is [`Body(media_type="text/plain")`](/tools/wire-contract#a-body-in-another-media-type):
+set, it is the whole body and the JSON arguments are refused beside it.
+
+**Narrower tools are a projection.** A deployment that wants an action-sized tool
+derives one:
+
+```python outlook_mark_read.py
+mark_read = outlook.messages_update.derived(
+    name="mark_read", keep={"message_id", "message.is_read"}
+)
+```
+
+The model then sees `messageId` and `isRead`, and nothing else of the message.
+
+## What crosses the boundary
+
+### On the way out
+
+A file attachment's `contentBytes` takes the file's text, and is base64-encoded
+on the way out. Its description says "base64-encoded contents", which is Graph's
+wire format; a [`Gloss`](/reference/markers#gloss) tells the model not to encode
+it twice.
+
+### On the way back
+
+Graph wraps every object in envelope keys and every recipient twice. The
+response handlers drop `@odata.context`, `@odata.etag`, `changeKey` and
+`conversationIndex`, and flatten each recipient to `Name <address>`.
+`messages_list` leaves each message's full `body` out — `bodyPreview` carries the
+first 255 characters, and a selected `uniqueBody` stays, which is the way to read
+a thread: `filter="conversationId eq '…'"`, `select="from,receivedDateTime,uniqueBody"`.
+
+`messages_get` and `messages_list` ask Graph for bodies as plain text
+(`Prefer: outlook.body-content-type="text"`). A host that wants the HTML — to
+edit a draft in its own formatting — passes
+`headers={"Prefer": 'outlook.body-content-type="html"'}` to `ainvoke`, which
+applies last.
+
+An attachment is decoded only when it is text, and strictly. A binary file is
+reported by name, type and size, and `attachments_get_content` hands over its
+bytes.
+
+## Paging
+
+Graph answers a long collection with `@odata.nextLink`, the whole URL of the next
+page, and Microsoft is explicit that the `$skip` or `$skiptoken` inside it is not
+for extracting. So the handlers return it as `next_link`, every paging tool takes
+it back under that name, and the tool sends the link's own query string in place
+of the parameters it would otherwise build.
+
+The link also says which collection it is a page of — `mailFolders('drafts')` —
+and that is a path parameter, not part of the query. So the tool takes the folder
+from the link too: a `next_link` passed on its own stays in its folder, and one
+passed beside a different `folder_id` follows the link. The link's path is matched
+against the tool's own routes and one that matches none is refused, so a rewritten
+link can change which page of which folder, never which endpoint.
+
+```python outlook_paging.py
+args = {"folder_id": "inbox", "top": 50}
+page = await outlook.messages_list.ainvoke(args)
+while (args := outlook.messages_list.pagination.next_page_args(page, args)) is not None:
+    page = await outlook.messages_list.ainvoke(args)
+```
+
+`messages_delta` and `mail_folders_delta` end a round with `delta_link` instead. Keep
+it, and pass it as `next_link` later: the next round returns only what was
+created, updated or removed since.
+
+`messages_delta` sizes its pages with `max_page_size`, which is Graph's
+`Prefer: odata.maxpagesize` header, and does not offer `$top`. Graph lists `$top`
+among the options delta supports, but on a delta round it ends the round: `$top=2`
+on a folder of twelve messages returned two and a `delta_link`, the next round
+returned nothing, and the other ten were never delivered.
+
+## Gotchas
+
+<AccordionGroup>
+  <Accordion title="Delete does not go to Deleted Items">
+    `messages_delete` (`DELETE /me/messages/{id}`) skips Deleted Items: the message
+    lands in Recoverable Items (`recoverableitemsdeletions`), where Outlook keeps it
+    for the retention period. A folder deleted with `mail_folders_delete` does not
+    appear in Deleted Items either. To put either there, move it: `messages_move`
+    or `mail_folders_move` to `deleteditems`. `messages_permanent_delete` calls
+    Graph's `permanentDelete` action, after which Outlook clients cannot reach the
+    message, and a folder deleted with `mail_folders_permanent_delete` is removed
+    outright, not kept in the purges folder.
+  </Accordion>
+
+  <Accordion title="Some query options are accepted and ignored">
+    Graph takes `$select` on mailbox settings, `$filter` on the category list, and
+    `$top` and `$filter` on a message's attachments without complaint, and returns
+    everything anyway. Those tools do not offer them, because a model handed the
+    whole collection reads it as the subset it asked for. The rule list takes
+    `$filter`, but most rule properties refuse it with a 400 (`isEnabled`,
+    `sequence`); with a handful of rules, list them all.
+  </Accordion>
+
+  <Accordion title="A moved message has a new id">
+    `messages_move` returns the message in its new folder, under a new id. An id
+    saved before the move no longer finds it. `translate_exchange_ids` converts to
+    `restImmutableEntryId`, which survives a move.
+  </Accordion>
+
+  <Accordion title="$search wants its query in double quotes">
+    `search` takes `"pizza"` or `"from:ada subject:invoice"`, quotes included, and
+    the call is refused locally without them. It returns at most 1,000 matches,
+    most recently sent first.
+  </Accordion>
+
+  <Accordion title="Filtering and sorting at once has three rules">
+    Graph refuses a `$filter` beside an `$orderby` unless every sorted property is
+    filtered on, in the same order, ahead of the others — `InefficientFilter`.
+    Newest first with a filter is `orderby="receivedDateTime desc"` and a filter
+    that starts `receivedDateTime ge 1900-01-01T00:00:00Z and …`.
+  </Accordion>
+
+  <Accordion title="Extended properties live on the item">
+    There is no endpoint for one. Write them through `messages_update` or
+    `mail_folders_update` (`singleValueExtendedProperties`), and read them with
+    `expand="singleValueExtendedProperties($filter=id eq '…')"` on `messages_get`
+    or `mail_folders_get`.
+  </Accordion>
+
+  <Accordion title="A large attachment is two steps, and the second is yours">
+    `attachments_create_upload_session` returns the session's `uploadUrl`. The
+    file's bytes go to that URL in `PUT`s of up to 4 MB, which a model has no bytes
+    to make; the host does that part.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+- [Microsoft Graph mail API overview](https://learn.microsoft.com/en-us/graph/api/resources/mail-api-overview?view=graph-rest-1.0)
+- [Throttling limits for Outlook](https://learn.microsoft.com/en-us/graph/throttling-limits#outlook-service-limits)
+- [Gmail](/packs/gmail), the same job against Google's API

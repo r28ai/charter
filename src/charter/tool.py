@@ -42,6 +42,7 @@ from pydantic import BaseModel
 from charter.auth import CredentialProvider
 from charter.execution.executor import ApiKeyHeaders, ResponseHandler, ToolExecutor
 from charter.execution.http import BaseUrl, BodyFormat, HTTPMethod, QueryFormat
+from charter.execution.routes import UrlTemplate, check_routes, routes_of
 from charter.execution.schema import (
     _get_field_modes,
     create_llm_schema,
@@ -487,7 +488,7 @@ class Tool:
         *,
         name: str,
         method: HTTPMethod,
-        url_template: str,
+        url_template: UrlTemplate,
         args_schema: Type[BaseModel],
         base_url: BaseUrl,
         description: str = "",
@@ -529,7 +530,11 @@ class Tool:
         # Literal-typed parameter to str, and derived() and the executor both
         # pass these back into signatures that declare the Literals.
         self.method: HTTPMethod = method
-        self.url_template = url_template
+        # Every route the operation is served at, most specific first, and the
+        # first of them under the name everything that shows one route reads.
+        # See :mod:`charter.execution.routes`.
+        self.url_templates: Tuple[str, ...] = routes_of(url_template)
+        self.url_template: str = self.url_templates[0]
         self.base_url = base_url
         self.action_label = action_label
         self.body_case: KeyCase = body_case
@@ -621,6 +626,10 @@ class Tool:
         # the shipped packs declare.
         _check_schema_resolvable(args_schema, name, getattr(llm_cache, "verified", None))
 
+        # Several routes for one operation are a declaration that can be wrong
+        # in ways no call would show until the one that hits it.
+        check_routes(self.url_templates, args_schema, path_case, name)
+
         # A header field a model fills in cannot be allowed to replace the
         # credential, or a value the author fixed for every call.
         check_header_fields(
@@ -662,7 +671,7 @@ class Tool:
         # one that still carries the wire types the Format markers describe.
         self._executor = ToolExecutor(
             method=method,
-            url_template=url_template,
+            url_template=self.url_templates,
             base_url=base_url,
             original_schema=args_schema,
             body_case=body_case,
@@ -1086,7 +1095,7 @@ class Tool:
             name=name,
             description=description,
             method=self.method,
-            url_template=self.url_template,
+            url_template=self.url_templates,
             args_schema=self.args_schema,
             base_url=self.base_url,
             action_label=action_label,
@@ -1364,7 +1373,7 @@ class Tool:
                 tool=self.name,
                 provider=self.provider,
                 method=self.method,
-                url_template=self.url_template,
+                url_template=probe.route or self.url_template,
                 probe=probe,
                 error=error,
                 total_ms=total_ms,

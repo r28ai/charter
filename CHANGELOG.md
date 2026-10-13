@@ -11,6 +11,42 @@ here, with the migration in the same entry.
 
 ### Added
 
+- **An Outlook pack: `charter.packs.outlook`, 56 tools over the mail API in
+  Microsoft Graph v1.0**, one per Graph operation and named after it —
+  `messages_update` is `PATCH /me/messages/{id}`, and marking read, flagging and
+  editing a draft are all that one operation, as they are in Graph. Messages,
+  drafts, replies and forwards, MIME, attachments, folders and search folders,
+  categories, Inbox rules, mailbox settings, Focused Inbox overrides, open
+  extensions and extended properties, MailTips and ID translation. Graph's
+  `@odata.nextLink` comes back as `next_link` and goes back in under the same
+  name. Its query replaces the arguments', and the folder it is a page of is
+  taken from its path, matched against the tool's own routes: a link passed on
+  its own stays in its folder, and one of another collection is refused, so a
+  rewritten link cannot move the call to another endpoint. `messages_delta`
+  pages with `max_page_size` (`Prefer: odata.maxpagesize`) and offers no `$top`,
+  which on a delta round ends it and drops the messages after it. Query options
+  Graph accepts and ignores — `$select` on mailbox settings, `$filter` on
+  categories, `$top` and `$filter` on attachments — are not offered.
+  `$MICROSOFT_ACCESS_TOKEN` is the environment fallback, and
+  `charter-mcp --pack outlook` serves it.
+
+- **Routes: one operation served at several paths is one tool.**
+  `url_template` takes a sequence of templates, most specific first, and a call
+  goes to the first one whose placeholders it filled:
+  `("me/mailFolders/{folder_id}/messages", "me/messages")` is one
+  `messages_list` with an optional `folder_id`. The model sees an optional
+  argument and no URL; no adapter reads one. A sequence is checked when the tool
+  is built — every placeholder a `Path()` field, no route shadowed by an earlier
+  one, a last route every call can fill. `Tool.url_templates` holds them all,
+  and a `ToolCall` records the route a call took.
+
+- **`Body(media_type=...)`: one operation, two body formats.** A field so marked
+  is the whole request body when it is set, sent as-is in that media type, and
+  excludes every other body field — a rule derived from the marker, enforced in
+  the view the model fills in and listed by `conflict_map`. It is not counted
+  when the other body fields decide whether to unwrap. Graph's `sendMail` takes
+  `message` or `mime` this way.
+
 - **`NetworkError`, a sixth `CharterError`.** A connection that fails, drops
   or times out raises it, wherever Charter sends a request: a tool's call and
   each redirect hop, the token request in front of it, a code exchange, a
@@ -28,7 +64,17 @@ here, with the migration in the same entry.
   header httpx derives, the tool's credential header, or one of its
   `static_headers`. Generated pack pages list these arguments under Headers.
 
+- **`Format("mime_base64")`.** The RFC 822 message `rfc822_base64` builds, in
+  standard base64 with padding — what Microsoft Graph's MIME endpoints decode.
+  They answer the base64url form with `400 Invalid base64 string for MIME
+  content`.
+
 ### Changed
+
+- **A `None` in a `build_request` query or path override removes that key.** A
+  query key used to go out as an empty parameter, and a path key as `None` in
+  the URL. An override can now consume a field it rewrote into another
+  parameter, and clear a placeholder to choose the wider route.
 
 - **A tool failing ends the call, never the agent.** The OpenAI loop, the
   LangChain adapter and the MCP server used to let an exception that was not a

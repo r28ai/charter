@@ -209,12 +209,12 @@ def _set_addresses(msg: EmailMessage, name: str, value: Union[str, List[str]]) -
     msg[name] = ascii_addresses
 
 
-@TransformRegistry.register("rfc822_base64", EmailContent, "Email message content")
-def transform_email_to_rfc822_base64(email: EmailContent) -> str:
-    """Transform ``EmailContent`` to RFC822 format, base64url encoded.
+def _rfc822_bytes(email: EmailContent) -> bytes:
+    """The RFC822 message ``email`` describes, as the bytes a server receives.
 
-    This is used for the Gmail API and other email services that expect RFC822
-    formatted messages. Supports plain text, HTML, and multipart/alternative.
+    Plain text, HTML, and multipart/alternative when both are given. Shared by
+    every transform that ships a whole message, so the two encodings below
+    cannot disagree about what the message is.
     """
     msg = EmailMessage(policy=_EMAIL_POLICY)
     if email.bodyHtml:
@@ -238,9 +238,31 @@ def transform_email_to_rfc822_base64(email: EmailContent) -> str:
         msg["In-Reply-To"] = email.in_reply_to
     if email.references:
         msg["References"] = email.references
+    return msg.as_bytes()
 
+
+@TransformRegistry.register("rfc822_base64", EmailContent, "Email message content")
+def transform_email_to_rfc822_base64(email: EmailContent) -> str:
+    """Transform ``EmailContent`` to RFC822 format, base64url encoded.
+
+    This is used for the Gmail API and other email services that expect RFC822
+    formatted messages. Supports plain text, HTML, and multipart/alternative.
+    """
     # base64url without padding, as Gmail's `raw` takes it
-    return base64.urlsafe_b64encode(msg.as_bytes()).decode("ascii").rstrip("=")
+    return base64.urlsafe_b64encode(_rfc822_bytes(email)).decode("ascii").rstrip("=")
+
+
+@TransformRegistry.register("mime_base64", EmailContent, "Email message content")
+def transform_email_to_mime_base64(email: EmailContent) -> str:
+    """Transform ``EmailContent`` to RFC822 format, standard base64 with padding.
+
+    The same message as ``rfc822_base64`` in the other base64 alphabet.
+    Microsoft Graph's MIME endpoints (``sendMail``, ``reply``, ``createReply``
+    and the rest, sent as ``Content-Type: text/plain``) decode the body as
+    standard base64 and answer ``400 Invalid base64 string for MIME content``
+    to the URL-safe, unpadded form Gmail wants.
+    """
+    return base64.b64encode(_rfc822_bytes(email)).decode("ascii")
 
 
 @TransformRegistry.register("email_json", EmailContent, "Email message as JSON")

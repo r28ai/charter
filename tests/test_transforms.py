@@ -34,6 +34,7 @@ from charter.types import (
 
 BUILTINS = {
     "rfc822_base64",
+    "mime_base64",
     "email_json",
     "base64",
     "base64url",
@@ -166,6 +167,33 @@ def test_rfc822_base64_round_trip_shape():
     assert msg["References"] == "<root@example.com> <parent@example.com>"
     assert msg.get_content_type() == "text/plain"
     assert "Plain body" in msg.get_payload(decode=True).decode()
+
+
+def test_mime_base64_is_the_same_message_in_standard_base64():
+    """Microsoft Graph's MIME bodies: padded, `+` and `/`, never base64url.
+
+    Graph decodes with the standard alphabet and refuses the URL-safe form with
+    `400 Invalid base64 string for MIME content`. The subject below is chosen so
+    the standard encoding needs a `+` or `/`, which is where the two differ.
+    """
+    content = EmailContent(
+        to="ada@example.com",
+        subject="Re: ??>>??>> quarterly",
+        body="Plain body",
+        in_reply_to="<parent@example.com>",
+    )
+
+    encoded = apply_transform("mime_base64", content)
+
+    assert len(encoded) % 4 == 0
+    assert "-" not in encoded and "_" not in encoded
+    assert "+" in encoded or "/" in encoded
+    decoded = base64.b64decode(encoded, validate=True)
+    url_safe = apply_transform("rfc822_base64", content)
+    assert decoded == base64.urlsafe_b64decode(url_safe + "=" * (-len(url_safe) % 4))
+    msg = email.message_from_bytes(decoded)
+    assert msg["To"] == "ada@example.com"
+    assert msg["In-Reply-To"] == "<parent@example.com>"
 
 
 def test_rfc822_base64_accepts_a_plain_dict():

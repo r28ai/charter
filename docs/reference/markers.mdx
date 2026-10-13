@@ -82,7 +82,7 @@ Marks a query-string parameter. Lists are serialised according to
 
 ```python
 class Body:
-    def __init__(self, envelop: bool = False) -> None: ...
+    def __init__(self, envelop: bool = False, media_type: Optional[str] = None) -> None: ...
 ```
 
 Marks a request-body field.
@@ -91,6 +91,17 @@ Marks a request-body field.
   Keep the field *name* in the serialised body instead of unwrapping to its
   value. Required for APIs such as Gmail's `drafts.insert`, which expect
   `{"message": {...}}` rather than the bare object.
+</ParamField>
+
+<ParamField path="media_type" type="str" default="None">
+  The field is the **whole** request body, in this media type, when it is set:
+  its value, after any `Format`, is sent as-is with this `Content-Type`. For an
+  operation that takes its body in more than one format — Microsoft Graph's
+  `sendMail` takes JSON or a base64 MIME document as `text/plain`. It excludes
+  every other body field, a rule the runtime derives and enforces in the view
+  the model fills in, and it is not counted when the other body fields decide
+  whether to unwrap. Not combinable with `envelop`. See
+  [a body in another media type](/tools/wire-contract#a-body-in-another-media-type).
 </ParamField>
 
 A schema that declares exactly one `Body()` field unwraps: that field's value
@@ -546,9 +557,12 @@ class TransportOverride(TypedDict, total=False):
     headers: Dict[str, str]
 ```
 
-What a `build_request` callable returns. Every key is optional, and each one
-present replaces what the schema would have produced for that part of the
-request; the parts you omit are still derived from the schema.
+What a `build_request` callable returns. Every key is optional, and the parts
+you omit are still derived from the schema. `path` and `query` are merged over
+what the schema produced, key by key, and a `None` in `query` removes that key —
+how an override consumes a field it turned into another parameter, as Outlook's
+`get_conversation` turns `conversation_id` into a `$filter`. `body` is merged
+into an object body, and replaces any other. `headers` are described below.
 
 ```python
 from pydantic import BaseModel

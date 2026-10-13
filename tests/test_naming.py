@@ -79,6 +79,7 @@ def test_pack_is_not_derivable_from_base_url():
         "slack",
         "firecrawl",
         "notion",
+        "outlook",
     ],
 )
 def test_every_shipped_pack_declares_itself(pack):
@@ -233,7 +234,7 @@ def test_every_shipped_name_is_valid_for_the_strictest_surface():
 
     from charter.mcp import PACKS
 
-    assert len(PACKS) == 15, "a pack was added or removed; this test must cover all of them"
+    assert len(PACKS) == 16, "a pack was added or removed; this test must cover all of them"
     names = [
         qualified_name(t)
         for p in PACKS

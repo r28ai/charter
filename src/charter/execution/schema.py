@@ -61,7 +61,14 @@ from pydantic.alias_generators import to_camel, to_pascal, to_snake
 from pydantic_core import PydanticUndefined
 
 from charter.transforms import get_transform
-from charter.types.markers import ConflictsWith, Format, Gloss, Mode, WireName
+from charter.types.markers import (
+    ConflictsWith,
+    Format,
+    Gloss,
+    Mode,
+    WireName,
+    raw_body_exclusions,
+)
 
 __all__ = [
     "LLMBase",
@@ -117,6 +124,11 @@ def _conflict_validator(
     validator is a second place to keep in step, and nothing notices when it
     stops matching.
 
+    A ``Body(media_type=...)`` field contributes a rule of its own: it is the
+    whole request body, so it excludes every other body field. Derived here from
+    the marker, for the same reason ``ConflictsWith`` is — a list beside it would
+    forget the next body field added.
+
     The markers are read off ``source`` — the author's schema — for the fields
     the view keeps, when it is given. The view's own ``FieldInfo`` is not where
     they live for every field: a ``Format`` field's markers move onto its
@@ -134,6 +146,7 @@ def _conflict_validator(
         for marker in getattr(info, "metadata", []):
             if isinstance(marker, ConflictsWith):
                 rules.append((name, marker.fields, marker.reason))
+    rules.extend(raw_body_exclusions(declared))
     if not rules:
         return None
 

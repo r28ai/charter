@@ -215,7 +215,7 @@ def create_tool(
     name: str,
     args_schema: Type[BaseModel],
     method: HTTPMethod,
-    url_template: str,
+    url_template: Union[str, Sequence[str]],
     description: Optional[str] = None,
     action_label: Optional[str] = None,
     body_case_override: Optional[KeyCase] = None,
@@ -239,7 +239,7 @@ def create_tool(
 | `name` | Tool name |
 | `args_schema` | The schema — the contract |
 | `method` | `GET` / `POST` / `PATCH` / `PUT` / `DELETE` |
-| `url_template` | Path relative to the base URL, with a placeholder per [`Path()`](/reference/markers#path) field |
+| `url_template` | Path relative to the base URL, with a placeholder per [`Path()`](/reference/markers#path) field — or several, most specific first, for one operation served at more than one path ([routes](/tools/wire-contract#routes)) |
 | `description` | What the tool does, for the model |
 | `action_label` | Short user-facing phrase, for approval UIs |
 | `mode` | Which [`Mode`](/reference/markers#mode)-marked fields survive into the LLM schema |

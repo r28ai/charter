@@ -26,6 +26,10 @@ keywords = ["key", "api", "token", "secret", "client", "passwd", "password", "au
     # pagination fixture has to be one. This decodes to a reference to the
     # invented "event2" in the same file and authorises nothing.
     '''CAcSB2V2ZW50Mg''',
+    # Microsoft Graph's `@odata.deltaLink` carries an opaque `$deltatoken`, and
+    # the Outlook delta fixture hands one back. A sync cursor, not a credential:
+    # it reads nothing without the bearer token beside it.
+    '''LztZwWjo5IivWBhyxw5rAKu''',
   ]
 
 # The app-registration guides (docs/auth/apps/) show a client ID next to a

@@ -208,20 +208,22 @@ def test_a_page_states_its_tool_s_method_and_route(pack):
     for tool in GEN.pack_module(pack).TOOLS:
         text = _page(pack, tool)
         assert f'data-method="{tool.method}">{tool.method}<' in text
-        assert GEN.route_of(tool) in text, f"{pack}.{tool.name} does not state its route"
+        for route in GEN.routes_of(tool):
+            assert route in text, f"{pack}.{tool.name} does not state its route {route}"
 
 
 @pytest.mark.parametrize("pack", PACKS)
 def test_a_normalised_route_renames_nothing_but_the_case(pack):
     """``{calendar_id}`` becomes ``{calendarId}``; no segment may move or vanish."""
     for tool in GEN.pack_module(pack).TOOLS:
-        original = re_findall_braces(tool.url_template)
-        normalised = re_findall_braces(GEN.route_of(tool))
-        assert len(original) == len(normalised)
-        assert [name.replace("_", "").lower() for name in original] == [
-            name.lower() for name in normalised
-        ]
-        assert GEN.route_of(tool).count("/") == ("/" + tool.url_template.lstrip("/")).count("/")
+        for template, route in zip(tool.url_templates, GEN.routes_of(tool), strict=True):
+            original = re_findall_braces(template)
+            normalised = re_findall_braces(route)
+            assert len(original) == len(normalised)
+            assert [name.replace("_", "").lower() for name in original] == [
+                name.lower() for name in normalised
+            ]
+            assert route.count("/") == ("/" + template.lstrip("/")).count("/")
 
 
 def test_a_pack_on_one_endpoint_still_gets_a_page_per_tool():
@@ -348,7 +350,9 @@ def test_the_generator_keys_by_names_the_schema_publishes(pack):
 def test_path_parameters_are_the_ones_the_url_template_names(pack):
     """``{userId}`` in the template and a path parameter are the same statement."""
     for tool in GEN.pack_module(pack).TOOLS:
-        templated = set(re_findall_braces(GEN.route_of(tool)))
+        # Across every route: a path parameter only a narrower route names is
+        # still one the template — the declaration — states.
+        templated = {name for route in GEN.routes_of(tool) for name in re_findall_braces(route)}
         declared = {name for name, where in GEN._placements(tool).items() if where == "path"}
         assert declared == templated, f"{pack}.{tool.name}"
 
@@ -361,6 +365,10 @@ def test_a_path_parameter_can_always_be_filled(pack):
     ``userId`` both default to ``"me"``, so a caller can leave them out and the
     template still resolves. What may not happen is a path segment that is
     neither required nor defaulted.
+
+    A tool with several routes may leave one out: leaving it out is how the
+    wider route is chosen. The last route is the one every call can fill, so
+    a parameter it does not name is optional by design rather than a hole.
     """
     for tool in GEN.pack_module(pack).TOOLS:
         text = _page(pack, tool)
@@ -368,8 +376,11 @@ def test_a_path_parameter_can_always_be_filled(pack):
         if len(section) == 1:
             continue
         body = section[1].split("\n## ")[0]
+        last = set(re_findall_braces(GEN.routes_of(tool)[-1]))
         for row in _rows(body):
-            fillable = "required" in row[0] or "defaults to" in row[2]
+            name = row[0].split("`")[1] if "`" in row[0] else row[0]
+            optional_by_route = len(tool.url_templates) > 1 and name not in last
+            fillable = "required" in row[0] or "defaults to" in row[2] or optional_by_route
             assert fillable, f"{pack}.{tool.name}: {row[0]} can leave a hole in the URL"
 
 

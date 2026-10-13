@@ -15,7 +15,7 @@ def Tool(
     *,
     name: str,
     method: HTTPMethod,
-    url_template: str,
+    url_template: Union[str, Sequence[str]],
     args_schema: Type[BaseModel],
     base_url: BaseUrl,
     description: str = "",
@@ -58,10 +58,14 @@ Every parameter is keyword-only.
   HTTP method.
 </ParamField>
 
-<ParamField path="url_template" type="str" required>
+<ParamField path="url_template" type="str | Sequence[str]" required>
   Path relative to `base_url`, with a placeholder per [`Path()`](/reference/markers#path) field —
   `"gmail/v1/users/{userId}/messages/send"`. Placeholder names are matched
-  against the path keys after casing is applied.
+  against the path keys after casing is applied. For one operation served at
+  several paths, a sequence of templates, most specific first: a call goes to
+  the first whose placeholders it filled. See
+  [routes](/tools/wire-contract#routes). `tool.url_template` is the first route
+  and `tool.url_templates` all of them.
 </ParamField>
 
 <ParamField path="args_schema" type="Type[BaseModel]" required>

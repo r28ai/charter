@@ -58,7 +58,8 @@ src/charter/
   text.py      decode_base64url / html_to_text, for response handlers
   adapters/    openai, langchain, mcp  (extras)
   packs/       gmail, gcalendar, gsheets, gdocs, gdrive, gforms, slack, github,
-               stripe, linear, shopify, firecrawl, notion, granola, tavily
+               stripe, linear, shopify, firecrawl, notion, granola, tavily,
+               outlook
 ```
 
 ## Common tasks
@@ -86,6 +87,18 @@ with a `DeferredCredentialProvider`, and have `configure()` call
 `configure_key_or_provider` (`packs/_config.py`) so it takes `api_key=` or
 `credential_provider=`. A key held in `api_key_headers` is one key for the
 process, which no application serving its own users can use.
+
+**One operation at several paths** (Graph's `/me/messages` and
+`/me/mailFolders/{id}/messages`, GitLab's `/issues` and `/projects/:id/issues`).
+One tool: give `url_template` the routes most specific first and make the scope
+an optional `Path()` field. The runtime calls the first route the arguments
+fill, and the model never sees a URL. Two near-identical tools make the model
+choose the URL. See [routes](docs/tools/wire-contract.md#routes).
+
+**One operation, two body formats** (Graph's `sendMail`, JSON or base64 MIME).
+One tool: mark the second format `Body(media_type="text/plain")`. Set, it is the
+whole body and excludes every other body field — the rule is derived from the
+marker, so do not write a `ConflictsWith` list beside it.
 
 **A constant the API wants on every request** (Azure `api-version`, a
 `Notion-Version` header). Use `static_query` / `static_headers` on the factory.

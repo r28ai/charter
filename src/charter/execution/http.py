@@ -39,6 +39,7 @@ from pydantic import BaseModel
 
 from charter.auth import Credentials
 from charter.execution.casing import DictKeyParser, convert_with_plan, key_plan, plan_for
+from charter.execution.routes import UrlTemplate, choose_route, routes_of
 from charter.observability import CallProbe
 from charter.types.envelope import Envelope
 from charter.types.errors import (
@@ -289,7 +290,7 @@ def unwraps_body(declared_body_fields: int, marker: Body, value: Any) -> bool:
 def _extract_http_params(
     model: BaseModel,
     body_field_count: Optional[int] = None,
-) -> Tuple[Dict[str, Any], Dict[str, Any], Optional[Dict[str, Any]], Any]:
+) -> Tuple[Dict[str, Any], Dict[str, Any], Optional[Dict[str, Any]], Any, Optional[str]]:
     """Extract HTTP *path*, *query*, and *body* parameters from a Pydantic model.
 
     Parameter location is decided using the ``Annotated`` markers from
@@ -328,9 +329,14 @@ def _extract_http_params(
        Several arguments marked ``Body()``, merged into one object using their
        parameter names as keys. E.g. Google Sheets ``batchUpdate``.
 
+    4. **A whole body in another media type** — ``Body(media_type=...)``. When
+       that field is set, its value *is* the body, sent as-is in that media
+       type, and no other body field may be set beside it. Graph's ``sendMail``
+       takes a JSON message or a base64 MIME document this way.
+
     Returns
     -------
-    tuple[path_params, query_params, body, body_source]
+    tuple[path_params, query_params, body, body_source, media_type]
         path_params : variables to interpolate into the URL template.
         query_params : plain query string parameters.
         body : the JSON body to send (``None`` if no body).
@@ -343,6 +349,9 @@ def _extract_http_params(
             fields and it is its own answer. Reported here rather than re-derived
             by the caller, so nothing guesses a second time at the unwrap
             decision made below.
+        media_type : the ``Content-Type`` a ``Body(media_type=...)`` field that
+            was set asks for, in which case ``body`` is that field's value and
+            is sent without key casing; ``None`` for a JSON or form body.
     """
     path_params: Dict[str, Any] = {}
     query_params: Dict[str, Any] = {}
@@ -353,6 +362,8 @@ def _extract_http_params(
     # — and the annotation otherwise, because a container's *shape* decides where
     # a plan applies and a dumped value no longer carries it.
     body_sources: Dict[str, Any] = {}
+    # A Body(media_type=...) field that was set: (name, value, media type).
+    raw: Optional[Tuple[str, Any, str]] = None
 
     # How many fields the *declaration* routes to the body. The unwrap decision
     # below is made from this, never from how many happen to be populated and
@@ -414,8 +425,24 @@ def _extract_http_params(
             path_params[name] = val
         elif isinstance(loc, Query):
             query_params[name] = val
+        elif isinstance(loc, Body) and loc.media_type:
+            raw = (name, val, loc.media_type)
         else:  # Body
             body_fields.append((name, val, loc))
+
+    if raw is not None:
+        # The view a model fills in refuses this already — the exclusion is
+        # derived from the marker — so reaching it means input that skipped
+        # that view. Sending one and dropping the others would be a request the
+        # caller did not make.
+        if body_fields:
+            others = ", ".join(name for name, _, _ in body_fields)
+            raise ToolValidationError(
+                f"'{raw[0]}' is the whole request body, sent as {raw[2]}, and cannot be "
+                f"combined with {others}.",
+                errors=[{"loc": (raw[0],), "msg": "cannot be combined with other body fields"}],
+            )
+        return path_params, query_params, raw[1], None, raw[2]
 
     # Process body fields according to the three modes
     body_params: Optional[Dict[str, Any]] = None
@@ -436,7 +463,7 @@ def _extract_http_params(
         for name, val, _ in body_fields:
             body_params[name] = val
 
-    return path_params, query_params, body_params, body_source
+    return path_params, query_params, body_params, body_source, None
 
 
 def render_header(field_name: str, marker: Header, value: Any) -> str:
@@ -805,7 +832,7 @@ async def _send(
 
 async def call_api(
     method: HTTPMethod,
-    url_template: str,  # e.g. "calendar/v3/calendars/{calendar_id}/events"
+    url_template: UrlTemplate,  # e.g. "calendar/v3/calendars/{calendar_id}/events"
     tool_input: BaseModel,
     credentials: Optional[Credentials] = None,
     base_url: BaseUrl = "",
@@ -835,7 +862,10 @@ async def call_api(
     Parameters
     ----------
     method: The HTTP method to use.
-    url_template: URL template, snake_case, e.g. ``"calendar/v3/calendars/{calendar_id}/events"``.
+    url_template: URL template, snake_case, e.g. ``"calendar/v3/calendars/{calendar_id}/events"``,
+        or several for one operation, most specific first — the first whose
+        placeholders all have values is the one called. See
+        :mod:`charter.execution.routes`.
     tool_input: The validated Pydantic model carrying the markers.
     credentials: Bearer credentials, or ``None`` for API-key auth (headers come
         in via ``transport_override``).
@@ -902,7 +932,7 @@ async def call_api(
     APIError: on any other >= 400 response, or an envelope-declared failure.
     """
     # Extract parameters from the Pydantic model
-    path, params, body, body_source = _extract_http_params(tool_input, body_field_count)
+    path, params, body, body_source, media_type = _extract_http_params(tool_input, body_field_count)
     field_headers = _header_fields(tool_input)
 
     # The one marker the path honours. See the interpolation below for why it is
@@ -916,15 +946,26 @@ async def call_api(
 
     # Apply transport overrides if provided (MERGE, not replace)
     if transport_override:
-        # Merge path parameters (per-key)
+        # Merge path parameters (per-key). A `None` removes the key, as it does
+        # for the query below, and that matters more here: which of the
+        # operation's routes is called depends on which placeholders are filled,
+        # so an override that clears one is choosing the wider route — Outlook's
+        # `next_link` for a whole-mailbox page, beside a `folder_id` argument.
         path_override = transport_override.get("path")
         if path_override:
             path.update(path_override)
+            path = {key: value for key, value in path.items() if value is not None}
 
-        # Merge query parameters (per-key)
+        # Merge query parameters (per-key). A `None` removes the key, which is
+        # how a build_request consumes a field it turned into something else —
+        # Outlook's `conversation_id` becomes a `$filter` expression, and a
+        # `next_link` replaces every parameter of the first request. Sent as-is,
+        # httpx would put `conversation_id=` on the wire; a field the schema
+        # leaves unset is omitted, and an override can now say the same.
         query_override = transport_override.get("query")
         if query_override:
             params.update(query_override)
+            params = {key: value for key, value in params.items() if value is not None}
 
         # Body handling - more complex due to single-body semantics
         override_body = transport_override.get("body")
@@ -949,12 +990,10 @@ async def call_api(
             docs="reference/configuration",
         )
 
-    # Ensure base_url ends with a slash and url_template does not start with one.
+    # Ensure base_url ends with a slash.
     base_url = resolved_base
     if not base_url.endswith("/"):
         base_url += "/"
-    if url_template.startswith("/"):
-        url_template = url_template[1:]
 
     # A path value comes from the model, so it is escaped before it can rewrite
     # the URL it is being interpolated into. See _escape_path_params.
@@ -975,6 +1014,15 @@ async def call_api(
         path = {
             wire_names.get(k) or DictKeyParser.convert_key(k, path_case): v for k, v in path.items()
         }
+
+    # Which of the operation's routes this call takes: the first whose
+    # placeholders it filled. Decided here, after the names are the template's
+    # own, and never by the model — the schema it filled has no notion of one.
+    url_template = choose_route(routes_of(url_template), path)
+    if probe is not None:
+        probe.route = url_template
+    if url_template.startswith("/"):
+        url_template = url_template[1:]
 
     try:
         url = f"{base_url}{url_template.format(**path)}"
@@ -1026,7 +1074,8 @@ async def call_api(
     # field's `Case` mean what the cascade documents rather than stopping at the
     # root. Keys the plan does not name — what a transform produced, a free-form
     # mapping — fall back to the endpoint's case, which is what they always did.
-    if body is None:
+    if body is None or media_type is not None:
+        # A media-typed body is a document in its own format, not keys to case.
         json_payload = body
     else:
         if body_source is not None:
@@ -1063,7 +1112,7 @@ async def call_api(
     # request. Applied last so tool input cannot overwrite the constant — the
     # model must not be able to rewrite the query document it is calling.
     if static_body is not None:
-        if body_format == "raw":
+        if body_format == "raw" or (media_type is not None and json_payload is not None):
             raise DeclarationError(
                 "static_body cannot be merged into a raw body: a raw body is the "
                 "bytes themselves, with no object to add a key to.",
@@ -1104,7 +1153,9 @@ async def call_api(
 
     # Only set Content-Type when we have a JSON body. The form path lets httpx
     # set application/x-www-form-urlencoded itself.
-    if json_payload is not None and method != "GET" and body_format == "json":
+    if json_payload is not None and method != "GET" and media_type is not None:
+        headers["Content-Type"] = media_type
+    elif json_payload is not None and method != "GET" and body_format == "json":
         headers["Content-Type"] = "application/json"
 
     # Apply header overrides if provided (after setting defaults)
@@ -1138,7 +1189,20 @@ async def call_api(
             "headers": headers,
         }
         if json_payload is not None:
-            if body_format == "raw":
+            if media_type is not None:
+                # The field is the body. A Format produced its text; a field
+                # declared as text or bytes is it already.
+                if not isinstance(json_payload, (str, bytes)):
+                    raise DeclarationError(
+                        f"A Body(media_type={media_type!r}) field must produce text or bytes, "
+                        f"but produced {type(json_payload).__name__}. Give it a Format that "
+                        "encodes it, or declare it as str.",
+                        docs="reference/markers#body",
+                    )
+                request_kwargs["content"] = (
+                    json_payload.encode() if isinstance(json_payload, str) else json_payload
+                )
+            elif body_format == "raw":
                 # The body is a file, not a document. Whatever Content-Type the
                 # declaration set stands; httpx would not guess one anyway.
                 if not isinstance(json_payload, (str, bytes)):

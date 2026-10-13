@@ -90,6 +90,7 @@ The generator:
 | Name             | Semantic type     | Wire format                                    |
 |------------------|-------------------|------------------------------------------------|
 | `rfc822_base64`  | [`EmailContent`](/reference/semantic-types#emailcontent) | base64url RFC822 message, unpadded |
+| `mime_base64`    | [`EmailContent`](/reference/semantic-types#emailcontent) | standard base64 RFC822 message, padded (Graph) |
 | `email_json`     | [`EmailContent`](/reference/semantic-types#emailcontent) | JSON object with wire aliases |
 | `base64`         | `str`             | standard base64, padded                        |
 | `base64url`      | `str`             | URL-safe base64, unpadded                      |

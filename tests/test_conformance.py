@@ -53,13 +53,13 @@ import inspect
 import json
 import pkgutil
 import re
-from typing import Any, Dict, Iterator, List, Optional, Set, Tuple, Type
+from typing import Any, Dict, FrozenSet, Iterator, List, Optional, Set, Tuple, Type
 
 import pytest
 from pydantic import BaseModel
 from pydantic.alias_generators import to_camel
 
-from charter.execution.schema import LLMBase
+from charter.execution.schema import LLMBase, should_include_field
 from charter.tool import Tool
 from charter.types import Mode
 from charter.types.markers import Body, Gloss, Query
@@ -80,6 +80,7 @@ PACK_NAMES = [
     "notion",
     "granola",
     "tavily",
+    "outlook",
 ]
 
 PACKS = {name: importlib.import_module(f"charter.packs.{name}") for name in PACK_NAMES}
@@ -614,6 +615,10 @@ _SERVER_OWNED_EXCEPTIONS = {
     # "If only read-only fields such as calendar properties or ACLs have
     # changed" — the phrase describes other fields in the same sentence.
     ("gcalendar", "syncToken"),
+    # "Indicates if the rule is read-only and cannot be modified or deleted by the
+    # rules REST API" — what the flag means, not who owns it. Graph's Update rule
+    # page lists `isReadOnly` among the properties a PATCH may change.
+    ("outlook", "isReadOnly"),
     # "Output only ... `documentTitle` can be set on create, but cannot be
     # modified by a batchUpdate request." Google's own next sentence contradicts
     # the marker, and `Mode("create")` is why this is offered on forms_create
@@ -692,19 +697,37 @@ def test_no_field_the_vendor_calls_server_owned_reaches_the_model(pack_name):
     )
 
 
-def _glosses(model: Type[BaseModel], seen: Set[Any] | None = None) -> Set[str]:
-    """Every `Gloss` text declared anywhere in a schema tree."""
+def _glosses(
+    model: Type[BaseModel],
+    seen: Set[Any] | None = None,
+    modes: Optional[FrozenSet[str]] = None,
+) -> Set[str]:
+    """Every `Gloss` text declared anywhere in a schema tree.
+
+    ``modes`` reads the tree as a tool in those modes is offered it. A field a
+    custom ``Mode`` keeps out of that tool's view is not offered, so neither is
+    its gloss: Outlook's file attachment glosses its ``contentBytes``, and the
+    draft update that withholds attachments (``mode="update"``) does not lose a
+    gloss by not showing it.
+    """
     seen = seen if seen is not None else set()
     if model in seen:
         return set()
     seen.add(model)
     found: Set[str] = set()
     for field in model.model_fields.values():
+        if modes is not None and not should_include_field(field, modes):
+            continue
         found.update(
             marker.text for marker in getattr(field, "metadata", []) if isinstance(marker, Gloss)
         )
-    for nested in _nested_models(model):
-        found.update(_glosses(nested, seen))
+        if _withheld(field):
+            continue
+        annotation = field.annotation
+        for candidate in [annotation, *getattr(annotation, "__args__", ())]:
+            for item in [candidate, *getattr(candidate, "__args__", ())]:
+                if isinstance(item, type) and issubclass(item, BaseModel):
+                    found.update(_glosses(item, seen, modes))
     return found
 
 
@@ -724,7 +747,7 @@ def test_every_gloss_a_pack_declares_reaches_the_model(pack_name):
     module = importlib.import_module(f"charter.packs.{pack_name}")
     lost = []
     for tool in module.TOOLS:
-        declared = _glosses(tool.args_schema)
+        declared = _glosses(tool.args_schema, modes=tool.modes)
         if not declared:
             continue
         published = json.dumps(tool.to_json_schema())

@@ -1,6 +1,6 @@
 ---
 title: "Transforms"
-description: "TransformRegistry, TransformSpec, register_transform, get_transform, apply_transform, and the ten built-in transform names."
+description: "TransformRegistry, TransformSpec, register_transform, get_transform, apply_transform, and the eleven built-in transform names."
 ---
 
 A transform converts what the model wrote into what the wire wants. Fields opt
@@ -144,6 +144,7 @@ assert "Subject: Hello" in decode_base64url(encoded)
 | Name | Semantic type | Wire format |
 |---|---|---|
 | `rfc822_base64` | `EmailContent` | RFC822 message, base64url, unpadded — Gmail's `raw` |
+| `mime_base64` | `EmailContent` | the same message, standard base64, padded — Microsoft Graph's MIME bodies |
 | `email_json` | `EmailContent` | the model dumped by alias, `None` fields dropped |
 | `document_json` | [`DocumentContent`](/reference/semantic-types#documentcontent) | the model dumped, `None` fields dropped |
 | `file_base64` | [`FileContent`](/reference/semantic-types#filecontent) | the file's content, standard base64 |

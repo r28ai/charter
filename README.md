@@ -45,7 +45,7 @@ Runs in your process. No proxy, no per-call pricing, no telemetry.
 pip install charter-ai
 ```
 
-[557 tools across fifteen APIs](https://github.com/r28ai/charter#coverage) ship with
+[613 tools across sixteen APIs](https://github.com/r28ai/charter#coverage) ship with
 it, on two dependencies: `pydantic>=2.9,<3` and `httpx>=0.27,<1`. Packs never add more.
 The upper bounds are so a fresh install cannot silently resolve to pydantic 3.0 the day
 it ships.
@@ -507,6 +507,7 @@ which parameters an endpoint refuses together. Then
 | Linear | `charter.packs.linear` | 128 | OAuth or API key | GraphQL, with the cursor nested inside the response |
 | Shopify | `charter.packs.shopify` | 22 | OAuth | No fixed host, and every price is a nested `MoneyBag` |
 | Notion | `charter.packs.notion` | 35 | OAuth or API key | 100 blocks and two levels of children per write |
+| Outlook | `charter.packs.outlook` | 56 | OAuth | One operation at several paths, and JSON or MIME on one endpoint |
 | Firecrawl | `charter.packs.firecrawl` | 43 | API key | camelCase wire, and some failures answer HTTP 200 |
 | Granola | `charter.packs.granola` | 9 | API key | Four kinds of actor in one discriminated union |
 | Tavily | `charter.packs.tavily` | 9 | API key | Research is asynchronous: create, then poll |

@@ -25,6 +25,7 @@ from pydantic import BaseModel
 from charter.auth import CredentialProvider
 from charter.execution.executor import ApiKeyHeaders, ResponseHandler
 from charter.execution.http import BaseUrl, BodyFormat, HTTPMethod, QueryFormat
+from charter.execution.routes import UrlTemplate
 from charter.execution.schema import SchemaStore
 from charter.naming import check_pack
 from charter.observability import CallSink
@@ -158,7 +159,7 @@ def api_key_tool_factory(
         name: str,
         args_schema: Type[BaseModel],
         method: HTTPMethod,
-        url_template: str,
+        url_template: UrlTemplate,
         description: Optional[str] = None,
         action_label: Optional[str] = None,
         body_case_override: Optional[KeyCase] = None,
@@ -329,7 +330,7 @@ def oauth_tool_factory(
         name: str,
         args_schema: Type[BaseModel],
         method: HTTPMethod,
-        url_template: str,
+        url_template: UrlTemplate,
         description: Optional[str] = None,
         action_label: Optional[str] = None,
         body_case_override: Optional[KeyCase] = None,

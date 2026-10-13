@@ -44,6 +44,7 @@ from charter.execution.http import (
     render_header,
     unwraps_body,
 )
+from charter.execution.routes import UrlTemplate
 from charter.observability import CallProbe
 from charter.transforms import apply_transform
 from charter.types.envelope import Envelope
@@ -277,6 +278,10 @@ def _create_auto_transformer(
                 header_overrides[location.name] = render_header(
                     field_name, location, transformed_value
                 )
+            elif isinstance(location, Body) and location.media_type:
+                # The field is the whole body in its own media type, and nothing
+                # else is merged with it: what the transform produced is the body.
+                body_override = transformed_value
             elif isinstance(location, Body):
                 if unwraps_body(body_field_count, location, transformed_value):
                     body_override = transformed_value
@@ -327,7 +332,7 @@ class ToolExecutor:
         self,
         *,
         method: HTTPMethod,
-        url_template: str,
+        url_template: UrlTemplate,
         base_url: BaseUrl,
         original_schema: Type[BaseModel],
         body_case: KeyCase = "camel",

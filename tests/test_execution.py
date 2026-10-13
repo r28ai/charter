@@ -734,6 +734,46 @@ async def test_transport_override_merges_rather_than_replaces_query():
 
 
 @respx.mock
+async def test_a_none_in_a_query_override_removes_the_key():
+    """How a build_request consumes a field it rewrote into another parameter.
+
+    Without the removal httpx sends `max_results=` — a parameter the API never
+    asked for, empty, beside the one the override meant to send instead.
+    """
+    route = respx.get(f"{BASE}v1/x").mock(return_value=httpx.Response(200, json={}))
+    await call_api(
+        method="GET",
+        url_template="v1/{calendar_id}",
+        tool_input=SearchInput(calendar_id="x", max_results=5),
+        base_url=BASE,
+        query_case="snake",
+        transport_override={"query": {"max_results": None, "$top": "5"}},
+    )
+    assert str(route.calls.last.request.url.query, "ascii") == "%24top=5"
+
+
+class ScopedList(BaseModel):
+    folder_id: Annotated[Optional[str], Path()] = None
+
+
+@respx.mock
+async def test_a_none_in_a_path_override_clears_the_placeholder():
+    """Which route a call takes depends on which placeholders are filled, so a
+    build_request clearing one is choosing the wider route — Outlook's next_link
+    for a whole-mailbox page, beside a folder_id argument. Kept, the `None`
+    filled the narrower route and went out as the string "None"."""
+    wide = respx.get(f"{BASE}me/messages").mock(return_value=httpx.Response(200, json={}))
+    await call_api(
+        method="GET",
+        url_template=("me/folders/{folder_id}/messages", "me/messages"),
+        tool_input=ScopedList(folder_id="drafts"),
+        base_url=BASE,
+        transport_override={"path": {"folder_id": None}},
+    )
+    assert wide.called
+
+
+@respx.mock
 async def test_transport_override_headers_win():
     route = respx.get(f"{BASE}v1/me").mock(return_value=httpx.Response(200, json={}))
     await call_api(

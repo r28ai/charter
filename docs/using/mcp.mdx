@@ -32,7 +32,7 @@ Nothing in Charter imports `cryptography` — it reaches `mcp` only for OAuth ve
 
 Every schema is sent when the server starts. That is the one shape every client handles: the tools are in `tools/list` from the first request, and nothing depends on how a client reacts to a list that changes. Checked against the real clients below, each running a model that read a live Gmail inbox through the server: Claude Code 2.1, Codex 0.160, Grok Build 1.0, OpenClaw 2026.9, Hermes Agent 0.21 and Google ADK 2.10.
 
-The cost is the schemas, so serve the packs you need rather than all fifteen:
+The cost is the schemas, so serve the packs you need rather than all sixteen:
 
 | Pack | Tools | Tokens of schema |
 |---|---|---|
@@ -43,10 +43,11 @@ The cost is the schemas, so serve the packs you need rather than all fifteen:
 | `stripe` | 66 | 28,319 |
 | `github` | 139 | 33,861 |
 | `gcalendar` | 13 | 36,247 |
+| `outlook` | 56 | 48,722 |
 | `gsheets` | 17 | 62,705 |
 | `notion` | 35 | 67,811 |
 | `linear` | 128 | 95,929 |
-| all fifteen | 557 | 421,850 |
+| all sixteen | 613 | 470,572 |
 
 A [projection](/tools/projections) is how a pack gets smaller without losing a tool you use. Claude Code defers MCP schemas with its own tool search once they grow large, so there the size costs little.
 
@@ -166,6 +167,7 @@ The entry point reads them from the environment — the same [environment fallba
 | `notion` | `NOTION_API_KEY` |
 | `granola` | `GRANOLA_API_KEY` |
 | `tavily` | `TAVILY_API_KEY` |
+| `outlook` | `MICROSOFT_ACCESS_TOKEN` |
 
 Shopify always needs `SHOPIFY_SHOP`, since the host is a property of the store.
 Give it the app's client ID and secret rather than a token: a token minted from

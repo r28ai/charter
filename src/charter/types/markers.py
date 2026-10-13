@@ -17,8 +17,10 @@ from typing import (
     Any,
     Dict,
     Iterable,
+    List,
     Literal,
     Optional,
+    Tuple,
     Type,
     TypedDict,
 )
@@ -31,6 +33,8 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 __all__ = [
     "KeyCase",
     "declared_body_fields",
+    "raw_body_exclusions",
+    "raw_body_media_type",
     "Case",
     "Gloss",
     "Path",
@@ -268,12 +272,40 @@ class Body:
         If True, the field *name* is preserved in the serialized JSON instead of being
         stripped. This is required for APIs such as Gmail ``drafts.insert`` that expect
         a top-level object (e.g. ``{"message": {...}}``) rather than the raw value.
+    media_type : str, optional
+        The field is the *whole* request body, in this media type, when it is set:
+        its value — after any ``Format`` transform — is sent as-is, with this
+        ``Content-Type``. For an operation that takes its body in more than one
+        format, the way Microsoft Graph's ``sendMail`` takes a JSON message *or*
+        a base64 MIME document as ``text/plain``. One tool, two documented
+        formats, and the model fills whichever argument it means.
+
+        Such a field excludes every other body field — the runtime adds that
+        rule to the view the model fills in, so it is declared once, here — and
+        is left out of the JSON body: the remaining body fields unwrap and merge
+        exactly as they would without it.
     """
 
-    def __init__(self, envelop: bool = False) -> None:
+    def __init__(self, envelop: bool = False, media_type: Optional[str] = None) -> None:
+        if envelop and media_type:
+            raise DeclarationError(
+                "Body(envelop=True) names the field inside a JSON object, and "
+                "Body(media_type=...) makes the field the whole body; a field is one or "
+                "the other.",
+                docs="reference/markers#body",
+            )
+        if media_type is not None and not media_type.strip():
+            raise DeclarationError(
+                "Body(media_type=...) needs the Content-Type the body is sent as, e.g. "
+                "Body(media_type='text/plain').",
+                docs="reference/markers#body",
+            )
         self.envelop = envelop
+        self.media_type = media_type
 
     def __repr__(self) -> str:
+        if self.media_type:
+            return f"Body(media_type={self.media_type!r})"
         return f"Body(envelop={self.envelop!r})"
 
 
@@ -505,11 +537,14 @@ class TransportOverride(TypedDict, total=False):
 
 
 def declared_body_fields(schema: Type[BaseModel]) -> int:
-    """How many of ``schema``'s fields the wire contract sends in the body.
+    """How many of ``schema``'s fields the wire contract sends in the JSON body.
 
     Everything that is not ``Path()``, ``Query()`` or ``Header()``, which includes a field
     carrying no marker at all — that one is refused later, by name, rather than
-    being miscounted here.
+    being miscounted here. A ``Body(media_type=...)`` field is not counted: when
+    it is set it is the whole body and nothing is merged with it, and when it is
+    not, the body is the others alone and must take the shape they take without
+    it — a create that gains a MIME alternative still unwraps its message.
 
     This lives beside the markers and not in :mod:`charter.execution.http`
     because two modules need the same answer and used to compute it separately.
@@ -533,5 +568,40 @@ def declared_body_fields(schema: Type[BaseModel]) -> int:
         1
         for field in schema.model_fields.values()
         if not any(isinstance(m, (Path, Query, Header)) for m in field.metadata)
+        and raw_body_media_type(field) is None
     )
 
+
+def raw_body_media_type(field: Any) -> Optional[str]:
+    """The media type a ``Body(media_type=...)`` field is sent as, else ``None``."""
+    for marker in getattr(field, "metadata", None) or ():
+        if isinstance(marker, Body) and marker.media_type:
+            return marker.media_type
+    return None
+
+
+def raw_body_exclusions(fields: Dict[str, Any]) -> List[Tuple[str, Tuple[str, ...], str]]:
+    """The exclusion rules a ``Body(media_type=...)`` field implies, as ``ConflictsWith`` would.
+
+    ``fields`` maps a field name to its ``FieldInfo``. A field that is the whole
+    request body cannot share it, so it excludes every other field the body
+    would carry — everything that is not ``Path()``, ``Query()`` or ``Header()``. Derived from
+    the marker rather than declared beside it, because a list a pack author
+    writes out is a list that forgets the body field added next year.
+    """
+    body = [
+        name
+        for name, info in fields.items()
+        if not any(
+            isinstance(m, (Path, Query, Header)) for m in getattr(info, "metadata", None) or ()
+        )
+    ]
+    rules = []
+    for name in body:
+        media_type = raw_body_media_type(fields[name])
+        if media_type is None:
+            continue
+        others = tuple(other for other in body if other != name)
+        if others:
+            rules.append((name, others, f"It is the whole request body, sent as {media_type}."))
+    return rules

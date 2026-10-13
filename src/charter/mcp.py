@@ -39,6 +39,7 @@ Credentials come from the environment, so nothing has to be written down:
 - firecrawl reads ``$FIRECRAWL_API_KEY``
 - notion reads ``$NOTION_API_KEY``
 - tavily reads ``$TAVILY_API_KEY``
+- outlook reads ``$MICROSOFT_ACCESS_TOKEN``, which lasts about an hour
 
 A pack you have no credential for is inert rather than broken, so combining
 packs costs nothing: the tool is listed, and calling it raises a
@@ -70,6 +71,7 @@ PACKS = (
     "notion",
     "granola",
     "tavily",
+    "outlook",
 )
 
 

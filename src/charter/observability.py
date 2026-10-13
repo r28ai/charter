@@ -120,6 +120,11 @@ class CallProbe:
     reached_network: bool = False
     envelope_failed: bool = False
 
+    # The template this call was sent to, when the tool declares several. The
+    # record reports it rather than the tool's first, so a dashboard grouping by
+    # route does not count a folder-scoped call as the mailbox-wide one.
+    route: Optional[str] = None
+
 
 # -----------------------------------------------------
 # The record

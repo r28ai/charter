@@ -1332,6 +1332,122 @@
                     ]
                   }
                 ]
+              },
+              {
+                "group": "Outlook",
+                "expanded": false,
+                "pages": [
+                  "packs/outlook",
+                  {
+                    "group": "Messages",
+                    "pages": [
+                      "packs/outlook/messages/messages_list",
+                      "packs/outlook/messages/messages_get",
+                      "packs/outlook/messages/messages_get_content",
+                      "packs/outlook/messages/messages_delta",
+                      "packs/outlook/messages/messages_create",
+                      "packs/outlook/messages/messages_update",
+                      "packs/outlook/messages/messages_delete",
+                      "packs/outlook/messages/messages_permanent_delete",
+                      "packs/outlook/messages/messages_move",
+                      "packs/outlook/messages/messages_copy",
+                      "packs/outlook/messages/messages_send",
+                      "packs/outlook/messages/messages_reply",
+                      "packs/outlook/messages/messages_reply_all",
+                      "packs/outlook/messages/messages_forward",
+                      "packs/outlook/messages/messages_create_reply",
+                      "packs/outlook/messages/messages_create_reply_all",
+                      "packs/outlook/messages/messages_create_forward",
+                      "packs/outlook/messages/send_mail",
+                      "packs/outlook/messages/objects"
+                    ]
+                  },
+                  {
+                    "group": "Attachments",
+                    "pages": [
+                      "packs/outlook/attachments/attachments_list",
+                      "packs/outlook/attachments/attachments_get",
+                      "packs/outlook/attachments/attachments_get_content",
+                      "packs/outlook/attachments/attachments_create",
+                      "packs/outlook/attachments/attachments_create_upload_session",
+                      "packs/outlook/attachments/attachments_delete",
+                      "packs/outlook/attachments/objects"
+                    ]
+                  },
+                  {
+                    "group": "Folders",
+                    "pages": [
+                      "packs/outlook/folders/mail_folders_list",
+                      "packs/outlook/folders/mail_folders_get",
+                      "packs/outlook/folders/mail_folders_create",
+                      "packs/outlook/folders/mail_folders_update",
+                      "packs/outlook/folders/mail_folders_delete",
+                      "packs/outlook/folders/mail_folders_permanent_delete",
+                      "packs/outlook/folders/mail_folders_move",
+                      "packs/outlook/folders/mail_folders_copy",
+                      "packs/outlook/folders/mail_folders_delta",
+                      "packs/outlook/folders/objects"
+                    ]
+                  },
+                  {
+                    "group": "Categories",
+                    "pages": [
+                      "packs/outlook/categories/master_categories_list",
+                      "packs/outlook/categories/master_categories_get",
+                      "packs/outlook/categories/master_categories_create",
+                      "packs/outlook/categories/master_categories_update",
+                      "packs/outlook/categories/master_categories_delete",
+                      "packs/outlook/categories/objects"
+                    ]
+                  },
+                  {
+                    "group": "Inbox rules",
+                    "pages": [
+                      "packs/outlook/rules/message_rules_list",
+                      "packs/outlook/rules/message_rules_get",
+                      "packs/outlook/rules/message_rules_create",
+                      "packs/outlook/rules/message_rules_update",
+                      "packs/outlook/rules/message_rules_delete",
+                      "packs/outlook/rules/objects"
+                    ]
+                  },
+                  {
+                    "group": "Mailbox settings",
+                    "pages": [
+                      "packs/outlook/settings/mailbox_settings_get",
+                      "packs/outlook/settings/mailbox_settings_update",
+                      "packs/outlook/settings/supported_languages",
+                      "packs/outlook/settings/supported_time_zones",
+                      "packs/outlook/settings/inference_overrides_list",
+                      "packs/outlook/settings/objects"
+                    ]
+                  },
+                  {
+                    "group": "Focused Inbox",
+                    "pages": [
+                      "packs/outlook/focused_inbox/inference_overrides_create",
+                      "packs/outlook/focused_inbox/inference_overrides_update",
+                      "packs/outlook/focused_inbox/inference_overrides_delete",
+                      "packs/outlook/focused_inbox/objects"
+                    ]
+                  },
+                  {
+                    "group": "Extensions and extended properties",
+                    "pages": [
+                      "packs/outlook/extensions/extensions_get",
+                      "packs/outlook/extensions/extensions_create",
+                      "packs/outlook/extensions/extensions_delete"
+                    ]
+                  },
+                  {
+                    "group": "MailTips and IDs",
+                    "pages": [
+                      "packs/outlook/other/get_mail_tips",
+                      "packs/outlook/other/translate_exchange_ids",
+                      "packs/outlook/other/objects"
+                    ]
+                  }
+                ]
               }
             ]
           },
@@ -3662,6 +3778,230 @@
     {
       "source": "/packs/tavily/tools/org_usage",
       "destination": "/packs/tavily/usage/org_usage"
+    },
+    {
+      "source": "/packs/outlook/tools/messages_list",
+      "destination": "/packs/outlook/messages/messages_list"
+    },
+    {
+      "source": "/packs/outlook/tools/messages_get",
+      "destination": "/packs/outlook/messages/messages_get"
+    },
+    {
+      "source": "/packs/outlook/tools/messages_get_content",
+      "destination": "/packs/outlook/messages/messages_get_content"
+    },
+    {
+      "source": "/packs/outlook/tools/messages_delta",
+      "destination": "/packs/outlook/messages/messages_delta"
+    },
+    {
+      "source": "/packs/outlook/tools/messages_create",
+      "destination": "/packs/outlook/messages/messages_create"
+    },
+    {
+      "source": "/packs/outlook/tools/messages_update",
+      "destination": "/packs/outlook/messages/messages_update"
+    },
+    {
+      "source": "/packs/outlook/tools/messages_delete",
+      "destination": "/packs/outlook/messages/messages_delete"
+    },
+    {
+      "source": "/packs/outlook/tools/messages_permanent_delete",
+      "destination": "/packs/outlook/messages/messages_permanent_delete"
+    },
+    {
+      "source": "/packs/outlook/tools/messages_move",
+      "destination": "/packs/outlook/messages/messages_move"
+    },
+    {
+      "source": "/packs/outlook/tools/messages_copy",
+      "destination": "/packs/outlook/messages/messages_copy"
+    },
+    {
+      "source": "/packs/outlook/tools/messages_send",
+      "destination": "/packs/outlook/messages/messages_send"
+    },
+    {
+      "source": "/packs/outlook/tools/messages_reply",
+      "destination": "/packs/outlook/messages/messages_reply"
+    },
+    {
+      "source": "/packs/outlook/tools/messages_reply_all",
+      "destination": "/packs/outlook/messages/messages_reply_all"
+    },
+    {
+      "source": "/packs/outlook/tools/messages_forward",
+      "destination": "/packs/outlook/messages/messages_forward"
+    },
+    {
+      "source": "/packs/outlook/tools/messages_create_reply",
+      "destination": "/packs/outlook/messages/messages_create_reply"
+    },
+    {
+      "source": "/packs/outlook/tools/messages_create_reply_all",
+      "destination": "/packs/outlook/messages/messages_create_reply_all"
+    },
+    {
+      "source": "/packs/outlook/tools/messages_create_forward",
+      "destination": "/packs/outlook/messages/messages_create_forward"
+    },
+    {
+      "source": "/packs/outlook/tools/send_mail",
+      "destination": "/packs/outlook/messages/send_mail"
+    },
+    {
+      "source": "/packs/outlook/tools/attachments_list",
+      "destination": "/packs/outlook/attachments/attachments_list"
+    },
+    {
+      "source": "/packs/outlook/tools/attachments_get",
+      "destination": "/packs/outlook/attachments/attachments_get"
+    },
+    {
+      "source": "/packs/outlook/tools/attachments_get_content",
+      "destination": "/packs/outlook/attachments/attachments_get_content"
+    },
+    {
+      "source": "/packs/outlook/tools/attachments_create",
+      "destination": "/packs/outlook/attachments/attachments_create"
+    },
+    {
+      "source": "/packs/outlook/tools/attachments_create_upload_session",
+      "destination": "/packs/outlook/attachments/attachments_create_upload_session"
+    },
+    {
+      "source": "/packs/outlook/tools/attachments_delete",
+      "destination": "/packs/outlook/attachments/attachments_delete"
+    },
+    {
+      "source": "/packs/outlook/tools/mail_folders_list",
+      "destination": "/packs/outlook/folders/mail_folders_list"
+    },
+    {
+      "source": "/packs/outlook/tools/mail_folders_get",
+      "destination": "/packs/outlook/folders/mail_folders_get"
+    },
+    {
+      "source": "/packs/outlook/tools/mail_folders_create",
+      "destination": "/packs/outlook/folders/mail_folders_create"
+    },
+    {
+      "source": "/packs/outlook/tools/mail_folders_update",
+      "destination": "/packs/outlook/folders/mail_folders_update"
+    },
+    {
+      "source": "/packs/outlook/tools/mail_folders_delete",
+      "destination": "/packs/outlook/folders/mail_folders_delete"
+    },
+    {
+      "source": "/packs/outlook/tools/mail_folders_permanent_delete",
+      "destination": "/packs/outlook/folders/mail_folders_permanent_delete"
+    },
+    {
+      "source": "/packs/outlook/tools/mail_folders_move",
+      "destination": "/packs/outlook/folders/mail_folders_move"
+    },
+    {
+      "source": "/packs/outlook/tools/mail_folders_copy",
+      "destination": "/packs/outlook/folders/mail_folders_copy"
+    },
+    {
+      "source": "/packs/outlook/tools/mail_folders_delta",
+      "destination": "/packs/outlook/folders/mail_folders_delta"
+    },
+    {
+      "source": "/packs/outlook/tools/master_categories_list",
+      "destination": "/packs/outlook/categories/master_categories_list"
+    },
+    {
+      "source": "/packs/outlook/tools/master_categories_get",
+      "destination": "/packs/outlook/categories/master_categories_get"
+    },
+    {
+      "source": "/packs/outlook/tools/master_categories_create",
+      "destination": "/packs/outlook/categories/master_categories_create"
+    },
+    {
+      "source": "/packs/outlook/tools/master_categories_update",
+      "destination": "/packs/outlook/categories/master_categories_update"
+    },
+    {
+      "source": "/packs/outlook/tools/master_categories_delete",
+      "destination": "/packs/outlook/categories/master_categories_delete"
+    },
+    {
+      "source": "/packs/outlook/tools/message_rules_list",
+      "destination": "/packs/outlook/rules/message_rules_list"
+    },
+    {
+      "source": "/packs/outlook/tools/message_rules_get",
+      "destination": "/packs/outlook/rules/message_rules_get"
+    },
+    {
+      "source": "/packs/outlook/tools/message_rules_create",
+      "destination": "/packs/outlook/rules/message_rules_create"
+    },
+    {
+      "source": "/packs/outlook/tools/message_rules_update",
+      "destination": "/packs/outlook/rules/message_rules_update"
+    },
+    {
+      "source": "/packs/outlook/tools/message_rules_delete",
+      "destination": "/packs/outlook/rules/message_rules_delete"
+    },
+    {
+      "source": "/packs/outlook/tools/mailbox_settings_get",
+      "destination": "/packs/outlook/settings/mailbox_settings_get"
+    },
+    {
+      "source": "/packs/outlook/tools/mailbox_settings_update",
+      "destination": "/packs/outlook/settings/mailbox_settings_update"
+    },
+    {
+      "source": "/packs/outlook/tools/supported_languages",
+      "destination": "/packs/outlook/settings/supported_languages"
+    },
+    {
+      "source": "/packs/outlook/tools/supported_time_zones",
+      "destination": "/packs/outlook/settings/supported_time_zones"
+    },
+    {
+      "source": "/packs/outlook/tools/inference_overrides_list",
+      "destination": "/packs/outlook/settings/inference_overrides_list"
+    },
+    {
+      "source": "/packs/outlook/tools/inference_overrides_create",
+      "destination": "/packs/outlook/focused_inbox/inference_overrides_create"
+    },
+    {
+      "source": "/packs/outlook/tools/inference_overrides_update",
+      "destination": "/packs/outlook/focused_inbox/inference_overrides_update"
+    },
+    {
+      "source": "/packs/outlook/tools/inference_overrides_delete",
+      "destination": "/packs/outlook/focused_inbox/inference_overrides_delete"
+    },
+    {
+      "source": "/packs/outlook/tools/extensions_get",
+      "destination": "/packs/outlook/extensions/extensions_get"
+    },
+    {
+      "source": "/packs/outlook/tools/extensions_create",
+      "destination": "/packs/outlook/extensions/extensions_create"
+    },
+    {
+      "source": "/packs/outlook/tools/extensions_delete",
+      "destination": "/packs/outlook/extensions/extensions_delete"
+    },
+    {
+      "source": "/packs/outlook/tools/get_mail_tips",
+      "destination": "/packs/outlook/other/get_mail_tips"
+    },
+    {
+      "source": "/packs/outlook/tools/translate_exchange_ids",
+      "destination": "/packs/outlook/other/translate_exchange_ids"
     }
   ]
 }

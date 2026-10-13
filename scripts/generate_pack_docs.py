@@ -521,6 +521,26 @@ _SETUP: Dict[str, _Setup] = {
             " TAVILY_API_KEY=tvly-…`."
         ),
     ),
+    "outlook": _Setup(
+        need="A Microsoft Entra app registration, then a delegated token",
+        where=(
+            "[App registrations](https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade)"
+            " · [Microsoft's quickstart](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app)"
+        ),
+        env="`MICROSOFT_ACCESS_TOKEN`",
+        lead=(
+            "**Before the first call, Outlook needs a token from an app registered with"
+            " Microsoft Entra.** Microsoft issues no API key for mail."
+            " [Register an app](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app),"
+            " grant it the delegated Graph permissions these tools ask for —"
+            " `Mail.ReadWrite`, `Mail.Send` and `MailboxSettings.ReadWrite` cover"
+            " every write — and sign in through it. To try a tool on your own mailbox"
+            " first, [Graph Explorer](https://developer.microsoft.com/graph/graph-explorer)"
+            " shows the signed-in account's token on its **Access token** tab; `export"
+            " MICROSOFT_ACCESS_TOKEN=…`."
+        ),
+        connect="OAuth",
+    ),
     "granola": _Setup(
         need="An API key, on a Business or Enterprise plan",
         where=(
@@ -1467,7 +1487,15 @@ def render_pagination(pack: str, module: ModuleType) -> str:
             f'    name="{tool.name}",',
             f"    args_schema={tool.args_schema.__name__},",
             f'    method="{tool.method}",',
-            f'    url_template="{tool.url_template}",',
+            *(
+                [f'    url_template="{tool.url_template}",']
+                if len(tool.url_templates) == 1
+                else [
+                    "    url_template=(",
+                    *(f'        "{route}",' for route in tool.url_templates),
+                    "    ),",
+                ]
+            ),
             f"    pagination={_py_pagination(pagination, indent='    ')},",
             ")",
         ]

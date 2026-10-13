@@ -31,6 +31,7 @@ from charter.packs import (
     gsheets,
     linear,
     notion,
+    outlook,
     shopify,
     slack,
     stripe,
@@ -52,10 +53,11 @@ ALL_PACKS = [
     shopify,
     notion,
     granola,
+    outlook,
 ]
 GOOGLE_PACKS = [gmail, gcalendar, gsheets, gdocs, gdrive, gforms]
 # Bearer-token packs, Google and otherwise — they share a configure() shape.
-OAUTH_PACKS = [gmail, gcalendar, gsheets, gdocs, gdrive, gforms, slack, github, notion]
+OAUTH_PACKS = [gmail, gcalendar, gsheets, gdocs, gdrive, gforms, slack, github, notion, outlook]
 # Packs whose credential is an API key. They take it through a credential
 # provider like the OAuth packs, so one user's key never serves another's call.
 API_KEY_PACKS = [firecrawl, stripe, linear, granola, tavily]
@@ -84,6 +86,7 @@ def _isolate_pack_credentials(monkeypatch):
     monkeypatch.delenv("SLACK_BOT_TOKEN", raising=False)
     monkeypatch.delenv("STRIPE_API_KEY", raising=False)
     monkeypatch.delenv("NOTION_API_KEY", raising=False)
+    monkeypatch.delenv("MICROSOFT_ACCESS_TOKEN", raising=False)
 
 
 # -----------------------------------------------------
@@ -186,6 +189,7 @@ VALID_CALL = {
     "notion": (lambda: notion.users_retrieve_me, {}),
     "granola": (lambda: granola.notes_list, {}),
     "tavily": (lambda: tavily.search, {"query": "x"}),
+    "outlook": (lambda: outlook.messages_list, {"top": 1}),
 }
 
 

@@ -1,6 +1,6 @@
 ---
 title: "The wire contract"
-description: "Body format, static parameters, per-call headers, header arguments, pagination, and Retry-After."
+description: "Body format, a body in another media type, routes, static parameters, per-call headers, header arguments, pagination, and Retry-After."
 ---
 
 Beyond where a field goes and how it is encoded, an API has a handful of
@@ -64,6 +64,76 @@ Unwrapping promotes a nested structure's own fields to the root, so a lone
 *scalar* is the exception: it has no fields to promote and keeps its name.
 `join(channel=Body())` sends `{"channel": "C1"}`, not `"C1"` — which no API
 accepts, and which a form body cannot even represent.
+
+### A body in another media type
+
+Some operations take their body in more than one format. Microsoft Graph's
+`sendMail` takes a JSON message, or the same message as a base64 MIME document
+sent as `text/plain`. One operation is one tool, so the second format is an
+argument: mark it [`Body(media_type=...)`](/reference/markers#body).
+
+```python graph_send_mail.py
+class SendMail(BaseModel):
+    message: Annotated[Optional[Message], Body()] = None
+    save_to_sent_items: Annotated[Optional[bool], Body()] = None
+    mime: Annotated[
+        Optional[str], Format("mime_base64"), Body(media_type="text/plain")
+    ] = None
+```
+
+When `mime` is set, its value — after its `Format` — is the whole body, sent
+with that `Content-Type`, and no key casing touches it. When it is not, the body
+is the JSON it always was: a media-typed field is not counted when deciding
+whether the other body fields unwrap, so a create that gains a MIME alternative
+still unwraps its message.
+
+The field excludes every other body field, and that rule is derived from the
+marker rather than written beside it. It is enforced in the view the model fills
+in, like a [`ConflictsWith`](#parameters-that-exclude-each-other), and
+[`format_conflicts`](/reference/observability#format_conflicts) lists it:
+
+```text
+mime cannot be combined with message, saveToSentItems. It is the whole request
+body, sent as text/plain.
+```
+
+## Routes
+
+Some operations are served at more than one path, where the extra segment only
+scopes the collection: Graph lists messages at `/me/messages` and a folder's at
+`/me/mailFolders/{id}/messages`; GitLab lists issues at `/issues`,
+`/projects/:id/issues` and `/groups/:id/issues`. Declared as two tools, the model
+has to pick between near-identical functions, which is picking a URL. Declared as
+one, the scope is an optional argument, and the runtime picks the URL.
+
+`url_template` takes the routes most specific first. A call goes to the first one
+whose placeholders it filled:
+
+```python graph_messages_list.py
+messages_list = graph(
+    name="messages_list",
+    args_schema=MessagesList,  # folder_id: Annotated[Optional[str], Path()] = None
+    method="GET",
+    url_template=("me/mailFolders/{folder_id}/messages", "me/messages"),
+)
+```
+
+| Call | Request |
+|---|---|
+| `messages_list(top=10)` | `GET /me/messages?$top=10` |
+| `messages_list(folder_id="inbox", top=10)` | `GET /me/mailFolders/inbox/messages?$top=10` |
+
+Nothing about routes reaches the model: the schema it is given has an optional
+`folder_id`, and no adapter reads a URL. Path values are escaped per value as
+always, so a `folder_id` cannot reach another route. `Tool.url_template` is the
+first route and `Tool.url_templates` all of them; a
+[`ToolCall`](/reference/observability) records the route the call took.
+
+A sequence is checked when the tool is built, and refused with a
+[`DeclarationError`](/reference/errors#declarationerror) if a placeholder is not a
+`Path()` field, a `Path()` field appears in no route, an earlier route would win
+every time a later one could, or the last route needs a value a call may leave
+out.
 
 ## Static parameters
 

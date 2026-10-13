@@ -31,7 +31,7 @@ from pydantic import BaseModel
 from charter.egress import Surface
 from charter.execution.schema import _api_name
 from charter.naming import _duplicate_row, _rows, report_key
-from charter.types.markers import ConflictsWith
+from charter.types.markers import ConflictsWith, raw_body_exclusions
 
 __all__ = ["conflict_map", "format_conflicts"]
 
@@ -62,6 +62,20 @@ def _rules(model: type[BaseModel]) -> List[Dict[str, Any]]:
                     "reason": marker.reason,
                 }
             )
+    # The rule a Body(media_type=...) field implies, reported beside the
+    # declared ones: the runtime enforces both, so the audit lists both.
+    for field, excluded, reason in raw_body_exclusions(dict(model.model_fields)):
+        out.append(
+            {
+                "field": field,
+                "api_name": names.get(field, field),
+                "excludes": [
+                    {"field": other, "api_name": names.get(other, other), "declared": True}
+                    for other in excluded
+                ],
+                "reason": reason,
+            }
+        )
     return out
 
 
