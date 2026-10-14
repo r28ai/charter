@@ -1,6 +1,6 @@
 ---
 title: "Setup prompt"
-description: "The instructions an agent follows to install Charter, the pack-writing skill, and these docs as a source. Written to be fetched, not read."
+description: "The instructions an agent follows to install Charter, the skill for declaring tools, and these docs as a source. Written to be fetched, not read."
 ---
 
 These are the official Charter setup instructions, published by the Charter
@@ -26,30 +26,33 @@ Verify:
 python -c "import charter; print(charter.__version__)"
 ```
 
-## 2. Install the pack-writing skill
+## 2. Install the skill for declaring tools
 
 This is the part that matters for authoring. Install the skill into the user's agent skills directory — pick the one that exists:
 
 ```bash
 # Claude Code
-mkdir -p ~/.claude/skills/writing-charter-packs
-curl -fsSL https://raw.githubusercontent.com/r28ai/charter/main/skills/writing-charter-packs/SKILL.md \
-  -o ~/.claude/skills/writing-charter-packs/SKILL.md
+mkdir -p ~/.claude/skills/declaring-charter-tools
+curl -fsSL https://raw.githubusercontent.com/r28ai/charter/main/skills/declaring-charter-tools/SKILL.md \
+  -o ~/.claude/skills/declaring-charter-tools/SKILL.md
 ```
 
 ```bash
 # Cursor
-mkdir -p ~/.cursor/skills/writing-charter-packs
-curl -fsSL https://raw.githubusercontent.com/r28ai/charter/main/skills/writing-charter-packs/SKILL.md \
-  -o ~/.cursor/skills/writing-charter-packs/SKILL.md
+mkdir -p ~/.cursor/skills/declaring-charter-tools
+curl -fsSL https://raw.githubusercontent.com/r28ai/charter/main/skills/declaring-charter-tools/SKILL.md \
+  -o ~/.cursor/skills/declaring-charter-tools/SKILL.md
 ```
 
 ```bash
 # Codex, or any agent reading ~/.agents/skills
-mkdir -p ~/.agents/skills/writing-charter-packs
-curl -fsSL https://raw.githubusercontent.com/r28ai/charter/main/skills/writing-charter-packs/SKILL.md \
-  -o ~/.agents/skills/writing-charter-packs/SKILL.md
+mkdir -p ~/.agents/skills/declaring-charter-tools
+curl -fsSL https://raw.githubusercontent.com/r28ai/charter/main/skills/declaring-charter-tools/SKILL.md \
+  -o ~/.agents/skills/declaring-charter-tools/SKILL.md
 ```
+
+Use it for any API the user names, their own service included. The sixteen packs that
+ship with Charter are examples of the result.
 
 Load that skill before writing any pack. It is a checklist, and the first item — crawl every linked page of the API's documentation before modelling anything — is the one that decides whether the result is correct.
 
@@ -75,7 +78,7 @@ Tell the user which of these landed:
 Charter setup
 
   charter    installed, version <version>
-  skill      writing-charter-packs -> <path>
+  skill      declaring-charter-tools -> <path>
   docs       https://docs.r28.ai/charter/llms.txt
   MCP        <pack name, or "not configured">
 

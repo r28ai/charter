@@ -7,7 +7,7 @@ body:
       value: |
         Packs are the most useful thing anyone can add here, and you do not need
         permission — see
-        [`skills/writing-charter-packs/SKILL.md`](https://github.com/r28ai/charter/blob/main/skills/writing-charter-packs/SKILL.md).
+        [`skills/declaring-charter-tools/SKILL.md`](https://github.com/r28ai/charter/blob/main/skills/declaring-charter-tools/SKILL.md).
         Opening this first is still worth it: it stops two people writing the
         same pack, and the questions below are the ones that decide whether a
         pack is a day or a week.

@@ -11,6 +11,9 @@ beyond the API's own description (`Gloss`). A deterministic runtime does the
 rest. There is no LLM inside Charter and no network call except the one the schema
 describes.
 
+The packs under `src/charter/packs/` are examples of the result: any HTTP API is
+declared the same way, with [the skill](skills/declaring-charter-tools/SKILL.md).
+
 ## Rules
 
 1. **Core dependencies are pydantic and httpx. That is the whole budget.**
@@ -133,7 +136,7 @@ and a gloss is only read.
 semantic type, then add a round-trip test. The semantic type is what the LLM will
 see, so it must be a type a model can fill in sensibly.
 
-**Adding a pack.** See [skills/writing-charter-packs/SKILL.md](skills/writing-charter-packs/SKILL.md).
+**Adding a pack.** See [skills/declaring-charter-tools/SKILL.md](skills/declaring-charter-tools/SKILL.md).
 Add it to `PACK_NAMES` in `tests/test_conformance.py`; the cross-pack checks then
 apply to it automatically.
 

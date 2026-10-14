@@ -4,5 +4,5 @@ contact_links:
     url: https://github.com/r28ai/charter/blob/main/SECURITY.md
     about: Do not open a public issue. Email security@r28.ai.
   - name: Writing a pack
-    url: https://github.com/r28ai/charter/blob/main/skills/writing-charter-packs/SKILL.md
+    url: https://github.com/r28ai/charter/blob/main/skills/declaring-charter-tools/SKILL.md
     about: The checklist that makes a pack correct rather than merely working.

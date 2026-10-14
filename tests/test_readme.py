@@ -8,6 +8,7 @@ and executed here, offline, against a catch-all respx mock.
 from __future__ import annotations
 
 import ast
+import asyncio
 import json
 import re
 from pathlib import Path as FsPath
@@ -91,7 +92,11 @@ async def test_readme_python_block_runs(source, monkeypatch):
             exec(compile(wrapper, "<readme>", "exec", dont_inherit=True), namespace)
             await namespace["__readme_main__"]()
         else:
-            exec(compile(source, "<readme>", "exec", dont_inherit=True), namespace)
+            # A plain block runs where the reader's script does: with no event loop,
+            # so `tool.invoke()` can start its own. This test's loop is running, so
+            # the block gets a thread of its own.
+            code = compile(source, "<readme>", "exec", dont_inherit=True)
+            await asyncio.to_thread(exec, code, namespace)
 
 
 # -----------------------------------------------------
@@ -191,7 +196,7 @@ def test_every_tool_page_a_spec_generates_is_linked_to():
 
 def test_skill_and_agents_links_resolve():
     missing = []
-    for source in (ROOT / "AGENTS.md", ROOT / "skills/writing-charter-packs/SKILL.md"):
+    for source in (ROOT / "AGENTS.md", ROOT / "skills/declaring-charter-tools/SKILL.md"):
         for target in _LINK.findall(source.read_text()):
             if target.startswith(("http://", "https://", "#", "mailto:")):
                 continue
@@ -208,7 +213,7 @@ def test_skill_and_agents_links_resolve():
 _AGENT_FACING = (
     "README.md",
     "AGENTS.md",
-    "skills/writing-charter-packs/SKILL.md",
+    "skills/declaring-charter-tools/SKILL.md",
     "docs/agent-setup/prompt.mdx",
     "docs/start/coding-agents.mdx",
 )

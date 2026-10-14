@@ -7,45 +7,45 @@ import AgentPrompt from '/snippets/agent-prompt.mdx';
 
 <AgentPrompt />
 
-The instructions live at that URL rather than in the prompt, so a prompt you pasted last month still does the current thing. They install a skill file and, only if you ask for one, an MCP server. Both are inspectable before you run anything: [the skill](#the-pack-writing-skill) and [the server](/using/mcp).
+The instructions live at that URL rather than in the prompt, so a prompt you pasted last month still does the current thing. They install a skill file and, only if you ask for one, an MCP server. Both are inspectable before you run anything: [the skill](#the-skill) and [the server](/using/mcp).
 
 ## Three things that say "agent"
 
 | | What it is | Where it goes | When it matters |
 |---|---|---|---|
-| [The skill](#the-pack-writing-skill) | teaches an agent to write a Charter pack | your agent's skills directory | while you are authoring |
+| [The skill](#the-skill) | teaches an agent to declare tools for any API | your agent's skills directory | while you are authoring |
 | [These docs](#these-docs-as-a-source) | `llms.txt`, every page as markdown, a docs MCP server | your agent, per question | while you are reading |
 | [Charter's MCP server](/using/mcp) | serves Gmail, Slack and the rest as tools | an agent runtime | while your agent is running |
 
 The skill is the one to install first. It needs no server, no config file and no restart.
 
-## The pack-writing skill
+## The skill
 
 Sixteen packs will not cover the API you use. A pack is declarations, so an agent that knows the rules can write one for whatever you use, and the [conformance suite](/guarantees/conformance) gates the result. The skill is those rules, as one markdown file.
 
 <CodeGroup>
 
 ```bash Claude Code
-mkdir -p ~/.claude/skills/writing-charter-packs
-curl -fsSL https://raw.githubusercontent.com/r28ai/charter/main/skills/writing-charter-packs/SKILL.md \
-  -o ~/.claude/skills/writing-charter-packs/SKILL.md
+mkdir -p ~/.claude/skills/declaring-charter-tools
+curl -fsSL https://raw.githubusercontent.com/r28ai/charter/main/skills/declaring-charter-tools/SKILL.md \
+  -o ~/.claude/skills/declaring-charter-tools/SKILL.md
 ```
 
 ```bash Cursor
-mkdir -p ~/.cursor/skills/writing-charter-packs
-curl -fsSL https://raw.githubusercontent.com/r28ai/charter/main/skills/writing-charter-packs/SKILL.md \
-  -o ~/.cursor/skills/writing-charter-packs/SKILL.md
+mkdir -p ~/.cursor/skills/declaring-charter-tools
+curl -fsSL https://raw.githubusercontent.com/r28ai/charter/main/skills/declaring-charter-tools/SKILL.md \
+  -o ~/.cursor/skills/declaring-charter-tools/SKILL.md
 ```
 
 ```bash Codex and others
-mkdir -p ~/.agents/skills/writing-charter-packs
-curl -fsSL https://raw.githubusercontent.com/r28ai/charter/main/skills/writing-charter-packs/SKILL.md \
-  -o ~/.agents/skills/writing-charter-packs/SKILL.md
+mkdir -p ~/.agents/skills/declaring-charter-tools
+curl -fsSL https://raw.githubusercontent.com/r28ai/charter/main/skills/declaring-charter-tools/SKILL.md \
+  -o ~/.agents/skills/declaring-charter-tools/SKILL.md
 ```
 
 </CodeGroup>
 
-For a project-scoped install, put it in `.claude/skills/` inside the repo, so it travels with the code and your teammates get it from a checkout. It is a document, not a package: you can also open [the file](https://github.com/r28ai/charter/blob/main/skills/writing-charter-packs/SKILL.md) and paste it into whatever your agent reads.
+For a project-scoped install, put it in `.claude/skills/` inside the repo, so it travels with the code and your teammates get it from a checkout. It is a document, not a package: you can also open [the file](https://github.com/r28ai/charter/blob/main/skills/declaring-charter-tools/SKILL.md) and paste it into whatever your agent reads.
 
 <Note>
 The skill is deliberately not delivered through [Charter's MCP server](/using/mcp). The server serves tools at runtime; the skill is guidance at authoring time, often on a different machine and always at a different moment. Bundling them would put a server install, a config edit and a restart in front of a file you can `curl`.
@@ -113,7 +113,7 @@ Most questions are answered by one of these four:
 | Why is my call failing? | `/running/tool-validation-error-handling.md` |
 | This tool's schema is huge. What now? | `/tools/projections.md` |
 
-For authoring, the [skill](#the-pack-writing-skill) beats the docs. It is the rules in the order they have to be applied, rather than a reference an agent has to assemble an approach from.
+For authoring, the [skill](#the-skill) beats the docs. It is the rules in the order they have to be applied, rather than a reference an agent has to assemble an approach from.
 
 ### A rule worth giving your agent
 
@@ -123,7 +123,7 @@ A second rule, for an agent assembling a tool surface rather than writing a pack
 
 ## Related
 
-- [Writing packs, the source file](https://github.com/r28ai/charter/blob/main/skills/writing-charter-packs/SKILL.md)
+- [Writing packs, the source file](https://github.com/r28ai/charter/blob/main/skills/declaring-charter-tools/SKILL.md)
 - [Packs](/packs/overview), the sixteen that ship, as worked examples
 - [Conformance](/guarantees/conformance), what your pack will be held to
 - [MCP server](/using/mcp), for an agent that needs the tools rather than the rules

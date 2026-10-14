@@ -126,7 +126,7 @@ reshape a successful payload — that is a response handler's job.
 ## Related
 
 - [Tool validation and error handling](/running/tool-validation-error-handling)
-- [Writing a pack](https://github.com/r28ai/charter/blob/main/skills/writing-charter-packs/SKILL.md)
+- [Writing a pack](https://github.com/r28ai/charter/blob/main/skills/declaring-charter-tools/SKILL.md)
 - [`Envelope`](/reference/envelopes-and-pagination#envelope) — every field, the path syntax, the methods
 - [`ResponseHandler`](/reference/response-handling#responsehandler) — what shapes a payload once it has passed
 

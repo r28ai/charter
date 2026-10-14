@@ -41,12 +41,12 @@ user defines. There is no version ping, no analytics, no default sink.
 ## Adding a pack
 
 This is the highest-value contribution and there is a guide for it:
-[`skills/writing-charter-packs/SKILL.md`](skills/writing-charter-packs/SKILL.md).
+[`skills/declaring-charter-tools/SKILL.md`](skills/declaring-charter-tools/SKILL.md).
 Read it before starting — it covers the checklist that makes a pack correct
 rather than merely working, and `tests/test_conformance.py` will hold you to most
 of it automatically. Where to find the vendor's machine-readable source, which is
 most of the work, is
-[`FINDING-THE-SOURCE.md`](skills/writing-charter-packs/FINDING-THE-SOURCE.md).
+[`FINDING-THE-SOURCE.md`](skills/declaring-charter-tools/FINDING-THE-SOURCE.md).
 
 The short version: model every field and enum from the vendor's own docs, mark
 `Path`/`Query`/`Body`, set the casing, mark server-set fields
