@@ -1330,7 +1330,16 @@ class Tool:
                 f"Tool.invoke() cannot be called while an event loop is running "
                 f"(tool {self.name!r}). Use 'await tool.ainvoke(...)' instead."
             )
-        return asyncio.run(self.ainvoke(args, headers=headers, **kwargs))
+        from charter.types.errors import CharterError
+
+        try:
+            return asyncio.run(self.ainvoke(args, headers=headers, **kwargs))
+        except CharterError as error:
+            # A Charter error is written for the caller: a missing credential, a
+            # refused argument, an API that said no. Between here and where it was
+            # raised are asyncio's frames and the executor's, which push the message
+            # off the screen. Anything else keeps its whole traceback.
+            raise error.with_traceback(None) from None
 
     # -----------------------------------------------------
     # Measurement

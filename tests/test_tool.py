@@ -223,6 +223,18 @@ def test_sync_invoke_wraps_ainvoke():
     assert _weather_tool().invoke(city="Tokyo") == {"temp": 21}
 
 
+def test_sync_invoke_raises_a_charter_error_without_asyncio_in_the_way():
+    """The message is what the caller needs, so it isn't left under the event loop's frames."""
+    import traceback
+
+    with pytest.raises(CredentialError) as caught:
+        _weather_tool(api_key_headers=lambda: {"x-api-key": ""}).invoke(city="Tokyo")
+
+    frames = [frame.name for frame in traceback.extract_tb(caught.value.__traceback__)]
+    assert frames[-1] == "invoke"
+    assert not {"run", "run_until_complete", "ainvoke", "execute"} & set(frames)
+
+
 async def test_sync_invoke_refuses_to_run_inside_a_loop():
     """asyncio.run() cannot nest — say so plainly rather than dying in asyncio."""
     with pytest.raises(RuntimeError, match=r"await tool\.ainvoke"):

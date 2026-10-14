@@ -71,6 +71,11 @@ here, with the migration in the same entry.
 
 ### Changed
 
+- **`Tool.invoke()` raises Charter's own errors without asyncio's frames.** A
+  missing credential, a refused argument or an API that said no used to arrive
+  under twenty lines of event-loop and executor frames, with the fix at the
+  bottom. The traceback now ends at your call. Any other exception keeps all of it.
+
 - **A `None` in a `build_request` query or path override removes that key.** A
   query key used to go out as an empty parameter, and a path key as `None` in
   the URL. An override can now consume a field it rewrote into another
