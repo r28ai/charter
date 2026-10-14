@@ -20,14 +20,6 @@
 <a href="https://docs.r28.ai/charter"><img src="https://img.shields.io/badge/docs-docs.r28.ai-blue" alt="Docs"></a>
 </p>
 
-<video src="https://github.com/user-attachments/assets/0fca6e12-ba3d-4a5c-9db3-75a76f373eca"
-       poster="https://raw.githubusercontent.com/r28ai/charter/main/docs/images/charter-demo-still.webp"
-       controls autoplay loop muted playsinline width="860">
-  <img src="https://raw.githubusercontent.com/r28ai/charter/main/docs/images/charter-demo-still.webp"
-       alt="Declaring a Gmail tool, the request Charter puts on the wire, and Gmail's 200 OK. Then pricing a Linear tool's schema and pinning a value out of the model's reach."
-       width="860">
-</video>
-
 </div>
 
 # Charter
