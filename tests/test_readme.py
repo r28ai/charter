@@ -264,32 +264,17 @@ def test_the_covenant_is_present_verbatim():
     assert covenant in README.read_text()
 
 
-def test_readme_documents_every_shipped_pack():
-    from charter.mcp import PACKS
-
-    text = README.read_text()
-    for pack in PACKS:
-        assert f"charter.packs.{pack}" in text, f"{pack} is missing from the coverage table"
-
-
-def test_coverage_table_tool_counts_are_accurate():
-    """The table claims a tool count per pack; check it against reality.
-
-    Every pack, not a sample. Four of the fourteen were named here, so GitHub
-    could reach 139 tools while the table said 29 and nothing went red.
-    """
+def test_the_readme_counts_the_shipped_tools_right():
+    """The README states the total and links the full list, which the pack docs check
+    pack by pack. The total is the one figure left here to drift."""
     import importlib
 
     from charter.mcp import PACKS
 
+    total = sum(len(importlib.import_module(f"charter.packs.{p}").TOOLS) for p in PACKS)
     text = README.read_text()
-    for pack in PACKS:
-        module = importlib.import_module(f"charter.packs.{pack}")
-        row = next(ln for ln in text.splitlines() if f"`charter.packs.{pack}`" in ln)
-        cells = [c.strip() for c in row.split("|")]
-        assert str(len(module.TOOLS)) in cells, (
-            f"{pack}: table says {cells}, actual tool count is {len(module.TOOLS)}"
-        )
+    assert f"{total} tools across sixteen APIs" in text and len(PACKS) == 16
+    assert "https://docs.r28.ai/charter/packs/overview#coverage" in text
 
 
 def test_the_conformance_counts_are_accurate():

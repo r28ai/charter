@@ -96,10 +96,9 @@ def test_a_packs_connect_label_is_one_a_reader_can_compare(pack):
     assert GEN._SETUP[pack].connect in _CONNECTS
 
 
-def test_the_overview_and_readme_say_how_each_pack_connects():
-    """Both are hand-written beside a generated chip, and both drifted from it once."""
+def test_the_overview_says_how_each_pack_connects():
+    """Hand-written beside a generated chip, and it drifted from it once."""
     overview = (PACK_DOCS / "overview.mdx").read_text()
-    readme = (ROOT / "README.md").read_text()
     wrong = []
     for pack in PACKS:
         connect = GEN._SETUP[pack].connect
@@ -108,11 +107,6 @@ def test_the_overview_and_readme_say_how_each_pack_connects():
             wrong.append(
                 f"overview {pack}: {card.group(1) if card else 'no card'!r}, want {connect!r}"
             )
-        row = re.search(
-            rf"^\| [^|]+ \| `charter\.packs\.{pack}` \| \d+ \| ([^|]+) \|", readme, re.M
-        )
-        if row is None or row.group(1).strip() != connect:
-            wrong.append(f"README {pack}: {row.group(1) if row else 'no row'!r}, want {connect!r}")
     assert not wrong, "; ".join(wrong)
 
 
