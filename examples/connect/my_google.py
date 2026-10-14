@@ -1,6 +1,8 @@
-"""Connect your own Google account for every Google pack, once, from a terminal. Needs a
-"Desktop app" OAuth client — docs/auth/setup/google.mdx makes one. Run:
-    GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=... python examples/connect_google.py"""
+# Needs GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET, from a "Desktop app" OAuth client.
+"""Connect your own Google account for every Google pack, once, from a terminal.
+
+Making the OAuth client takes ten minutes: https://docs.r28.ai/charter/auth/setup/google
+"""
 
 import asyncio
 import os
@@ -44,6 +46,11 @@ def wait_for_callback() -> dict:
 
 
 async def main() -> None:
+    if not (os.environ.get("GOOGLE_CLIENT_ID") and os.environ.get("GOOGLE_CLIENT_SECRET")):
+        raise SystemExit(
+            "Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET first, from a Desktop app OAuth "
+            "client: https://docs.r28.ai/charter/auth/setup/google"
+        )
     flow = build_flow()
     request = flow.authorize(SCOPES)
     print(f"Open this in a browser:\n{request.url}")

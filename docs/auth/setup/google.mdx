@@ -231,7 +231,7 @@ repeat step 7 every week.
 
 <Step title="Connect your account" stepNumber={7}>
 
-[`examples/connect_google.py`](https://github.com/r28ai/charter/blob/main/examples/connect_google.py)
+[`examples/connect/my_google.py`](https://github.com/r28ai/charter/blob/main/examples/connect/my_google.py)
 runs the consent flow once, from a terminal. Give it the two values from the
 file in step 5:
 
@@ -239,8 +239,7 @@ file in step 5:
 export GOOGLE_CLIENT_ID=1234-abc.apps.googleusercontent.com
 export GOOGLE_CLIENT_SECRET=GOCSPX-...
 
-curl -O https://raw.githubusercontent.com/r28ai/charter/main/examples/connect_google.py
-uv run --with charter-ai python connect_google.py
+uv run --with charter-ai https://raw.githubusercontent.com/r28ai/charter/main/examples/connect/my_google.py
 ```
 
 It prints a URL. Open it, pick your account, click through the unverified-app

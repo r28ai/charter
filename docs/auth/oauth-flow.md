@@ -342,7 +342,7 @@ credential the request sent replaced by `***` before it becomes a
 
 ## Trying it from a terminal
 
-[`examples/connect_google.py`](https://github.com/r28ai/charter/blob/main/examples/connect_google.py) runs the whole
+[`examples/connect/my_google.py`](https://github.com/r28ai/charter/blob/main/examples/connect/my_google.py) runs the whole
 flow for a personal account with a stdlib `http.server` loopback callback — an
 example you own and can read in one screen, not a library API. The two calls
 above are the only Charter in it; everything else is the redirect and the wait,

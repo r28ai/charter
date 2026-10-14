@@ -103,6 +103,10 @@ dev = [
     # `create_agent`, and testing it against anything less than the real thing
     # would be testing the mock.
     "langchain>=1.0",
+    # examples/connect/users_oauth.py is tested through its routes, and
+    # examples/frameworks/openai_loop.py is replayed against the real client.
+    "fastapi>=0.110",
+    "openai>=1.0",
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
     "respx>=0.21",

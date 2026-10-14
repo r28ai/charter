@@ -1,15 +1,8 @@
-"""
-Serve Charter tools over the Model Context Protocol.
+# Needs `pip install "charter-ai[mcp]"`, and FIRECRAWL_API_KEY once a client calls a tool.
+"""Serve Charter tools over MCP, to Claude Desktop, an IDE, or another agent.
 
-Any MCP client — Claude Desktop, an IDE, another agent — can then call them.
-Each tool's LLM view becomes the MCP inputSchema.
-
-Run with:
-    pip install 'charter-ai[mcp]'
-    FIRECRAWL_API_KEY=... python examples/mcp_server.py
-
-Or serve a shipped pack without writing any code at all:
-    uvx --from 'charter-ai[mcp]' charter-mcp --pack gmail
+A shipped pack needs no code at all:
+`uvx --from 'charter-ai[mcp]' charter-mcp --pack gmail`
 """
 
 import asyncio
