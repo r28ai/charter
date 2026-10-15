@@ -87,7 +87,7 @@ Restart your agent if you added an MCP server.
 
 ## Notes for the agent
 
-- Charter describes **one request**. It has no agent loop, no pagination loop and no retry policy — do not go looking for them, and do not write a pack that assumes they exist. See `https://docs.r28.ai/charter/guarantees/limitations.md`.
+- Charter describes **one request**. It has no agent loop, no pagination loop and no retry policy — do not go looking for them, and do not write a tool that assumes they exist. See `https://docs.r28.ai/charter/guarantees/limitations.md`.
 - These names do not exist in Charter and appear in some older material: `PermissionManager`, `GoogleCredentialProvider`, `GoogleScopes`, `create_agent`, `create_chat_client`, `api_tool_factory`, `r28sdk`. If you find yourself writing one, check `charter.__all__` and `charter.auth.__all__` instead.
 - The public surface is two namespaces. `charter` has tools, markers, transforms and the error hierarchy; `charter.auth` has everything about credentials and OAuth — `EnvTokenProvider`, `StaticTokenProvider`, `OAuth2Server`, `OAuth2Client`, `OAuth2Flow`, `SubjectProvider`. Nothing from `charter.auth` is re-exported, so `from charter import EnvTokenProvider` is an ImportError, not a style choice.
 - Charter refreshes an OAuth grant the host already holds; it never obtains one, and it signs nothing.

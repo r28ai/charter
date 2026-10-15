@@ -1,6 +1,6 @@
 ---
 title: "Coding agents"
-description: "Set your coding agent up for Charter: the skill that teaches it to write packs, these docs as a source, and the server that hands it tools."
+description: "Set your coding agent up for Charter: the skill that teaches it to declare tools for any API, these docs as a source, and the server that hands it tools."
 ---
 
 import AgentPrompt from '/snippets/agent-prompt.mdx';
@@ -119,11 +119,11 @@ For authoring, the [skill](#the-skill) beats the docs. It is the rules in the or
 
 Charter describes one request. It ships no agent loop, no pagination loop and no retry policy, and it never obtains an OAuth grant. An agent that assumes otherwise will write plausible code against an API that does not exist. [Limitations](/guarantees/limitations) is the page that prevents it, and it is worth putting in front of a model before it writes anything substantial.
 
-A second rule, for an agent assembling a tool surface rather than writing a pack: a pack tool models its whole endpoint, and a few of them are wide. `gsheets.spreadsheets_batch_update` is 45,765 tokens of schema, because Sheets puts 74 kinds of edit behind one method. Narrow it with [`Tool.derived`](/reference/tool#tool-derived) instead of dropping the tool or writing a thinner one by hand.
+A second rule, for an agent assembling a tool surface rather than declaring new tools: a pack tool models its whole endpoint, and a few of them are wide. `gsheets.spreadsheets_batch_update` is 45,765 tokens of schema, because Sheets puts 74 kinds of edit behind one method. Narrow it with [`Tool.derived`](/reference/tool#tool-derived) instead of dropping the tool or writing a thinner one by hand.
 
 ## Related
 
-- [Writing packs, the source file](https://github.com/r28ai/charter/blob/main/skills/declaring-charter-tools/SKILL.md)
+- [Declaring tools, the source file](https://github.com/r28ai/charter/blob/main/skills/declaring-charter-tools/SKILL.md)
 - [Packs](/packs/overview), the sixteen that ship, as worked examples
 - [Conformance](/guarantees/conformance), what your pack will be held to
 - [MCP server](/using/mcp), for an agent that needs the tools rather than the rules

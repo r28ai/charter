@@ -7,9 +7,8 @@
 <p>
 <a href="https://docs.r28.ai/charter">Documentation</a> ·
 <a href="https://docs.r28.ai/charter/start/quickstart">Quickstart</a> ·
-<a href="https://docs.r28.ai/charter/packs/overview">Packs</a> ·
-<a href="https://docs.r28.ai/charter/start/coding-agents">Write a pack</a> ·
-<a href="https://github.com/r28ai/charter/issues">Request a pack</a>
+<a href="https://docs.r28.ai/charter/start/coding-agents">Coding agents</a> ·
+<a href="https://docs.r28.ai/charter/packs/overview">Packs</a>
 </p>
 
 <p>
@@ -31,6 +30,16 @@ what it gets back. It works with any HTTP API, including your own.
 
 A library, not a service.
 Runs in your process. No proxy, no per-call pricing, no telemetry.
+
+## Who it's for
+
+| If you're... | Charter gives you |
+|---|---|
+| A SaaS adding an agent that works in your users' Gmail, Stripe or Notion | [Per-user OAuth](https://docs.r28.ai/charter/auth/your-users) with your app's name on the consent screen, and [ready-made tools](https://docs.r28.ai/charter/packs/overview) |
+| On Composio or Zapier | Tools you own, with no per-call fees, and your users' data stays on your servers ([how it compares](#how-charter-compares)) |
+| Writing tool glue by hand | Declare the API as a Pydantic model. Charter makes the request, handles auth, and an [`Envelope`](https://docs.r28.ai/charter/reference/envelopes-and-pagination#envelope) raises when a `200` is really a failure |
+| Running a small or open model | Smaller schemas with [`derived`](https://docs.r28.ai/charter/tools/projections), and a [`Gloss`](https://docs.r28.ai/charter/reference/markers#gloss) on the exact field it keeps getting wrong |
+| Facing a security review | [`pin`](https://docs.r28.ai/charter/tools/projections#pin), [`Mode`](https://docs.r28.ai/charter/boundary/mode-system), [`scopes_for`](https://docs.r28.ai/charter/reference/oauth#scopes_for) and [`egress_map`](https://docs.r28.ai/charter/reference/observability#egress_map): what the agent can see and send, enforced in code and diffed in review |
 
 ## Highlights
 
@@ -247,7 +256,7 @@ tools = to_openai_tools(session)  # function definitions for any chat-completion
 
 613 tools across sixteen APIs ship with Charter, from Gmail and Slack to Stripe and Linear
 ([full list](https://docs.r28.ai/charter/packs/overview#coverage)). You can extend them with
-your own tools, and [contributions are welcome](https://github.com/r28ai/charter/blob/main/CONTRIBUTING.md).
+your own tools, [request a pack](https://github.com/r28ai/charter/issues), and [contributions are welcome](https://github.com/r28ai/charter/blob/main/CONTRIBUTING.md).
 
 ## How Charter compares
 
