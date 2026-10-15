@@ -38,7 +38,15 @@ __all__ = [
 
 
 class TransformSpec:
-    """Specification for a transform between semantic and wire formats."""
+    """Specification for a transform between semantic and wire formats.
+
+    ``llm_description``, when set, replaces the description of every field the
+    transform is applied to. That is right for an encoding: a field declared
+    from the vendor's docs says "a base64url encoded string", and a model told
+    that encodes the value itself, so the API receives it encoded twice. Left
+    unset, each field keeps its own description, which is what a transform that
+    only reshapes the value wants: the field still means what it says.
+    """
 
     def __init__(
         self,
@@ -50,7 +58,9 @@ class TransformSpec:
         self.name = name
         self.semantic_type = semantic_type
         self.transform_fn = transform_fn
-        self.llm_description = llm_description or f"{semantic_type.__name__} data"
+        # No placeholder: a generic "str data" in its place would replace every
+        # field's own description with nothing the model can use.
+        self.llm_description = llm_description
 
     def __repr__(self) -> str:
         return f"TransformSpec({self.name!r} -> {self.semantic_type.__name__})"
@@ -78,7 +88,9 @@ class TransformRegistry:
         Args:
             name: Unique name for the transform (e.g. ``"rfc822_base64"``).
             semantic_type: The type that LLMs will see for this field.
-            llm_description: Optional description for LLM context.
+            llm_description: Replaces the description of every field the
+                transform is applied to. Leave it out to keep each field's own;
+                see :class:`TransformSpec`.
 
         Example:
             >>> @TransformRegistry.register("rfc822_base64", EmailContent)
@@ -385,7 +397,9 @@ def _proto_value_to_json(value: Any) -> Any:
     return value
 
 
-@TransformRegistry.register("field_mask", FieldMask, "Field mask paths")
+# No llm_description: a mask field's own description says what to mask ("The root
+# `cell` is implied and should not be specified"), and the model needs it word for word.
+@TransformRegistry.register("field_mask", FieldMask)
 def transform_field_mask(mask: FieldMask) -> str:
     """Transform a ``FieldMask`` to its JSON wire encoding.
 
@@ -432,7 +446,9 @@ def register_transform(
         name: Unique name for the transform.
         semantic_type: The semantic type LLMs see for this field.
         transform_fn: The transformation function.
-        llm_description: Optional description for LLMs.
+        llm_description: Replaces the description of every field the transform
+            is applied to. Leave it out to keep each field's own; see
+            :class:`TransformSpec`.
     """
     TransformRegistry._transforms[name] = TransformSpec(
         name=name,

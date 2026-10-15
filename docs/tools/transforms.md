@@ -134,6 +134,30 @@ register_transform(
 Then `Annotated[str, Query(), Format("latlon_string")]` shows the LLM a
 `Coordinates` object and sends `"48.8584,2.2945"`.
 
+The last argument replaces the description of every field the transform is
+applied to. Give one when the field's own description is about the wire value
+the transform hides, as a vendor's "a base64url encoded string" is: a model told
+that encodes the value itself, and the API receives it encoded twice. Leave it
+out and each field keeps its own description, which is what a transform reused
+across fields wants:
+
+```python postgrest_filter.py
+from typing import Annotated
+
+from pydantic import BaseModel, Field
+
+from charter import Format, Query, register_transform
+
+register_transform("eq", str, lambda v: f"eq.{v}")  # PostgREST: ?topic=eq.ai-safety
+
+
+class GetFeed(BaseModel):
+    topic: Annotated[str, Query(), Format("eq")] = Field(description="A topic id.")
+```
+
+The model reads "A topic id." and writes `ai-safety`; the request carries
+`topic=eq.ai-safety`.
+
 ## Failure
 
 An unknown transform name, a payload that will not validate as the semantic

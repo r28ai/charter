@@ -971,6 +971,9 @@ def _create_llm_schema(
                     annotated_semantic_type,
                     Field(
                         default=default_value,
+                        # The transform's own description, when it has one, is
+                        # about the semantic value and outranks the field's,
+                        # which was written for the wire; see TransformSpec.
                         description=transform_spec.llm_description or field_info.description,
                         title=getattr(field_info, "title", None),
                         examples=getattr(field_info, "examples", None),

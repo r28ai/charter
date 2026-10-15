@@ -24,6 +24,6 @@ found = session.search("gmail send")["loaded"]
 print(
     f"after one search        {json_tokens(to_openai_tools(session)):>8,} tokens, {', '.join(found)}"
 )
-# all 613 tools, up front   470,429 tokens
+# all 613 tools, up front   471,451 tokens
 # the first turn sends       4,476 tokens, one search tool
 # after one search           7,498 tokens, gmail_drafts_create, gmail_drafts_send, ...

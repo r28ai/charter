@@ -34,7 +34,7 @@ Start at the top.
 | [`07_catch_failed_200s.py`](basics/07_catch_failed_200s.py) | A GraphQL API's `200` with an `errors` list raises instead of reading as a success | nothing |
 | [`08_cut_a_tool.py`](basics/08_cut_a_tool.py) | 33 kinds of Docs edit behind one URL, cut to the 3 that edit text | nothing |
 | [`09_price_a_tool.py`](basics/09_price_a_tool.py) | Find the field that makes a tool expensive: 44,828 of 45,072 tokens | nothing |
-| [`10_many_tools.py`](basics/10_many_tools.py) | All 613 tools in one session: 470,429 tokens up front, 4,476 on the first turn | nothing |
+| [`10_many_tools.py`](basics/10_many_tools.py) | All 613 tools in one session: 471,451 tokens up front, 4,476 on the first turn | nothing |
 | [`11_rules_on_fields.py`](basics/11_rules_on_fields.py) | Rules on their fields instead of in the system prompt, gone when the field is cut | nothing |
 | [`12_pin_a_value.py`](basics/12_pin_a_value.py) | A value the model can neither see nor set | nothing |
 | [`13_one_tool_per_plan.py`](basics/13_one_tool_per_plan.py) | The same call refused on free, refused on pro, sent on max | nothing |

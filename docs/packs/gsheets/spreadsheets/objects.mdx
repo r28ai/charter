@@ -249,7 +249,7 @@ Updates properties of a spreadsheet.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | Field mask paths |
+| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | The fields that should be updated. At least one field must be specified. The root 'properties' is implied and should not be specified. A single `"*"` can be used as short-hand for listing every field. |
 | `properties` | [SpreadsheetProperties](#spreadsheetproperties) | The properties to update. |
 
 </div>
@@ -397,7 +397,7 @@ Updates properties of the sheet with the specified sheetId.
 | Field | Type | Description |
 | --- | --- | --- |
 | `properties` | [SheetProperties](#sheetproperties) | The properties to update. |
-| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | Field mask paths |
+| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | The fields that should be updated. At least one field must be specified. The root `properties` is implied and should not be specified. A single `"*"` can be used as short-hand for listing every field. |
 
 </div>
 
@@ -437,7 +437,7 @@ Updates properties of dimensions within the specified range.
 | `dataSourceSheetRange` | [DataSourceSheetDimensionRange](#datasourcesheetdimensionrange) | The columns on a data source sheet to update. |
 | `properties` | [DimensionProperties](#dimensionproperties) | Properties to update. |
 | `range` | [DimensionRange](/packs/gsheets/values/objects#dimensionrange) | The rows or columns to update. |
-| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | Field mask paths |
+| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | The fields that should be updated. At least one field must be specified. The root `properties` is implied and should not be specified. A single `"*"` can be used as short-hand for listing every field. |
 
 </div>
 
@@ -493,7 +493,7 @@ Updates properties of the named range with the specified namedRangeId.
 | Field | Type | Description |
 | --- | --- | --- |
 | `namedRange` | [NamedRange](#namedrange) | The named range to update with the new properties. |
-| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | Field mask paths |
+| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | The fields that should be updated. At least one field must be specified. The root `namedRange` is implied and should not be specified. A single `"*"` can be used as short-hand for listing every field. |
 
 </div>
 
@@ -520,7 +520,7 @@ Updates all cells in the range to the values in the given Cell object. Only the 
 | Field | Type | Description |
 | --- | --- | --- |
 | `cell` | [CellData](#celldata) | The data to write. |
-| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | Field mask paths |
+| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | The fields that should be updated. At least one field must be specified. The root `cell` is implied and should not be specified. A single `"*"` can be used as short-hand for listing every field. |
 | `range` | [GridRange](/packs/gsheets/values/objects#gridrange) | The range to repeat the cell in. |
 
 </div>
@@ -1087,7 +1087,7 @@ Updates all cells in a range with new data.
 | `rows` | [RowData](#rowdata)[] | The data to write. |
 | `start` | [GridCoordinate](#gridcoordinate) | The coordinate to start writing data at. Any number of rows and columns (including a different number of columns per row) may be written. |
 | `range` | [GridRange](/packs/gsheets/values/objects#gridrange) | The range to write data to. If the data in rows does not cover the entire requested range, the fields matching those set in fields will be cleared. |
-| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | Field mask paths |
+| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | The fields of CellData that should be updated. At least one field must be specified. The root is the CellData; 'row.values.' should not be specified. A single `"*"` can be used as short-hand for listing every field. |
 
 </div>
 
@@ -1144,7 +1144,7 @@ Adds new cells after the last row with data in a sheet, inserting new rows into 
 | `tableId` | `string` | The ID of the table to append data to. The data will be only appended to the table body. This field also takes precedence over the `sheet_id` field. |
 | `rows` | [RowData](#rowdata)[] | The data to append. |
 | `sheetId` | `integer` | The sheet ID to append the data to. |
-| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | Field mask paths |
+| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | The fields of CellData that should be updated. At least one field must be specified. The root is the CellData; 'row.values.' should not be specified. A single `"*"` can be used as short-hand for listing every field. |
 
 </div>
 
@@ -1290,7 +1290,7 @@ Update an embedded object's position (such as a moving or resizing a chart or im
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | Field mask paths |
+| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | The fields of OverlayPosition that should be updated when setting a new position. Used only if newPosition.overlayPosition is set, in which case at least one field must be specified. The root `newPosition.overlayPosition` is implied and should not be specified. A single `"*"` can be used as short-hand for listing every field. |
 | `objectId` | `integer` | The ID of the object to moved. |
 | `newPosition` | [EmbeddedObjectPosition](#embeddedobjectposition) | An explicit position to move the embedded object to. If newPosition.sheetId is set, a new sheet with that ID will be created. If newPosition.newSheet is set to true, a new sheet will be created with an ID that will be chosen for you. |
 
@@ -1364,7 +1364,7 @@ Updates properties of the filter view.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | Field mask paths |
+| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | The fields that should be updated. At least one field must be specified. The root `filter` is implied and should not be specified. A single `"*"` can be used as short-hand for listing every field. |
 | `filter` | [FilterView](#filterview) | The new properties of the filter view. |
 
 </div>
@@ -1599,7 +1599,7 @@ Updates an existing protected range with the specified protectedRangeId.
 | Field | Type | Description |
 | --- | --- | --- |
 | `protectedRange` | [ProtectedRange](#protectedrange) | The protected range to update with the new properties. |
-| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | Field mask paths |
+| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | The fields that should be updated. At least one field must be specified. The root `protectedRange` is implied and should not be specified. A single `"*"` can be used as short-hand for listing every field. |
 
 </div>
 
@@ -2265,7 +2265,7 @@ Updates properties of the supplied banded range.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | Field mask paths |
+| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | The fields that should be updated. At least one field must be specified. The root `bandedRange` is implied and should not be specified. A single `"*"` can be used as short-hand for listing every field. |
 | `bandedRange` | [BandedRange](#bandedrange) | The banded range to update with the new properties. |
 
 </div>
@@ -2346,7 +2346,7 @@ A request to update properties of developer metadata. Updates the properties of 
 | --- | --- | --- |
 | `developerMetadata` | [DeveloperMetadata](#developermetadata) | The value that all metadata matched by the data filters will be updated to. |
 | `dataFilters` | [DataFilter](/packs/gsheets/values/objects#datafilter)[] | The filters matching the developer metadata entries to update. |
-| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | Field mask paths |
+| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | The fields that should be updated. At least one field must be specified. The root `developerMetadata` is implied and should not be specified. A single `"*"` can be used as short-hand for listing every field. |
 
 </div>
 
@@ -2406,7 +2406,7 @@ Updates the state of the specified group.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | Field mask paths |
+| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | The fields that should be updated. At least one field must be specified. The root `dimensionGroup` is implied and should not be specified. A single `"*"` can be used as short-hand for listing every field. |
 | `dimensionGroup` | [DimensionGroup](#dimensiongroup) | The group whose state should be updated. The range and depth of the group should specify a valid group on the sheet, and all other fields updated. |
 
 </div>
@@ -2460,7 +2460,7 @@ Updates an embedded object's border property.
 | --- | --- | --- |
 | `border` | [EmbeddedObjectBorder](#embeddedobjectborder) | The border that applies to the embedded object. |
 | `objectId` | `integer` | The ID of the embedded object to update. |
-| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | Field mask paths |
+| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | The fields that should be updated. At least one field must be specified. The root `border` is implied and should not be specified. A single `"*"` can be used as short-hand for listing every field. |
 
 </div>
 
@@ -2517,7 +2517,7 @@ Updates a slicer's specifications. (This does not move or resize a slicer. To mo
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | Field mask paths |
+| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | The fields that should be updated. At least one field must be specified. The root `SlicerSpec` is implied and should not be specified. A single "*"` can be used as short-hand for listing every field. |
 | `slicerId` | `integer` | The id of the slicer to update. |
 | `spec` | [SlicerSpec](#slicerspec) | The specification to apply to the slicer. |
 
@@ -2641,7 +2641,7 @@ Updates a data source. After the data source is updated successfully, an executi
 | Field | Type | Description |
 | --- | --- | --- |
 | `dataSource` | [DataSource](#datasource) | The data source to update. |
-| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | Field mask paths |
+| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | The fields that should be updated. At least one field must be specified. The root `dataSource` is implied and should not be specified. A single `"*"` can be used as short-hand for listing every field. |
 
 </div>
 
@@ -2792,7 +2792,7 @@ Updates a table in the spreadsheet.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | Field mask paths |
+| `fields` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | Required. The fields that should be updated. At least one field must be specified. The root `table` is implied and should not be specified. A single `"*"` can be used as short-hand for listing every field. |
 | `table` | [Table](#table) | Required. The table to update. |
 
 </div>

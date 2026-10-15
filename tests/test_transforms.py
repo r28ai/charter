@@ -61,12 +61,21 @@ def test_every_builtin_transform_is_registered():
     assert BUILTINS <= set(TransformRegistry.names())
 
 
+# The one built-in whose fields keep their own description: a mask field says what
+# to mask, which the model needs. Every other built-in hides a wire encoding the
+# field's description was written for.
+KEEPS_FIELD_DESCRIPTION = {"field_mask"}
+
+
 @pytest.mark.parametrize("name", sorted(BUILTINS))
 def test_get_transform_returns_a_spec(name):
     spec = get_transform(name)
     assert isinstance(spec, TransformSpec)
     assert spec.name == name
-    assert spec.llm_description
+    if name in KEEPS_FIELD_DESCRIPTION:
+        assert spec.llm_description is None
+    else:
+        assert spec.llm_description
 
 
 def test_unknown_transform_name_raises_transform_error():
@@ -492,6 +501,78 @@ def test_format_marker_names_a_registered_transform():
         for meta in field.metadata:
             if isinstance(meta, Format):
                 assert get_transform(meta.transform) is not None, meta.transform
+
+
+# -----------------------------------------------------
+# Which description the model reads on a transformed field
+# -----------------------------------------------------
+
+
+def _seen_by_model(schema: type[BaseModel], field: str) -> Optional[str]:
+    from charter.execution.schema import create_llm_schema
+
+    return create_llm_schema(schema).model_fields[field].description
+
+
+def test_a_transform_without_a_description_keeps_the_fields_own():
+    """The field's description was dropped for "str data", the placeholder every
+    transform registered without one used to carry. A filter transform reused on
+    many fields has nothing to say about any one of them."""
+    register_transform("test_eq", str, lambda v: f"eq.{v}")
+    try:
+
+        class GetFeed(BaseModel):
+            topic: Annotated[str, Format("test_eq")] = Field(
+                description="A topic id from find_topics."
+            )
+
+        assert _seen_by_model(GetFeed, "topic") == "A topic id from find_topics."
+    finally:
+        TransformRegistry._transforms.pop("test_eq", None)
+
+
+def test_a_transform_with_a_description_replaces_the_fields_own():
+    register_transform("test_b64", str, lambda v: v, "Plain text.")
+    try:
+
+        class Upload(BaseModel):
+            data: Annotated[str, Format("test_b64")] = Field(
+                description="The data, as a base64url encoded string."
+            )
+
+        assert _seen_by_model(Upload, "data") == "Plain text."
+    finally:
+        TransformRegistry._transforms.pop("test_b64", None)
+
+
+def test_neither_side_describing_the_field_leaves_it_undescribed():
+    register_transform("test_bare", str, lambda v: v)
+    try:
+
+        class Bare(BaseModel):
+            value: Annotated[str, Format("test_bare")]
+
+        assert _seen_by_model(Bare, "value") is None
+    finally:
+        TransformRegistry._transforms.pop("test_bare", None)
+
+
+def test_a_sheets_field_mask_keeps_googles_description():
+    """21 mask fields across Sheets and Forms read "Field mask paths" and lost
+    what Google says about them, including what the mask's root is."""
+    from charter.packs.gsheets.types.spreadsheets.requests import AppendCellsRequest
+
+    seen = _seen_by_model(AppendCellsRequest, "fields")
+    assert seen is not None and "'row.values.' should not be specified" in seen
+
+
+def test_an_encoded_field_still_hides_the_encoding_from_the_model():
+    """Outlook's description is about the wire: base64 MIME. The model fills in an
+    EmailContent, and Charter encodes it; told to encode, it would encode twice."""
+    from charter.packs.outlook.types.messages.actions import SendMailRequest
+
+    seen = _seen_by_model(SendMailRequest, "mime")
+    assert seen == "Email message content"
 
 
 # -----------------------------------------------------

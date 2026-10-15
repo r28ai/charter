@@ -118,6 +118,18 @@ here, with the migration in the same entry.
   pill that says when it may be set. Every lookup now goes through the name the
   schema publishes, and a test holds the generator to it.
 
+- **A `Format` field lost its own description.** A transform registered without
+  an `llm_description` carried a placeholder, `"str data"` for a `str`, and the
+  placeholder replaced the field's `Field(description=...)` in what the model
+  read. Such a field now keeps its own description; an `llm_description`, when
+  set, still replaces it, which is right for an encoding whose field was
+  described for the wire ("a base64url encoded string"). `TransformSpec.
+  llm_description` is `None` when none was given. The built-in `field_mask` no
+  longer sets one, so 21 Sheets and Forms mask fields read Google's description
+  again ("The root `cell` is implied and should not be specified") instead of
+  "Field mask paths". `gsheets.spreadsheets_batch_update` grows from 44,934 to
+  45,765 tokens of schema.
+
 ## [0.5.1] — 2026-10-07
 
 ### Fixed

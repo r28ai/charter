@@ -35,8 +35,11 @@ One registered transform.
   Semantic value in, wire value out.
 </ResponseField>
 
-<ResponseField name="llm_description" type="str">
-  Description offered to the model. Defaults to `f"{semantic_type.__name__} data"`.
+<ResponseField name="llm_description" type="Optional[str]">
+  Replaces the description of every field the transform is applied to, in what
+  the model reads. Set it for an encoding, whose fields were described for the
+  wire ("a base64url encoded string"). `None` when none was given, and then each
+  field keeps its own description.
 </ResponseField>
 
 ## `TransformRegistry`
@@ -103,7 +106,8 @@ The non-decorator form, for registering a function you already have.
 </ParamField>
 
 <ParamField path="llm_description" type="Optional[str]" default="None">
-  Description for the model.
+  Replaces the description of every field the transform is applied to. Leave it
+  out to keep each field's own.
 </ParamField>
 
 ## `get_transform`

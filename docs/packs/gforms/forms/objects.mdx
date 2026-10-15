@@ -74,7 +74,7 @@ Update Form's Info.
 | Field | Type | Description |
 | --- | --- | --- |
 | `info` | [UpdateFormInfo](#updateforminfo) | The info to update. |
-| `updateMask` <span className="required" title="required">*</span> | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | Field mask paths |
+| `updateMask` <span className="required" title="required">*</span> | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | Required. Only values named in this mask are changed. At least one field must be specified. The root `info` is implied and should not be specified. A single `"*"` can be used as short-hand for updating every field. |
 
 </div>
 
@@ -112,7 +112,7 @@ Update Form's ``FormSettings``.
 | Field | Type | Description |
 | --- | --- | --- |
 | `settings` <span className="required" title="required">*</span> | [FormSettings](#formsettings) | Required. The settings to update with. |
-| `updateMask` <span className="required" title="required">*</span> | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | Field mask paths |
+| `updateMask` <span className="required" title="required">*</span> | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | Required. Only values named in this mask are changed. At least one field must be specified. The root `settings` is implied and should not be specified. A single `"*"` can be used as short-hand for updating every field. |
 
 </div>
 
@@ -574,7 +574,7 @@ Update an item in a form.
 | --- | --- | --- |
 | `item` <span className="required" title="required">*</span> | [Item](#item) | Required. New values for the item. Note that item and question IDs are used if they are provided (and are in the field mask). If an ID is blank (and in the field mask) a new ID is generated. This means you can modify an item by getting the form via `forms.get`, modifying your local copy of that item to be how you want it, and using `UpdateItemRequest` to write it back, with the IDs being the same (or not in the field mask). |
 | `location` <span className="required" title="required">*</span> | [Location](#location) | Required. The location identifying the item to update. |
-| `updateMask` <span className="required" title="required">*</span> | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | Field mask paths |
+| `updateMask` <span className="required" title="required">*</span> | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | Required. Only values named in this mask are changed. This is a comma-separated list of fully qualified names of fields. Example: `"user.displayName,photo"`. |
 
 </div>
 
@@ -600,7 +600,7 @@ The body of a set-publish-settings request.
 | Field | Type | Description |
 | --- | --- | --- |
 | `publishSettings` <span className="required" title="required">*</span> | [PublishSettings](#publishsettings) | Required. The desired publish settings to apply to the form. |
-| `updateMask` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | Field mask paths |
+| `updateMask` | [FieldMask](#fieldmask)<br /><span className="markers"><span className="marker" data-marker="transform">field_mask</span></span> | Optional. The `publishSettings` fields to update. This field mask accepts the following values: `publishState`, which updates or replaces all `publishState` settings, and `"*"`, which updates or replaces all `publishSettings` fields. |
 
 </div>
 

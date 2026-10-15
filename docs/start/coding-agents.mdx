@@ -119,7 +119,7 @@ For authoring, the [skill](#the-skill) beats the docs. It is the rules in the or
 
 Charter describes one request. It ships no agent loop, no pagination loop and no retry policy, and it never obtains an OAuth grant. An agent that assumes otherwise will write plausible code against an API that does not exist. [Limitations](/guarantees/limitations) is the page that prevents it, and it is worth putting in front of a model before it writes anything substantial.
 
-A second rule, for an agent assembling a tool surface rather than writing a pack: a pack tool models its whole endpoint, and a few of them are wide. `gsheets.spreadsheets_batch_update` is 44,934 tokens of schema, because Sheets puts 74 kinds of edit behind one method. Narrow it with [`Tool.derived`](/reference/tool#tool-derived) instead of dropping the tool or writing a thinner one by hand.
+A second rule, for an agent assembling a tool surface rather than writing a pack: a pack tool models its whole endpoint, and a few of them are wide. `gsheets.spreadsheets_batch_update` is 45,765 tokens of schema, because Sheets puts 74 kinds of edit behind one method. Narrow it with [`Tool.derived`](/reference/tool#tool-derived) instead of dropping the tool or writing a thinner one by hand.
 
 ## Related
 
