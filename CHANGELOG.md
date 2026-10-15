@@ -9,6 +9,8 @@ here, with the migration in the same entry.
 
 ## [Unreleased]
 
+## [0.5.2] — 2026-10-15
+
 ### Added
 
 - **An Outlook pack: `charter.packs.outlook`, 56 tools over the mail API in
