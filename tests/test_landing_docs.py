@@ -32,6 +32,7 @@ import pkgutil
 import re
 from pathlib import Path as FsPath
 
+import httpx
 import pytest
 
 from charter import egress_map, packs
@@ -291,6 +292,14 @@ def test_the_hand_written_tab_names_the_packages_it_imports():
     )
 
 
+# The stored grant both tabs start from, as the caption says they do.
+_GRANT = {
+    "GOOGLE_CLIENT_ID": "client.apps.googleusercontent.com",
+    "GOOGLE_CLIENT_SECRET": "secret-for-the-docs",
+    "GOOGLE_REFRESH_TOKEN": "1//refresh-for-the-docs",
+}
+
+
 def _build(monkeypatch):
     """Execute the Charter tab and hand back the tool it declares.
 
@@ -298,7 +307,8 @@ def _build(monkeypatch):
     block must not: pydantic needs the real `Annotated` objects to see the
     markers on a class declared outside any importable module.
     """
-    monkeypatch.setenv("GOOGLE_ACCESS_TOKEN", "at-for-the-docs")
+    for var, value in _GRANT.items():
+        monkeypatch.setenv(var, value)
     tree = _parse(_tab(INDEX, WITH)[1])
     # The trailing call is the last statement; everything before it builds.
     declaration = ast.unparse(ast.Module(body=tree.body[:-1], type_ignores=[]))
@@ -326,14 +336,25 @@ def test_the_charter_tab_sends_what_the_caption_says_it_sends(monkeypatch):
 
     async def call():
         with respx.mock:
+            renewal = respx.post("https://oauth2.googleapis.com/token").mock(
+                return_value=httpx.Response(
+                    200,
+                    json={"access_token": "at-renewed", "expires_in": 3599, "token_type": "Bearer"},
+                )
+            )
             route = respx.post(url).mock(return_value=httpx.Response(200, json={"id": "18f"}))
             await tool.ainvoke(raw={"to": "ada@example.com", "subject": "Hi", "body": "Hello"})
-            return route.calls[0].request
+            return renewal.calls[0].request, route.calls[0].request
 
-    request = asyncio.run(call())
+    renewal, request = asyncio.run(call())
 
+    # "OAuth2Client renews the token and attaches it": the stored refresh token
+    # is traded at Google's token endpoint, and what comes back is what is sent.
+    form = dict(pair.split("=", 1) for pair in renewal.content.decode().split("&"))
+    assert form.get("grant_type") == "refresh_token"
+    assert "refresh-for-the-docs" in renewal.content.decode()
     assert str(request.url) == url
-    assert request.headers.get("authorization") == "Bearer at-for-the-docs"
+    assert request.headers.get("authorization") == "Bearer at-renewed"
 
     payload = json.loads(request.content)
     assert list(payload) == ["raw"], (
@@ -474,10 +495,61 @@ def test_why_charter_describes_the_comparison_the_index_actually_shows():
     assert "users.drafts.create" not in text, (
         "why-charter.mdx still points at the drafts example the index dropped"
     )
-    assert "InstalledAppFlow" in handwritten, (
+    assert "googleapiclient" in handwritten, (
         "why-charter.mdx calls the front page's example Google's documented one; "
-        "the hand-written tab no longer contains their auth quickstart"
+        "the hand-written tab no longer uses Google's client library"
     )
+    assert "stored refresh token" in text, (
+        "why-charter.mdx no longer says where both tabs start from"
+    )
+
+
+def _environment_reads(body: str) -> set[str]:
+    """The names a block reads with os.environ["..."]."""
+    return set(re.findall(r'os\.environ\["([A-Z_]+)"\]', body))
+
+
+def test_both_tabs_start_from_the_same_grant():
+    """The comparison is only fair if neither side skips work the other does.
+
+    The hand-written tab used to be Google's quickstart, which runs the consent
+    flow in a local browser and refreshes and persists the token, while the
+    Charter tab read an access token from the environment that dies within the
+    hour. Two of the six steps were work the Charter side was not doing at all.
+    Both now start from the same stored grant and both renew it, so the steps
+    counted are the ones Charter actually removes.
+    """
+    declared = _environment_reads(_tab(INDEX, WITH)[1])
+    handwritten = _environment_reads(_tab(INDEX, WITHOUT)[1])
+
+    assert declared == handwritten == set(_GRANT), (
+        f"the tabs start from different credentials: {sorted(declared)} against "
+        f"{sorted(handwritten)}"
+    )
+    for title in (WITH, WITHOUT):
+        body = _tab(INDEX, title)[1]
+        for consent in ("InstalledAppFlow", "run_local_server", "OAuth2Flow", "ACCESS_TOKEN"):
+            assert consent not in body, (
+                f"the {title} tab uses {consent}, which the other side does not"
+            )
+
+
+def _quickstart_section(start: str, end: str) -> str:
+    text = QUICKSTART.read_text()
+    return text[text.index(start) : text.index(end)]
+
+
+def _indented_blocks(section: str, lang: str) -> list[str]:
+    """Fenced blocks of one language in a section, indented or not, in order.
+
+    The "Declare a tool" fences sit inside <Steps>, indented four spaces, so the
+    page-level block pattern (which anchors to the line start) does not see
+    them. The indent is stripped back off so the source compiles.
+    """
+    import textwrap
+
+    indented = re.compile(r"^[ \t]*```(\w+)[^\n]*\n(.*?)^[ \t]*```", re.M | re.S)
+    return [textwrap.dedent(body) for tag, body in indented.findall(section) if tag == lang]
 
 
 def _quickstart_declaration() -> list[str]:
@@ -487,113 +559,133 @@ def _quickstart_declaration() -> list[str]:
     is the thing worth checking: a reader types them in sequence and the
     sequence has to run.
     """
-    import textwrap
-
-    text = QUICKSTART.read_text()
-    section = text[text.index("## Declare a tool") : text.index("## See what the model sees")]
-    # These fences sit inside <Steps>, indented four spaces, so the page-level
-    # block pattern (which anchors to the line start) does not see them. The
-    # indent is stripped back off so the source compiles.
-    indented = re.compile(r"^[ \t]*```(\w+)[^\n]*\n(.*?)^[ \t]*```", re.M | re.S)
-    return [textwrap.dedent(body) for lang, body in indented.findall(section) if lang == "python"]
+    return _indented_blocks(_quickstart_section("## Declare a tool", "## Break a rule"), "python")
 
 
-def test_the_quickstart_steps_build_a_tool_that_sends_what_it_claims():
-    """The four steps are executed in order and the request is inspected.
+def _httpbin_echo(request: httpx.Request) -> httpx.Response:
+    """What httpbin.org/anything answers: the request it received.
 
-    The section states the exact query string it produces, including the
-    camelCase spelling the factory applies. That claim is the reason the
-    section chose this endpoint, and it is invisible in the Python: nothing in
-    `max_results: Annotated[int, Query()]` says the wire will read
-    `maxResults`. Only the request shows it.
+    httpbin serialises with sorted keys, so the echoed body is sorted here too;
+    the page prints a real run.
+    """
+    return httpx.Response(
+        200,
+        json={
+            "method": request.method,
+            "url": str(request.url),
+            "json": dict(sorted(json.loads(request.content).items())),
+            "headers": {"Authorization": request.headers.get("authorization")},
+        },
+    )
+
+
+def _printed(source: str, namespace: dict) -> str:
+    import contextlib
+    import io
+
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        exec(compile(source, "<quickstart.mdx>", "exec", dont_inherit=True), namespace)  # noqa: S102
+    return out.getvalue().strip()
+
+
+def _run_quickstart() -> tuple[dict, list[tuple[str, str]]]:
+    """Run the page top to bottom, as a reader pasting into refund.py would.
+
+    Returns the namespace and, for each block that prints, (what it printed,
+    what the page says it prints). httpbin is mocked with an echo; the rules
+    and the pin never reach it.
     """
     respx = pytest.importorskip("respx")
-    import asyncio
 
-    import httpx
+    declare = _quickstart_declaration()
+    assert len(declare) == 4, f"the section has {len(declare)} python blocks, expected four"
+    shown = _indented_blocks(_quickstart_section("## Declare a tool", "## Break a rule"), "text")
 
-    blocks = _quickstart_declaration()
-    assert len(blocks) == 4, f"the section has {len(blocks)} python blocks, expected four"
+    later = []
+    for start, end in (
+        ("## Break a rule", "## Pin a value"),
+        ("## Pin a value", "## Call a pack"),
+    ):
+        section = _quickstart_section(start, end)
+        (code,) = _indented_blocks(section, "python")
+        (text,) = _indented_blocks(section, "text")
+        later.append((code, text))
 
     namespace: dict = {"__name__": "__charter_quickstart__"}
-    import os
-
-    os.environ["GOOGLE_ACCESS_TOKEN"] = "at-for-the-docs"
-    for block in blocks[:-1]:
-        exec(compile(block, "<quickstart.mdx>", "exec", dont_inherit=True), namespace)  # noqa: S102
-
-    tool = namespace["list_messages"]
-
-    # The arguments come out of the page's own final block rather than being
-    # retyped here, so the request under test is the one a reader would make.
-    (payload_node,) = [node for node in ast.walk(_parse(blocks[-1])) if isinstance(node, ast.Dict)]
-    payload = ast.literal_eval(payload_node)
-
-    # The call is written as a dict keyed the way a model would emit it, so
-    # every key in it has to be a field the model is actually shown. This is
-    # what catches the page drifting to a Python spelling: `max_results` is the
-    # field name in the class and is not what the schema offers.
-    shown = set(tool.to_json_schema()["parameters"]["properties"])
-    assert set(payload) <= shown, (
-        f"the quickstart calls with {sorted(payload)}, and the model is shown {sorted(shown)}"
-    )
-
-    async def call():
-        with respx.mock:
-            route = respx.get(url__startswith="https://gmail.googleapis.com/").mock(
-                return_value=httpx.Response(200, json={"messages": []})
-            )
-            await tool.ainvoke(payload)
-            return route.calls[0].request
-
-    request = asyncio.run(call())
-    query = request.url.query.decode()
-
-    assert request.url.path == "/gmail/v1/users/me/messages"
-    assert request.headers.get("authorization") == "Bearer at-for-the-docs"
-    assert "maxResults=5" in query, (
-        f"the quickstart says the runtime sends maxResults; the query was {query!r}"
-    )
-    assert "max_results" not in query, (
-        f"the snake_case name reached the wire, so query_case is not applying: {query!r}"
-    )
-    assert (
-        f"?{query}" in QUICKSTART.read_text() or query.replace("%3A", ":") in QUICKSTART.read_text()
-    ), f"the quickstart prints a query string the tool does not produce (now {query!r})"
+    pairs = []
+    with respx.mock:
+        route = respx.post("https://httpbin.org/anything/v1/refunds").mock(
+            side_effect=_httpbin_echo
+        )
+        for block in declare[:-1]:
+            exec(compile(block, "<quickstart.mdx>", "exec", dont_inherit=True), namespace)  # noqa: S102
+        pairs.append((_printed(declare[-1], namespace), shown[0].strip()))
+        calls_after_the_good_one = route.call_count
+        for code, text in later:
+            pairs.append((_printed(code, namespace), text.strip()))
+        namespace["__calls__"] = (calls_after_the_good_one, route.call_count)
+        namespace["__sent__"] = route.calls[0].request
+    return namespace, pairs
 
 
-def test_the_quickstart_declares_a_subset_of_what_the_gmail_pack_declares():
-    """ "Every pack is built from declarations like this one", made checkable.
+def test_the_quickstart_prints_what_its_blocks_print():
+    """Every output block on the page, against what its code prints.
 
-    The section writes `messages_list` out by hand. Every field it declares
-    should be one the shipped pack declares too, carrying the same marker,
-    otherwise the sentence introducing it is decorative.
+    The page shows a call echoed back, a refusal, and an egress map, and says
+    each is what the code above it prints. Each one is executed here and the
+    output compared line for line, so none of them can drift from the package.
     """
-    from charter.packs import gmail
+    _, pairs = _run_quickstart()
+    for printed, shown in pairs:
+        assert printed == shown, f"the quickstart shows:\n{shown}\n\nthe code prints:\n{printed}"
 
-    blocks = _quickstart_declaration()
-    namespace: dict = {"__name__": "__charter_quickstart_schema__"}
-    exec(compile(blocks[0], "<quickstart.mdx>", "exec", dont_inherit=True), namespace)  # noqa: S102
 
-    def markers(model):
-        return {
-            re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower(): sorted(
-                repr(m) for m in info.metadata if type(m).__module__.startswith("charter")
-            )
-            for name, info in model.model_fields.items()
-        }
+def test_the_quickstart_tool_is_declared_by_hand_and_sends_the_key_unseen():
+    """ "An API Charter has never seen", and "the model never saw" the key.
 
-    declared = markers(namespace["ListMessages"])
-    packed = markers(gmail.messages_list.args_schema)
+    The tool is the reader's own, not a pack, and the key travels in the header
+    while the model's schema holds only the four arguments.
+    """
+    namespace, _ = _run_quickstart()
+    tool = namespace["refund"]
 
-    assert declared, "the quickstart's schema declares no fields"
-    for field, marks in declared.items():
-        assert field in packed, (
-            f"the quickstart declares {field}, which charter.packs.gmail.messages_list does not"
-        )
-        assert marks == packed[field], (
-            f"the quickstart marks {field} as {marks} and the pack marks it {packed[field]}"
-        )
+    assert tool.pack == "payments" and "payments" not in {
+        m.name for m in pkgutil.iter_modules(packs.__path__)
+    }, "the quickstart's tool is a shipped pack"
+    assert namespace["__sent__"].headers.get("authorization") == "Bearer sk_test_123"
+    shown = set(tool.to_json_schema()["parameters"]["properties"])
+    assert shown == {"charge", "amount", "reason", "currency"}, shown
+    assert "sk_test_123" not in json.dumps(tool.to_json_schema())
+
+
+def test_the_quickstart_refusal_sends_nothing():
+    """ "Nothing was sent": the broken call and the pinned map make no request.
+
+    The only request on the page is the good call in "Call it"; the refusal
+    after it must not add one, or "every rule runs before any request" is false.
+    """
+    namespace, _ = _run_quickstart()
+    good, total = namespace["__calls__"]
+    assert good == 1, f"the good call made {good} requests"
+    assert total == 1, f"the refused call reached the API ({total - good} more requests)"
+
+
+def test_the_quickstart_rules_are_the_ones_it_names():
+    """The note names three rules and a Gloss; each must be on the model.
+
+    `le=10_000` is the $100 cap, the Literal is the allowlist without
+    "fraudulent", the validator is the Python check, and the Gloss reaches the
+    model's description after the field's own words.
+    """
+    namespace, _ = _run_quickstart()
+    tool = namespace["refund"]
+    props = tool.to_json_schema()["parameters"]["properties"]
+
+    assert props["amount"]["maximum"] == 10_000
+    assert sorted(props["reason"]["enum"]) == ["duplicate", "requested_by_customer"]
+    assert props["amount"]["description"].endswith("Cents, not dollars: $15.00 is 1500.")
+    assert "a_charge" in namespace["CreateRefund"].__pydantic_decorators__.field_validators
 
 
 def test_the_quickstart_points_at_real_endpoints():
@@ -601,13 +693,11 @@ def test_the_quickstart_points_at_real_endpoints():
 
     It used to be a weather service at a hostname nobody owns, which meant the
     one page that says "now do it yourself" ended in a call that could not be
-    made. It was also one of the shipped packs, so the section's own premise
-    was wrong.
+    made. httpbin.org is real and echoes what it receives.
     """
     text = QUICKSTART.read_text()
     assert "example-weather" not in text, "the quickstart points at an invented host"
-    assert "gmail.googleapis.com" in text
-    assert "gmail/v1/users/me/messages" in text
+    assert "https://httpbin.org/anything/" in text
 
 
 # The setup prompt exists twice: as the string a button copies without showing
@@ -730,41 +820,4 @@ def test_the_schema_total_on_the_discovery_page_is_still_roughly_true():
 
     assert abs(claimed - measured) / measured < 0.05, (
         f"the discovery page claims {claimed:,} tokens of schema; it is now {measured:,}"
-    )
-
-
-def test_the_quickstart_prints_the_egress_map_the_runtime_prints():
-    """The sample output under "See what the model sees", against the real thing.
-
-    The page's whole claim for that block is that it "cannot drift from what
-    actually happens", which was not true of the block itself: it showed four
-    visible fields and a withheld list in an order `format_egress_map` does not
-    produce, against fifteen and eight in reality. Every line shown is checked,
-    in order, and the counts are read out of the heading rather than assumed.
-    """
-    from charter import format_egress_map
-    from charter.packs import gmail
-
-    actual = format_egress_map([gmail.messages_send]).splitlines()
-    page = (DOCS / "start/quickstart.mdx").read_text()
-
-    block = re.search(r"```text\n(gmail_messages_send.*?)```", page, re.S)
-    assert block, "the quickstart no longer prints an egress map"
-    shown = [line for line in block.group(1).splitlines() if line.strip()]
-
-    # Every line the page shows, except its own elisions, must appear in the
-    # real output in the same order.
-    cursor = 0
-    for line in shown:
-        if line.strip() == "...":
-            continue
-        assert line in actual[cursor:], f"quickstart prints a line the runtime does not: {line!r}"
-        cursor = actual.index(line, cursor) + 1
-
-    visible = len([line for line in actual if line.strip().startswith("+")])
-    withheld = len([line for line in actual if line.strip().startswith("-")])
-    assert f"visible to the model ({visible}):" in page
-    assert f"withheld ({withheld}):" in page
-    assert f"Eleven of the {_word(visible)}" in page, (
-        f"the prose under the block miscounts the visible fields (now {visible})"
     )

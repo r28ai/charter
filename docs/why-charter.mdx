@@ -6,18 +6,7 @@ description: "The gap between what a model knows and what an API accepts, why it
 
 A model knows what an email is. It does not know that Gmail wants one as an RFC 2822 document, base64url-encoded, under a `raw` key nested inside a `message` object, on a write endpoint that refuses the parsed form it returns on reads.
 
-That gap is where integration code lives, and it is the subject of this page.
-
-## What the hand-written tool carries
-
-The [introduction](/) shows Google's documented Python example for `users.messages.send` beside the same tool declared with Charter. Everything the hand-written one carries and the declaration does not is integration code:
-
-- **MIME assembly.** `EmailMessage`, the headers, the content type, and the `multipart/alternative` layout the moment a draft carries HTML alongside plain text.
-- **base64url.** Encoding the message bytes URL-safely, with the padding handled.
-- **The wrapper.** Gmail's write endpoints take a `raw` string nested under `message`. The same resource comes back on reads as a parsed `payload` the endpoint will not accept. One schema, two directions, declared once.
-- **The credential.** `configure` takes a provider: a static token for a script, [OAuth 2.0 refresh](/auth/authorization-servers) against Google's token endpoint for a product, a per-end-user lookup when one set of tools serves many people. The tool declaration does not change.
-- **Error handling.** A failed call raises `APIError` carrying the status code and the server's own `Retry-After`. The hand-written version catches it, prints it, and hands the string back to the model as a successful result.
-- **Field policy.** `drafts_create` offers the model sixteen fields and withholds nine. Eleven of the sixteen are the message itself, which the model writes as `to`, `subject` and `body` rather than as the base64 MIME string the API takes. `payload`, `snippet`, `labelIds` and the rest are absent from the type the model is handed, not filtered out afterwards. You can [print that map](/boundary/egress-control).
+That gap is where a model left to write the wire gets it wrong, and where integration code lives. It is the subject of this page.
 
 ## The semantic layer and the mechanical layer
 
@@ -35,6 +24,17 @@ That layer is a compiler: from the semantic layer, where the model works, to the
 | `{"values": [[{"stringValue":"Name"}],[{"stringValue":"Alice"}]]}` | `values: [["Name"], ["Alice"]]` | `Format("proto_json")` — converts plain JSON to the protobuf `Value` type, wrapping each cell |
 
 Neither transform is clever. Both are the kind of thing that is tedious to write once, wrong in a new way each time it is written again, and free once declared. See [transforms](/tools/transforms) for the full pipeline, and [the wire contract](/tools/wire-contract) for body format, static parameters, and pagination.
+
+## What the hand-written tool carries
+
+The [introduction](/) shows Google's documented Python example for `users.messages.send` beside the same tool declared with Charter, both started from the same stored refresh token. Everything the hand-written one carries and the declaration does not is integration code:
+
+- **MIME assembly.** `EmailMessage`, the headers, the content type, and the `multipart/alternative` layout the moment a draft carries HTML alongside plain text.
+- **base64url.** Encoding the message bytes URL-safely, with the padding handled.
+- **The wrapper.** Gmail's write endpoints take a `raw` string nested under `message`. The same resource comes back on reads as a parsed `payload` the endpoint will not accept. One schema, two directions, declared once.
+- **The credential.** `configure` takes a provider: a static token for a script, [OAuth 2.0 refresh](/auth/authorization-servers) against Google's token endpoint for a product, a per-end-user lookup when one set of tools serves many people. The tool declaration does not change.
+- **Error handling.** A failed call raises `APIError` carrying the status code and the server's own `Retry-After`. The hand-written version catches it, prints it, and hands the string back to the model as a successful result.
+- **Field policy.** `drafts_create` offers the model sixteen fields and withholds nine. Eleven of the sixteen are the message itself, which the model writes as `to`, `subject` and `body` rather than as the base64 MIME string the API takes. `payload`, `snippet`, `labelIds` and the rest are absent from the type the model is handed, not filtered out afterwards. You can [print that map](/boundary/egress-control).
 
 ## Why a boundary
 

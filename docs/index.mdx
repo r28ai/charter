@@ -1,7 +1,7 @@
 ---
 title: "Charter Overview"
 sidebarTitle: "Overview"
-description: "Decide what your agent sees, sends and gets back, in every API it touches. Tools are Pydantic schemas; the runtime handles auth and wire formats, and you cut, pin, gloss and audit every field."
+description: "Decide what your agent sees, sends and gets back, in every API it touches. Declare the call as a Pydantic model; the declaration is also the rulebook, and a call that breaks a rule never reaches the API."
 ---
 
 import AgentButton from '/snippets/agent-button.mdx';
@@ -9,7 +9,7 @@ import FrameworkHandoff from '/snippets/framework-handoff.mdx';
 
 <AgentButton />
 
-The schema is the contract. Charter turns a Pydantic schema into an agent tool. You declare what the model fills in and where each field belongs. The runtime handles the rest, including auth. You also decide what the model sees: pin a value, cut a tool down, print what it can reach.
+The schema is the contract. Charter turns a Pydantic schema into an agent tool, and that schema is also the rulebook: the model only sees and sends what it allows, and a call that breaks a rule is refused before it reaches the API. No rules layer to keep in sync beside it, and no middleman between your process and the API.
 
 **Charter is a library like Pydantic, not a service.** No signup, no middleman.
 
@@ -17,13 +17,14 @@ The schema is the contract. Charter turns a Pydantic schema into an agent tool. 
 
 <CodeGroup>
 
-```python title="With Charter · 2 steps" highlight={9,16}
+```python title="With Charter · 2 steps" highlight={10,17}
 import asyncio
+import os
 from typing import Annotated
 
 from pydantic import BaseModel
 from charter import Body, EmailContent, Format, oauth_tool_factory
-from charter.auth import EnvTokenProvider
+from charter.auth import OAuth2Client, OAuth2Server
 
 
 # 1. Describe the args the LLM fills in
@@ -33,12 +34,22 @@ class SendEmail(BaseModel):
     ]
 
 
-# 2. Say where the request goes
+# 2. Say where the request goes, and whose grant it renews
+google = OAuth2Server(
+    issuer="https://accounts.google.com",
+    authorization_endpoint="https://accounts.google.com/o/oauth2/v2/auth",
+    token_endpoint="https://oauth2.googleapis.com/token",
+)
 gmail = oauth_tool_factory(
     pack="mygmail",
     base_url="https://gmail.googleapis.com/",
     provider="google",
-    credential_provider=EnvTokenProvider("GOOGLE_ACCESS_TOKEN"),
+    credential_provider=OAuth2Client(
+        google,
+        client_id=os.environ["GOOGLE_CLIENT_ID"],
+        client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
+        refresh_token=os.environ["GOOGLE_REFRESH_TOKEN"],
+    ),
 )
 
 send_email = gmail(
@@ -54,50 +65,39 @@ asyncio.run(
 )
 ```
 
-```python title="Without Charter · 6 steps" highlight={1,17,22,34,37,43}
-# 1. Install google-auth, google-auth-oauthlib, google-api-python-client
+```python title="Without Charter · 5 steps" highlight={1,13,23,26,32}
+# 1. Install google-auth, google-api-python-client
 import base64
-import os.path
+import os
 from email.message import EmailMessage
 
-from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-
-SCOPES = ["https://www.googleapis.com/auth/gmail.send"]
 
 
 def send_email(to: str, subject: str, body: str) -> str:
     """Send an email."""
-    # 2. Run Google's OAuth flow
-    creds = None
-    if os.path.exists("token.json"):
-        creds = Credentials.from_authorized_user_file("token.json", SCOPES)
-    if not creds or not creds.valid:
-        # 3. Refresh the token and persist it
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                "credentials.json", SCOPES
-            )
-            creds = flow.run_local_server(port=0)
-        with open("token.json", "w") as token:
-            token.write(creds.to_json())
+    # 2. Load the grant; google-auth renews the token when it expires
+    creds = Credentials(
+        None,
+        refresh_token=os.environ["GOOGLE_REFRESH_TOKEN"],
+        client_id=os.environ["GOOGLE_CLIENT_ID"],
+        client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
+        token_uri="https://oauth2.googleapis.com/token",
+    )
 
     try:
-        # 4. Build the API client
+        # 3. Build the API client
         service = build("gmail", "v1", credentials=creds)
 
-        # 5. Assemble the MIME document
+        # 4. Assemble the MIME document
         message = EmailMessage()
         message.set_content(body)
         message["To"] = to
         message["Subject"] = subject
 
-        # 6. Encode, wrap in Gmail's envelope, send
+        # 5. Encode, wrap in Gmail's envelope, send
         encoded = base64.urlsafe_b64encode(message.as_bytes()).decode()
         sent = (
             service.users()
@@ -119,7 +119,7 @@ send_email(
 
 </div>
 
-Two steps against six, and one package to install against three. The model fills `to`, `subject` and `body` either way. With Charter, [`Format("rfc822_base64")`](/reference/markers#format) builds the [RFC 2822](https://datatracker.ietf.org/doc/html/rfc2822) document and encodes it base64url, [`Body(envelop=True)`](/reference/markers#body) puts it under the `raw` key Gmail expects, and the factory attaches the token. None of that is written, because [the schema already says what the request is](/tools/wire-contract).
+Two steps against five, and one package to install against two, both starting from a refresh token your app's [consent flow](/auth/oauth-flow) already obtained. The difference that matters is who writes the wire. The model fills `to`, `subject` and `body` either way, and with Charter it never touches MIME or base64: [`Format("rfc822_base64")`](/reference/markers#format) builds the [RFC 2822](https://datatracker.ietf.org/doc/html/rfc2822) document and encodes it base64url, [`Body(envelop=True)`](/reference/markers#body) puts it under the `raw` key Gmail expects, and [`OAuth2Client`](/reference/oauth#oauth2client) renews the token and attaches it, the same way on every call, because [the schema already says what the request is](/tools/wire-contract). In [534 measured runs](/guarantees/measured-results), a raw HTTP tool sent base64 the API rejected four times; declared, it never did.
 
 ```bash
 pip install charter-ai
@@ -142,13 +142,15 @@ The same declaration answers both questions, so they cannot disagree. A field
 the model must not see is absent from the type it is handed, not filtered out of
 a prompt afterwards.
 
-Zero boilerplate. Zero plumbing. Zero extra libraries in the middle. Zero learning curve.
-
-Writing an API tool becomes trivial, and every call is deterministic. Charter handles the rest.
-
 Across 534 runs against live APIs, that surface handed the model roughly four times less response context than a raw HTTP tool, and produced none of the malformed GraphQL documents, undeclared endpoints or rejected base64 the raw arm did. Task success itself was a wash. [The full record, including the template that goes the other way.](/guarantees/measured-results)
 
 [Read Why Charter for the full story.](/why-charter)
+
+## Your rules, checked before the request
+
+The declaration mirrors the API field by field, so your coding agent can check it against the docs for drift. Your own rules go on top, in the same Pydantic model: a cap, an allowlist, any check you can write in Python. A value can also be [pinned](/tools/projections#pin) out of the model's reach.
+
+Every rule runs before any request. A call that breaks one never reaches the API: the model gets back [an error](/running/tool-validation-error-handling) naming the field and what it sent, so it can fix the call or stop. Charter never improvises, and since nothing touches the network, every rule can be tested offline with plain unit tests. [The quickstart breaks one on purpose.](/start/quickstart#break-a-rule)
 
 ## Plugs into what you run
 
@@ -179,7 +181,7 @@ Gmail is one of sixteen APIs that ship [already declared](/packs/overview). For 
 
 <Columns cols={2}>
   <Card title="Quickstart" icon="rocket" href="/start/quickstart">
-    Declare a tool, print the boundary, call a pack, hand it to a framework.
+    Declare a tool for any API, put your rules on it, watch one get refused, pin a value.
   </Card>
   <Card title="Packs" icon="boxes" href="/packs/overview">
     Sixteen integrations, 613 tools, ready to configure and call.

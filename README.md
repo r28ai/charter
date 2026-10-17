@@ -23,10 +23,11 @@
 
 # Charter
 
-Charter is an open-source Python library for building agent tools from API declarations.
-You describe an API call as a Pydantic model, with each field marked as path, query or
-body. Charter makes the request and handles auth, and you control what the model sees and
-what it gets back. It works with any HTTP API, including your own.
+Charter is an open-source Python library for agent tools. You describe an API call as a
+Pydantic model, with each field marked as path, query or body, and that declaration is
+also the rulebook: the model only sees and sends what it allows, and a call that breaks a
+rule is refused before it reaches the API. No rules layer to keep in sync beside it, and no
+middleman between your process and the API. It works with any HTTP API, including your own.
 
 A library, not a service.
 Runs in your process. No proxy, no per-call pricing, no telemetry.
@@ -37,7 +38,7 @@ Runs in your process. No proxy, no per-call pricing, no telemetry.
 |---|---|
 | A SaaS adding an agent that works in your users' Gmail, Stripe or Notion | [Per-user OAuth](https://docs.r28.ai/charter/auth/your-users) with your app's name on the consent screen, and [ready-made tools](https://docs.r28.ai/charter/packs/overview) |
 | On Composio or Zapier | Tools you own, with no per-call fees, and your users' data stays on your servers ([how it compares](#how-charter-compares)) |
-| Writing tool glue by hand | Declare the API as a Pydantic model. Charter makes the request, handles auth, and an [`Envelope`](https://docs.r28.ai/charter/reference/envelopes-and-pagination#envelope) raises when a `200` is really a failure |
+| Writing tool glue by hand | The bugs hand-written glue lets through: a bad argument is [refused before it's sent](#your-rules-checked-before-the-request), and an [`Envelope`](https://docs.r28.ai/charter/reference/envelopes-and-pagination#envelope) raises when a `200` is really a failure |
 | Running a small or open model | Smaller schemas with [`derived`](https://docs.r28.ai/charter/tools/projections), and a [`Gloss`](https://docs.r28.ai/charter/reference/markers#gloss) on the exact field it keeps getting wrong |
 | Facing a security review | [`pin`](https://docs.r28.ai/charter/tools/projections#pin), [`Mode`](https://docs.r28.ai/charter/boundary/mode-system), [`scopes_for`](https://docs.r28.ai/charter/reference/oauth#scopes_for) and [`egress_map`](https://docs.r28.ai/charter/reference/observability#egress_map): what the agent can see and send, enforced in code and diffed in review |
 
@@ -52,8 +53,8 @@ Runs in your process. No proxy, no per-call pricing, no telemetry.
   pinned out of its reach.
 - **Control what comes back.** Responses are trimmed to what the model needs, and APIs
   that report failure inside a `200` raise.
-- **Your users' accounts.** Per-user OAuth with refresh and rotation, and API keys, with no
-  OAuth library or vendor SDK.
+- **Your users' accounts.** Per-user OAuth with refresh and rotation, and API keys, with your
+  app's name on the consent screen.
 - **Auditable.** `egress_map` lists what every tool lets the model reach, so a change to it
   is a diff in review.
 - **Fits your stack.** LangChain, any OpenAI-compatible API, and MCP.
@@ -112,6 +113,57 @@ Authorization: Bearer sk_live_123
 ```
 
 Charter adds the key. The model never sees it.
+
+## Your rules, checked before the request
+
+The declaration mirrors the API field by field, so a coding agent can check it against
+the docs for drift. Your own rules go on top, in the same Pydantic model: a cap, an
+allowlist, or any check you can write in Python.
+
+```python
+from typing import Annotated, Literal
+
+from pydantic import BaseModel, Field
+
+from charter import Body, ToolValidationError, api_key_tool_factory
+
+
+class Refund(BaseModel):
+    charge: Annotated[str, Body()]
+    amount: Annotated[int, Body()] = Field(gt=0, le=10_000)  # yours: at most $100
+    reason: Annotated[Literal["duplicate", "requested_by_customer"], Body()]  # yours: no "fraudulent"
+
+
+stripe_api = api_key_tool_factory(
+    pack="payments",
+    base_url="https://api.stripe.com/",
+    api_key_headers={"Authorization": "Bearer sk_test_..."},
+    body_format="form",
+)
+refund = stripe_api(
+    name="refund",
+    description="Refund a charge.",
+    method="POST",
+    url_template="v1/refunds",
+    args_schema=Refund,
+)
+
+try:
+    refund.invoke({"charge": "ch_3MmlLr", "amount": 15000, "reason": "fraudulent"})
+except ToolValidationError as refused:
+    print(refused)
+```
+
+```
+Validation error:
+- **amount**: Input should be less than or equal to 10000 (got 15000)
+- **reason**: Input should be 'duplicate' or 'requested_by_customer' (got 'fraudulent')
+```
+
+Nothing reached Stripe. Every rule, the API's and yours, runs before any request, so a
+call that breaks one fails closed and the model gets this message back, naming each field
+and what it sent. It can fix the call or stop; Charter never improvises. And since nothing
+touches the network, every rule can be tested offline with plain unit tests.
 
 ## Examples
 

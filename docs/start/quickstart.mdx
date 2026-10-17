@@ -1,115 +1,144 @@
 ---
 title: "Quickstart"
-description: "Declare a tool, print the boundary it makes, call a pack, hand any of it to a framework."
+description: "Declare a tool for any API, put your own rules on it, watch one refuse a call before anything is sent, then pin a value and print what the model can reach."
 ---
 
 import FrameworkHandoff from '/snippets/framework-handoff.mdx';
 
 ## Declare a tool
 
-Here's how to define a tool for Gmail or any other API, to decide what the model sees, sends and gets back.
+A tool for an API Charter has never seen, with your own rules on it. [httpbin.org](https://httpbin.org) stands in for the API: it echoes back the request it received, so everything on this page runs with no account.
 
 <Steps>
-  <Step title="Describe the arguments">
-    ```python list_messages.py
-    from typing import Annotated
-    from pydantic import BaseModel
-    from charter import Query
+  <Step title="Describe the arguments, and your rules">
+    ```python refund.py
+    from typing import Annotated, Literal
 
-    class ListMessages(BaseModel):
-        q: Annotated[str, Query()]
-        max_results: Annotated[int, Query()] = 10
+    from pydantic import BaseModel, Field, field_validator
+    from charter import Body, Gloss
+
+
+    class CreateRefund(BaseModel):
+        charge: Annotated[str, Body()] = Field(description="The charge to refund.")
+        amount: Annotated[int, Body(), Gloss("Cents, not dollars: $15.00 is 1500.")] = Field(
+            gt=0, le=10_000, description="How much to refund, in the smallest currency unit."
+        )
+        reason: Annotated[Literal["duplicate", "requested_by_customer"], Body()] = Field(
+            description="Why the charge is being refunded."
+        )
+        currency: Annotated[str, Body()] = Field("usd", description="Three-letter ISO currency code.")
+
+        @field_validator("charge")
+        @classmethod
+        def a_charge(cls, value: str) -> str:
+            if not value.startswith("ch_"):
+                raise ValueError("refund a charge id (ch_...), not a customer or an invoice")
+            return value
     ```
 
     <Note>
-    Each field says where it belongs in the request. [`Query()`](/reference/markers#query) makes it a query parameter; [`Path()`](/reference/markers#path) interpolates it into the URL template instead.
+    [`Body()`](/reference/markers#body) says where each field goes in the request; [`Query()`](/reference/markers#query), [`Path()`](/reference/markers#path) and [`Header()`](/reference/markers#header) are the others. Everything else on the model is a rule of yours, on top of the API's: `le=10_000` caps a refund at $100, the `Literal` leaves out `"fraudulent"` although the API accepts it, and the validator is any check you can write in Python. The [`Gloss`](/reference/markers#gloss) is softer: a tip the model reads beside the field's own description, which nothing enforces.
     </Note>
   </Step>
 
   <Step title="Build a factory">
-    The factory carries everything shared across the tools of one API: the base URL, the credential, and the conventions the API's wire format follows.
+    The factory carries everything shared across the tools of one API: the base URL, the credential, and the conventions its wire format follows.
 
-    ```python list_messages.py
-    from charter import oauth_tool_factory
-    from charter.auth import EnvTokenProvider
+    ```python refund.py
+    from charter import api_key_tool_factory
 
-    gmail = oauth_tool_factory(
-        base_url="https://gmail.googleapis.com/",
-        provider="google",
-        credential_provider=EnvTokenProvider("GOOGLE_ACCESS_TOKEN"),
-        query_case="camel",
-        pack="mygmail",
+    payments = api_key_tool_factory(
+        pack="payments",
+        base_url="https://httpbin.org/anything/",
+        api_key_headers={"Authorization": "Bearer sk_test_123"},
     )
     ```
 
     <Note>
-    `pack` is a prefix for your tools' names, so this one reaches the model as `mygmail_list_messages`. Name it whatever you like.
-    </Note>
-
-    <Note>
-    For an API that authenticates with a header instead of a bearer token, [`api_key_tool_factory`](/auth/api-key-tool-factory) takes the same arguments.
+    `pack` is a prefix for your tools' names, so this one reaches the model as `payments_refund`. For an API that takes an OAuth token, [`oauth_tool_factory`](/reference/factories#oauth_tool_factory) takes the same arguments and a credential provider.
     </Note>
   </Step>
 
   <Step title="Declare the tool">
-    Assign the arguments a target endpoint. The marked line is the model's half.
+    Point the arguments at an endpoint.
 
-    ```python list_messages.py highlight={6}
-    list_messages = gmail(
-        name="list_messages",
-        description="Search the mailbox and return matching messages.",
-        method="GET",
-        url_template="gmail/v1/users/me/messages",
-        args_schema=ListMessages,
+    ```python refund.py
+    refund = payments(
+        name="refund",
+        description="Refund a charge.",
+        method="POST",
+        url_template="v1/refunds",
+        args_schema=CreateRefund,
     )
     ```
   </Step>
 
   <Step title="Call it">
-    ```python list_messages.py
-    await list_messages.ainvoke({"q": "is:unread", "maxResults": 5})
+    ```python refund.py
+    sent = refund.invoke({"charge": "ch_3MmlLr", "amount": 1500, "reason": "duplicate"})
+    print(sent["method"], sent["url"])
+    print(sent["json"])
     ```
 
-    That sends `GET gmail/v1/users/me/messages?q=is:unread&maxResults=5` with the token attached, and returns the parsed body. Spelling the parameter Gmail's way on the wire is what `query_case` did, and it is part of [the casing cascade](/tools/key-case-cascade).
+    ```text
+    POST https://httpbin.org/anything/v1/refunds
+    {'amount': 1500, 'charge': 'ch_3MmlLr', 'currency': 'usd', 'reason': 'duplicate'}
+    ```
 
-    A declaration also carries [wire format](/tools/transforms), [field policy](/boundary/mode-system) and [failure that arrives as HTTP 200](/tools/envelopes). [The wire contract](/tools/wire-contract) is where those go.
+    The key went out in the `Authorization` header and the model never saw it. A declaration also carries [wire format](/tools/transforms), [field policy](/boundary/mode-system) and [failure that arrives as HTTP 200](/tools/envelopes); [the wire contract](/tools/wire-contract) is where those go.
   </Step>
 </Steps>
 
-## See what the model sees
+## Break a rule
 
-Before wiring a tool into an agent, print the boundary. It is computed from the same declarations the runtime executes, so it cannot drift from what actually happens.
+Now the call a model gets wrong: a customer id where a charge belongs, $150, and a reason you ruled out.
 
-```python egress_map.py
-from charter import format_egress_map
-from charter.packs import gmail
+```python refund.py
+from charter import ToolValidationError
 
-print(format_egress_map([gmail.messages_send]))
+try:
+    refund.invoke({"charge": "cus_9s6XKz", "amount": 15000, "reason": "fraudulent"})
+except ToolValidationError as refused:
+    print(refused)
 ```
 
 ```text
-gmail_messages_send  (POST gmail/v1/users/{userId}/messages/send)
-  visible to the model (15):
-    + userId
-    + body
-    + body.threadId
-    + body.raw
-    + body.raw.to
-    + body.raw.subject
-    + body.raw.body
-    ...
-  withheld (8):
-    - body.id  [response_only]
-    - body.labelIds  [response_only]
-    - body.snippet  [response_only]
-    ...
+Validation error:
+- **charge**: Value error, refund a charge id (ch_...), not a customer or an invoice (got 'cus_9s6XKz')
+- **amount**: Input should be less than or equal to 10000 (got 15000)
+- **reason**: Input should be 'duplicate' or 'requested_by_customer' (got 'fraudulent')
 ```
 
-Eleven of the fifteen sit under `body.raw`: the message as the model writes it — `to`, `subject`, `body` and the headers — rather than the base64 MIME string the API takes, which is what [`Format`](/tools/transforms) stands between. The eight withheld are the fields Gmail only ever returns.
+Nothing was sent. Every rule, the API's and yours, runs before any request, so a call that breaks one never reaches the API. In an agent, this message is what the model gets back as the tool's result, [naming each field and what it sent](/running/tool-validation-error-handling), so it can fix the call or stop. Charter never improvises. And since no request is made, every rule can be tested offline with plain unit tests.
+
+## Pin a value, and see what the model sees
+
+A pin removes a field from what the model sees and sends a fixed value on every call. Then print the boundary: it is computed from the same declarations the runtime executes, so it cannot drift from what actually happens.
+
+```python refund.py
+from charter import format_egress_map
+
+refund_usd = refund.derived(name="refund_usd", pin={"currency": "usd"})
+print(format_egress_map([refund_usd]))
+```
+
+```text
+payments_refund_usd  (POST v1/refunds)
+  visible to the model (3):
+    + charge
+    + amount
+    + reason
+  withheld (1):
+    - currency  [pinned] = 'usd'
+  pinned (1):
+    = currency  'usd'
+```
+
+Commit that map and a change to it is a diff in review: a new tool, a widened field, a dropped pin. [The audit artifact](/boundary/egress-control#the-audit-artifact) has the CI check.
 
 ## Call a pack
 
-A pack is the tools of one API, already declared. Configure the credential once and every tool in it is callable.
+A pack is the tools of one API, already declared the same way: a head start, not the limit. Configure the credential once and every tool in it is callable.
 
 ```python quickstart.py
 import asyncio
