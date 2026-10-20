@@ -9,7 +9,9 @@ import FrameworkHandoff from '/snippets/framework-handoff.mdx';
 
 <AgentButton />
 
-The schema is the contract. Charter turns a Pydantic schema into an agent tool, and that schema is also the rulebook: the model only sees and sends what it allows, and a call that breaks a rule is refused before it reaches the API. No rules layer to keep in sync beside it, and no middleman between your process and the API.
+Charter is an open-source Python tool-definition layer for agents. Wire tools by hand and you're hoping for the best, blind spots and all. Vendor toolkits, MCP servers and catalog platforms hand you someone else's.
+
+Charter lets you control every aspect of yours, and checks each call before it's sent. It works for any HTTP API, including your own internal ones.
 
 **Charter is a library like Pydantic, not a service.** No signup, no middleman.
 
