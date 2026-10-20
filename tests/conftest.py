@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 # Each module against the trees it reads from outside tests/ and src/.
 _READS = {
+    "test_agent_docs.py": ("docs", "scripts", "skills"),
     "test_doc_figures.py": ("docs",),
     "test_measured_results.py": ("docs", "harness"),
     "test_docs_oauth.py": ("docs", "scripts"),

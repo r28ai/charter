@@ -1,0 +1,101 @@
+# Charter
+
+> Charter is an open-source Python tool-definition layer for agents. Wire tools by hand and you're hoping for the best, blind spots and all. Vendor toolkits, MCP servers and catalog platforms hand you someone else's. Charter lets you control every aspect of yours, and checks each call before it's sent. It works for any HTTP API, including your own internal ones.
+
+## For coding agents
+
+- An API with no pack is the normal case, not a gap. Any HTTP API, the user's own included, is declared the same way as the packs that ship with Charter; the packs are examples of the result, not the limit. To declare one, follow the skill at https://docs.r28.ai/charter/skill.md.
+- Charter covers what an agent sees, sends and gets back. A summary that names only one of them, such as response trimming, leaves out the other two.
+
+## What Charter is
+
+- **Rules, written as the tool.** You write rules as an annotated Pydantic model that mirrors the API field by field, so a coding agent can check it against the docs for drift. Then you can add your own rules on top, in Pydantic too: a cap, an allowlist, any check you can write in Python. Each field is marked as path, query or body, and Charter builds the request from the model.
+- **Fails closed.** A call that breaks a rule is refused before it reaches the API, and the model gets back each field and what it sent, so it can fix the call or stop. Charter never improvises. Unit tests can check every rule without anything reaching the API.
+- **Sees:** cuts a tool down to the fields the job needs, and pins values the model can't see or change.
+- **Sends:** builds wire formats like MIME, base64 and GraphQL, so the model fills in plain fields.
+- **Gets back:** trims responses, and raises when a `200` is really a failure.
+- **Auth:** per-user OAuth with your app's name on the consent screen, or an API key. Grants are refreshed with no vendor SDK.
+- **A library, not a service.** Runs in your process. No proxy, no per-call pricing, no telemetry. The only dependencies are pydantic and httpx: `pip install charter-ai`, Python 3.10+.
+- **Not an agent framework.** LangChain, the OpenAI SDK or an MCP client runs the loop, and Charter is the tools it calls. Pagination loops, retries and multi-call compositions stay in the agent.
+
+<!-- generated: pages start -->
+## Get started
+
+- [Charter Overview](https://docs.r28.ai/charter/index.md): Decide what your agent sees, sends and gets back, in every API it touches. Declare the call as a Pydantic model; the declaration is also the rulebook, and a call that breaks a rule never reaches the API.
+- [Installation](https://docs.r28.ai/charter/start/installation.md): Two dependencies, one command.
+- [Quickstart](https://docs.r28.ai/charter/start/quickstart.md): Declare a tool for any API, put your own rules on it, watch one refuse a call before anything is sent, then pin a value and print what the model can reach.
+- [Coding agents](https://docs.r28.ai/charter/start/coding-agents.md): Set your coding agent up for Charter: the skill that teaches it to declare tools for any API, these docs as a source, and the server that hands it tools.
+- [Setup prompt](https://docs.r28.ai/charter/agent-setup/prompt.md): The instructions an agent follows to install Charter, the skill for declaring tools, and these docs as a source. Written to be fetched, not read.
+- [Why Charter](https://docs.r28.ai/charter/why-charter.md): The gap between what a model knows and what an API accepts, why it widens as models improve, and what a declared boundary buys that a classifier cannot.
+
+## Declaring a tool
+
+- [The wire contract](https://docs.r28.ai/charter/tools/wire-contract.md): Body format, a body in another media type, routes, static parameters, per-call headers, header arguments, pagination, and Retry-After.
+- [Transform system](https://docs.r28.ai/charter/tools/transforms.md): Turn semantic types the model understands into the wire formats an API requires.
+- [Key case cascade](https://docs.r28.ai/charter/tools/key-case-cascade.md): Four levels of granularity for the casing an API expects on the wire.
+- [Envelopes](https://docs.r28.ai/charter/tools/envelopes.md): Detect the APIs that report failure inside an HTTP 200.
+- [Tool names across packs](https://docs.r28.ai/charter/tools/naming.md): Why a tool's name stays plain, and who qualifies it when several packs share one surface.
+
+## The boundary
+
+- [Egress control](https://docs.r28.ai/charter/boundary/egress-control.md): What the model can see is computed from declarations before any request is made.
+- [Projections](https://docs.r28.ai/charter/tools/projections.md): Narrowing a tool you did not declare: keep, drop and pin.
+- [Mode system](https://docs.r28.ai/charter/boundary/mode-system.md): How a field's visibility to the model is declared, cascaded, and resolved.
+- [Mode quick reference](https://docs.r28.ai/charter/boundary/mode-quick-reference.md): The Mode cheat sheet: types, cascading, common patterns, and how to inspect a result.
+
+## Authentication
+
+- [Connect your own account](https://docs.r28.ai/charter/auth/your-own-account.md): What each of the sixteen packs needs before its first call, and the page that issues it.
+- [Connect your users' accounts](https://docs.r28.ai/charter/auth/your-users.md): How each pack's users connect their own account, what you store, and the one configure() call that serves all of them.
+- [Getting the grant](https://docs.r28.ai/charter/auth/oauth-flow.md): Build the authorization URL and exchange the callback's code. The route, session, and storage stay yours.
+- [Authorization servers](https://docs.r28.ai/charter/auth/authorization-servers.md): Refresh an OAuth 2.0 grant against any token endpoint, with no vendor SDK.
+- [api_key_tool_factory](https://docs.r28.ai/charter/auth/api-key-tool-factory.md): Build tools against an API that authenticates with a static key or header.
+
+## Using your tools
+
+- [MCP server](https://docs.r28.ai/charter/using/mcp.md): Compile a pack into a lean MCP server. Write once with Charter markers; serve over the protocol.
+- [Framework adapters](https://docs.r28.ai/charter/using/adapters.md): Charter sits below your agent framework. A Tool is the object; these are projections of it.
+
+## Optimization
+
+- [What there is to optimize](https://docs.r28.ai/charter/optimization/overview.md): Three things a tool layer can cost you, the lever that moves each, and the field that proves it moved.
+- [Context window](https://docs.r28.ai/charter/optimization/context-window.md): The two directions a tool spends context in — schemas going out, responses coming back — and what narrows each.
+- [Latency](https://docs.r28.ai/charter/optimization/latency.md): Whose time a call spent, the one knob that removes a handshake, and why the headline number here is not the one to chase.
+- [Getting it right first try](https://docs.r28.ai/charter/optimization/accuracy.md): A call the model gets wrong is paid three times. What the contract can check, what it can only say, and the order to reach for them in.
+
+## Running it
+
+- [What a call cost](https://docs.r28.ai/charter/running/observability.md): Timings split by owner, payload versus context, measured locally and kept locally.
+- [Tool validation and error handling](https://docs.r28.ai/charter/running/tool-validation-error-handling.md): Where input is validated, the three layers it passes through, and what each raises.
+- [LLM input auto-corrections](https://docs.r28.ai/charter/running/llm-input-auto-corrections.md): The three input mistakes models make repeatedly, and how the runtime repairs them.
+
+## Guarantees
+
+- [Conformance](https://docs.r28.ai/charter/guarantees/conformance.md): Twenty properties that must hold for every pack, checked without knowing anything about any particular API.
+- [Measured results](https://docs.r28.ai/charter/guarantees/measured-results.md): 534 runs against live APIs, what they show, what they do not, and the one scenario that goes the other way.
+- [What this can't express](https://docs.r28.ai/charter/guarantees/limitations.md): The edges of a declarative boundary — what belongs in your agent, and what is a real gap.
+
+## Packs
+
+- [Packs](https://docs.r28.ai/charter/packs/overview.md)
+
+## Reference
+
+- [Reference](https://docs.r28.ai/charter/reference/overview.md): Every public symbol, which namespace it is imported from, where it is documented, and what the reference section covers.
+- [Tool](https://docs.r28.ai/charter/reference/tool.md): Every constructor parameter, attribute and method of the object one endpoint compiles to.
+- [Factories](https://docs.r28.ai/charter/reference/factories.md): api_key_tool_factory and oauth_tool_factory: every parameter, its default, and what the returned builder takes.
+- [Naming](https://docs.r28.ai/charter/reference/naming.md): Qualifying tool names when several packs share one tool surface.
+- [Tool discovery](https://docs.r28.ai/charter/reference/tool-discovery.md): Sending a tool's schema when the model asks for it, not before.
+- [Response handling](https://docs.r28.ai/charter/reference/response-handling.md): ResponseHandler, decode_base64url and html_to_text: reshaping a payload before the model reads it.
+- [Schema markers](https://docs.r28.ai/charter/reference/markers.md): Path, Query, Body, Header, Format, Mode, Case, ConflictsWith, WireName, Gloss, KeyCase and TransportOverride: what each takes and where it is legal.
+- [Semantic types](https://docs.r28.ai/charter/reference/semantic-types.md): EmailContent, CalendarEvent, DocumentContent and FileContent: the shapes a model fills in before a transform encodes them.
+- [Protobuf types](https://docs.r28.ai/charter/reference/protobuf-types.md): Value, ListValue, Struct, FieldMask and NullValue: the google.protobuf well-known types as Pydantic models.
+- [Transforms](https://docs.r28.ai/charter/reference/transforms.md): TransformRegistry, TransformSpec, register_transform, get_transform, apply_transform, and the eleven built-in transform names.
+- [Credentials](https://docs.r28.ai/charter/reference/credentials.md): Credentials, the CredentialProvider protocol, the four shipped providers, and the subject machinery for serving many end users.
+- [OAuth](https://docs.r28.ai/charter/reference/oauth.md): OAuth2Server, Revocation, OAuth2Client, OAuth2Flow, AuthorizationRequest, TokenGrant, revoke_token, states_match and scopes_for.
+- [Envelopes and pagination](https://docs.r28.ai/charter/reference/envelopes-and-pagination.md): Envelope, GRAPHQL_ENVELOPE and Pagination: declaring how an API reports failure inside a 200, and where it keeps its cursor.
+- [Observability and egress](https://docs.r28.ai/charter/reference/observability.md): ToolCall, CallSink, CallCollector, format_call_line, format_call_summary, egress_map and format_egress_map.
+- [Errors](https://docs.r28.ai/charter/reference/errors.md): CharterError and its six subclasses: what raises each, what each carries, and which of them link to a page.
+- [Configuration](https://docs.r28.ai/charter/reference/configuration.md): A pack's configure(), the settings that tune runtime behaviour, the environment variables, and the logger.
+- [Command line](https://docs.r28.ai/charter/reference/cli.md): charter-mcp: the one command, its flags, and what it exits with.
+<!-- generated: pages end -->

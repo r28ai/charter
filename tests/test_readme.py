@@ -216,6 +216,8 @@ _AGENT_FACING = (
     "skills/declaring-charter-tools/SKILL.md",
     "docs/agent-setup/prompt.mdx",
     "docs/start/coding-agents.mdx",
+    "docs/llms.txt",
+    "docs/skill.md",
 )
 
 _IMPORT = re.compile(r"^\s*from (charter[\w.]*) import ([^\n(]+)$", re.M)

@@ -2,7 +2,13 @@
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
   "name": "Charter Docs",
-  "description": "The schema is the contract. Define AI-agent tools as Pydantic schemas.",
+  "description": "Charter is an open-source Python tool-definition layer for agents. It lets you control every aspect of your tools, and checks each call before it's sent.",
+  "markdown": {
+    "instructions": [
+      "Charter works for any HTTP API, including the user's own. The packs are examples of the result, not the limit: an API with no pack is declared the same way, following https://docs.r28.ai/charter/skill.md.",
+      "Charter covers what an agent sees, sends and gets back, not only one of them. https://docs.r28.ai/charter/llms.txt says what it is and lists every page."
+    ]
+  },
   "colors": {
     "primary": "#C72C41",
     "light": "#E8586B",
