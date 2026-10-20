@@ -4,7 +4,7 @@
 """
 Notion — thirty-five tools over the Notion REST API.
 
-    from charter import StaticTokenProvider
+    from charter.auth import StaticTokenProvider
     from charter.packs import notion
 
     notion.configure(StaticTokenProvider(token))   # ntn_... integration secret

@@ -53,11 +53,13 @@ import inspect
 import json
 import pkgutil
 import re
+import textwrap
 from typing import Any, Dict, FrozenSet, Iterator, List, Optional, Set, Tuple, Type
 
 import pytest
 from pydantic import BaseModel
 from pydantic.alias_generators import to_camel
+from tests._examples import example_problems
 
 from charter.execution.schema import LLMBase, should_include_field
 from charter.tool import Tool
@@ -578,6 +580,40 @@ def test_a_pack_exports_exactly_the_tools_it_names(pack: str):
         )
     names: List[str] = [t.name for t in module.TOOLS]
     assert len(names) == len(set(names))
+
+
+def _docstring_example(module: Any) -> Optional[str]:
+    """The first indented block of a pack's docstring that calls a tool."""
+    lines = inspect.cleandoc(module.__doc__ or "").split("\n")
+    i = 0
+    while i < len(lines):
+        if lines[i].startswith("    ") and (i == 0 or not lines[i - 1].strip()):
+            end = i
+            while end < len(lines) and (lines[end].startswith("    ") or not lines[end].strip()):
+                end += 1
+            block = textwrap.dedent("\n".join(lines[i:end]))
+            if ".ainvoke(" in block or ".invoke(" in block:
+                return block
+            i = end
+        else:
+            i += 1
+    return None
+
+
+@pytest.mark.parametrize("pack", PACK_NAMES)
+def test_the_docstring_example_is_one_the_pack_accepts(pack: str):
+    """``help(charter.packs.<pack>)`` opens on an example, and it is code people copy.
+
+    Nothing ran it. Every pack docstring imported ``StaticTokenProvider`` from
+    ``charter``, which stopped exporting it when credentials moved to
+    ``charter.auth`` before 0.1.0, and the first line of the example raised
+    ``ImportError`` in every release. ``tests/_examples.py`` says what is checked
+    and why it is checked rather than run.
+    """
+    example = _docstring_example(PACKS[pack])
+    assert example, f"charter.packs.{pack} has no example in its docstring"
+    problems = example_problems(example)
+    assert not problems, f"charter.packs.{pack}'s docstring example:\n  " + "\n  ".join(problems)
 
 
 @pytest.mark.parametrize("pack_name", PACK_NAMES)

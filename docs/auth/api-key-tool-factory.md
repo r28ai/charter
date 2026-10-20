@@ -117,8 +117,20 @@ api_key_tool_factory(
     query_case: KeyCase = "snake",
     path_case: KeyCase = "snake",
     timeout: int = 20,
+    quota_doc_url: str | None = None,
+    envelope: Envelope | None = None,
+    pagination: Pagination | None = None,
+    body_format: BodyFormat = "json",
+    query_format: QueryFormat = "repeat",
+    static_query: dict[str, Any] | None = None,
+    static_headers: dict[str, str] | None = None,
+    on_call: CallSink | None = None,
+    credential_statuses: Iterable[int] | None = None,
+    follow_redirects: bool = False,
 ) -> ToolBuilder
 ```
+
+Every parameter is described on [the factories reference](/reference/factories#api_key_tool_factory).
 
 The returned builder takes:
 
@@ -133,9 +145,16 @@ The returned builder takes:
 | `mode`                   | Mode filter for the LLM schema                     |
 | `response_handler`       | Async callable to trim the response                |
 | `build_request`          | Escape hatch returning a [`TransportOverride`](/reference/markers#transportoverride)       |
+| `quota_cost`             | What one call costs against the provider's rate limit |
+| `static_body`            | Constant body keys for this endpoint               |
 | `*_case_override`        | Per-endpoint casing                                |
 | `timeout_override`       | Per-endpoint timeout                               |
 | `api_key_headers_override` | Per-endpoint auth headers                        |
+| `envelope_override`      | Per-endpoint [envelope](/tools/envelopes)          |
+| `pagination_override`    | Per-endpoint pagination                            |
+| `body_format_override`   | Per-endpoint body encoding                         |
+| `on_call_override`       | Per-endpoint call sink                             |
+| `follow_redirects_override` | Per-endpoint redirect following                 |
 
 ## Errors
 

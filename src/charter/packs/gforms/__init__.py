@@ -4,7 +4,7 @@
 """
 Google Forms — six tools over two collections.
 
-    from charter import StaticTokenProvider
+    from charter.auth import StaticTokenProvider
     from charter.packs import gforms
 
     gforms.configure(StaticTokenProvider(access_token))

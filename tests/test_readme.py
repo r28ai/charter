@@ -242,6 +242,25 @@ def test_every_import_an_agent_is_taught_actually_imports(relative):
     assert not problems, f"{relative}: {problems}"
 
 
+_REPO_PATH = re.compile(r"(?<![\w/.-])((?:src|tests|scripts|docs|skills|examples)/[\w./-]*[\w/])")
+
+
+@pytest.mark.parametrize("relative", _AGENT_FACING)
+def test_every_repo_path_an_agent_is_given_exists(relative):
+    """A path in these files is an instruction: put it here, read that.
+
+    AGENTS.md named ``src/charter/providers/`` as the second home for code behind
+    an extra from the day it was written, and the directory never existed.
+    """
+    text = (ROOT / relative).read_text()
+    missing = sorted(
+        path
+        for path in set(_REPO_PATH.findall(text))
+        if not (ROOT / path.split("#")[0].rstrip("/.")).exists()
+    )
+    assert not missing, f"{relative} names paths that do not exist: {missing}"
+
+
 @pytest.mark.parametrize("relative", _AGENT_FACING)
 def test_no_agent_facing_file_calls_charter_the_whole_surface(relative):
     """`charter.__all__` alone stopped being the public surface.

@@ -13,7 +13,7 @@ import asyncio
 
 from charter.packs import stripe
 
-result = asyncio.run(stripe.refunds_create.ainvoke({}))
+result = asyncio.run(stripe.refunds_create.ainvoke({"paymentIntent": ...}))
 ```
 
 ## Body

@@ -32,6 +32,7 @@ def api_key_tool_factory(
     static_headers: Optional[Dict[str, str]] = None,
     on_call: Optional[CallSink] = None,
     credential_statuses: Optional[Iterable[int]] = None,
+    follow_redirects: bool = False,
 ) -> ToolBuilder: ...
 ```
 
@@ -104,6 +105,14 @@ def api_key_tool_factory(
 <ParamField path="credential_statuses" type="Optional[Iterable[int]]" default="None">
   Statuses that mean "your credential" rather than "not allowed". Defaults to
   `{401}`.
+</ParamField>
+
+<ParamField path="follow_redirects" type="bool" default="False">
+  Whether a 3xx is followed. Off by default: on a JSON API a redirect is
+  usually a wrong URL, and following it quietly hides that. Turn it on per tool
+  with `follow_redirects_override` where the answer *is* a redirect — GitHub
+  serves Actions logs as a 302 to a signed URL. The headers named in
+  `api_key_headers` are dropped when a redirect leaves the origin.
 </ParamField>
 
 <ResponseField name="returns" type="ToolBuilder">
@@ -231,6 +240,7 @@ def create_tool(
     body_format_override: Optional[BodyFormat] = None,
     static_body: Optional[Dict[str, Any]] = None,
     on_call_override: Optional[CallSink] = None,
+    follow_redirects_override: Optional[bool] = None,
 ) -> Tool: ...
 ```
 
@@ -253,9 +263,9 @@ Two details of how overrides resolve:
 
 - `body_case_override`, `query_case_override`, `path_case_override`,
   `timeout_override`, `envelope_override`, `pagination_override`,
-  `on_call_override`, `api_key_headers_override` and `scopes_override` replace
-  the factory value when they are not `None`. Passing `None` keeps the
-  factory's.
+  `on_call_override`, `follow_redirects_override`, `api_key_headers_override`
+  and `scopes_override` replace the factory value when they are not `None`.
+  Passing `None` keeps the factory's.
 - `body_format_override` is applied with `or`, so `"json"` and `"form"` both
   work but a falsy value falls back to the factory's.
 

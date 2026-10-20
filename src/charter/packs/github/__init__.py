@@ -4,7 +4,7 @@
 """
 GitHub — 139 tools over the GitHub REST API.
 
-    from charter import StaticTokenProvider
+    from charter.auth import StaticTokenProvider
     from charter.packs import github
 
     github.configure(StaticTokenProvider(token))   # ghp_... or a GitHub App token

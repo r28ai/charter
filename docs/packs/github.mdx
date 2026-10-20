@@ -838,10 +838,9 @@ page from the last one. Both are real fields on the schemas that declare it.
 ```python github_page_through_issues.py
 import asyncio
 
-args = {"owner": "octocat", "repo": "hello-world", "per_page": 30}
-
 
 async def main():
+    args = {"owner": "octocat", "repo": "hello-world", "per_page": 30}
     while args is not None:
         page = await github.issues_list_for_repo.ainvoke(args)
         handle(page)

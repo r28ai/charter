@@ -12,7 +12,8 @@ right now, and that every pack in ``charter.packs`` has a page at all — so a p
 added next year either shows up in the docs or turns the suite red.
 
 The prose around the markers is hand-written and deliberately not checked here,
-beyond the links, which the README suite already resolves site-wide.
+beyond the links, which the README suite already resolves site-wide, and the
+code, which must be code the pack accepts.
 """
 
 from __future__ import annotations
@@ -22,10 +23,12 @@ import inspect
 import os
 import re
 import sys
+import textwrap
 from pathlib import Path as FsPath
 from types import SimpleNamespace
 
 import pytest
+from tests._examples import example_problems
 
 from charter.mcp import PACKS
 
@@ -655,6 +658,55 @@ def test_the_page_opens_with_a_snippet_that_configures_and_calls(pack):
         assert tool_name in names, (
             f"{pack}: snippet calls `{tool_name}`, which the pack does not export"
         )
+
+
+_PYTHON_FENCE = re.compile(r"^([ \t]*)```python[^\n]*\n(.*?)^\1```", re.M | re.S)
+
+
+@pytest.mark.parametrize("pack", PACKS)
+def test_every_example_on_the_page_is_one_the_pack_accepts(pack):
+    """The opening snippet is not the only code on a page that a reader copies.
+
+    The paging examples on the GitHub and Linear pages set ``args`` beside
+    ``main()`` and reassigned it inside, which makes it local to ``main()`` and
+    the first ``while args is not None`` an ``UnboundLocalError`` — before any
+    request, in the block written to show the loop working. Blocks are checked in
+    page order, so one may use what an earlier one imported.
+    """
+    namespace: dict = {}
+    problems = [
+        problem
+        for match in _PYTHON_FENCE.finditer(GEN.page_path(pack).read_text())
+        for problem in example_problems(textwrap.dedent(match.group(2)), namespace)
+    ]
+    assert not problems, f"docs/packs/{pack}.mdx:\n  " + "\n  ".join(problems)
+
+
+def test_the_example_check_catches_a_name_read_before_its_function_assigns_it():
+    """The paging example as it stood, so the check above cannot quietly go blind to it."""
+    namespace: dict = {}
+    example_problems("from charter.packs import github", namespace)
+    problems = example_problems(
+        textwrap.dedent(
+            """
+            import asyncio
+
+            args = {"owner": "octocat", "repo": "hello-world", "per_page": 30}
+
+
+            async def main():
+                while args is not None:
+                    page = await github.issues_list_for_repo.ainvoke(args)
+                    handle(page)
+                    args = github.issues_list_for_repo.pagination.next_page_args(page, args)
+
+
+            asyncio.run(main())
+            """
+        ),
+        namespace,
+    )
+    assert any("UnboundLocalError" in problem for problem in problems), problems
 
 
 @pytest.mark.parametrize("pack", PACKS)

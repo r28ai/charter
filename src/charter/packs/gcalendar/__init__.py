@@ -4,7 +4,7 @@
 """
 Google Calendar — the Events collection, and the calendars to run it against.
 
-    from charter import StaticTokenProvider
+    from charter.auth import StaticTokenProvider
     from charter.packs import gcalendar
 
     gcalendar.configure(StaticTokenProvider(access_token))

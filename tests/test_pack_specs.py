@@ -29,6 +29,7 @@ from pathlib import Path as FsPath
 from typing import Any, Dict
 
 import pytest
+from tests._examples import example_problems
 
 from charter.mcp import PACKS
 
@@ -246,6 +247,35 @@ def test_the_sample_call_names_the_tool_and_the_pack(pack):
         assert "```python" in text and "curl" not in text
         assert f"from charter.packs import {pack}" in text
         assert f"{pack}.{tool.name}.ainvoke(" in text
+
+
+def _sample_source(pack, tool):
+    """The code inside the sample's fence."""
+    return GEN.code_sample(pack, tool).split("\n", 1)[1].rsplit("```", 1)[0]
+
+
+@pytest.mark.parametrize("pack", PACKS)
+def test_the_sample_call_is_one_the_tool_accepts(pack):
+    """Naming the tool and the pack is not enough: ``ainvoke({})`` named both.
+
+    Four tools want one argument out of two — Outlook's ``send_mail`` and
+    ``messages_create``, Slack's ``conversations_open``, Stripe's
+    ``refunds_create`` — and nothing is required, so their samples were an empty
+    call each one refuses. The ``...`` a sample leaves are the reader's to fill
+    in, and every other way the call can be wrong is checked.
+    """
+    problems = [
+        problem
+        for tool in GEN.pack_module(pack).TOOLS
+        for problem in example_problems(_sample_source(pack, tool))
+    ]
+    assert not problems, "\n".join(problems)
+
+
+def test_the_sample_check_catches_an_empty_call_the_tool_refuses(monkeypatch):
+    monkeypatch.setattr(GEN, "_SAMPLE_CHOICE", {})
+    with pytest.raises(AssertionError, match="send_mail"):
+        test_the_sample_call_is_one_the_tool_accepts("outlook")
 
 
 # -----------------------------------------------------

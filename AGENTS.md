@@ -17,9 +17,9 @@ declared the same way, with [the skill](skills/declaring-charter-tools/SKILL.md)
 ## Rules
 
 1. **Core dependencies are pydantic and httpx. That is the whole budget.**
-   Anything else lives behind an extra, under `src/charter/adapters/` or
-   `src/charter/providers/`. `tests/test_package.py` enforces this per-module; if you
-   need a third dependency, the answer is almost always a stdlib implementation.
+   Anything else lives behind an extra, under `src/charter/adapters/`.
+   `tests/test_package.py` enforces this per-module; if you need a third
+   dependency, the answer is almost always a stdlib implementation.
 2. **No telemetry, ever.** No analytics, no version checks, no phone-home. The
    only network calls are the API calls the user defined.
 3. **No secrets in the repo.** No `.env`, no tokens in tests, no real user data in

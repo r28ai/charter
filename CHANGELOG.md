@@ -9,6 +9,20 @@ here, with the migration in the same entry.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Every pack docstring's example failed on its first line.** Ten packs opened
+  their example with `from charter import StaticTokenProvider`, which has been
+  `charter.auth` since before 0.1.0. They import it from there now, and a
+  conformance check reads each pack's example the way `ainvoke` would: its
+  imports exist, its tools exist, and its arguments pass the tool's validation.
+- **Docs examples that could not run as written.** The paging examples on the
+  GitHub and Linear pages raised `UnboundLocalError` before their first request;
+  Outlook's `send_mail` and `messages_create`, Slack's `conversations_open` and
+  Stripe's `refunds_create` showed `ainvoke({})`, which each refuses; and the
+  API-key factory's page listed 7 of its 17 parameters. Every example on a pack
+  page and every written-out factory signature is now checked against the code.
+
 ## [0.5.2] — 2026-10-15
 
 ### Added

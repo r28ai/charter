@@ -613,11 +613,24 @@ def tree_html(ctx: Context, roots: Sequence[type], published: Set[type]) -> str:
 # -----------------------------------------------------
 
 
+# A tool with nothing required can still refuse an empty call: a model validator
+# that wants one argument out of two. The schema publishes no such rule, so the
+# argument its sample names is listed here. A tool that should be on this list
+# and is not fails `test_the_sample_call_is_one_the_tool_accepts`.
+_SAMPLE_CHOICE: Dict[Tuple[str, str], str] = {
+    ("outlook", "messages_create"): "message",
+    ("outlook", "send_mail"): "message",
+    ("slack", "conversations_open"): "users",
+    ("stripe", "refunds_create"): "paymentIntent",
+}
+
+
 def code_sample(pack: str, tool: Tool) -> str:
     """The call a reader should copy, which is never curl.
 
-    Required arguments are named and left as ellipses. A sample that invented
-    plausible values would be a sample somebody pastes.
+    Required arguments are named and left as ellipses, and so is the one a tool
+    in ``_SAMPLE_CHOICE`` needs one of. A sample that invented plausible values
+    would be a sample somebody pastes.
 
     Titled with a filename, as every block on the pack pages is. Mintlify falls
     back to the language when there is no title, and a header reading "Python"
@@ -630,8 +643,11 @@ def code_sample(pack: str, tool: Tool) -> str:
     page that has to be read twice. One call is one ``asyncio.run``; inside an
     agent the call sits in an ``async def`` you already have.
     """
-    required = tool.to_json_schema()["parameters"].get("required", [])
-    args = ", ".join(f'"{name}": ...' for name in required)
+    named = list(tool.to_json_schema()["parameters"].get("required", []))
+    choice = _SAMPLE_CHOICE.get((pack, tool.name))
+    if choice is not None:
+        named.append(choice)
+    args = ", ".join(f'"{name}": ...' for name in named)
     return (
         f"```python {pack}_{tool.name}.py\n"
         "import asyncio\n\n"

@@ -4,7 +4,7 @@
 """
 Slack — ten tools over the Slack Web API.
 
-    from charter import StaticTokenProvider
+    from charter.auth import StaticTokenProvider
     from charter.packs import slack
 
     slack.configure(StaticTokenProvider(bot_token))   # xoxb-...

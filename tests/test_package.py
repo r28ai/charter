@@ -25,11 +25,11 @@ SPDX_COPYRIGHT = "# SPDX-File" + "CopyrightText: 2026 R2" + "8 AI, Inc."
 SPDX_LICENSE = "# SPDX-License-Identifier: Apache-2.0"
 
 # Rule 5: core dependency budget is pydantic + httpx. Anything else must live
-# behind an extra, i.e. under adapters/ or providers/.
+# behind an extra, i.e. under adapters/.
 FORBIDDEN = re.compile(
     r"\b(langchain|langgraph|google\.auth|google_auth|redis|psycopg|structlog|cryptography)\b"
 )
-EXTRAS_ALLOWED = ("adapters", "providers")
+EXTRAS_ALLOWED = ("adapters",)
 
 # Rule 3: no telemetry. No internal hostnames, no closed-source vocabulary.
 #

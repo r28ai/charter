@@ -4,7 +4,7 @@
 """
 Google Docs — three tools over the Docs API.
 
-    from charter import StaticTokenProvider
+    from charter.auth import StaticTokenProvider
     from charter.packs import gdocs
 
     gdocs.configure(StaticTokenProvider(access_token))

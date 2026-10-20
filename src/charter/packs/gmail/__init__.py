@@ -8,7 +8,7 @@ The flagship demo of what the boundary buys you: ``messages_send`` takes an
 ``EmailContent``, and ``Format("rfc822_base64")`` produces the base64url RFC822
 blob Gmail's ``raw`` field requires. No MIME assembly in your agent.
 
-    from charter import StaticTokenProvider
+    from charter.auth import StaticTokenProvider
     from charter.packs import gmail
 
     gmail.configure(StaticTokenProvider(access_token))

@@ -734,10 +734,9 @@ out at `variables.after` — *inside* the variables object, not beside it.
 ```python linear_page_through_issues.py
 import asyncio
 
-args = {"variables": {"first": 50}}
-
 
 async def main():
+    args = {"variables": {"first": 50}}
     while args is not None:
         page = await linear.issues_list.ainvoke(args)
         handle(page)

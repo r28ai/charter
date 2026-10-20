@@ -4,7 +4,7 @@
 """
 Outlook — fifty-six tools over the Outlook mail API in Microsoft Graph v1.0.
 
-    from charter import StaticTokenProvider
+    from charter.auth import StaticTokenProvider
     from charter.packs import outlook
 
     outlook.configure(StaticTokenProvider(access_token))

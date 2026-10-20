@@ -21,9 +21,12 @@ from __future__ import annotations
 
 import ast
 import importlib.util
+import inspect
 import logging
 import re
+from fnmatch import fnmatch
 from pathlib import Path as FsPath
+from typing import List
 
 import httpx
 import pytest
@@ -192,6 +195,87 @@ def test_the_extraction_matches_something():
 )
 def test_every_python_block_parses(source):
     ast.parse(source)
+
+
+def _listed_parameters(text: str, name: str) -> List[str]:
+    """The parameters a written-out signature of ``name`` declares, parsed rather than grepped."""
+    for body in re.findall(r"^```python[^\n]*\n(.*?)^```", text, re.M | re.S):
+        source = body.strip()
+        if not re.match(rf"(def )?{name}\(", source):
+            continue
+        if not source.startswith("def "):
+            source = f"def {source}"
+        if not source.endswith(": ..."):
+            source += ": ..."
+        function = ast.parse(source).body[0]
+        assert isinstance(function, ast.FunctionDef)
+        arguments = function.args
+        return [a.arg for a in (*arguments.posonlyargs, *arguments.args, *arguments.kwonlyargs)]
+    raise AssertionError(f"no written-out signature of {name}")
+
+
+def _builder_parameters():
+    """What the API-key builder and the OAuth builder each take."""
+    from charter.auth import StaticTokenProvider
+
+    api_key = charter.api_key_tool_factory(
+        "https://api.example.com/", {"x-api-key": "k"}, pack="acme"
+    )
+    oauth = charter.oauth_tool_factory(
+        "https://api.example.com/", "acme", StaticTokenProvider("t"), pack="acme"
+    )
+    return list(inspect.signature(api_key).parameters), list(inspect.signature(oauth).parameters)
+
+
+@pytest.mark.parametrize(
+    "page, name",
+    [
+        ("reference/factories.mdx", "api_key_tool_factory"),
+        ("reference/factories.mdx", "oauth_tool_factory"),
+        ("auth/api-key-tool-factory.md", "api_key_tool_factory"),
+    ],
+)
+def test_a_written_out_factory_signature_is_the_factory_s_own(page, name):
+    """Parsing a listing proves it is Python, not that it is this function.
+
+    The API-key factory's own page listed 7 of its 17 parameters, and the five
+    it left out first included ``body_format``, ``static_query`` and
+    ``envelope`` — the three AGENTS.md sends a pack author to.
+    """
+    listed = _listed_parameters((ROOT / "docs" / page).read_text(), name)
+    assert listed == list(inspect.signature(getattr(charter, name)).parameters)
+
+
+def test_the_builder_listing_is_what_both_builders_take():
+    api_key, oauth = _builder_parameters()
+    section = (REFERENCE / "factories.mdx").read_text().split("## The builder", 1)[1]
+    section = section.split("\n## ", 1)[0]
+    assert _listed_parameters(section, "create_tool") == [p for p in api_key if p in oauth]
+    # The listing leaves out exactly the two its prose says belong to one builder.
+    differ = set(api_key) ^ set(oauth)
+    assert differ == {"api_key_headers_override", "scopes_override"}
+    assert all(f"`{name}`" in section for name in differ)
+
+
+def test_the_api_key_page_tables_every_builder_parameter():
+    api_key, _ = _builder_parameters()
+    page = (ROOT / "docs" / "auth" / "api-key-tool-factory.md").read_text()
+    table = page.split("The returned builder takes:", 1)[1].split("\n## ", 1)[0]
+    rows = re.findall(r"^\| `([\w*]+)`", table, re.M)
+    assert not [row for row in rows if not any(fnmatch(p, row) for p in api_key)], rows
+    assert [p for p in api_key if not any(fnmatch(p, row) for row in rows)] == []
+
+
+def test_the_signature_check_catches_an_abridged_listing():
+    """The listing the API-key page carried, so the check cannot pass on one again."""
+    abridged = (
+        "```python\napi_key_tool_factory(\n    base_url: str,\n"
+        "    api_key_headers: dict[str, str] | None = None,\n    *,\n    pack: str,\n"
+        '    body_case: KeyCase = "camel",\n    query_case: KeyCase = "snake",\n'
+        '    path_case: KeyCase = "snake",\n    timeout: int = 20,\n) -> ToolBuilder\n```\n'
+    )
+    listed = _listed_parameters(abridged, "api_key_tool_factory")
+    assert listed != list(inspect.signature(charter.api_key_tool_factory).parameters)
 
 
 @pytest.fixture

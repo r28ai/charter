@@ -13,7 +13,7 @@ import asyncio
 
 from charter.packs import slack
 
-result = asyncio.run(slack.conversations_open.ainvoke({}))
+result = asyncio.run(slack.conversations_open.ainvoke({"users": ...}))
 ```
 
 <Note>

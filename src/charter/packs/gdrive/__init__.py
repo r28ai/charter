@@ -4,7 +4,7 @@
 """
 Google Drive — files, sharing, comments, revisions, shared drives and quota.
 
-    from charter import StaticTokenProvider
+    from charter.auth import StaticTokenProvider
     from charter.packs import gdrive
 
     gdrive.configure(StaticTokenProvider(access_token))

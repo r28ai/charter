@@ -410,8 +410,32 @@ def test_a_server_owned_field_offered_to_the_model_is_caught(monkeypatch):
     )
 
 
+def test_a_docstring_example_importing_a_moved_name_is_caught(monkeypatch):
+    """The import every pack docstring carried from 0.1.0 until the check existed."""
+    stale = gmail.__doc__.replace("from charter.auth import", "from charter import")
+    assert stale != gmail.__doc__
+    monkeypatch.setattr(gmail, "__doc__", stale)
+    _must_fail(
+        conformance.test_the_docstring_example_is_one_the_pack_accepts,
+        "gmail",
+        because="an example whose first line raises ImportError",
+    )
+
+
+def test_a_docstring_example_calling_a_renamed_tool_is_caught(monkeypatch):
+    renamed = gmail.__doc__.replace("gmail.messages_send.ainvoke", "gmail.send_message.ainvoke")
+    assert renamed != gmail.__doc__
+    monkeypatch.setattr(gmail, "__doc__", renamed)
+    _must_fail(
+        conformance.test_the_docstring_example_is_one_the_pack_accepts,
+        "gmail",
+        because="an example calling a tool the pack does not export",
+    )
+
+
 def test_the_packs_are_intact_after_every_mutation():
     """monkeypatch restores state; this is the assertion that it did."""
+    assert "from charter.auth import StaticTokenProvider" in (gmail.__doc__ or "")
     assert stripe.balance_retrieve.pagination is None
     assert github.repos_get.description
     assert github.repos_get.static_headers == github.GITHUB_HEADERS

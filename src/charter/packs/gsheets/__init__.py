@@ -10,7 +10,7 @@ Sheets speaks protobuf JSON. ``Format("proto_json")`` lets the model send a plai
 ``Format("field_mask")`` turns a list of paths into the comma-joined string a
 ``FieldMask`` serialises to.
 
-    from charter import StaticTokenProvider
+    from charter.auth import StaticTokenProvider
     from charter.packs import gsheets
 
     gsheets.configure(StaticTokenProvider(access_token))
