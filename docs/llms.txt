@@ -21,7 +21,7 @@
 <!-- generated: pages start -->
 ## Get started
 
-- [Charter Overview](https://docs.r28.ai/charter/index.md): Decide what your agent sees, sends and gets back, in every API it touches. Declare the call as a Pydantic model; the declaration is also the rulebook, and a call that breaks a rule never reaches the API.
+- [Charter Overview](https://docs.r28.ai/charter/index.md): Charter is an open-source Python tool-definition layer for agents. It lets you control every aspect of your tools, and checks each call before it's sent.
 - [Installation](https://docs.r28.ai/charter/start/installation.md): Two dependencies, one command.
 - [Quickstart](https://docs.r28.ai/charter/start/quickstart.md): Declare a tool for any API, put your own rules on it, watch one refuse a call before anything is sent, then pin a value and print what the model can reach.
 - [Coding agents](https://docs.r28.ai/charter/start/coding-agents.md): Set your coding agent up for Charter: the skill that teaches it to declare tools for any API, these docs as a source, and the server that hands it tools.
