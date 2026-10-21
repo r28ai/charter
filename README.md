@@ -119,7 +119,7 @@ It can fix the call or stop; Charter never improvises.
 | | What Charter does | Measured |
 |---|---|---|
 | **Sees** | Cuts a tool down to the fields the job needs | On Linear's issue list, deepseek-v4p1 was refused 30/30 with the full filter and succeeded 30/30 with a curated one ([details](#shape-a-tool)) |
-| **Sends** | Builds wire formats like MIME, base64 and GraphQL, so the model fills in plain fields | Over 534 runs, a raw HTTP tool sent 32 malformed GraphQL documents and 10 calls to endpoints never declared; Charter sent 0 ([details](#control-what-goes-out)) |
+| **Sends** | Builds wire formats like MIME, base64 and GraphQL, so the model fills in plain fields | Over 534 runs, a raw HTTP tool sent 32 malformed GraphQL documents and tried 10 calls to endpoints never declared; Charter did neither ([details](#control-what-goes-out)) |
 | **Gets back** | Trims responses, and raises when a `200` is really a failure | GitHub sends 346.6 KB, the model gets 10.7 KB ([details](#control-what-comes-back)) |
 
 ## Who it's for
