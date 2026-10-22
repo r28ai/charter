@@ -5,9 +5,9 @@
 <h3>Decide what your agent sees, sends and gets back, in every API it touches.</h3>
 
 <p>
-<a href="https://docs.r28.ai/charter">Documentation</a> ·
 <a href="https://docs.r28.ai/charter/start/quickstart">Quickstart</a> ·
 <a href="https://github.com/r28ai/charter/tree/main/examples">Examples</a> ·
+<a href="https://docs.r28.ai/charter">Documentation</a> ·
 <a href="https://docs.r28.ai/charter/start/coding-agents">Coding agents</a> ·
 <a href="https://docs.r28.ai/charter/packs/overview">Packs</a>
 </p>
