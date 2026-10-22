@@ -24,12 +24,9 @@
 
 # Charter
 
-Charter is an open-source Python tool-definition layer for agents. Wire tools by hand and
-you're hoping for the best, blind spots and all. Vendor toolkits, MCP servers and catalog
-platforms hand you someone else's.
-
-Charter lets you control every aspect of yours, and checks each call before it's sent. It
-works for any HTTP API, including your own internal ones.
+Charter is an open-source Python tool-definition layer for agents. It lets you control every
+aspect of your tools, and checks each call before it's sent. It works for any HTTP API,
+public or private.
 
 A library, not a service.
 Runs in your process. No proxy, no per-call pricing, no telemetry.
@@ -119,7 +116,7 @@ It can fix the call or stop; Charter never improvises.
 
 | | What Charter does | Measured |
 |---|---|---|
-| **Sees** | Cuts a tool down to the fields the job needs | On Linear's issue list, deepseek-v4p1 was refused 30/30 with the full filter and succeeded 30/30 with a curated one ([details](#shape-a-tool)) |
+| **Sees** | Cuts a tool down to the fields the job needs | Google Docs' write tool has 33 kinds of edit; cut to the 3 a job needs, its schema goes from 7,336 tokens to 1,553 ([details](https://docs.r28.ai/charter/tools/projections#why-the-tool-is-shaped-this-way)) |
 | **Sends** | Builds wire formats like MIME, base64 and GraphQL, so the model fills in plain fields | Over 534 runs, a raw HTTP tool sent 32 malformed GraphQL documents and tried 10 calls to endpoints never declared; Charter did neither ([details](#control-what-goes-out)) |
 | **Gets back** | Trims responses, and raises when a `200` is really a failure | GitHub sends 346.6 KB, the model gets 10.7 KB ([details](#control-what-comes-back)) |
 

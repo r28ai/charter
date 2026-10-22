@@ -1,31 +1,15 @@
-"""The landing page's comparison, checked against the package.
+"""The front pages' claims, checked against the package.
 
-`docs/index.mdx` opens on one Gmail tool shown two ways: declared with Charter
-in two numbered steps, and hand-written in six. Almost everything on that page
-is a claim about the package that the page itself cannot verify.
-
-The caption says the runtime builds an RFC 2822 document, encodes it base64url,
-puts it under the `raw` key and attaches the token. That block is executed here
-against a mock transport and the bytes on the wire are compared with the claim,
-so the front page cannot advertise behaviour the package does not have.
-
-The step counts are the other half. Each tab numbers its steps in comments, and
-a separate `highlight={...}` list decides which lines are painted blue. Those
-two live at opposite ends of the same fence and have no way of noticing when
-they stop agreeing: insert a line anywhere in the hand-written block and the
-highlight silently lands on the wrong rows. So the highlighted lines are
-derived from the comments here, the numbering is checked to run 1..N, and the
-"two steps against six" in the prose is checked against both.
-
-The rest is the same principle applied to smaller numbers: how many packs
-exist, how many tools they carry, which distributions the hand-written version
-actually installs.
+The overview, Why Charter and the quickstart state facts about the package in
+prose: how many packs ship and how many tools they carry, how many fields a tool
+offers the model, what the quickstart prints and refuses. A page cannot verify
+any of that itself, so each claim is checked here against the package, and every
+Python block on those pages has to parse.
 """
 
 from __future__ import annotations
 
 import ast
-import base64
 import importlib
 import json
 import pkgutil
@@ -49,11 +33,6 @@ _BLOCK = re.compile(r"^```(\w+)([^\n]*)\n(.*?)^```", re.M | re.S)
 # valid in a plain module. This is the flag the REPL uses to allow it.
 _ALLOW_TOP_LEVEL_AWAIT = 0x2000
 
-# A numbered step comment: `# 1. Build the API client`, at any indent.
-_STEP = re.compile(r"^\s*# (\d+)\. ")
-
-WITH = "With Charter"
-WITHOUT = "Without Charter"
 
 _UNITS = (
     "zero one two three four five six seven eight nine ten eleven twelve "
@@ -75,80 +54,14 @@ def _blocks(path) -> list[tuple[str, str, str]]:
     return [(lang, meta.strip(), body) for lang, meta, body in _BLOCK.findall(path.read_text())]
 
 
-def _tab(path, title: str) -> tuple[str, str]:
-    """(meta, body) for the block whose fence carries title="...".
-
-    Mintlify reads a bare trailing word in a fence header as a meta flag, so a
-    label with a space in it has to be quoted. That is also what makes the
-    label findable from here.
-    """
-    wanted = f'title="{title}'
-    found = [(meta, body) for lang, meta, body in _blocks(path) if wanted in meta]
-    assert found, f"{path.name} has no block labelled {title!r}"
-    assert len(found) == 1, f"{path.name} has {len(found)} blocks labelled {title!r}"
-    return found[0]
-
-
 def _parse(source: str):
     return compile(
         source, "<docs>", "exec", ast.PyCF_ONLY_AST | _ALLOW_TOP_LEVEL_AWAIT, dont_inherit=True
     )
 
 
-def _final_statement(body: str):
-    """The statement a block ends on, looked up through its own driver.
-
-    A block that is meant to be pasted into the file its title names drives
-    itself — ``asyncio.run(main())`` — so its last *top-level* statement is the
-    driver, and the call the page is about is the last one inside ``main``. The
-    async side of a comparison needs that driver and the sync side does not,
-    which is a real difference between the two and not a reason to stop
-    checking either. Blocks without a driver are unaffected.
-    """
-    top = _parse(body).body
-    last = top[-1]
-    driven = (
-        isinstance(last, ast.Expr)
-        and isinstance(last.value, ast.Call)
-        and ast.unparse(last.value.func) == "asyncio.run"
-    )
-    if not driven:
-        return last
-    name = ast.unparse(last.value.args[0]).removesuffix("()")
-    for node in top:
-        if isinstance(node, (ast.AsyncFunctionDef, ast.FunctionDef)) and node.name == name:
-            return node.body[-1]
-    return last
-
-
-def _steps(body: str) -> dict[int, int]:
-    """{step number: line number} for the numbered comments in a block."""
-    out = {}
-    for number, line in enumerate(body.strip("\n").split("\n"), start=1):
-        match = _STEP.match(line)
-        if match:
-            out[int(match.group(1))] = number
-    return out
-
-
-def _label(meta: str) -> str:
-    """The text inside title="..." on a fence."""
-    import re as _re
-
-    match = _re.search(r'title="([^"]*)"', meta)
-    assert match, f"no title in fence meta: {meta!r}"
-    return match.group(1)
-
-
-def _highlighted(meta: str) -> list[int]:
-    """The line numbers in `highlight={1,17,22}`."""
-    match = re.search(r"highlight=\{([^}]*)\}", meta)
-    assert match, f"no highlight list in fence meta: {meta!r}"
-    return sorted(int(part) for part in match.group(1).split(",") if part.strip())
-
-
 # --------------------------------------------------------------------------
-# The two tabs.
+# Every Python block on the overview, Why Charter and the quickstart.
 # --------------------------------------------------------------------------
 
 
@@ -161,286 +74,6 @@ def test_every_python_block_parses(page):
             _parse(body)
         except SyntaxError as exc:
             pytest.fail(f"{page.name}: block {meta or '(untitled)'} does not parse: {exc}")
-
-
-@pytest.mark.parametrize("title", [WITH, WITHOUT])
-def test_the_blue_lines_are_exactly_the_numbered_steps(title):
-    """The highlight list and the step comments have to name the same rows.
-
-    They are declared at opposite ends of the same fence: the numbers in the
-    fence header, the comments forty lines down. Insert one line in the middle
-    and the highlight lands on whatever now occupies those rows, with nothing
-    to complain about it. This is that complaint.
-    """
-    meta, body = _tab(INDEX, title)
-    steps = _steps(body)
-
-    assert steps, f"the {title} block carries no numbered step comments"
-    assert _highlighted(meta) == sorted(steps.values()), (
-        f"the {title} block highlights {_highlighted(meta)} and its numbered "
-        f"comments are on {sorted(steps.values())}"
-    )
-
-
-@pytest.mark.parametrize("title", [WITH, WITHOUT])
-def test_the_steps_are_numbered_from_one_without_gaps(title):
-    """A block that jumps from 4 to 6 is counting something the reader cannot."""
-    _, body = _tab(INDEX, title)
-    numbers = sorted(_steps(body))
-
-    assert numbers == list(range(1, len(numbers) + 1)), (
-        f"the {title} block numbers its steps {numbers}"
-    )
-
-
-@pytest.mark.parametrize("title", [WITH, WITHOUT])
-def test_the_tab_label_counts_the_steps_in_its_own_block(title):
-    """The count is on the tab, which is the only thing read before the click.
-
-    It is also the number furthest from the code it describes: the label sits
-    in the fence header, the steps are comments in the body, and a reader
-    comparing "2 steps" with "6 steps" is taking both entirely on trust.
-    """
-    meta, body = _tab(INDEX, title)
-    steps = len(_steps(body))
-    label = _label(meta)
-
-    assert label == f"{title} \u00b7 {steps} steps", (
-        f"the tab is labelled {label!r} and its block takes {steps} steps"
-    )
-
-
-def test_the_prose_counts_the_steps_the_blocks_actually_take():
-    """ "Two steps against six" is the page's headline claim about itself."""
-    declared = len(_steps(_tab(INDEX, WITH)[1]))
-    handwritten = len(_steps(_tab(INDEX, WITHOUT)[1]))
-
-    claim = f"{_word(declared).capitalize()} steps against {_word(handwritten)}"
-    assert claim in INDEX.read_text(), (
-        f"index.mdx no longer says {claim!r}; the tabs now take {declared} steps and {handwritten}"
-    )
-
-
-# Import root -> the thing you would pip install to get it.
-_DISTRIBUTIONS = {
-    "google": "google-auth",
-    "google_auth_oauthlib": "google-auth-oauthlib",
-    "googleapiclient": "google-api-python-client",
-}
-
-
-def _distributions_of(body: str) -> set[str]:
-    """Which pip distributions a block's imports come from.
-
-    `google.auth` and `google.oauth2` are two imports and one install, which is
-    exactly the sort of thing a hand-counted list gets wrong.
-    """
-    stdlib = {"base64", "os", "email", "typing"}
-
-    roots = set()
-    for node in ast.walk(_parse(body)):
-        if isinstance(node, ast.Import):
-            roots |= {alias.name.split(".")[0] for alias in node.names}
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            roots.add(node.module.split(".")[0])
-
-    third_party = roots - stdlib
-    unknown = third_party - set(_DISTRIBUTIONS)
-    assert not unknown, f"the block imports {sorted(unknown)}, which maps to no distribution"
-    return {_DISTRIBUTIONS[root] for root in third_party}
-
-
-def test_the_caption_counts_the_installs_each_side_needs():
-    """ "One package to install against three" is the caption's other number.
-
-    The three are derived from what the hand-written block imports. The one is
-    charter, and it is only one because pydantic arrives as its dependency
-    rather than as something the reader installs, so that is what is checked.
-    """
-    try:
-        import tomllib
-    except ModuleNotFoundError:  # 3.10 predates tomllib
-        import tomli as tomllib
-
-    handwritten = len(_distributions_of(_tab(INDEX, WITHOUT)[1]))
-    claim = f"one package to install against {_word(handwritten)}"
-    assert claim in INDEX.read_text(), (
-        f"index.mdx no longer says {claim!r}; the hand-written tab now installs {handwritten}"
-    )
-
-    requires = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["dependencies"]
-    names = {re.split(r"[<>=!\[]", spec)[0].strip() for spec in requires}
-    assert "pydantic" in names, (
-        "index.mdx counts the Charter side as one install because charter brings "
-        f"pydantic with it, and charter now requires {sorted(names)}"
-    )
-
-
-def test_the_hand_written_tab_names_the_packages_it_imports():
-    """Step one lists three distributions, and the block imports from three.
-
-    `google.auth` and `google.oauth2` are two imports and one install, which is
-    exactly the kind of thing a hand-counted list gets wrong.
-    """
-    _, body = _tab(INDEX, WITHOUT)
-    imported = _distributions_of(body)
-    first_step = body.strip("\n").split("\n")[_steps(body)[1] - 1]
-    named = {name for name in _DISTRIBUTIONS.values() if name in first_step}
-
-    assert named == imported, (
-        f"step one names {sorted(named)} and the block imports from {sorted(imported)}"
-    )
-
-
-# The stored grant both tabs start from, as the caption says they do.
-_GRANT = {
-    "GOOGLE_CLIENT_ID": "client.apps.googleusercontent.com",
-    "GOOGLE_CLIENT_SECRET": "secret-for-the-docs",
-    "GOOGLE_REFRESH_TOKEN": "1//refresh-for-the-docs",
-}
-
-
-def _build(monkeypatch):
-    """Execute the Charter tab and hand back the tool it declares.
-
-    `dont_inherit`, because this module reads annotations as strings and the
-    block must not: pydantic needs the real `Annotated` objects to see the
-    markers on a class declared outside any importable module.
-    """
-    for var, value in _GRANT.items():
-        monkeypatch.setenv(var, value)
-    tree = _parse(_tab(INDEX, WITH)[1])
-    # The trailing call is the last statement; everything before it builds.
-    declaration = ast.unparse(ast.Module(body=tree.body[:-1], type_ignores=[]))
-    namespace: dict = {"__name__": "__charter_landing__"}
-    exec(compile(declaration, "<index.mdx>", "exec", dont_inherit=True), namespace)  # noqa: S102
-    return namespace["send_email"]
-
-
-def test_the_charter_tab_sends_what_the_caption_says_it_sends(monkeypatch):
-    """The caption's claims, checked against the bytes on the wire.
-
-    This is also the test that would have caught the shape this block nearly
-    shipped with. A single `Body()` field unwraps to its bare value, which sends
-    the base64 string as the whole JSON body and never produces `{"raw": ...}`
-    at all. `Body(envelop=True)` is what keeps the key, and nothing short of
-    inspecting the request distinguishes the two.
-    """
-    respx = pytest.importorskip("respx")
-    import asyncio
-
-    import httpx
-
-    tool = _build(monkeypatch)
-    url = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
-
-    async def call():
-        with respx.mock:
-            renewal = respx.post("https://oauth2.googleapis.com/token").mock(
-                return_value=httpx.Response(
-                    200,
-                    json={"access_token": "at-renewed", "expires_in": 3599, "token_type": "Bearer"},
-                )
-            )
-            route = respx.post(url).mock(return_value=httpx.Response(200, json={"id": "18f"}))
-            await tool.ainvoke(raw={"to": "ada@example.com", "subject": "Hi", "body": "Hello"})
-            return renewal.calls[0].request, route.calls[0].request
-
-    renewal, request = asyncio.run(call())
-
-    # "OAuth2Client renews the token and attaches it": the stored refresh token
-    # is traded at Google's token endpoint, and what comes back is what is sent.
-    form = dict(pair.split("=", 1) for pair in renewal.content.decode().split("&"))
-    assert form.get("grant_type") == "refresh_token"
-    assert "refresh-for-the-docs" in renewal.content.decode()
-    assert str(request.url) == url
-    assert request.headers.get("authorization") == "Bearer at-renewed"
-
-    payload = json.loads(request.content)
-    assert list(payload) == ["raw"], (
-        "index.mdx says the runtime puts the message under the `raw` key, and "
-        f"the request body is {str(payload)[:80]}"
-    )
-
-    raw = payload["raw"]
-    assert re.fullmatch(r"[A-Za-z0-9_-]+=*", raw), "the `raw` value is not base64url"
-    document = base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4)).decode()
-    assert "To: ada@example.com" in document
-    assert "Subject: Hi" in document
-    assert "MIME-Version: 1.0" in document
-
-
-def test_the_charter_tab_shows_the_model_only_the_email(monkeypatch):
-    """ "The model fills `to`, `subject` and `body`" is an egress claim."""
-    parameters = _build(monkeypatch).to_json_schema()["parameters"]
-
-    assert list(parameters["properties"]) == ["raw"]
-    # `raw` reaches the model as a reference into $defs, so the fields it
-    # actually offers are one hop away.
-    fields = set(parameters["$defs"]["EmailContent"]["properties"])
-    assert {"to", "subject", "body"} <= fields, (
-        f"index.mdx names to, subject and body; the model is shown {sorted(fields)}"
-    )
-    assert not fields & {"id", "threadId", "snippet", "payload", "labelIds"}, (
-        f"a response-only Gmail field reached the model's schema: {sorted(fields)}"
-    )
-
-
-def test_both_tabs_end_by_passing_the_same_dict_to_the_tool():
-    """Each side declares a tool and then calls it with the identical payload.
-
-    The Charter tab once ended in an `ainvoke` while the hand-written one
-    stopped at the function definition, which quietly rigged the comparison:
-    one side was paying for a call the other never made.
-
-    They now differ by one token, `raw=` against `**`, and that is the point.
-    The same JSON goes into both, so what the page is comparing is the plumbing
-    on either side of it and nothing else. This asserts the two dictionaries
-    are equal rather than merely similar, because "the model fills to, subject
-    and body either way" is only true if they are.
-    """
-    payloads = {}
-    for title in (WITH, WITHOUT):
-        body = _tab(INDEX, title)[1]
-        last = _final_statement(body)
-
-        assert isinstance(last, ast.Expr), (
-            f"the {title} block ends on a {type(last).__name__}, not a call"
-        )
-        call = last.value.value if isinstance(last.value, ast.Await) else last.value
-        assert isinstance(call, ast.Call), f"the {title} block does not end by calling anything"
-
-        dicts = [node for node in ast.walk(call) if isinstance(node, ast.Dict)]
-        assert len(dicts) == 1, (
-            f"the {title} block's final call passes {len(dicts)} dicts, and the "
-            f"page shows one payload going into both tabs"
-        )
-        payloads[title] = ast.literal_eval(dicts[0])
-
-    assert payloads[WITH] == payloads[WITHOUT], (
-        f"the two tabs send different payloads:\n"
-        f"  {WITH}: {payloads[WITH]}\n  {WITHOUT}: {payloads[WITHOUT]}"
-    )
-    assert set(payloads[WITH]) == {"to", "subject", "body"}, (
-        f"the caption names to, subject and body; the call sends {sorted(payloads[WITH])}"
-    )
-
-
-def test_both_tabs_call_the_same_endpoint(monkeypatch):
-    """The comparison is only a comparison if it is one tool shown twice."""
-    from charter.packs import gmail
-
-    tool = _build(monkeypatch)
-    _, handwritten = _tab(INDEX, WITHOUT)
-
-    assert tool.method == "POST"
-    assert tool.url_template == "gmail/v1/users/me/messages/send"
-    assert '.send(userId="me"' in handwritten, (
-        "the hand-written tab no longer calls users.messages.send"
-    )
-    # And the same endpoint the pack ships, so the front page is not declaring
-    # a tool that exists nowhere else on the site.
-    assert re.sub(r"\{[^}]+\}", "me", gmail.messages_send.url_template) == tool.url_template
 
 
 # --------------------------------------------------------------------------
@@ -475,63 +108,6 @@ def test_the_field_split_in_prose_matches_the_egress_map():
         f"why-charter.mdx states a field split the egress map no longer produces "
         f"(now {visible} visible, {withheld} withheld)"
     )
-
-
-def test_why_charter_describes_the_comparison_the_index_actually_shows():
-    """That page opens by telling the reader what is on the front page.
-
-    It is the one sentence on the site that goes stale when the landing page's
-    example changes, and it has nothing to do with the package, so no other
-    test would notice.
-    """
-    _, handwritten = _tab(INDEX, WITHOUT)
-    text = WHY.read_text()
-
-    assert "`users.messages.send`" in text, (
-        "why-charter.mdx names a different endpoint than the front page's "
-        "hand-written tab, which calls users.messages.send"
-    )
-    assert "declared with Charter" in text
-    assert "users.drafts.create" not in text, (
-        "why-charter.mdx still points at the drafts example the index dropped"
-    )
-    assert "googleapiclient" in handwritten, (
-        "why-charter.mdx calls the front page's example Google's documented one; "
-        "the hand-written tab no longer uses Google's client library"
-    )
-    assert "stored refresh token" in text, (
-        "why-charter.mdx no longer says where both tabs start from"
-    )
-
-
-def _environment_reads(body: str) -> set[str]:
-    """The names a block reads with os.environ["..."]."""
-    return set(re.findall(r'os\.environ\["([A-Z_]+)"\]', body))
-
-
-def test_both_tabs_start_from_the_same_grant():
-    """The comparison is only fair if neither side skips work the other does.
-
-    The hand-written tab used to be Google's quickstart, which runs the consent
-    flow in a local browser and refreshes and persists the token, while the
-    Charter tab read an access token from the environment that dies within the
-    hour. Two of the six steps were work the Charter side was not doing at all.
-    Both now start from the same stored grant and both renew it, so the steps
-    counted are the ones Charter actually removes.
-    """
-    declared = _environment_reads(_tab(INDEX, WITH)[1])
-    handwritten = _environment_reads(_tab(INDEX, WITHOUT)[1])
-
-    assert declared == handwritten == set(_GRANT), (
-        f"the tabs start from different credentials: {sorted(declared)} against "
-        f"{sorted(handwritten)}"
-    )
-    for title in (WITH, WITHOUT):
-        body = _tab(INDEX, title)[1]
-        for consent in ("InstalledAppFlow", "run_local_server", "OAuth2Flow", "ACCESS_TOKEN"):
-            assert consent not in body, (
-                f"the {title} tab uses {consent}, which the other side does not"
-            )
 
 
 def _quickstart_section(start: str, end: str) -> str:
@@ -751,18 +327,6 @@ def test_the_prompt_points_at_a_file_that_exists():
     assert target.is_file(), (
         f"the setup prompt fetches {url}, which no file backs (expected {target.relative_to(ROOT)})"
     )
-
-
-def test_the_markers_named_on_the_landing_page_are_the_ones_gmail_declares():
-    """Every marker the front page names is one the Gmail pack still uses."""
-    import charter.packs.gmail as gmail_pack
-
-    source = "\n".join(p.read_text() for p in FsPath(gmail_pack.__file__).parent.rglob("*.py"))
-    for marker in ('Format("rfc822_base64")', 'Mode("response_only")'):
-        assert marker in source, (
-            f"the docs name {marker} as part of the Gmail declaration, "
-            f"which the pack no longer contains"
-        )
 
 
 # --- the pack count, wherever the prose states it ----------------------------

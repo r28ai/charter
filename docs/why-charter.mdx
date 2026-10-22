@@ -27,7 +27,7 @@ Neither transform is clever. Both are the kind of thing that is tedious to write
 
 ## What the hand-written tool carries
 
-The [introduction](/) shows Google's documented Python example for `users.messages.send` beside the same tool declared with Charter, both started from the same stored refresh token. Everything the hand-written one carries and the declaration does not is integration code:
+Google's documented Python example for `users.messages.send` builds the email by hand before it sends it. Everything that example carries and a declaration does not is integration code:
 
 - **MIME assembly.** `EmailMessage`, the headers, the content type, and the `multipart/alternative` layout the moment a draft carries HTML alongside plain text.
 - **base64url.** Encoding the message bytes URL-safely, with the padding handled.

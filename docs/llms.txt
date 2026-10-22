@@ -1,6 +1,6 @@
 # Charter
 
-> Charter is an open-source Python tool-definition layer for agents. Wire tools by hand and you're hoping for the best, blind spots and all. Vendor toolkits, MCP servers and catalog platforms hand you someone else's. Charter lets you control every aspect of yours, and checks each call before it's sent. It works for any HTTP API, including your own internal ones.
+> Charter is an open-source Python tool-definition layer for agents. It lets you control every aspect of your tools, and checks each call before it's sent. It works for any HTTP API, public or private.
 
 ## For coding agents
 
