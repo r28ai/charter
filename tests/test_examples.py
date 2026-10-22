@@ -207,17 +207,10 @@ def test_hello_tool_shows_the_schema_then_what_was_sent(capsys):
     respx.route(host="httpbin.org").mock(side_effect=_echo)
     _load("basics/01_hello_tool")
     assert capsys.readouterr().out.splitlines() == [
-        "the model gets  create_event: Put a meeting on a calendar.",
-        "  calendar  string  required  Which calendar, e.g. 'primary'.",
-        "  notify    boolean           Email the attendees.",
-        "  title     string  required  What the meeting is about.",
-        "  start     string  required  When it starts.",
-        "  attendees array             Who to invite, by email.",
-        "",
-        "Charter sent    POST https://httpbin.org/anything/calendars/primary/events?notify=true",
-        "  body          {'title': 'Coffee with Ada', 'start': '2026-10-20T10:00:00', "
-        "'attendees': ['ada@example.com']}",
-        "  auth header   Bearer sk_live_123  (the model never saw it)",
+        "the model fills in ['calendarId', 'maxResults', 'timeMin']",
+        "Charter sent       GET https://httpbin.org/anything/calendars/primary/events"
+        "?maxResults=5&timeMin=2026-10-20T10%3A00%3A00",
+        "  auth header      Bearer sk_live_123  (the model never saw it)",
     ]
 
 
@@ -261,13 +254,10 @@ def test_the_offline_basics_print_what_they_promise(capsys):
     assert cleaner.endswith("https://mail.google.com/")
 
     _load("basics/09_rules_on_fields")
-    out = capsys.readouterr().out.splitlines()
-    assert out[5] == "  amount  Cents, not dollars: $15.00 is 1500, and 15 is 15 cents."
-    assert out[8:] == [
-        "cut amount, and its rule leaves with it:",
-        "  reason  Only fraudulent when the customer says the charge wasn't theirs.",
-        "while the system prompt would still say: Stripe amounts are in cents: $15.00 is 1500.",
-    ]
+    amount, cut = capsys.readouterr().out.splitlines()
+    assert amount.startswith("the model reads on amount: A positive integer")
+    assert amount.endswith("Cents, not dollars: $15.00 is 1500, and 15 is 15 cents.")
+    assert cut == "cut amount, and its rule leaves too: ['charge', 'reason']"
 
 
 @respx.mock

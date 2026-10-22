@@ -16,9 +16,11 @@ FRESH_OR_CONTINUE = (
 
 class ListEvents(BaseModel):
     max_results: Annotated[int, Query()] = Field(10, ge=1, le=250)
-    q: Annotated[Optional[str], Query(), ConflictsWith("sync_token", reason=FRESH_OR_CONTINUE)] = (
-        None
-    )
+    q: Annotated[
+        Optional[str],
+        Query(),
+        ConflictsWith("sync_token", reason=FRESH_OR_CONTINUE),
+    ] = None
     sync_token: Annotated[Optional[str], Query()] = None
 
 

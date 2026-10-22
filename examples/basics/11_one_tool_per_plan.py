@@ -13,8 +13,16 @@ from charter import Body, Mode, Path, ToolValidationError, api_key_tool_factory
 class CreateReport(BaseModel):
     account_id: Annotated[str, Path()]
     metric: Annotated[str, Body()] = Field(description="The metric to report on.")
-    raw_events: Annotated[Optional[bool], Body(), Mode("pro, max")] = None
-    forecast_months: Annotated[Optional[int], Body(), Mode("max")] = None
+    raw_events: Annotated[
+        Optional[bool],
+        Body(),
+        Mode("pro, max"),
+    ] = None
+    forecast_months: Annotated[
+        Optional[int],
+        Body(),
+        Mode("max"),
+    ] = None
 
 
 reports = api_key_tool_factory(

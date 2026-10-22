@@ -20,9 +20,11 @@ A tool for an API Charter has never seen, with your own rules on it. [httpbin.or
 
     class CreateRefund(BaseModel):
         charge: Annotated[str, Body()] = Field(description="The charge to refund.")
-        amount: Annotated[int, Body(), Gloss("Cents, not dollars: $15.00 is 1500.")] = Field(
-            gt=0, le=10_000, description="How much to refund, in the smallest currency unit."
-        )
+        amount: Annotated[
+            int,
+            Body(),
+            Gloss("Cents, not dollars: $15.00 is 1500."),
+        ] = Field(gt=0, le=10_000, description="How much to refund, in the smallest currency unit.")
         reason: Annotated[Literal["duplicate", "requested_by_customer"], Body()] = Field(
             description="Why the charge is being refunded."
         )

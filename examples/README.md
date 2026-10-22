@@ -25,7 +25,7 @@ Start at the top. None of these needs a key or an account.
 
 | | what it shows |
 |---|---|
-| [`01_hello_tool.py`](basics/01_hello_tool.py) | Declare one API call, see what the model gets, make the call |
+| [`01_hello_tool.py`](basics/01_hello_tool.py) | Declare one API call, see what the model gets, make the call: `max_results` goes out as the `maxResults` Google wants |
 | [`02_wire_formats.py`](basics/02_wire_formats.py) | The model fills in an email; Charter writes the base64 MIME the API wants |
 | [`03_errors_for_the_model.py`](basics/03_errors_for_the_model.py) | A wrong argument is refused before sending, with a message the model can act on |
 | [`04_trim_responses.py`](basics/04_trim_responses.py) | Do nothing and the model gets the whole response; write a handler and it gets what it needs |

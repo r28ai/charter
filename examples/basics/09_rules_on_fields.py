@@ -6,15 +6,13 @@ from pydantic import BaseModel, Field
 
 from charter import Body, Gloss, api_key_tool_factory
 
-SYSTEM_PROMPT = """You handle refunds.
-- Stripe amounts are in cents: $15.00 is 1500.
-- Only use reason=fraudulent when the customer says the charge wasn't theirs."""
-
 
 class CreateRefund(BaseModel):
     charge: Annotated[str, Body()] = Field(description="The identifier of the charge to refund.")
     amount: Annotated[
-        Optional[int], Body(), Gloss("Cents, not dollars: $15.00 is 1500, and 15 is 15 cents.")
+        Optional[int],
+        Body(),
+        Gloss("Cents, not dollars: $15.00 is 1500, and 15 is 15 cents."),
     ] = Field(
         None,
         description="A positive integer in the smallest currency unit representing how much "
@@ -41,30 +39,18 @@ refund = stripe(
     args_schema=CreateRefund,
 )
 
-
-def rules_on(tool) -> None:
-    """What the model reads on each field after Stripe's own description: the Gloss."""
-    for name, field in tool.to_json_schema()["parameters"]["properties"].items():
-        stripes = CreateRefund.model_fields[name].description or ""
-        if rule := field["description"].removeprefix(stripes).strip():
-            print(f"  {name:7} {rule}")
-
-
-print("before, in the system prompt:")
-print(*(f"  {line}" for line in SYSTEM_PROMPT.splitlines()[1:]), sep="\n")
-print("\nafter, on each field, right after Stripe's own description:")
-rules_on(refund)
-print("\ncut amount, and its rule leaves with it:")
-rules_on(refund.derived(name="refund_in_full", drop={"amount"}))
-print("while the system prompt would still say:", SYSTEM_PROMPT.splitlines()[1][2:])
-# before, in the system prompt:
-#   - Stripe amounts are in cents: $15.00 is 1500.
-#   - Only use reason=fraudulent when the customer says the charge wasn't theirs.
+amount = refund.to_json_schema()["parameters"]["properties"]["amount"]
+print("the model reads on amount:", amount["description"])
+# the model reads on amount: A positive integer in the smallest currency unit representing how
+# much to refund. Defaults to the entire charge. Cents, not dollars: $15.00 is 1500, and 15 is
+# 15 cents.
 #
-# after, on each field, right after Stripe's own description:
-#   amount  Cents, not dollars: $15.00 is 1500, and 15 is 15 cents.
-#   reason  Only fraudulent when the customer says the charge wasn't theirs.
+# Stripe's own words first, then your Gloss, on the field it's about.
+
+refund_in_full = refund.derived(name="refund_in_full", drop={"amount"})
+fields_left = list(refund_in_full.to_json_schema()["parameters"]["properties"])
+print("cut amount, and its rule leaves too:", fields_left)
+# cut amount, and its rule leaves too: ['charge', 'reason']
 #
-# cut amount, and its rule leaves with it:
-#   reason  Only fraudulent when the customer says the charge wasn't theirs.
-# while the system prompt would still say: Stripe amounts are in cents: $15.00 is 1500.
+# Written in the system prompt, "amounts are in cents" would stay behind after the cut,
+# a rule about a field the model no longer has.

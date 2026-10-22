@@ -13,7 +13,11 @@ from charter import Body, EmailContent, Format, api_key_tool_factory
 
 
 class SendEmail(BaseModel):
-    raw: Annotated[EmailContent, Body(envelop=True), Format("rfc822_base64")]
+    raw: Annotated[
+        EmailContent,
+        Body(envelop=True),
+        Format("rfc822_base64"),
+    ]
 
 
 mail_api = api_key_tool_factory(
