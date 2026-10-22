@@ -1,31 +1,23 @@
 # Examples
 
-Each file shows one thing and keeps what a real run printed in comments under its
-`print`s. Most need nothing: free public APIs (httpbin.org, JSONPlaceholder, a public
-GraphQL API) play your API.
+Each script shows one thing, with what a real run printed in comments under its `print`s.
 
 ```bash
 pip install charter-ai
 python examples/basics/01_hello_tool.py
-```
 
-Or run one straight from its URL, with nothing installed:
-
-```bash
+# or straight from its URL, with nothing installed
 uv run --with charter-ai https://raw.githubusercontent.com/r28ai/charter/main/examples/basics/01_hello_tool.py
 ```
 
-An example that calls a real API says what it needs on its first line, `# Needs GITHUB_TOKEN.`
-for instance, and reads the key from the environment: `export GITHUB_TOKEN=...`, or
-`set -a; source .env; set +a` to load a `.env`.
-
 ## Basics
 
-Start at the top. None of these needs a key or an account.
+Start at the top. None of these needs a key or an account: free public APIs (httpbin.org,
+JSONPlaceholder, a public GraphQL API) play your API.
 
 | | what it shows |
 |---|---|
-| [`01_hello_tool.py`](basics/01_hello_tool.py) | Declare one API call, see what the model gets, make the call: `max_results` goes out as the `maxResults` Google wants |
+| [`01_hello_tool.py`](basics/01_hello_tool.py) | Declare one API call and make it: `max_results` goes out as Google's `maxResults` |
 | [`02_wire_formats.py`](basics/02_wire_formats.py) | The model fills in an email; Charter writes the base64 MIME the API wants |
 | [`03_errors_for_the_model.py`](basics/03_errors_for_the_model.py) | A wrong argument is refused before sending, with a message the model can act on |
 | [`04_trim_responses.py`](basics/04_trim_responses.py) | Do nothing and the model gets the whole response; write a handler and it gets what it needs |
@@ -41,7 +33,8 @@ Start at the top. None of these needs a key or an account.
 
 ## Connect an account
 
-Yours, or each of your users', by OAuth or by API key.
+Yours, or each of your users', by OAuth or by API key. These call real APIs: each says what it
+needs on its first line, `# Needs GITHUB_TOKEN.` for instance, and reads it from the environment.
 
 | | OAuth | API key |
 |---|---|---|
@@ -56,10 +49,10 @@ GitHub token: GitHub sends 346.6 KB, the pack hands on 10.7 KB. Turn that off, o
 
 ## Frameworks
 
-[`openai_loop.py`](frameworks/openai_loop.py) gives tools to any OpenAI-compatible model with
-Charter's own loop, no framework (needs a model key).
-[`langchain_agent.py`](frameworks/langchain_agent.py) puts Charter tools in a LangChain
-agent. [`mcp_server.py`](frameworks/mcp_server.py) serves them over MCP.
+- [`openai_loop.py`](frameworks/openai_loop.py): tools for any OpenAI-compatible model, with
+  Charter's own loop and no framework (needs a model key)
+- [`langchain_agent.py`](frameworks/langchain_agent.py): Charter tools in a LangChain agent
+- [`mcp_server.py`](frameworks/mcp_server.py): the same tools served over MCP
 
 ## Full agents built on Charter
 
