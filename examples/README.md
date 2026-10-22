@@ -21,25 +21,23 @@ for instance, and reads the key from the environment: `export GITHUB_TOKEN=...`,
 
 ## Basics
 
-Start at the top.
+Start at the top. None of these needs a key or an account.
 
-| | what it shows | needs |
-|---|---|---|
-| [`01_hello_tool.py`](basics/01_hello_tool.py) | Declare one API call, see what the model gets, make the call | nothing |
-| [`02_use_a_pack.py`](basics/02_use_a_pack.py) | A tool that ships with Charter: GitHub sends 346.6 KB, the pack hands on 10.7 KB. Turn that off, or parse it your way | GitHub |
-| [`03_hand_to_a_model.py`](basics/03_hand_to_a_model.py) | Give tools to a model with Charter's own loop, no framework | a model key |
-| [`04_wire_formats.py`](basics/04_wire_formats.py) | The model fills in an email; Charter writes the base64 MIME the API wants | nothing |
-| [`05_errors_for_the_model.py`](basics/05_errors_for_the_model.py) | A wrong argument is refused before sending, with a message the model can act on | nothing |
-| [`06_trim_responses.py`](basics/06_trim_responses.py) | Do nothing and the model gets the whole response; write a handler and it gets what it needs | nothing |
-| [`07_catch_failed_200s.py`](basics/07_catch_failed_200s.py) | A GraphQL API's `200` with an `errors` list raises instead of reading as a success | nothing |
-| [`08_cut_a_tool.py`](basics/08_cut_a_tool.py) | 33 kinds of Docs edit behind one URL, cut to the 3 that edit text | nothing |
-| [`09_price_a_tool.py`](basics/09_price_a_tool.py) | Find the field that makes a tool expensive: 44,828 of 45,072 tokens | nothing |
-| [`10_many_tools.py`](basics/10_many_tools.py) | All 613 tools in one session: 471,451 tokens up front, 4,476 on the first turn | nothing |
-| [`11_rules_on_fields.py`](basics/11_rules_on_fields.py) | Rules on their fields instead of in the system prompt, gone when the field is cut | nothing |
-| [`12_pin_a_value.py`](basics/12_pin_a_value.py) | A value the model can neither see nor set | nothing |
-| [`13_one_tool_per_plan.py`](basics/13_one_tool_per_plan.py) | The same call refused on free, refused on pro, sent on max | nothing |
-| [`14_scopes_from_tools.py`](basics/14_scopes_from_tools.py) | The OAuth scopes to ask your users for, computed from the tools you hand out | nothing |
-| [`15_review_the_boundary.py`](basics/15_review_the_boundary.py) | What the agent can touch, as a diff: a new tool, a dropped pin | nothing |
+| | what it shows |
+|---|---|
+| [`01_hello_tool.py`](basics/01_hello_tool.py) | Declare one API call, see what the model gets, make the call |
+| [`02_wire_formats.py`](basics/02_wire_formats.py) | The model fills in an email; Charter writes the base64 MIME the API wants |
+| [`03_errors_for_the_model.py`](basics/03_errors_for_the_model.py) | A wrong argument is refused before sending, with a message the model can act on |
+| [`04_trim_responses.py`](basics/04_trim_responses.py) | Do nothing and the model gets the whole response; write a handler and it gets what it needs |
+| [`05_catch_failed_200s.py`](basics/05_catch_failed_200s.py) | A GraphQL API's `200` with an `errors` list raises instead of reading as a success |
+| [`06_cut_a_tool.py`](basics/06_cut_a_tool.py) | 33 kinds of Docs edit behind one URL, cut to the 3 that edit text |
+| [`07_price_a_tool.py`](basics/07_price_a_tool.py) | Find the field that makes a tool expensive: 44,828 of 45,072 tokens |
+| [`08_many_tools.py`](basics/08_many_tools.py) | All 613 tools in one session: 471,451 tokens up front, 4,476 on the first turn |
+| [`09_rules_on_fields.py`](basics/09_rules_on_fields.py) | Rules on their fields instead of in the system prompt, gone when the field is cut |
+| [`10_pin_a_value.py`](basics/10_pin_a_value.py) | A value the model can neither see nor set |
+| [`11_one_tool_per_plan.py`](basics/11_one_tool_per_plan.py) | The same call refused on free, refused on pro, sent on max |
+| [`12_scopes_from_tools.py`](basics/12_scopes_from_tools.py) | The OAuth scopes to ask your users for, computed from the tools you hand out |
+| [`13_review_the_boundary.py`](basics/13_review_the_boundary.py) | What the agent can touch, as a diff: a new tool, a dropped pin |
 
 ## Connect an account
 
@@ -53,8 +51,13 @@ Yours, or each of your users', by OAuth or by API key.
 [`users_refresh.py`](connect/users_refresh.py) keeps each user's Google grant fresh: Charter
 refreshes an expired token and hands you the new one to store.
 
+[`use_a_pack.py`](connect/use_a_pack.py) calls a tool that ships with Charter, with your own
+GitHub token: GitHub sends 346.6 KB, the pack hands on 10.7 KB. Turn that off, or parse it your way.
+
 ## Frameworks
 
+[`openai_loop.py`](frameworks/openai_loop.py) gives tools to any OpenAI-compatible model with
+Charter's own loop, no framework (needs a model key).
 [`langchain_agent.py`](frameworks/langchain_agent.py) puts Charter tools in a LangChain
 agent. [`mcp_server.py`](frameworks/mcp_server.py) serves them over MCP.
 

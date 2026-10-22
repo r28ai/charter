@@ -88,10 +88,10 @@ def test_what_an_example_needs_is_on_its_first_line():
 
 
 def test_a_basic_needs_nothing_but_charter():
-    """Each basic shows one thing about Charter. The model example adds a client to call."""
+    """Each basic shows one thing about Charter, and runs with no key: no model client, no SDK."""
     allowed = {"asyncio", "base64", "datetime", "importlib", "json", "logging", "os", "pkgutil",
                "sys", "textwrap", "typing", "pydantic",
-               "httpx", "charter", "openai"}  # fmt: skip
+               "httpx", "charter"}  # fmt: skip
     for path in (EXAMPLES / "basics").glob("*.py"):
         tree = ast.parse(path.read_text())
         imported = {
@@ -102,6 +102,14 @@ def test_a_basic_needs_nothing_but_charter():
             if isinstance(node, ast.Import) for alias in node.names
         }  # fmt: skip
         assert imported <= allowed, f"{path.name} imports {imported - allowed}"
+
+
+def test_no_basic_needs_a_key():
+    """examples/README.md and the README promise the basics run with nothing set up, in order.
+    An example that needs a key belongs in connect/ or frameworks/, where its first line says so."""
+    for path in (EXAMPLES / "basics").glob("*.py"):
+        first = path.read_text().splitlines()[0]
+        assert not first.startswith("# Needs"), f"{path.name}: {first}"
 
 
 def test_no_example_shadows_a_package_it_imports():
@@ -158,27 +166,27 @@ def test_every_example_is_listed_and_run_below():
     with the API it calls mocked. A new file has to be added here, and given one."""
     assert _names() == [
         "basics/01_hello_tool",
-        "basics/02_use_a_pack",
-        "basics/03_hand_to_a_model",
-        "basics/04_wire_formats",
-        "basics/05_errors_for_the_model",
-        "basics/06_trim_responses",
-        "basics/07_catch_failed_200s",
-        "basics/08_cut_a_tool",
-        "basics/09_price_a_tool",
-        "basics/10_many_tools",
-        "basics/11_rules_on_fields",
-        "basics/12_pin_a_value",
-        "basics/13_one_tool_per_plan",
-        "basics/14_scopes_from_tools",
-        "basics/15_review_the_boundary",
+        "basics/02_wire_formats",
+        "basics/03_errors_for_the_model",
+        "basics/04_trim_responses",
+        "basics/05_catch_failed_200s",
+        "basics/06_cut_a_tool",
+        "basics/07_price_a_tool",
+        "basics/08_many_tools",
+        "basics/09_rules_on_fields",
+        "basics/10_pin_a_value",
+        "basics/11_one_tool_per_plan",
+        "basics/12_scopes_from_tools",
+        "basics/13_review_the_boundary",
         "connect/my_api_keys",
         "connect/my_google",
+        "connect/use_a_pack",
         "connect/users_api_keys",
         "connect/users_oauth",
         "connect/users_refresh",
         "frameworks/langchain_agent",
         "frameworks/mcp_server",
+        "frameworks/openai_loop",
     ]
 
 
@@ -220,7 +228,7 @@ def test_use_a_pack_trims_then_hands_back_everything_then_parses(monkeypatch, ca
     route = respx.get(f"{GITHUB}/repos/r28ai/charter/actions/runs").respond(
         json={"total_count": 2, "workflow_runs": runs}
     )
-    _load("basics/02_use_a_pack")
+    _load("connect/use_a_pack")
     latest, parsed = capsys.readouterr().out.splitlines()
     assert latest == "Latest CI run: CI #108, success"
     assert parsed == "['#108 success', '#107 success']"
@@ -228,18 +236,18 @@ def test_use_a_pack_trims_then_hands_back_everything_then_parses(monkeypatch, ca
 
 
 def test_the_offline_basics_print_what_they_promise(capsys):
-    _load("basics/08_cut_a_tool")
+    _load("basics/06_cut_a_tool")
     assert capsys.readouterr().out.splitlines() == [
         "both tools call  POST v1/documents/{document_id}:batchUpdate",
         "full            33 kinds of edit",
         "edit_text       replace_all_text, insert_text, delete_content_range",
     ]
 
-    _load("basics/09_price_a_tool")
+    _load("basics/07_price_a_tool")
     out = capsys.readouterr().out
     assert out.startswith("linear.issues_list_full costs 45,072 tokens") and "filter" in out
 
-    _load("basics/12_pin_a_value")
+    _load("basics/10_pin_a_value")
     sets, never = capsys.readouterr().out.splitlines()
     assert sets.startswith("the model sets  page_size")
     assert never == (
@@ -247,12 +255,12 @@ def test_the_offline_basics_print_what_they_promise(capsys):
         "\"mimeType='application/vnd.google-apps.document'\""
     )
 
-    _load("basics/14_scopes_from_tools")
+    _load("basics/12_scopes_from_tools")
     reader, cleaner = capsys.readouterr().out.splitlines()
     assert reader == "a reader  asks for  gmail.modify, calendar.events"
     assert cleaner.endswith("https://mail.google.com/")
 
-    _load("basics/11_rules_on_fields")
+    _load("basics/09_rules_on_fields")
     out = capsys.readouterr().out.splitlines()
     assert out[5] == "  amount  Cents, not dollars: $15.00 is 1500, and 15 is 15 cents."
     assert out[8:] == [
@@ -267,7 +275,7 @@ def test_one_tool_per_plan_refuses_then_sends_the_same_call(capsys):
     echo = respx.post("https://httpbin.org/anything/accounts/acc_42/reports").mock(
         side_effect=_echo
     )
-    _load("basics/13_one_tool_per_plan")
+    _load("basics/11_one_tool_per_plan")
     free, pro, sent = capsys.readouterr().out.splitlines()
     assert free == "free  refused  raw_events, forecast_months"
     assert pro == "pro   refused  forecast_months"
@@ -283,7 +291,7 @@ def test_one_tool_per_plan_refuses_then_sends_the_same_call(capsys):
 def test_catch_failed_200s_raises_on_graphqls_errors(capsys):
     errors = {"errors": [{"message": 'Cannot query field "population" on type "Country".'}]}
     route = respx.post("https://countries.trevorblades.com/graphql").respond(200, json=errors)
-    _load("basics/07_catch_failed_200s")
+    _load("basics/05_catch_failed_200s")
     trusting, blank, enveloped = capsys.readouterr().out.splitlines()
     assert blank == ""
     assert trusting == "without the envelope: no error, the call returned ['errors']"
@@ -297,7 +305,7 @@ def test_trim_responses_does_nothing_then_keeps_what_matters(capsys):
     user = {"id": 1, "name": "Leanne Graham", "email": "Sincere@april.biz",
             "address": {"geo": {"lat": "-37.3159"}}, "company": {"name": "Romaguera-Crona"}}  # fmt: skip
     respx.get("https://jsonplaceholder.typicode.com/users").respond(json=[user])
-    _load("basics/06_trim_responses")
+    _load("basics/04_trim_responses")
     nothing, handled = capsys.readouterr().out.splitlines()
     assert nothing.startswith("do nothing:") and "address" in nothing
     assert handled.startswith("with a handler:") and handled.endswith("fields name, email, company")
@@ -327,7 +335,7 @@ def test_hand_to_a_model_runs_the_loop(monkeypatch, capsys):
             turn({"content": "12."}),
         ]
     )
-    module = _load("basics/03_hand_to_a_model")
+    module = _load("frameworks/openai_loop")
     # The client's own transport is out of respx's reach; a plain httpx client isn't.
     from openai import AsyncOpenAI
 
@@ -466,7 +474,7 @@ def test_users_oauth_example_connects_calls_and_disconnects(github_app, packs_re
 @respx.mock
 def test_wire_formats_turns_an_email_into_base64_mime(capsys):
     respx.route(host="httpbin.org").mock(side_effect=_echo)
-    _load("basics/04_wire_formats")
+    _load("basics/02_wire_formats")
     out = capsys.readouterr().out
     assert out.startswith("the model fills in  to, subject, body")
     assert "To: ada@example.com" in out and "Subject: Lunch?" in out
@@ -476,7 +484,7 @@ def test_wire_formats_turns_an_email_into_base64_mime(capsys):
 def test_errors_for_the_model_are_refused_before_sending(capsys):
     with respx.mock(assert_all_called=False) as router:
         sent = router.route(host="httpbin.org")
-        _load("basics/05_errors_for_the_model")
+        _load("basics/03_errors_for_the_model")
     out = capsys.readouterr().out
     assert "(got 'ten')" in out
     assert "q cannot be combined with syncToken" in out and "Drop syncToken" in out
@@ -484,7 +492,7 @@ def test_errors_for_the_model_are_refused_before_sending(capsys):
 
 
 def test_many_tools_sends_one_search_tool_first(capsys):
-    _load("basics/10_many_tools")
+    _load("basics/08_many_tools")
     every, first, searched = capsys.readouterr().out.splitlines()
     tokens = lambda line: int(line.split("tokens")[0].split()[-1].replace(",", ""))  # noqa: E731
     assert tokens(first) < tokens(searched) < tokens(every)
@@ -492,7 +500,7 @@ def test_many_tools_sends_one_search_tool_first(capsys):
 
 
 def test_review_the_boundary_names_what_widened(capsys):
-    _load("basics/15_review_the_boundary")
+    _load("basics/13_review_the_boundary")
     assert capsys.readouterr().out.splitlines() == [
         "gdrive_search_docs    the model can now set q",
         "gmail_messages_send   new tool",
