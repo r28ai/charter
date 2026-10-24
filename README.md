@@ -128,7 +128,7 @@ It can fix the call or stop; Charter never improvises.
 | On Composio or Zapier | Tools you own, with no per-call fees, and your users' data stays on your servers ([how it compares](#how-charter-compares)) |
 | Writing tool glue by hand | Catches the bugs hand-written glue lets through: a bad argument is [refused before it's sent](#quickstart), and an [`Envelope`](https://docs.r28.ai/charter/reference/envelopes-and-pagination#envelope) raises when a `200` is really a failure |
 | Running a small or open model | Tools cut down to the fields the job needs ([`derived`](https://docs.r28.ai/charter/tools/projections)), and a one-line hint on the exact field it keeps getting wrong ([`Gloss`](https://docs.r28.ai/charter/reference/markers#gloss)) |
-| Facing a security review | What the agent can see and send, enforced in code and diffed in review: values it can't see or change ([`pin`](https://docs.r28.ai/charter/tools/projections#pin)), fields per pricing tier or region ([`Mode`](https://docs.r28.ai/charter/boundary/mode-system)), OAuth scopes worked out from the tools you hand out ([`scopes_for`](https://docs.r28.ai/charter/reference/oauth#scopes_for)), and a list of everything each tool can reach ([`egress_map`](https://docs.r28.ai/charter/reference/observability#egress_map)) |
+| Facing a security review | What the agent can see and send, enforced in code and diffed in review: values it can't see or change ([`pin`](https://docs.r28.ai/charter/tools/projections#pin)), fields per pricing tier or region ([`Mode`](https://docs.r28.ai/charter/boundary/mode-system)), OAuth scopes worked out from the tools you hand out ([`scopes_for`](https://docs.r28.ai/charter/auth/permissions)), and a list of everything each tool can reach ([`egress_map`](https://docs.r28.ai/charter/reference/observability#egress_map)) |
 
 ## Examples
 
@@ -232,7 +232,7 @@ tool instead ([methodology](https://docs.r28.ai/charter/guarantees/measured-resu
 from charter.auth import scopes_for
 from charter.packs import gmail
 
-scopes_for([gmail.messages_list])    # ['https://www.googleapis.com/auth/gmail.modify']
+scopes_for([gmail.messages_list])    # ['https://www.googleapis.com/auth/gmail.readonly']
 scopes_for([gmail.threads_delete])   # ['https://mail.google.com/']
 ```
 

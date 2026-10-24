@@ -142,6 +142,7 @@ instead wants read/write on Issues, Pull requests, Contents and Metadata.
 
 ```python Without the pack
 from charter import oauth_tool_factory
+from charter.auth import Kind, ScopeRefusal
 
 github_api_client = oauth_tool_factory(
     # except releases_upload_asset, which uses a different host
@@ -149,7 +150,6 @@ github_api_client = oauth_tool_factory(
     provider="github",
     credential_provider=credentials,
     pack="github",
-    scopes=["repo", "read:user"],
     # except releases_upload_asset
     body_format="json",
     query_format="repeat",
@@ -164,6 +164,23 @@ github_api_client = oauth_tool_factory(
     },
     # this API reports failure with an HTTP status code
     envelope=None,
+    scope_refusals=[
+        ScopeRefusal(
+            status={403, 404},
+            needed_header="x-accepted-oauth-scopes",
+            held_header="x-oauth-scopes",
+        ),
+        ScopeRefusal(
+            status=403,
+            signal=r"Resource not accessible by integration",
+            kind=Kind("app", provider="github", granted="configured"),
+        ),
+        ScopeRefusal(
+            status=403,
+            signal=r"Resource not accessible by personal access token",
+            kind=Kind("fine_grained", provider="github", granted="configured"),
+        ),
+    ],
 )
 ```
 

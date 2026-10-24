@@ -16,6 +16,10 @@ from charter.packs import firecrawl
 result = asyncio.run(firecrawl.batch_scrape_cancel.ainvoke({"id": ...}))
 ```
 
+<Note>
+  With `firecrawl.RESTRICTED_KEY`, requires `batch-scrape`.
+</Note>
+
 ## Path parameters
 
 <div className="reference-table">

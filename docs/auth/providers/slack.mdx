@@ -97,30 +97,30 @@ product.
 
 ## Scopes
 
-The tools that read, post and react share eleven bot scopes — `chat:write`,
-the four `*:read` and four `*:history` scopes conversations need, `users:read`
-and `reactions:write`. Five tools need others, and declare only those:
-`reactions_get` needs `reactions:read`, `conversations_open` needs `im:write`
-and `mpim:write`, `conversations_create` needs `channels:manage` and
-`groups:write`, `conversations_invite` needs `channels:write.invites` and
-`groups:write.invites`, and `conversations_join` needs `channels:join`.
-[`scopes_for`](/reference/oauth#scopes_for) collects the scopes of the tools
-you pass it, so the request is only as wide as the tools you hand a model:
+Each tool declares the scopes its method page lists, for a bot token and for a
+user token: one per kind of conversation where the method reaches several, so a
+tool that reads public and private channels alike asks for one of each.
+[`scopes_for`](/reference/oauth#scopes_for) collects them for the tools you
+pass it, so the request is only as wide as the tools you hand a model:
 
 ```python slack_scopes.py
 from charter.auth import scopes_for
 from charter.packs import slack
 
-BOT_SCOPES = scopes_for(slack.TOOLS)
+scopes_for([slack.chat_post_message])   # ['chat:write']
+
+BOT_SCOPES = slack.SCOPES               # every tool a bot token can call
+USER_SCOPES = slack.USER_SCOPES         # every tool, with a user token
 ```
 
-Two things that list will not tell you:
-
 **`search_messages` needs a user token.** Slack's `search.messages` cannot be
-called with a bot token at all; it wants a user token carrying `search:read`.
-That scope is not in `slack.SCOPES`, and [`scopes_for(slack.TOOLS)`](/reference/oauth#scopes_for) reports the
-eleven shared bot scopes for that tool too. Ask for it explicitly, or
-accept that one of the eighteen tools will fail with `not_allowed_token_type`.
+called with a bot token at all, so `scopes_for(slack.TOOLS)` refuses and names
+it, and `scopes_for([slack.search_messages], kind=slack.USER)` is
+`['search:read']`. A user token also differs on two other methods: joining a
+channel takes `channels:write` rather than `channels:join`, and creating one
+`channels:write` rather than `channels:manage`. Called with a bot token anyway,
+search raises [`InsufficientScope`](/reference/errors#insufficientscope) with
+`kind` `slack.USER`; a missing scope raises it with Slack's own `needed`.
 
 **Slack splits scopes across two parameters.** `scope` asks for bot scopes;
 user-token scopes go in a separate `user_scope`. [`authorize()`](/reference/oauth#oauth2flow-authorize) puts your scopes
@@ -137,6 +137,7 @@ flow = OAuth2Flow(
 )
 
 request = flow.authorize(BOT_SCOPES, extra_params={"user_scope": "search:read"})
+# or every user scope: extra_params={"user_scope": ",".join(slack.USER_SCOPES)}
 ```
 
 A constant `user_scope` can live in the server's `authorization_params` instead,

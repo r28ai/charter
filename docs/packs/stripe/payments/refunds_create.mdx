@@ -16,6 +16,10 @@ from charter.packs import stripe
 result = asyncio.run(stripe.refunds_create.ainvoke({"paymentIntent": ...}))
 ```
 
+<Note>
+  With `stripe.RESTRICTED_KEY`, requires `charge_write`.
+</Note>
+
 ## Body
 
 <div className="reference-table">

@@ -109,7 +109,7 @@ Known limits, named rather than hidden:
 
 from __future__ import annotations
 
-from charter.auth import CredentialProvider
+from charter.auth import AnyOf, CredentialProvider, Kind, ScopeRefusal, Unavailable, scopes_for
 from charter.factories import oauth_tool_factory
 from charter.packs._config import DeferredCredentialProvider
 from charter.packs.github.response_handlers import (
@@ -328,9 +328,347 @@ GITHUB_HEADERS = {
     "User-Agent": "charter",
 }
 
-# The scopes these tools need on a classic PAT. A fine-grained token instead
-# needs read/write on Issues, Pull requests, Contents and Metadata.
-SCOPES = ["repo", "read:user"]
+# GitHub issues three kinds of credential, and the names a tool needs differ by
+# kind. An OAuth app's grant and a classic token carry scopes, asked for on the
+# consent screen. A GitHub App and a fine-grained token carry permissions, set
+# where the app or the token is created: an installation token acts as the app,
+# and a fine-grained token or an app's user access token acts as a user, which a
+# few endpoints serve only to.
+OAUTH = Kind(
+    "oauth",
+    provider="github",
+    default=True,
+    description="An OAuth app's grant or a classic personal access token, which carry scopes.",
+)
+APP = Kind(
+    "app",
+    provider="github",
+    granted="configured",
+    description=(
+        "A GitHub App installation token, which acts as the app; its permissions are "
+        "set on the app."
+    ),
+)
+FINE_GRAINED = Kind(
+    "fine_grained",
+    provider="github",
+    granted="configured",
+    description=(
+        "A fine-grained personal access token, or a GitHub App's user access token, "
+        "which act as a user; their permissions are set on the token or the app."
+    ),
+)
+
+# Scopes, for OAUTH: from the sentence GitHub's REST reference gives each
+# endpoint ("need the `repo` scope") and from
+# https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps.
+# A public repository needs no scope to read and `public_repo` to write, but a
+# private one needs `repo` for both, so every repository tool asks for `repo`:
+# `public_repo` reaches only part of what the tools can name. An agent that only
+# works on public repositories can say so with `tool.derived(scopes=["public_repo"])`.
+# GitHub also wants `workflow` for a write that adds or changes a file under
+# .github/workflows; no tool asks for it, because almost no write does that.
+REPO = "repo"
+SECURITY = AnyOf("security_events", REPO)
+NOTIFICATIONS = AnyOf("notifications", REPO)
+USER = AnyOf("read:user", "user")
+
+
+# Permissions, for APP and FINE_GRAINED, spelled as GitHub's
+# `X-Accepted-GitHub-Permissions` header spells them. Each tool's are what that
+# header named for it on 2026-10-24 (scripts/live_github_scopes_check.py --kind
+# fine_grained), where `a; b` is either and `a,b` is both. Write access to a
+# permission includes read, so a read accepts either.
+def _reads(permission: str) -> AnyOf:
+    return AnyOf(f"{permission}=read", f"{permission}=write")
+
+
+METADATA = "metadata=read"
+ISSUES_READ = _reads("issues")
+ISSUES_WRITE = "issues=write"
+PULLS_READ = _reads("pull_requests")
+PULLS_WRITE = "pull_requests=write"
+CONTENTS_READ = _reads("contents")
+CONTENTS_WRITE = "contents=write"
+ACTIONS_READ = _reads("actions")
+ACTIONS_WRITE = "actions=write"
+CHECKS_READ = _reads("checks")
+SECRETS_READ = _reads("secrets")
+DEPLOYMENTS_WRITE = "deployments=write"
+ADMINISTRATION_READ = _reads("administration")
+DEPENDABOT_READ = _reads("vulnerability_alerts")
+DEPENDABOT_WRITE = "vulnerability_alerts=write"
+CODE_SCANNING_READ = _reads("security_events")
+SECRET_SCANNING_READ = _reads("secret_scanning_alerts")
+# A repository's labels and milestones serve its issues and its pull requests
+# alike, and GitHub takes either permission for them. An endpoint on one issue
+# also takes `pull_requests`, but only when the number is a pull request's, so
+# those ask for `issues`: the alternative must reach every number the tool takes.
+LABELS_READ = AnyOf("issues=read", "issues=write", "pull_requests=read", "pull_requests=write")
+LABELS_WRITE = AnyOf("issues=write", "pull_requests=write")
+# A pull request reads with either its own permission or the repository's code.
+PULL_READ = AnyOf("pull_requests=read", "pull_requests=write", "contents=read", "contents=write")
+# A fork is both of `administration=write,contents=read` or of
+# `contents=read,repository_creation=write`, which is `contents=read` and either.
+FORK = [CONTENTS_READ, AnyOf("repository_creation=write", "administration=write")]
+
+_NO_NOTIFICATIONS = Unavailable("GitHub serves notifications to OAuth apps and classic tokens only")
+_AS_A_USER = Unavailable(
+    "an installation token acts as the app, and GitHub serves this to a user's token only"
+)
+
+_PERMISSIONS: dict[str, list] = {
+    **dict.fromkeys(
+        [
+            "issues_list_for_repo",
+            "issues_get",
+            "issues_list_comments",
+            "issues_get_comment",
+            "issues_list_timeline",
+            "issues_list_events",
+            "issues_list_sub_issues",
+        ],
+        [ISSUES_READ],
+    ),
+    **dict.fromkeys(
+        [
+            "issues_create",
+            "issues_update",
+            "issues_create_comment",
+            "issues_update_comment",
+            "issues_delete_comment",
+            "issues_add_labels",
+            "issues_set_labels",
+            "issues_remove_label",
+            "issues_add_assignees",
+            "issues_remove_assignees",
+            "issues_lock",
+            "issues_unlock",
+            "issues_add_sub_issue",
+        ],
+        [ISSUES_WRITE],
+    ),
+    **dict.fromkeys(["issues_list_labels_for_repo", "issues_list_milestones"], [LABELS_READ]),
+    **dict.fromkeys(
+        [
+            "issues_create_label",
+            "issues_update_label",
+            "issues_delete_label",
+            "issues_create_milestone",
+            "issues_update_milestone",
+        ],
+        [LABELS_WRITE],
+    ),
+    **dict.fromkeys(
+        [
+            "pulls_list",
+            "pulls_list_files",
+            "pulls_list_reviews",
+            "pulls_list_review_comments",
+            "pulls_list_review_comments_for_repo",
+            "pulls_get_review",
+            "pulls_list_comments_for_review",
+            "pulls_list_commits",
+            "pulls_check_merged",
+            "pulls_list_requested_reviewers",
+        ],
+        [PULLS_READ],
+    ),
+    **dict.fromkeys(["pulls_get", "pulls_get_diff"], [PULL_READ]),
+    **dict.fromkeys(
+        [
+            "pulls_create",
+            "pulls_update",
+            "pulls_create_review",
+            "pulls_request_reviewers",
+            "pulls_create_review_comment",
+            "pulls_reply_to_review_comment",
+            "pulls_update_review_comment",
+            "pulls_delete_review_comment",
+            "pulls_submit_review",
+            "pulls_update_review",
+            "pulls_dismiss_review",
+            "pulls_delete_pending_review",
+            "pulls_update_branch",
+            "pulls_remove_requested_reviewers",
+        ],
+        [PULLS_WRITE],
+    ),
+    **dict.fromkeys(
+        [
+            "repos_get_content",
+            "repos_list_commits",
+            "branches_list",
+            "repos_get_combined_status",
+            "git_refs_get",
+            "git_refs_list_matching",
+            "git_blobs_get",
+            "git_trees_get",
+            "git_commits_get",
+            "repos_get_commit",
+            "repos_compare_commits",
+            "repos_get_branch",
+            "repos_list_branches_for_head_commit",
+            "repos_get_readme",
+            "releases_list",
+            "releases_get",
+            "releases_get_latest",
+            "releases_get_by_tag",
+            "releases_list_assets",
+        ],
+        [CONTENTS_READ],
+    ),
+    # `releases_upload_asset` goes to uploads.github.com, which names nothing;
+    # every other release write is `contents=write`.
+    **dict.fromkeys(
+        [
+            "pulls_merge",
+            "repos_create_or_update_file",
+            "git_refs_create",
+            "git_refs_update",
+            "git_refs_delete",
+            "git_blobs_create",
+            "git_trees_create",
+            "git_commits_create",
+            "git_tags_create",
+            "repos_delete_file",
+            "repos_merge_branches",
+            "repos_rename_branch",
+            "releases_create",
+            "releases_update",
+            "releases_delete",
+            "releases_generate_notes",
+            "releases_upload_asset",
+        ],
+        [CONTENTS_WRITE],
+    ),
+    **dict.fromkeys(
+        [
+            "repos_get",
+            "repos_list_for_authenticated_user",
+            "repos_list_tags",
+            "repos_list_for_org",
+            "repos_list_languages",
+            "repos_list_contributors",
+        ],
+        [METADATA],
+    ),
+    "repos_create_fork": FORK,
+    "repos_get_branch_protection": [ADMINISTRATION_READ],
+    **dict.fromkeys(
+        [
+            "actions_list_workflow_runs",
+            "actions_get_workflow_run",
+            "actions_list_jobs_for_run",
+            "actions_get_job",
+            "actions_download_job_logs",
+            "actions_download_run_logs",
+            "actions_list_workflows",
+            "actions_get_workflow",
+            "actions_list_runs_for_workflow",
+            "actions_list_run_artifacts",
+            "actions_get_artifact",
+            "actions_download_artifact",
+            "actions_get_run_usage",
+            "actions_list_pending_deployments",
+        ],
+        [ACTIONS_READ],
+    ),
+    **dict.fromkeys(
+        [
+            "actions_rerun_workflow",
+            "actions_cancel_workflow_run",
+            "actions_rerun_failed_jobs",
+            "actions_create_workflow_dispatch",
+        ],
+        [ACTIONS_WRITE],
+    ),
+    "actions_review_pending_deployments": [DEPLOYMENTS_WRITE],
+    "actions_list_repo_secrets": [SECRETS_READ],
+    **dict.fromkeys(
+        [
+            "checks_list_for_ref",
+            "checks_get_run",
+            "checks_list_annotations",
+            "checks_list_suites_for_ref",
+        ],
+        [CHECKS_READ],
+    ),
+    "dependabot_list_alerts": [DEPENDABOT_READ],
+    "dependabot_get_alert": [DEPENDABOT_READ],
+    "dependabot_update_alert": [DEPENDABOT_WRITE],
+    "code_scanning_list_alerts": [CODE_SCANNING_READ],
+    "code_scanning_get_alert": [CODE_SCANNING_READ],
+    "secret_scanning_list_alerts": [SECRET_SCANNING_READ],
+    # GitHub runs these with no permission at all; a search returns private
+    # results only from repositories the token's other permissions reach.
+    **dict.fromkeys(
+        [
+            "search_issues",
+            "search_repositories",
+            "search_code",
+            "search_commits",
+            "search_users",
+            "users_get_authenticated",
+            "issues_list_for_authenticated_user",
+            "rate_limit_get",
+        ],
+        [],
+    ),
+    **dict.fromkeys(
+        [
+            "notifications_list",
+            "notifications_mark_read",
+            "notifications_get_thread",
+            "notifications_mark_thread_read",
+        ],
+        [_NO_NOTIFICATIONS],
+    ),
+}
+# Served to a fine-grained token or an app's user token, not an installation's.
+_USER_TOKEN_ONLY = {
+    "users_get_authenticated",
+    "issues_list_for_authenticated_user",
+    "repos_list_for_authenticated_user",
+}
+
+# How GitHub says the token's grant does not cover the call. To a classic token
+# or an OAuth grant it answers a repository it will not show with the same 404
+# as one that does not exist, beside two headers: the scopes it would accept and
+# the ones the token holds. To an app or a fine-grained token it answers 403.
+# https://docs.github.com/en/rest/using-the-rest-api/troubleshooting-the-rest-api
+GITHUB_REFUSALS = (
+    ScopeRefusal(
+        status={403, 404},
+        needed_header="x-accepted-oauth-scopes",
+        held_header="x-oauth-scopes",
+    ),
+    ScopeRefusal(status=403, signal=r"Resource not accessible by integration", kind=APP),
+    ScopeRefusal(
+        status=403, signal=r"Resource not accessible by personal access token", kind=FINE_GRAINED
+    ),
+)
+
+
+def _with_permissions(factory):
+    """The factory, with each tool's permissions read from the table by its name.
+
+    A tool missing from the table fails here, at import, rather than shipping
+    without an answer for two kinds of credential.
+    """
+
+    def build(*, name: str, scopes_override=None, **kwargs) -> Tool:
+        permissions = _PERMISSIONS[name]
+        kinds = {
+            APP: [_AS_A_USER] if name in _USER_TOKEN_ONLY else permissions,
+            FINE_GRAINED: permissions,
+        }
+        if scopes_override is not None:
+            kinds[OAUTH] = scopes_override
+        return factory(name=name, scopes_override=kinds, **kwargs)
+
+    return build
+
 
 # GitHub pages by number: there is no cursor, and a short page is the end
 # signal. https://docs.github.com/en/rest/using-the-rest-api/using-pagination-in-the-rest-api
@@ -359,17 +697,20 @@ def configure(credential_provider: CredentialProvider) -> None:
     _credentials.configure(credential_provider)
 
 
-_github = oauth_tool_factory(
-    pack="github",
-    base_url=BASE_URL,
-    provider="github",
-    credential_provider=_credentials,
-    scopes=SCOPES,
-    # GitHub is snake_case on the wire, in both directions.
-    body_case="snake",
-    query_case="snake",
-    quota_doc_url=QUOTA_DOC_URL,
-    static_headers=GITHUB_HEADERS,
+_github = _with_permissions(
+    oauth_tool_factory(
+        pack="github",
+        base_url=BASE_URL,
+        provider="github",
+        credential_provider=_credentials,
+        scopes={OAUTH: [REPO]},
+        scope_refusals=GITHUB_REFUSALS,
+        # GitHub is snake_case on the wire, in both directions.
+        body_case="snake",
+        query_case="snake",
+        quota_doc_url=QUOTA_DOC_URL,
+        static_headers=GITHUB_HEADERS,
+    )
 )
 
 # GitHub serves a pull request in three representations from one endpoint and
@@ -391,30 +732,36 @@ UPLOAD_BASE_URL = "https://uploads.github.com/"
 
 UPLOAD_HEADERS = {**GITHUB_HEADERS, "Content-Type": "application/octet-stream"}
 
-_github_uploads = oauth_tool_factory(
-    pack="github",
-    base_url=UPLOAD_BASE_URL,
-    provider="github",
-    credential_provider=_credentials,
-    scopes=SCOPES,
-    body_case="snake",
-    query_case="snake",
-    quota_doc_url=QUOTA_DOC_URL,
-    static_headers=UPLOAD_HEADERS,
-    # The body is a file, not a document.
-    body_format="raw",
+_github_uploads = _with_permissions(
+    oauth_tool_factory(
+        pack="github",
+        base_url=UPLOAD_BASE_URL,
+        provider="github",
+        credential_provider=_credentials,
+        scopes={OAUTH: [REPO]},
+        scope_refusals=GITHUB_REFUSALS,
+        body_case="snake",
+        query_case="snake",
+        quota_doc_url=QUOTA_DOC_URL,
+        static_headers=UPLOAD_HEADERS,
+        # The body is a file, not a document.
+        body_format="raw",
+    )
 )
 
-_github_diff = oauth_tool_factory(
-    pack="github",
-    base_url=BASE_URL,
-    provider="github",
-    credential_provider=_credentials,
-    scopes=SCOPES,
-    body_case="snake",
-    query_case="snake",
-    quota_doc_url=QUOTA_DOC_URL,
-    static_headers=DIFF_HEADERS,
+_github_diff = _with_permissions(
+    oauth_tool_factory(
+        pack="github",
+        base_url=BASE_URL,
+        provider="github",
+        credential_provider=_credentials,
+        scopes={OAUTH: [REPO]},
+        scope_refusals=GITHUB_REFUSALS,
+        body_case="snake",
+        query_case="snake",
+        quota_doc_url=QUOTA_DOC_URL,
+        static_headers=DIFF_HEADERS,
+    )
 )
 
 # ---------- issues ----------
@@ -654,6 +1001,7 @@ users_get_authenticated = _github(
         "filtering issues or pull requests by author or assignee."
     ),
     action_label="Checks the GitHub account.",
+    scopes_override=[USER],
     response_handler=trim_user,
 )
 
@@ -2149,6 +2497,7 @@ notifications_list = _github(
         "100."
     ),
     action_label="Checks your GitHub notifications.",
+    scopes_override=[NOTIFICATIONS],
     response_handler=trim_notifications,
     pagination_override=GITHUB_PAGINATION,
 )
@@ -2165,6 +2514,7 @@ notifications_mark_read = _github(
         "`all: false` to know whether the queue is actually empty."
     ),
     action_label="Clears your GitHub notifications.",
+    scopes_override=[NOTIFICATIONS],
 )
 
 notifications_get_thread = _github(
@@ -2176,6 +2526,7 @@ notifications_get_thread = _github(
         "Get one notification thread: what it concerns, and the `reason` you were notified."
     ),
     action_label="Reads a GitHub notification.",
+    scopes_override=[NOTIFICATIONS],
     response_handler=trim_notifications,
 )
 
@@ -2189,6 +2540,7 @@ notifications_mark_thread_read = _github(
         "item off its own queue."
     ),
     action_label="Marks a GitHub notification read.",
+    scopes_override=[NOTIFICATIONS],
 )
 
 # ---------- security alerts ----------
@@ -2206,6 +2558,7 @@ dependabot_list_alerts = _github(
         "than paging."
     ),
     action_label="Lists GitHub Dependabot alerts.",
+    scopes_override=[SECURITY],
     response_handler=trim_dependabot_alerts,
 )
 
@@ -2216,6 +2569,7 @@ dependabot_get_alert = _github(
     url_template="repos/{owner}/{repo}/dependabot/alerts/{alert_number}",
     description="Get one Dependabot alert, with its advisory summary and the patched version.",
     action_label="Reads a GitHub Dependabot alert.",
+    scopes_override=[SECURITY],
     response_handler=trim_dependabot_alerts,
 )
 
@@ -2230,6 +2584,7 @@ dependabot_update_alert = _github(
         "not_used or tolerable_risk."
     ),
     action_label="Updates a GitHub Dependabot alert.",
+    scopes_override=[SECURITY],
     response_handler=trim_dependabot_alerts,
 )
 
@@ -2245,6 +2600,7 @@ code_scanning_list_alerts = _github(
         "repository, which answers 403 without it."
     ),
     action_label="Lists GitHub code scanning alerts.",
+    scopes_override=[SECURITY],
     response_handler=trim_code_scanning_alerts,
     pagination_override=GITHUB_PAGINATION,
 )
@@ -2259,6 +2615,7 @@ code_scanning_get_alert = _github(
         "recent place it was seen."
     ),
     action_label="Reads a GitHub code scanning alert.",
+    scopes_override=[SECURITY],
     response_handler=trim_code_scanning_alerts,
 )
 
@@ -2275,6 +2632,7 @@ secret_scanning_list_alerts = _github(
         "administrator access."
     ),
     action_label="Lists GitHub secret scanning alerts.",
+    scopes_override=[SECURITY],
     response_handler=trim_secret_scanning_alerts,
     pagination_override=GITHUB_PAGINATION,
 )
@@ -2307,6 +2665,7 @@ search_users = _github(
         "requests per minute."
     ),
     action_label="Searches GitHub users.",
+    scopes_override=[],
     response_handler=trim_users,
     pagination_override=SEARCH_PAGINATION,
 )
@@ -2366,6 +2725,7 @@ rate_limit_get = _github(
         "against any of them, so it is safe to call before a long walk."
     ),
     action_label="Checks your GitHub rate limit.",
+    scopes_override=[],
     response_handler=trim_rate_limit,
 )
 
@@ -2512,11 +2872,23 @@ TOOLS: list[Tool] = [
     rate_limit_get,
 ]
 
+# What a consent for the whole pack asks for: `repo` covers every repository,
+# security and notification tool, and `read:user` the private profile.
+SCOPES = scopes_for(TOOLS)
+
 __all__ = [
     "configure",
     "BASE_URL",
     "UPLOAD_BASE_URL",
     "SCOPES",
+    "OAUTH",
+    "APP",
+    "FINE_GRAINED",
+    "GITHUB_REFUSALS",
+    "REPO",
+    "SECURITY",
+    "NOTIFICATIONS",
+    "USER",
     "QUOTA_DOC_URL",
     "API_VERSION",
     "GITHUB_HEADERS",

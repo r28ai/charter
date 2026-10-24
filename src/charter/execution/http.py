@@ -29,6 +29,7 @@ from typing import (
     Literal,
     Mapping,
     Optional,
+    Sequence,
     Tuple,
     Union,
 )
@@ -38,6 +39,8 @@ import httpx
 from pydantic import BaseModel
 
 from charter.auth import Credentials
+from charter.auth.refusals import ScopeRefusal, refusal_in
+from charter.auth.scopes import Kind, ScopeRequirement
 from charter.execution.casing import DictKeyParser, convert_with_plan, key_plan, plan_for
 from charter.execution.routes import UrlTemplate, choose_route, routes_of
 from charter.observability import CallProbe
@@ -856,6 +859,9 @@ async def call_api(
     body_field_count: Optional[int] = None,
     credential_headers: Optional[Iterable[str]] = None,
     token_header: Optional[str] = None,
+    scope_refusals: Sequence[ScopeRefusal] = (),
+    scope_requirements: Optional[Callable[[Optional[Kind]], Sequence[ScopeRequirement]]] = None,
+    tool_name: str = "this tool",
 ) -> Any:
     """Map a validated tool input onto an HTTP request, send it, return the body.
 
@@ -924,9 +930,18 @@ async def call_api(
         URL, and a caller that does not follow it receives an empty body and no
         way to ask again. No credential travels to the host the redirect names,
         whether it is a bearer token or an api key — see :func:`_send`.
+    scope_refusals: How this API says the token's grant does not cover the call,
+        beyond the standard ``WWW-Authenticate`` challenge, which is always read.
+        See :class:`~charter.auth.refusals.ScopeRefusal`.
+    scope_requirements: What the tool declares under a kind of credential, so
+        an ``InsufficientScope`` can say which of the scopes the provider names
+        is the narrowest, or name the tool's own when the provider names none.
+    tool_name: Named in that error when the provider names no scope.
 
     Raises
     ------
+    InsufficientScope: on the standard ``insufficient_scope`` challenge, or a
+        response one of ``scope_refusals`` matches, at any status.
     CredentialError: on a status in ``credential_statuses`` (401 by default), or
         on an envelope-declared credential failure.
     APIError: on any other >= 400 response, or an envelope-declared failure.
@@ -1275,8 +1290,29 @@ async def call_api(
     content_type = (resp.headers.get("content-type") or "").lower()
     is_json_like = ("application/json" in content_type) or content_type.endswith("+json")
 
+    def raise_if_scope_refused(payload: Any) -> None:
+        # Before the status and the envelope, which would each call it something
+        # vaguer: a 403, a 404, an API error inside a 200.
+        refused = refusal_in(
+            resp,
+            payload,
+            scope_refusals,
+            requirements=scope_requirements,
+            tool_name=tool_name,
+            provider=provider,
+        )
+        if refused is not None:
+            if probe is not None and resp.status_code < 400:
+                probe.envelope_failed = True
+            raise refused
+
     if resp.status_code >= 400:
         logger.warning("HTTP ← %s %s", resp.status_code, resp.reason_phrase)
+        try:
+            error_payload = resp.json()
+        except Exception:
+            error_payload = None
+        raise_if_scope_refused(error_payload)
         # `credentials is None` is api-key mode: the executor resolves the
         # headers itself and passes no bearer credential. It decides which page
         # a rejected credential links to, and the two pages disagree about who
@@ -1304,6 +1340,8 @@ async def call_api(
         except Exception:
             pass
         else:
+            if scope_refusals or "www-authenticate" in resp.headers:
+                raise_if_scope_refused(payload)
             # Some APIs answer 200 and put the failure in the body. The envelope
             # says where to look; without one, a 200 is taken at face value.
             if envelope is not None:

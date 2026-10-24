@@ -59,6 +59,8 @@ from charter.auth.oauth import (
     scopes_for,
     states_match,
 )
+from charter.auth.refusals import ScopeRefusal
+from charter.auth.scopes import AnyOf, Kind, ScopeRequirement, Unavailable, missing_scopes
 
 # The public auth surface. It is not re-exported from `charter` — one name, one
 # import path, so a pack generated from the skill file and a pack written by hand
@@ -84,6 +86,11 @@ __all__ = [
     "TokenGrant",
     "states_match",
     "scopes_for",
+    "AnyOf",
+    "Unavailable",
+    "Kind",
+    "missing_scopes",
+    "ScopeRefusal",
     # ending the grant — the disconnect button
     "Revocation",
     "Revoker",
@@ -93,6 +100,7 @@ __all__ = [
     # wrapper has to name them
     "Grant",
     "TokenEndpointAuthMethod",
+    "ScopeRequirement",
     "RevocationAuthMethod",
     "OnRefresh",
     "GrantLoader",

@@ -38,7 +38,6 @@ from types import ModuleType
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple
 from urllib.parse import quote
 
-from charter.auth import scopes_for
 from charter.mcp import PACKS
 from charter.tool import Tool
 from charter.types.envelope import Envelope
@@ -614,7 +613,8 @@ def slack_manifest() -> Dict[str, Any]:
     return {
         "display_information": {"name": "Charter"},
         "features": {"bot_user": {"display_name": "Charter", "always_online": False}},
-        "oauth_config": {"scopes": {"bot": scopes_for(pack_module("slack").TOOLS)}},
+        # Every tool a bot token can call: search_messages takes a user token.
+        "oauth_config": {"scopes": {"bot": pack_module("slack").SCOPES}},
         "settings": {
             "org_deploy_enabled": False,
             "socket_mode_enabled": False,
@@ -1088,6 +1088,39 @@ def _py_envelope(envelope: Envelope, indent: str, prefix: int = 0) -> str:
     return f"Envelope({body}\n{indent})"
 
 
+def _py_kind(kind: Any) -> str:
+    """A ``Kind`` as a literal: equal to the pack's constant, which compares by
+    name, provider, how it is granted and whether it is the default."""
+    args = [_py(kind.name), f"provider={_py(kind.provider)}"]
+    if kind.granted != "consent":
+        args.append(f"granted={_py(kind.granted)}")
+    if kind.default:
+        args.append("default=True")
+    return "Kind(" + ", ".join(args) + ")"
+
+
+def _py_refusal(refusal: Any, indent: str) -> str:
+    """``ScopeRefusal(...)`` as it would be written on the factory."""
+    status = refusal.status
+    statuses = sorted(status) if not isinstance(status, int) else None
+    args = [f"status={_py(status) if statuses is None else _py_seq(statuses, '{', '}', indent)}"]
+    for name in ("signal", "needed", "needed_field", "needed_header", "held_header"):
+        value = getattr(refusal, name)
+        if value is not None:
+            args.append(
+                f"{name}=r{_py(value)}" if name in ("signal", "needed") else f"{name}={_py(value)}"
+            )
+    if not refusal.alternatives:
+        args.append("alternatives=False")
+    if refusal.kind is not None:
+        args.append(f"kind={_py_kind(refusal.kind)}")
+    inline = "ScopeRefusal(" + ", ".join(args) + ")"
+    if _fits(inline, indent, 0):
+        return inline
+    body = "".join(f"\n{indent}    {arg}," for arg in args)
+    return f"ScopeRefusal({body}\n{indent})"
+
+
 def _paths_of(value: Any) -> Tuple[str, ...]:
     return (value,) if isinstance(value, str) else tuple(value)
 
@@ -1400,6 +1433,13 @@ def wire_declarations(pack: str, module: ModuleType) -> str:
     else:
         kwargs.append((None, f"envelope={_py_envelope(envelope, '    ', 9)}"))
 
+    refusals = uniform(lambda t: t.scope_refusals)
+    if _varies(refusals):
+        kwargs.append(("varies by tool", "scope_refusals=..."))
+    elif refusals:
+        items = "".join(f"\n        {_py_refusal(r, '        ')}," for r in refusals)
+        kwargs.append((None, f"scope_refusals=[{items}\n    ]"))
+
     # `Pagination` is imported by the block that declares it, which is now the
     # section under this one, so it is not in this tab's import line.
     imports = ["Envelope"] if isinstance(envelope, Envelope) else []
@@ -1426,8 +1466,15 @@ def wire_declarations(pack: str, module: ModuleType) -> str:
     if any("os.environ" in line for line in body):
         lines += ["import os", ""]
     lines.append(f"from charter import {', '.join(sorted(imports))}")
+    auth_names = []
+    if refusals and not _varies(refusals):
+        auth_names.append("ScopeRefusal")
+        if any(r.kind is not None for r in refusals):
+            auth_names.append("Kind")
     if oauth and keyed:
-        lines.append("from charter.auth import StaticTokenProvider")
+        auth_names.append("StaticTokenProvider")
+    if auth_names:
+        lines.append(f"from charter.auth import {', '.join(sorted(auth_names))}")
     lines.append("")
     lines += body
 

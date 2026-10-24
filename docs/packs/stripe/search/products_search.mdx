@@ -17,7 +17,7 @@ result = asyncio.run(stripe.products_search.ainvoke({"query": ...}))
 ```
 
 <Note>
-  Pages by cursor: `next_page` is sent back as `page`.
+  With `stripe.RESTRICTED_KEY`, requires `product_read` or `product_write`. Pages by cursor: `next_page` is sent back as `page`.
 </Note>
 
 ## Query parameters

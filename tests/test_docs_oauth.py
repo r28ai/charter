@@ -43,6 +43,7 @@ DOCS = [
     ROOT / "docs/auth/authorization-servers.md",
     ROOT / "docs/auth/oauth-flow.md",
     ROOT / "docs/auth/your-users.mdx",
+    ROOT / "docs/auth/permissions.mdx",
     ROOT / "docs/auth/setup/google.mdx",
     ROOT / "docs/auth/setup/slack.mdx",
     ROOT / "docs/auth/setup/github.mdx",

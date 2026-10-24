@@ -1,6 +1,6 @@
 ---
 title: "Errors"
-description: "CharterError and its six subclasses: what raises each, what each carries, and which of them link to a page."
+description: "CharterError and its subclasses: what raises each, what each carries, and which of them link to a page."
 ---
 
 Every error the library raises derives from `CharterError`, so a host
@@ -12,6 +12,7 @@ decision back.
 CharterError
 ├── DeclarationError     a schema or pack is declared in an unusable shape
 ├── CredentialError      credentials missing, expired, or rejected
+│   └── InsufficientScope  the grant does not cover this call
 ├── ToolValidationError  the arguments did not satisfy the schema
 ├── TransformError       a Format transform could not resolve or run
 ├── APIError             the upstream API returned a non-success
@@ -172,6 +173,53 @@ token endpoint refusing a refresh or an exchange; a response whose status is in
 The library never re-authenticates on its own. This is the signal to run
 whatever flow you own and retry — see
 [the OAuth flow](/auth/oauth-flow).
+
+## `InsufficientScope`
+
+```python
+class InsufficientScope(CredentialError):
+    def __init__(
+        self,
+        message: str,
+        *,
+        provider: Optional[str] = None,
+        status_code: Optional[int] = 403,
+        needed: Sequence[str] = (),
+        accepted: Sequence[str] = (),
+        kind: Optional[Kind] = None,
+    ) -> None: ...
+```
+
+The token works, and what it was granted does not cover this call. One error for
+every provider, however the provider says it: the standard
+`WWW-Authenticate: Bearer error="insufficient_scope"` challenge on any response,
+or whatever the factory's [`ScopeRefusal`](/reference/oauth#scoperefusal)
+declares. A `CredentialError`, so an existing `except CredentialError` keeps
+catching it; `token_refused` is always `False`, because a refresh returns the same
+grant.
+
+<ResponseField name="needed" type="list[str]">
+  The scopes to add so this call runs, narrowest first. What the provider named,
+  read against the tool's declaration so that of several it would accept, the
+  narrowest the tool lists comes first; the tool's own declaration when the
+  provider names nothing.
+</ResponseField>
+
+<ResponseField name="accepted" type="tuple[str, ...]">
+  Every scope the provider said would let the call through, any one of which will
+  do, in its order. Empty when it named none, which is how to tell that `needed`
+  came from the declaration.
+</ResponseField>
+
+<ResponseField name="kind" type="Optional[Kind]">
+  The [kind of credential](/reference/oauth#kind) the scopes belong to, when not
+  the pack's default: `stripe.RESTRICTED_KEY` for a restricted key's permission,
+  `slack.USER` for a bot token on a user-only method.
+</ResponseField>
+
+`status_code` is the response's status, or 403 when the refusal came inside a
+200. See [Permissions](/auth/permissions#when-the-provider-refuses-anyway) for
+what each provider sends.
 
 ## `ToolValidationError`
 
@@ -371,12 +419,20 @@ whether to. In [observability](/reference/observability) the call's outcome is
 ## Catching the surface
 
 ```python
-from charter import APIError, CredentialError, NetworkError, ToolValidationError
+from charter import (
+    APIError,
+    CredentialError,
+    InsufficientScope,
+    NetworkError,
+    ToolValidationError,
+)
 
 try:
     ...
 except ToolValidationError as exc:
     handled = f"tell the model: {exc}"
+except InsufficientScope as exc:
+    handled = f"ask {exc.provider} for {exc.needed}"
 except CredentialError as exc:
     handled = f"re-authorize {exc.provider}"
 except APIError as exc:
@@ -385,8 +441,8 @@ except NetworkError as exc:
     handled = "safe to retry" if not exc.may_have_taken_effect else "check first"
 ```
 
-Order matters only in that the six subclasses are siblings; catching
-`CharterError` first would swallow them all.
+Order matters in two places: `InsufficientScope` is a `CredentialError`, so it
+goes before it, and catching `CharterError` first would swallow them all.
 
 `DeclarationError` is not in that block, and the trailing `except CharterError`
 is what catches it: most of them are raised while a tool is built, but the ones

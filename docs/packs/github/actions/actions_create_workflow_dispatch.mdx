@@ -17,7 +17,7 @@ result = asyncio.run(github.actions_create_workflow_dispatch.ainvoke({"owner": .
 ```
 
 <Note>
-  Requires `repo`, `read:user`.
+  Requires `repo`. With `github.APP` or `github.FINE_GRAINED`, requires `actions=write`.
 </Note>
 
 ## Path parameters

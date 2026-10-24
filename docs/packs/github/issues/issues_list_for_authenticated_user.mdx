@@ -17,7 +17,7 @@ result = asyncio.run(github.issues_list_for_authenticated_user.ainvoke({}))
 ```
 
 <Note>
-  Requires `repo`, `read:user`. Pages by number: `page` with `per_page`.
+  Requires `repo`. Cannot run with `github.APP`: an installation token acts as the app, and GitHub serves this to a user's token only. With `github.FINE_GRAINED`, needs no permission. Pages by number: `page` with `per_page`.
 </Note>
 
 ## Query parameters

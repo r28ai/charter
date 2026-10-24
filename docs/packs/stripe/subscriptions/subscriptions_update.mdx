@@ -16,6 +16,10 @@ from charter.packs import stripe
 result = asyncio.run(stripe.subscriptions_update.ainvoke({"subscription": ...}))
 ```
 
+<Note>
+  With `stripe.RESTRICTED_KEY`, requires `subscription_write`.
+</Note>
+
 ## Path parameters
 
 <div className="reference-table">

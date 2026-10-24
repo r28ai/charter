@@ -17,7 +17,7 @@ result = asyncio.run(github.notifications_mark_thread_read.ainvoke({"threadId": 
 ```
 
 <Note>
-  Requires `repo`, `read:user`.
+  Requires `notifications` or `repo`. Cannot run with `github.APP` or `github.FINE_GRAINED`: GitHub serves notifications to OAuth apps and classic tokens only.
 </Note>
 
 ## Path parameters

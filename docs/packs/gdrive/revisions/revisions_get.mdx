@@ -17,7 +17,7 @@ result = asyncio.run(gdrive.revisions_get.ainvoke({"fileId": ..., "revisionId": 
 ```
 
 <Note>
-  Requires `https://www.googleapis.com/auth/drive`. Costs 1 against the provider's own quota.
+  Requires `https://www.googleapis.com/auth/drive.readonly` or `https://www.googleapis.com/auth/drive`. Costs 1 against the provider's own quota.
 </Note>
 
 ## Path parameters

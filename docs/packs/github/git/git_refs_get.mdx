@@ -17,7 +17,7 @@ result = asyncio.run(github.git_refs_get.ainvoke({"owner": ..., "repo": ..., "re
 ```
 
 <Note>
-  Requires `repo`, `read:user`.
+  Requires `repo`. With `github.APP` or `github.FINE_GRAINED`, requires `contents=read` or `contents=write`.
 </Note>
 
 ## Path parameters

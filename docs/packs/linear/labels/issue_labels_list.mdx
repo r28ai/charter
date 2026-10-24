@@ -17,7 +17,7 @@ result = asyncio.run(linear.issue_labels_list.ainvoke({}))
 ```
 
 <Note>
-  Posts a GraphQL document to `POST /graphql`, as every tool in this pack does. Pages by cursor: `pageInfo.endCursor` is sent back as `variables.after`.
+  Posts a GraphQL document to `POST /graphql`, as every tool in this pack does. Requires `read`. Pages by cursor: `pageInfo.endCursor` is sent back as `variables.after`.
 </Note>
 
 ## Body

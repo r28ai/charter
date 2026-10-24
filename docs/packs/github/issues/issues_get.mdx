@@ -17,7 +17,7 @@ result = asyncio.run(github.issues_get.ainvoke({"owner": ..., "repo": ..., "issu
 ```
 
 <Note>
-  Requires `repo`, `read:user`.
+  Requires `repo`. With `github.APP` or `github.FINE_GRAINED`, requires `issues=read` or `issues=write`.
 </Note>
 
 ## Path parameters

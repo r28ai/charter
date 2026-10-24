@@ -16,6 +16,10 @@ from charter.packs import stripe
 result = asyncio.run(stripe.payment_intents_create.ainvoke({"amount": ..., "currency": ...}))
 ```
 
+<Note>
+  With `stripe.RESTRICTED_KEY`, requires `payment_intent_write`.
+</Note>
+
 ## Body
 
 <div className="reference-table">

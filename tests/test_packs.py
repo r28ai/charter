@@ -1164,19 +1164,18 @@ async def test_thread_writes_trim_the_conversation_they_return():
 
 
 def test_only_threads_delete_asks_for_the_full_mailbox_scope():
-    """Google covers every other endpoint here with gmail.modify, and requires
-    full access for the one delete that cannot be undone. Declared per tool, a
-    consent screen asks for it only when that tool is handed out."""
+    """Google accepts gmail.modify or narrower for every other endpoint here,
+    and requires full access for the one delete that cannot be undone. Declared
+    per tool, a consent screen asks for it only when that tool is handed out."""
     from charter.auth.flow import scopes_for
 
     assert gmail.threads_delete.scopes == [gmail.FULL_MAILBOX_SCOPE]
-    assert [t.name for t in gmail.TOOLS if gmail.FULL_MAILBOX_SCOPE in t.scopes] == [
-        "threads_delete"
-    ]
+    needs_it = [t.name for t in gmail.TOOLS if scopes_for([t]) == [gmail.FULL_MAILBOX_SCOPE]]
+    assert needs_it == ["threads_delete"]
 
     without = [t for t in gmail.TOOLS if t is not gmail.threads_delete]
-    assert scopes_for(without) == gmail.SCOPES
-    assert scopes_for(gmail.TOOLS) == [*gmail.SCOPES, gmail.FULL_MAILBOX_SCOPE]
+    assert gmail.FULL_MAILBOX_SCOPE not in scopes_for(without)
+    assert scopes_for(gmail.TOOLS) == gmail.SCOPES == [gmail.FULL_MAILBOX_SCOPE]
 
 
 # Every DELETE in the pack: no body, no query, and the id in the path. Gmail

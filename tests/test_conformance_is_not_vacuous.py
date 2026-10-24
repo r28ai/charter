@@ -474,3 +474,44 @@ def test_a_pack_model_built_at_import_is_caught(monkeypatch):
         "stripe",
         because="a pack model built at import",
     )
+
+
+def test_a_tool_with_nothing_for_a_kind_its_pack_declares_is_caught(monkeypatch):
+    """The gap an App's permissions would have: one tool silent about them."""
+    from charter.packs import github
+
+    kinds = {k: v for k, v in github.issues_get.kind_scopes.items() if k is not github.APP}
+    monkeypatch.setattr(github.issues_get, "kind_scopes", kinds)
+    _must_fail(
+        conformance.test_every_tool_answers_for_every_kind_of_credential_its_pack_declares,
+        "github",
+        because="a tool that declares nothing for one kind of credential",
+    )
+
+
+def test_a_kind_whose_tools_disagree_about_narrowness_is_caught(monkeypatch):
+    """The ordering check runs under every kind, not only the default."""
+    from charter.auth import AnyOf
+    from charter.packs import github
+
+    flipped = AnyOf("pull_requests=write", "pull_requests=read")
+    kinds = {**github.pulls_list.kind_scopes, github.APP: [flipped]}
+    monkeypatch.setattr(github.pulls_list, "kind_scopes", kinds)
+    _must_fail(
+        conformance.test_a_packs_scopes_agree_and_cover_every_tool,
+        "github",
+        because="two tools disagreeing about narrowness under a kind other than the default",
+    )
+
+
+def test_two_tools_ordering_the_same_scopes_oppositely_are_caught(monkeypatch):
+    """The disagreement scopes_for cannot resolve: which of two scopes is narrower."""
+    from charter.auth import AnyOf
+
+    reversed_options = AnyOf(*reversed(gmail.drafts_get.scopes[0].options))
+    monkeypatch.setattr(gmail.drafts_get, "scopes", [reversed_options])
+    _must_fail(
+        conformance.test_a_packs_scopes_agree_and_cover_every_tool,
+        "gmail",
+        because="two tools that disagree about which scope is narrower",
+    )

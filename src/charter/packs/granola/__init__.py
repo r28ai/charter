@@ -25,14 +25,16 @@ one. The only things a program can create, change or delete here are webhook
 endpoints. Seven of the nine tools are GETs, and the pack does not pretend
 otherwise by inventing a note-writing tool out of the summary fields.
 
-**What a key can see is a property of the key.** An API key carries **Personal
-notes** and/or **Public notes** access, chosen in the Granola app at the moment
-the key is created, and no parameter on any endpoint widens it. There is no
-``SCOPES`` constant here for that reason: an API-key factory has nowhere to put
-one, and a listing that comes back short is a question about the key rather than
-about the filter. The wire spellings ``personal``, ``public`` and ``workspace``
-do exist, but only as values of a webhook endpoint's ``scopes`` field, where
-they are on the schema and the model does set them.
+**What a key can see is a property of the key.** Granola issues three kinds,
+declared as :data:`PERSONAL_KEY`, :data:`WORKSPACE_KEY` and :data:`AUDIT_KEY`.
+A personal key carries ``personal`` and/or ``public`` note access, chosen in the
+Granola app when the key is made, and no parameter on any endpoint widens it; a
+workspace key reads public notes and the spaces with API access turned on; an
+audit key reads the audit log and nothing else. So the note tools ask a personal
+key for both scopes, which is what reaching every note takes, and
+``scopes_for(tools, kind=granola.AUDIT_KEY)`` refuses anything but
+``audit_list``. A listing that comes back short is still a question about the
+key rather than about the filter.
 
 **The wire is snake_case, with exactly one exception.** Parameters, bodies and
 response fields are all snake_case — except ``hasMore``, the boolean that ends
@@ -72,7 +74,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from charter.auth import CredentialProvider
+from charter.auth import CredentialProvider, Kind, Unavailable, scopes_for
 from charter.factories import oauth_tool_factory
 from charter.packs._config import DeferredCredentialProvider, configure_key_or_provider
 from charter.packs.granola.response_handlers import trim_note, trim_transcript
@@ -129,6 +131,46 @@ def configure(
     configure_key_or_provider(_credentials, api_key, credential_provider)
 
 
+# Granola's three kinds of key, from https://docs.granola.ai/help-center/sharing/integrations/granola-api
+# and https://docs.granola.ai/audit (2026-10-24), spelled as the API spells
+# their scopes in a webhook endpoint's `scopes`.
+PERSONAL_KEY = Kind(
+    "personal_key",
+    provider="granola",
+    default=True,
+    granted="configured",
+    description="A member's own key, with `personal` and/or `public` note access chosen when it is made.",
+)
+WORKSPACE_KEY = Kind(
+    "workspace_key",
+    provider="granola",
+    granted="configured",
+    description=(
+        "An admin's key that belongs to the workspace: public notes, and the spaces with "
+        "Granola API access turned on."
+    ),
+)
+AUDIT_KEY = Kind(
+    "audit_key",
+    provider="granola",
+    granted="configured",
+    description="An Enterprise admin's key that reads the audit log and nothing else.",
+)
+
+_AUDIT_ONLY = Unavailable("only an audit key reads the audit log")
+_NOT_AUDIT = Unavailable(
+    "an audit key reads the audit log and nothing else; Granola answers that the rest do not exist"
+)
+_NOTES = {
+    PERSONAL_KEY: ["personal", "public"],
+    WORKSPACE_KEY: ["workspace"],
+    AUDIT_KEY: [_NOT_AUDIT],
+}
+# A webhook endpoint names the notes it wants in its own `scopes` argument, so
+# what it needs from the key depends on the call.
+_WEBHOOKS = {PERSONAL_KEY: [], WORKSPACE_KEY: [], AUDIT_KEY: [_NOT_AUDIT]}
+_AUDIT = {PERSONAL_KEY: [_AUDIT_ONLY], WORKSPACE_KEY: [_AUDIT_ONLY], AUDIT_KEY: []}
+
 _granola = oauth_tool_factory(
     pack="granola",
     base_url=BASE_URL,
@@ -148,6 +190,7 @@ _granola = oauth_tool_factory(
 
 notes_list = _granola(
     name="notes_list",
+    scopes_override=_NOTES,
     args_schema=NotesListRequest,
     method="GET",
     url_template=f"{API_VERSION}/notes",
@@ -164,6 +207,7 @@ notes_list = _granola(
 
 notes_get = _granola(
     name="notes_get",
+    scopes_override=_NOTES,
     args_schema=NotesGetRequest,
     method="GET",
     url_template=f"{API_VERSION}/notes/{{note_id}}",
@@ -180,6 +224,7 @@ notes_get = _granola(
 
 notes_transcript_get = _granola(
     name="notes_transcript_get",
+    scopes_override=_NOTES,
     args_schema=NotesTranscriptGetRequest,
     method="GET",
     url_template=f"{API_VERSION}/notes/{{note_id}}/transcript",
@@ -197,6 +242,7 @@ notes_transcript_get = _granola(
 
 folders_list = _granola(
     name="folders_list",
+    scopes_override=_NOTES,
     args_schema=FoldersListRequest,
     method="GET",
     url_template=f"{API_VERSION}/folders",
@@ -214,6 +260,7 @@ folders_list = _granola(
 
 audit_list = _granola(
     name="audit_list",
+    scopes_override=_AUDIT,
     args_schema=AuditListRequest,
     method="GET",
     url_template=f"{API_VERSION}/audit",
@@ -231,6 +278,7 @@ audit_list = _granola(
 
 webhook_endpoints_create = _granola(
     name="webhook_endpoints_create",
+    scopes_override=_WEBHOOKS,
     args_schema=WebhookEndpointsCreateRequest,
     method="POST",
     url_template=f"{API_VERSION}/webhook-endpoints",
@@ -245,6 +293,7 @@ webhook_endpoints_create = _granola(
 
 webhook_endpoints_list = _granola(
     name="webhook_endpoints_list",
+    scopes_override=_WEBHOOKS,
     args_schema=WebhookEndpointsListRequest,
     method="GET",
     url_template=f"{API_VERSION}/webhook-endpoints",
@@ -258,6 +307,7 @@ webhook_endpoints_list = _granola(
 
 webhook_endpoints_update = _granola(
     name="webhook_endpoints_update",
+    scopes_override=_WEBHOOKS,
     args_schema=WebhookEndpointsUpdateRequest,
     method="PATCH",
     url_template=f"{API_VERSION}/webhook-endpoints/{{webhook_endpoint_id}}",
@@ -272,6 +322,7 @@ webhook_endpoints_update = _granola(
 
 webhook_endpoints_delete = _granola(
     name="webhook_endpoints_delete",
+    scopes_override=_WEBHOOKS,
     args_schema=WebhookEndpointsDeleteRequest,
     method="DELETE",
     url_template=f"{API_VERSION}/webhook-endpoints/{{webhook_endpoint_id}}",
@@ -295,7 +346,15 @@ TOOLS: list[Tool] = [
     webhook_endpoints_delete,
 ]
 
+# What a personal key needs to run the whole pack but the audit log, which no
+# personal key can read.
+SCOPES = scopes_for([tool for tool in TOOLS if tool is not audit_list])
+
 __all__ = [
+    "PERSONAL_KEY",
+    "WORKSPACE_KEY",
+    "AUDIT_KEY",
+    "SCOPES",
     "TOOLS",
     "configure",
     "BASE_URL",

@@ -17,7 +17,7 @@ result = asyncio.run(github.search_commits.ainvoke({"q": ...}))
 ```
 
 <Note>
-  Requires `repo`, `read:user`. Pages by number: `page` with `per_page`.
+  Requires `repo`. With `github.APP` or `github.FINE_GRAINED`, needs no permission. Pages by number: `page` with `per_page`.
 </Note>
 
 ## Query parameters

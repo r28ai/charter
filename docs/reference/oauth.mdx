@@ -1,6 +1,6 @@
 ---
 title: "OAuth"
-description: "OAuth2Server, Revocation, OAuth2Client, OAuth2Flow, AuthorizationRequest, TokenGrant, revoke_token, states_match and scopes_for."
+description: "OAuth2Server, Revocation, OAuth2Client, OAuth2Flow, AuthorizationRequest, TokenGrant, revoke_token, states_match, scopes_for, AnyOf, Unavailable, Kind, missing_scopes and ScopeRefusal."
 ---
 
 Everything on this page is imported from `charter.auth`, not `charter`.
@@ -797,28 +797,220 @@ attacker from splicing their code into your user's session.
 ## `scopes_for`
 
 ```python
-def scopes_for(tools: Iterable[Tool]) -> list[str]: ...
+def scopes_for(
+    tools: Iterable[Tool], kind: Union[Kind, str, None] = None
+) -> list[str]: ...
 ```
 
-The scopes an authorization request must cover to run these tools, read from the
-`scopes` metadata each was declared with and deduped in first-seen order.
+The fewest, narrowest scopes an authorization request needs to run these tools.
+Every tool's requirements are met by the result, no scope in it can be dropped
+without leaving one unmet, and among such sets it is the one that avoids the
+broadest scopes first. The result depends on which tools are handed in, never on
+the order they arrive in.
 
 ```python
 from charter.auth import scopes_for
-from charter.packs import gcalendar, gmail
+from charter.packs import gmail
 
-consent = scopes_for([*gmail.TOOLS, *gcalendar.TOOLS])
-assert "https://www.googleapis.com/auth/gmail.modify" in consent
+scopes_for([gmail.messages_send])                        # ['…/gmail.send']
+scopes_for([gmail.threads_list, gmail.threads_modify])   # ['…/gmail.modify']
 ```
+
+Gmail's readers accept `gmail.readonly` or anything broader, and the relabeller
+needs `gmail.modify`, so the second agent asks for `gmail.modify` alone. Nothing
+declares that `gmail.modify` covers `gmail.readonly`: it is read off the tools'
+own [`AnyOf`](#anyof) requirements, which list what the provider accepts.
+
+A tool declared with plain scopes needs each of them, so tools declared that way
+get their union in first-seen order, as they always have. Two tools that list the
+same two scopes in opposite orders raise a `DeclarationError`, since neither can
+then be called the narrower.
 
 The consent screen is then exactly what the agent can do, kept in lockstep with
 the tool set instead of maintained beside it.
+
+`kind` asks about another [kind of credential](#kind) than the pack's default:
+`scopes_for(tools, kind=github.APP)` is the permissions to set on a GitHub App,
+`kind=stripe.RESTRICTED_KEY` the narrowest restricted key. A string names a kind
+too, and one no tool declares is refused with the kinds that exist. A tool that
+cannot run under the kind raises a `DeclarationError` naming it, its
+[`Unavailable`](#unavailable) reason and the kinds that would run it.
+
+## `AnyOf`
+
+```python
+class AnyOf:
+    def __init__(self, *options: str) -> None: ...
+```
+
+One requirement several scopes can meet, listed narrowest first. Put it in a
+tool's `scopes` (or a factory's `scopes` / `scopes_override`) wherever the
+provider accepts more than one scope for the call:
+
+```python
+from charter.auth import AnyOf
+
+AUTH = "https://www.googleapis.com/auth/"
+
+# Google's users.messages.send accepts any of these; the first is the narrowest.
+SEND = AnyOf(AUTH + "gmail.send", AUTH + "gmail.compose", AUTH + "gmail.modify", "https://mail.google.com/")
+```
+
+Then `scopes_override=[SEND]` on the tool.
+
+List only scopes that let the tool do everything its arguments can ask for.
+Google's `files.get` also accepts `drive.file`, but that scope reaches only files
+the app created, so `gdrive.files_get` does not offer it: a grant holding it would
+pass the consent screen and then fail on the user's own files.
+
+`options` holds the scopes; `met_by(granted)` says whether a grant holding
+`granted` meets the requirement. Equal when the options are equal, in order.
+
+## `Unavailable`
+
+```python
+class Unavailable:
+    def __init__(self, reason: str) -> None: ...
+```
+
+A tool that cannot run under one kind of credential, and why. It goes where a
+requirement would:
+
+```python
+from charter.auth import AnyOf, Unavailable
+from charter.packs import github
+
+# GitHub serves notifications to OAuth apps and classic tokens only.
+scopes = {
+    github.OAUTH: [AnyOf("notifications", "repo")],
+    github.APP: [Unavailable("GitHub serves notifications to OAuth apps only")],
+}
+```
+
+[`scopes_for`](#scopes_for) and [`missing_scopes`](#missing_scopes) refuse a
+tool set that includes it for that kind, rather than build a grant that cannot run
+it. `reason` holds the words; equal when the reasons are equal.
+
+## `Kind`
+
+```python
+@dataclass(frozen=True)
+class Kind:
+    name: str
+    provider: str
+    granted: Literal["consent", "configured"] = "consent"
+    default: bool = False
+    description: str = ""
+```
+
+One kind of credential a provider issues, with its own permission names. A pack
+declares each as a constant (`github.APP`, `slack.USER`, `stripe.RESTRICTED_KEY`)
+and a tool's `scopes` maps each kind to its requirements:
+
+```python
+from charter.auth import Kind
+
+OAUTH = Kind("oauth", provider="acme", default=True)
+APP = Kind("app", provider="acme", granted="configured")
+
+scopes = {OAUTH: ["repo"], APP: ["issues=write"]}
+```
+
+`granted` says where the names go: `"consent"` in the authorization request,
+`"configured"` where the app or key is made. `default` marks the kind a plain
+list of scopes means, which is what `tool.scopes` holds; the others are in
+`tool.kind_scopes`. A mapping names one provider's kinds and at most one default.
+On a factory, a tool's list `scopes_override` replaces the default kind's and
+keeps the rest, and a mapping replaces the kinds it names; `derived(scopes=...)`
+does the same. Equal by name, provider, `granted` and `default`; `str(kind)` is
+`"github.app"`.
+
+## `missing_scopes`
+
+```python
+def missing_scopes(
+    tools: Iterable[Tool], granted: Iterable[str], kind: Union[Kind, str, None] = None
+) -> list[str]: ...
+```
+
+What to add to a grant so it runs every one of these tools; empty when it already
+does. It compares by requirement rather than by string, so a grant holding
+`gmail.modify` runs a tool whose narrowest option is `gmail.readonly`. The answer
+is [`scopes_for`](#scopes_for) over the requirements the grant leaves unmet.
+
+```python
+from charter.auth import missing_scopes
+from charter.packs import gmail
+
+tools = [gmail.threads_list, gmail.messages_send]
+
+missing_scopes(tools, ["https://www.googleapis.com/auth/gmail.modify"])     # []
+missing_scopes(tools, ["https://www.googleapis.com/auth/gmail.readonly"])   # ['…/gmail.send']
+```
+
+## `ScopeRefusal`
+
+```python
+@dataclass(frozen=True)
+class ScopeRefusal:
+    status: Union[int, AbstractSet[int]] = 403
+    signal: Optional[str] = None
+    needed: Optional[str] = None
+    needed_field: Optional[str] = None
+    needed_header: Optional[str] = None
+    held_header: Optional[str] = None
+    alternatives: bool = True
+    kind: Optional[Kind] = None
+```
+
+How an API says a token's grant does not cover a call, declared once on the
+factory with `scope_refusals=[...]`, the way an
+[`Envelope`](/reference/envelopes-and-pagination#envelope) is. Every tool the
+factory builds then raises [`InsufficientScope`](/reference/errors#insufficientscope)
+for it, before the status or the envelope would call it something vaguer.
+
+```python
+from charter.auth import ScopeRefusal
+
+LINEAR_REFUSAL = ScopeRefusal(
+    status={200, 400},
+    signal=r"Invalid scope:",
+    needed=r"Invalid scope:\s*(.+?)\s+required",
+)
+```
+
+`status` is the statuses the refusal comes back with, 200 included for an API
+that reports failure inside a success. `signal` is a regular expression the body
+must match; without one, `held_header` must be set, or every response with that
+status would read as a missing scope. The scopes the provider names come from the
+first group of `needed`, the JSON path `needed_field`, or the header
+`needed_header`, whichever finds some: backticked, quoted, or a plain list.
+`held_header` names the header listing what the token holds, and a response counts
+only when the token holds none of the named scopes, which is how GitHub's 404 for
+a repository it hides is told from its 404 for one that does not exist.
+`alternatives` says whether several named scopes are each enough (the usual case)
+or all needed. `kind` is the kind of credential the names belong to.
+
+The standard `WWW-Authenticate: Bearer error="insufficient_scope", scope="…"`
+challenge needs no declaration: it is read on every response, and its scopes as
+alternatives. A pattern that is not a regular expression, or a `needed` without a
+group, is refused when the declaration is made.
 
 ## Types in these signatures
 
 The aliases the signatures above are declared in. They are exported from
 `charter.auth` so a host writing its own wrapper can name them without importing
 from a submodule.
+
+## `ScopeRequirement`
+
+```python
+ScopeRequirement = Union[str, AnyOf, Unavailable]
+```
+
+One item of a tool's `scopes`: a scope the tool needs, an [`AnyOf`](#anyof)
+of scopes any one of which will do, or [`Unavailable`](#unavailable) for a kind
+of credential that cannot run the tool at all.
 
 ## `Grant`
 

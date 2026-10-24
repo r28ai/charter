@@ -17,7 +17,7 @@ result = asyncio.run(slack.users_info.ainvoke({"user": ...}))
 ```
 
 <Note>
-  Requires `chat:write`, `channels:read`, `groups:read`, `im:read`, `mpim:read`, `channels:history`, `groups:history`, `im:history`, `mpim:history`, `users:read`, `reactions:write`.
+  Requires `users:read`. With `slack.USER`, requires `users:read`.
 </Note>
 
 ## Query parameters

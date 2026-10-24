@@ -17,7 +17,7 @@ result = asyncio.run(github.checks_list_annotations.ainvoke({"owner": ..., "repo
 ```
 
 <Note>
-  Requires `repo`, `read:user`. Pages by number: `page` with `per_page`.
+  Requires `repo`. With `github.APP` or `github.FINE_GRAINED`, requires `checks=read` or `checks=write`. Pages by number: `page` with `per_page`.
 </Note>
 
 ## Path parameters

@@ -17,7 +17,7 @@ result = asyncio.run(github.issues_remove_assignees.ainvoke({"owner": ..., "repo
 ```
 
 <Note>
-  Requires `repo`, `read:user`.
+  Requires `repo`. With `github.APP` or `github.FINE_GRAINED`, requires `issues=write`.
 </Note>
 
 ## Path parameters

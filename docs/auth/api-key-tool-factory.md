@@ -119,6 +119,7 @@ api_key_tool_factory(
     timeout: int = 20,
     quota_doc_url: str | None = None,
     envelope: Envelope | None = None,
+    scope_refusals: Iterable[ScopeRefusal] | None = None,
     pagination: Pagination | None = None,
     body_format: BodyFormat = "json",
     query_format: QueryFormat = "repeat",

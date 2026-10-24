@@ -17,7 +17,7 @@ result = asyncio.run(outlook.messages_delta.ainvoke({"folderId": ...}))
 ```
 
 <Note>
-  Requires `https://graph.microsoft.com/Mail.Read`. Pages by cursor: `next_link` is sent back as `next_link`.
+  Requires `https://graph.microsoft.com/Mail.Read` or `https://graph.microsoft.com/Mail.ReadWrite`. Pages by cursor: `next_link` is sent back as `next_link`.
 </Note>
 
 ## Path parameters

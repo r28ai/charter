@@ -18,11 +18,13 @@ Two auth shapes are covered:
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Iterable, Optional, Sequence, Type
+from typing import Any, Callable, Dict, Iterable, Optional, Type
 
 from pydantic import BaseModel
 
 from charter.auth import CredentialProvider
+from charter.auth.refusals import ScopeRefusal
+from charter.auth.scopes import ScopesDeclaration, merge_scopes, normalize_scopes
 from charter.execution.executor import ApiKeyHeaders, ResponseHandler
 from charter.execution.http import BaseUrl, BodyFormat, HTTPMethod, QueryFormat
 from charter.execution.routes import UrlTemplate
@@ -70,6 +72,7 @@ def api_key_tool_factory(
     timeout: int = 20,
     quota_doc_url: Optional[str] = None,
     envelope: Optional[Envelope] = None,
+    scope_refusals: Optional[Iterable[ScopeRefusal]] = None,
     pagination: Optional[Pagination] = None,
     body_format: BodyFormat = "json",
     query_format: QueryFormat = "repeat",
@@ -95,6 +98,10 @@ def api_key_tool_factory(
         quota_doc_url: Link to the API's own rate-limit documentation.
         envelope: How this API reports failure inside a 200 response. Declared
             once here, enforced on every tool the factory builds.
+        scope_refusals: How this API says a credential's grant does not cover
+            the call, so each such answer raises ``InsufficientScope`` naming the
+            scopes to add. The standard ``WWW-Authenticate`` challenge needs no
+            declaration. See :class:`~charter.auth.ScopeRefusal`.
         pagination: Where this API keeps its cursor.
         body_format: ``"json"`` (default) or ``"form"`` for form-encoded APIs
             such as Stripe and Twilio.
@@ -154,6 +161,7 @@ def api_key_tool_factory(
     # is derived on first use, so whoever reaches a tool first builds it, and a
     # pack's tools are process-wide objects that several requests reach at once.
     _llm_cache = SchemaStore()
+    refusals = tuple(scope_refusals or ())
 
     def create_tool(
         name: str,
@@ -211,6 +219,7 @@ def api_key_tool_factory(
             build_request=build_request,
             response_handler=response_handler,
             envelope=envelope_override if envelope_override is not None else envelope,
+            scope_refusals=refusals,
             pagination=pagination_override if pagination_override is not None else pagination,
             body_format=body_format_override if body_format_override is not None else body_format,
             query_format=query_format,
@@ -234,7 +243,7 @@ def oauth_tool_factory(
     base_url: BaseUrl,
     provider: str,
     credential_provider: CredentialProvider,
-    scopes: Optional[Sequence[str]] = None,
+    scopes: Optional[ScopesDeclaration] = None,
     *,
     pack: str,
     body_case: KeyCase = "camel",
@@ -243,6 +252,7 @@ def oauth_tool_factory(
     timeout: int = 20,
     quota_doc_url: Optional[str] = None,
     envelope: Optional[Envelope] = None,
+    scope_refusals: Optional[Iterable[ScopeRefusal]] = None,
     pagination: Optional[Pagination] = None,
     body_format: BodyFormat = "json",
     query_format: QueryFormat = "repeat",
@@ -265,8 +275,16 @@ def oauth_tool_factory(
         base_url: Base URL for the API, e.g. ``"https://gmail.googleapis.com/"``.
         provider: Provider identifier passed to ``get_credentials``, e.g. ``"google"``.
         credential_provider: Supplies the bearer token.
-        scopes: The scopes these tools need. Carried as metadata for consent
-            screens and approval UIs; Charter does not request them itself.
+        scopes: What these tools need from a grant: scopes, or ``AnyOf(...)``
+            where the provider accepts several, narrowest first. Carried as
+            metadata for :func:`~charter.auth.scopes_for` and approval UIs;
+            Charter does not request them itself. A mapping of
+            :class:`~charter.auth.Kind` to lists declares them for each kind of
+            credential the provider issues.
+        scope_refusals: How this API says the token's grant does not cover the
+            call, so each such answer raises ``InsufficientScope`` naming the
+            scopes to add. The standard ``WWW-Authenticate`` challenge needs no
+            declaration. See :class:`~charter.auth.ScopeRefusal`.
         body_case: Case convention for body keys.
         query_case: Case convention for query keys.
         path_case: Case convention for path keys.
@@ -325,6 +343,7 @@ def oauth_tool_factory(
     # is derived on first use, so whoever reaches a tool first builds it, and a
     # pack's tools are process-wide objects that several requests reach at once.
     _llm_cache = SchemaStore()
+    refusals = tuple(scope_refusals or ())
 
     def create_tool(
         name: str,
@@ -340,7 +359,7 @@ def oauth_tool_factory(
         mode: Optional[str] = None,
         response_handler: Optional[ResponseHandler] = None,
         build_request: Optional[Callable[[BaseModel], TransportOverride]] = None,
-        scopes_override: Optional[Sequence[str]] = None,
+        scopes_override: Optional[ScopesDeclaration] = None,
         quota_cost: Optional[int] = None,
         envelope_override: Optional[Envelope] = None,
         pagination_override: Optional[Pagination] = None,
@@ -365,13 +384,18 @@ def oauth_tool_factory(
             mode=mode,
             action_label=action_label,
             provider=provider,
-            scopes=scopes_override if scopes_override is not None else scopes,
+            scopes=merge_scopes(
+                normalize_scopes(scopes, where=f"{pack} factory"),
+                scopes_override,
+                where=f"tool {name!r}",
+            ),
             quota_cost=quota_cost,
             quota_doc_url=quota_doc_url,
             credential_provider=credential_provider,
             build_request=build_request,
             response_handler=response_handler,
             envelope=envelope_override if envelope_override is not None else envelope,
+            scope_refusals=refusals,
             pagination=pagination_override if pagination_override is not None else pagination,
             body_format=body_format_override if body_format_override is not None else body_format,
             query_format=query_format,

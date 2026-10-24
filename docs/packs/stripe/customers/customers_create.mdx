@@ -16,6 +16,10 @@ from charter.packs import stripe
 result = asyncio.run(stripe.customers_create.ainvoke({}))
 ```
 
+<Note>
+  With `stripe.RESTRICTED_KEY`, requires `customer_write`.
+</Note>
+
 ## Body
 
 <div className="reference-table">

@@ -17,7 +17,7 @@ result = asyncio.run(stripe.application_fees_list.ainvoke({}))
 ```
 
 <Note>
-  Pages by cursor: `data[-1].id` is sent back as `starting_after`.
+  With `stripe.RESTRICTED_KEY`, requires `application_fee_read` or `application_fee_write`. Pages by cursor: `data[-1].id` is sent back as `starting_after`.
 </Note>
 
 ## Query parameters

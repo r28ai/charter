@@ -35,7 +35,7 @@ trimming handlers in :mod:`~charter.packs.slack.response_handlers`.
 
 from __future__ import annotations
 
-from charter.auth import CredentialProvider
+from charter.auth import CredentialProvider, Kind, ScopeRefusal, Unavailable, scopes_for
 from charter.factories import oauth_tool_factory
 from charter.packs._config import DeferredCredentialProvider
 from charter.packs.slack.response_handlers import (
@@ -76,40 +76,51 @@ from charter.types.pagination import Pagination
 BASE_URL = "https://slack.com/api/"
 QUOTA_DOC_URL = "https://docs.slack.dev/apis/web-api/rate-limits"
 
-# Bot-token scopes the reading, posting and reacting tools share: the factory's
-# default, so every tool that declares nothing of its own carries these. That
-# includes search_messages, which is user-token only and needs search:read on a
-# user token instead (see the tool below).
-CORE = [
-    "chat:write",
-    "channels:read",
-    "groups:read",
-    "im:read",
-    "mpim:read",
-    "channels:history",
-    "groups:history",
-    "im:history",
-    "mpim:history",
-    "users:read",
-    "reactions:write",
-]
+# Slack issues two kinds of token, and an app asks for each one's scopes in its
+# own list: bot scopes in the authorize URL's `scope`, user scopes in
+# `user_scope`. A user token acts as the person who installed the app.
+BOT = Kind(
+    "bot",
+    provider="slack",
+    default=True,
+    description="A bot token (xoxb-), whose scopes go in the authorize URL's `scope`.",
+)
+USER = Kind(
+    "user",
+    provider="slack",
+    description=(
+        "A user token (xoxp-), which acts as the person who installed the app; its "
+        "scopes go in `user_scope`."
+    ),
+)
 
-# Declared on the tools that need them rather than added to CORE, so that
-# scopes_for() over the tools someone actually hands a model asks for no more
-# than those tools can do. Slack's method pages list one scope per kind of
-# conversation, any of which lets the call through for that kind, so a tool
+# Each method page lists the scopes for each kind of token, one per kind of
+# conversation, any of which lets the call through for that kind; so a tool
 # that reaches public and private channels alike declares one of each. Where
 # several would do, it is the narrowest: channels:manage would also let
-# conversations.invite through, but it can archive and rename as well.
+# conversations.invite through, but it can archive and rename as well. Read
+# from docs.slack.dev/reference/methods, 2026-10-24.
+CHAT = ["chat:write"]
+READ_CHANNELS = ["channels:read", "groups:read", "im:read", "mpim:read"]
+READ_HISTORY = ["channels:history", "groups:history", "im:history", "mpim:history"]
+READ_USERS = ["users:read"]
+WRITE_REACTIONS = ["reactions:write"]
+READ_REACTIONS = ["reactions:read"]
+OPEN_DMS = ["im:write", "mpim:write"]
 CREATE_CHANNELS = ["channels:manage", "groups:write"]
 INVITE_TO_CHANNELS = ["channels:write.invites", "groups:write.invites"]
 JOIN_CHANNELS = ["channels:join"]
-OPEN_DMS = ["im:write", "mpim:write"]
-READ_REACTIONS = ["reactions:read"]
+SEARCH = ["search:read"]
 
-# Everything the pack's bot token needs, under the name every pack uses for
-# this metadata.
-SCOPES = CORE + READ_REACTIONS + OPEN_DMS + CREATE_CHANNELS + INVITE_TO_CHANNELS + JOIN_CHANNELS
+# What the reading, posting and reacting tools need between them.
+CORE = CHAT + READ_CHANNELS + READ_HISTORY + READ_USERS + WRITE_REACTIONS
+
+
+def _scopes(bot, user=None):
+    """A tool's scopes under each kind of token: the same for both on most of
+    Slack's methods, so ``user`` is given only where its page lists others."""
+    return {BOT: bot, USER: bot if user is None else user}
+
 
 # Slack reports failure as 200 OK with {"ok": false, "error": "..."}. Declared
 # once here; the runtime enforces it on every tool built from the factory below,
@@ -128,14 +139,27 @@ SLACK_ENVELOPE = Envelope(
     },
     # The token works and may not do this. A refresh returns the same grant, so
     # the token is kept; the fix is a scope, a different token, or an admin.
+    # missing_scope and not_allowed_token_type are SLACK_REFUSALS', below.
     permission_errors={
-        "missing_scope",
         "no_permission",
-        "not_allowed_token_type",
         "ekm_access_denied",
         "org_login_required",
     },
     detail_fields=("needed", "warning"),
+)
+
+# A grant without the scope, and a token of the wrong kind, both come back as
+# 200 with ok:false. Slack names the missing scope in `needed`; for the wrong
+# kind it names nothing, and the tool's own declaration for the other kind says
+# what to ask for. https://docs.slack.dev/reference/methods/search.messages#errors
+SLACK_REFUSALS = (
+    ScopeRefusal(
+        status=200,
+        signal=r'"error"\s*:\s*"missing_scope"',
+        needed_field="needed",
+        alternatives=False,
+    ),
+    ScopeRefusal(status=200, signal=r'"error"\s*:\s*"not_allowed_token_type"', kind=USER),
 )
 
 # Slack pages with an opaque cursor in response_metadata, and sends "" on the
@@ -160,12 +184,12 @@ _slack = oauth_tool_factory(
     base_url=BASE_URL,
     provider="slack",
     credential_provider=_credentials,
-    scopes=CORE,
     # Slack is snake_case on the wire, in both directions.
     body_case="snake",
     query_case="snake",
     quota_doc_url=QUOTA_DOC_URL,
     envelope=SLACK_ENVELOPE,
+    scope_refusals=SLACK_REFUSALS,
     # Pagination is a property of a list endpoint, not of the API: declaring it
     # on the factory labels every retrieve and write with a cursor parameter
     # they do not accept. It is declared per tool below.
@@ -175,6 +199,7 @@ _slack = oauth_tool_factory(
 
 chat_post_message = _slack(  # rate limit: special tier, ~1 message/sec/channel
     name="chat_post_message",
+    scopes_override=_scopes(CHAT),
     args_schema=ChatPostMessageRequest,
     method="POST",
     url_template="chat.postMessage",
@@ -188,6 +213,7 @@ chat_post_message = _slack(  # rate limit: special tier, ~1 message/sec/channel
 
 chat_update = _slack(  # rate limit: Tier 3
     name="chat_update",
+    scopes_override=_scopes(CHAT),
     args_schema=ChatUpdateRequest,
     method="POST",
     url_template="chat.update",
@@ -201,6 +227,7 @@ chat_update = _slack(  # rate limit: Tier 3
 
 chat_delete = _slack(  # rate limit: Tier 3
     name="chat_delete",
+    scopes_override=_scopes(CHAT),
     args_schema=ChatDeleteRequest,
     method="POST",
     url_template="chat.delete",
@@ -212,6 +239,7 @@ chat_delete = _slack(  # rate limit: Tier 3
 
 conversations_list = _slack(  # rate limit: Tier 2
     name="conversations_list",
+    scopes_override=_scopes(READ_CHANNELS),
     args_schema=ConversationsListRequest,
     method="GET",
     url_template="conversations.list",
@@ -226,6 +254,7 @@ conversations_list = _slack(  # rate limit: Tier 2
 
 conversations_history = _slack(  # rate limit: Tier 3
     name="conversations_history",
+    scopes_override=_scopes(READ_HISTORY),
     args_schema=ConversationsHistoryRequest,
     method="GET",
     url_template="conversations.history",
@@ -237,6 +266,7 @@ conversations_history = _slack(  # rate limit: Tier 3
 
 conversations_replies = _slack(  # rate limit: Tier 3
     name="conversations_replies",
+    scopes_override=_scopes(READ_HISTORY),
     args_schema=ConversationsRepliesRequest,
     method="GET",
     url_template="conversations.replies",
@@ -252,6 +282,7 @@ conversations_replies = _slack(  # rate limit: Tier 3
 
 users_list = _slack(  # rate limit: Tier 2
     name="users_list",
+    scopes_override=_scopes(READ_USERS),
     args_schema=UsersListRequest,
     method="GET",
     url_template="users.list",
@@ -266,6 +297,7 @@ users_list = _slack(  # rate limit: Tier 2
 
 users_info = _slack(  # rate limit: Tier 4
     name="users_info",
+    scopes_override=_scopes(READ_USERS),
     args_schema=UsersInfoRequest,
     method="GET",
     url_template="users.info",
@@ -278,6 +310,7 @@ users_info = _slack(  # rate limit: Tier 4
 
 reactions_add = _slack(  # rate limit: Tier 3
     name="reactions_add",
+    scopes_override=_scopes(WRITE_REACTIONS),
     args_schema=ReactionsAddRequest,
     method="POST",
     url_template="reactions.add",
@@ -288,9 +321,11 @@ reactions_add = _slack(  # rate limit: Tier 3
 # ---------- search ----------
 
 # search.messages is user-token only (search:read). A bot token gets
-# not_allowed_token_type, which SLACK_ENVELOPE surfaces as a CredentialError.
+# not_allowed_token_type, which SLACK_REFUSALS raises as InsufficientScope for
+# slack.USER, and scopes_for() refuses to build a bot grant for it.
 search_messages = _slack(  # rate limit: Tier 2
     name="search_messages",
+    scopes_override=_scopes([Unavailable("search.messages takes a user token only")], user=SEARCH),
     args_schema=SearchMessagesRequest,
     method="GET",
     url_template="search.messages",
@@ -309,7 +344,7 @@ search_messages = _slack(  # rate limit: Tier 2
 
 conversations_open = _slack(  # rate limit: Tier 4
     name="conversations_open",
-    scopes_override=OPEN_DMS,
+    scopes_override=_scopes(OPEN_DMS),
     args_schema=ConversationsOpenRequest,
     method="POST",
     url_template="conversations.open",
@@ -325,7 +360,7 @@ conversations_open = _slack(  # rate limit: Tier 4
 
 conversations_create = _slack(  # rate limit: Tier 2
     name="conversations_create",
-    scopes_override=CREATE_CHANNELS,
+    scopes_override=_scopes(CREATE_CHANNELS, user=["channels:write", "groups:write"]),
     args_schema=ConversationsCreateRequest,
     method="POST",
     url_template="conversations.create",
@@ -336,7 +371,7 @@ conversations_create = _slack(  # rate limit: Tier 2
 
 conversations_invite = _slack(  # rate limit: Tier 3
     name="conversations_invite",
-    scopes_override=INVITE_TO_CHANNELS,
+    scopes_override=_scopes(INVITE_TO_CHANNELS),
     args_schema=ConversationsInviteRequest,
     method="POST",
     url_template="conversations.invite",
@@ -350,7 +385,7 @@ conversations_invite = _slack(  # rate limit: Tier 3
 
 conversations_join = _slack(  # rate limit: Tier 3
     name="conversations_join",
-    scopes_override=JOIN_CHANNELS,
+    scopes_override=_scopes(JOIN_CHANNELS, user=["channels:write"]),
     args_schema=ConversationsJoinRequest,
     method="POST",
     url_template="conversations.join",
@@ -365,6 +400,7 @@ conversations_join = _slack(  # rate limit: Tier 3
 
 chat_post_ephemeral = _slack(  # rate limit: Tier 4
     name="chat_post_ephemeral",
+    scopes_override=_scopes(CHAT),
     args_schema=ChatPostEphemeralRequest,
     method="POST",
     url_template="chat.postEphemeral",
@@ -377,6 +413,7 @@ chat_post_ephemeral = _slack(  # rate limit: Tier 4
 
 chat_schedule_message = _slack(  # rate limit: Tier 3
     name="chat_schedule_message",
+    scopes_override=_scopes(CHAT),
     args_schema=ChatScheduleMessageRequest,
     method="POST",
     url_template="chat.scheduleMessage",
@@ -392,6 +429,7 @@ chat_schedule_message = _slack(  # rate limit: Tier 3
 
 reactions_remove = _slack(  # rate limit: Tier 3
     name="reactions_remove",
+    scopes_override=_scopes(WRITE_REACTIONS),
     args_schema=ReactionsRemoveRequest,
     method="POST",
     url_template="reactions.remove",
@@ -401,7 +439,7 @@ reactions_remove = _slack(  # rate limit: Tier 3
 
 reactions_get = _slack(  # rate limit: Tier 3
     name="reactions_get",
-    scopes_override=READ_REACTIONS,
+    scopes_override=_scopes(READ_REACTIONS),
     args_schema=ReactionsGetRequest,
     method="GET",
     url_template="reactions.get",
@@ -435,13 +473,22 @@ TOOLS: list[Tool] = [
     search_messages,
 ]
 
+# Everything a bot token needs for the whole pack, which is every tool but the
+# one a bot token cannot call; and everything a user token needs for all of it.
+SCOPES = scopes_for([tool for tool in TOOLS if tool is not search_messages])
+USER_SCOPES = scopes_for(TOOLS, kind=USER)
+
 __all__ = [
     "TOOLS",
     "configure",
     "BASE_URL",
     "SCOPES",
+    "USER_SCOPES",
+    "BOT",
+    "USER",
     "QUOTA_DOC_URL",
     "SLACK_ENVELOPE",
+    "SLACK_REFUSALS",
     "SLACK_PAGINATION",
     "extract_messages",
     "extract_channels",

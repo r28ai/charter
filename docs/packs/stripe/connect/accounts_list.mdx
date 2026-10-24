@@ -17,7 +17,7 @@ result = asyncio.run(stripe.accounts_list.ainvoke({}))
 ```
 
 <Note>
-  Pages by cursor: `data[-1].id` is sent back as `starting_after`.
+  With `stripe.RESTRICTED_KEY`, requires `connected_account_read` or `connected_account_write`. Pages by cursor: `data[-1].id` is sent back as `starting_after`.
 </Note>
 
 ## Query parameters

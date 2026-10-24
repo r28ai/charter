@@ -68,6 +68,25 @@ async def notion_for(user_id: str):
 notion.configure(credential_provider=SubjectProvider(notion_for))
 ```
 
+## Capabilities
+
+Notion's permissions are the integration's capabilities, ticked where you
+[register it](/auth/apps/notion) and never sent on a request. Each tool declares
+the ones it uses, spelled as Notion's console spells them, so
+[`scopes_for`](/reference/oauth#scopes_for) is the list to tick:
+
+```python notion_capabilities.py
+from charter.auth import scopes_for
+from charter.packs import notion
+
+scopes_for([notion.users_list])   # ['Read user information']
+```
+
+An integration without the capability gets 403 `restricted_resource`, which names
+none, so [`InsufficientScope`](/reference/errors#insufficientscope) reports the
+tool's own. A page the user did not share answers 404 instead: that is which pages
+the integration may see, not what it may do.
+
 ## Refresh behaviour
 
 Notion's token response carries a `refresh_token` and no `expires_in`, and its

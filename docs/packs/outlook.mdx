@@ -133,6 +133,7 @@ beside the Graph scopes, or Microsoft issues no refresh token.
 
 ```python Without the pack
 from charter import oauth_tool_factory
+from charter.auth import ScopeRefusal
 
 outlook_api_client = oauth_tool_factory(
     base_url="https://graph.microsoft.com/v1.0/",
@@ -149,6 +150,12 @@ outlook_api_client = oauth_tool_factory(
     },
     # this API reports failure with an HTTP status code
     envelope=None,
+    scope_refusals=[
+        ScopeRefusal(
+            status=403,
+            signal=r"\"code\"\s*:\s*\"ErrorAccessDenied\"",
+        ),
+    ],
 )
 ```
 

@@ -108,10 +108,16 @@ def test_only_the_list_endpoint_declares_pagination():
 
 def test_reading_responses_asks_for_the_scope_the_body_scope_does_not_cover():
     """`forms.body` does not reach the responses collection. Two tools say so."""
+    from charter.auth import scopes_for
+
+    auth = "https://www.googleapis.com/auth/"
     for tool in (gforms.forms_responses_get, gforms.forms_responses_list):
-        assert tool.scopes == ["https://www.googleapis.com/auth/forms.responses.readonly"]
-    for tool in (gforms.forms_create, gforms.forms_get, gforms.forms_batch_update):
-        assert tool.scopes == ["https://www.googleapis.com/auth/forms.body"]
+        assert scopes_for([tool]) == [auth + "forms.responses.readonly"]
+        assert auth + "forms.body" not in tool.scopes[0].options
+    for tool in (gforms.forms_batch_update, gforms.forms_set_publish_settings):
+        assert scopes_for([tool]) == [auth + "forms.body"]
+    assert scopes_for([gforms.forms_get]) == [auth + "forms.body.readonly"]
+    assert scopes_for([gforms.forms_create]) == [auth + "drive.file"]
 
 
 # -----------------------------------------------------

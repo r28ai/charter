@@ -250,8 +250,8 @@ def test_the_offline_basics_print_what_they_promise(capsys):
 
     _load("basics/12_scopes_from_tools")
     reader, cleaner = capsys.readouterr().out.splitlines()
-    assert reader == "a reader  asks for  gmail.modify, calendar.events"
-    assert cleaner.endswith("https://mail.google.com/")
+    assert reader == "a reader  asks for  gmail.readonly, calendar.events.readonly"
+    assert cleaner == "a cleaner asks for  https://mail.google.com/, calendar.events.readonly"
 
     _load("basics/09_rules_on_fields")
     amount, cut = capsys.readouterr().out.splitlines()

@@ -17,7 +17,7 @@ result = asyncio.run(github.code_scanning_list_alerts.ainvoke({"owner": ..., "re
 ```
 
 <Note>
-  Requires `repo`, `read:user`. Pages by number: `page` with `per_page`.
+  Requires `security_events` or `repo`. With `github.APP` or `github.FINE_GRAINED`, requires `security_events=read` or `security_events=write`. Pages by number: `page` with `per_page`.
 </Note>
 
 ## Path parameters

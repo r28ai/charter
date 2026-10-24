@@ -17,7 +17,7 @@ result = asyncio.run(github.users_get_authenticated.ainvoke({}))
 ```
 
 <Note>
-  Requires `repo`, `read:user`.
+  Requires `read:user` or `user`. Cannot run with `github.APP`: an installation token acts as the app, and GitHub serves this to a user's token only. With `github.FINE_GRAINED`, needs no permission.
 </Note>
 
 This tool takes no arguments.

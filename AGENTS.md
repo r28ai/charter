@@ -51,7 +51,9 @@ src/charter/
   auth/        the whole of authentication, and the only place it lives:
                credentials.py (CredentialProvider + shipped providers),
                oauth.py (OAuth2Server/Client, Revocation), flow.py
-               (OAuth2Flow), revocation.py (revoke_token).
+               (OAuth2Flow), revocation.py (revoke_token), scopes.py
+               (AnyOf, Kind, Unavailable, scopes_for), refusals.py
+               (ScopeRefusal, read into InsufficientScope).
                Import from `charter.auth`; nothing here is re-exported
                from `charter`.
   egress.py    the egress map — what each tool can expose to the model
@@ -106,6 +108,20 @@ marker, so do not write a `ConflictsWith` list beside it.
 **A constant the API wants on every request** (Azure `api-version`, a
 `Notion-Version` header). Use `static_query` / `static_headers` on the factory.
 Never put it in the schema: the model would see a field it must not set.
+
+**An API that says a grant is too narrow in its own words.** Declare a
+`ScopeRefusal` on the factory's `scope_refusals`, so every tool raises
+`InsufficientScope` with the scopes to add. The standard `WWW-Authenticate:
+Bearer error="insufficient_scope"` header needs nothing. Do not match the
+sentence in a response handler: handlers only ever see successes.
+
+**A provider with more than one kind of credential** (GitHub's OAuth apps and
+Apps, Stripe's secret and restricted keys). Declare each as a `Kind` constant in
+the pack and give every tool `scopes={KIND: [...], ...}`, with `Unavailable(...)`
+where a kind cannot run it. Packs that do this read each tool's names from a
+table keyed by tool name, so a new tool fails at import until it has an answer;
+`test_every_tool_answers_for_every_kind_of_credential_its_pack_declares` checks
+the rest.
 
 **An API that returns 200 on failure.** Do not write a per-tool check. Declare an
 `Envelope` on the factory — see [docs/tools/envelopes.md](docs/tools/envelopes.md). If the

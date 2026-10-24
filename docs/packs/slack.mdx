@@ -133,6 +133,7 @@ only answers for a user token — see the gotcha below.
 
 ```python Without the pack
 from charter import Envelope, oauth_tool_factory
+from charter.auth import Kind, ScopeRefusal
 
 slack_api_client = oauth_tool_factory(
     base_url="https://slack.com/api/",
@@ -156,13 +157,24 @@ slack_api_client = oauth_tool_factory(
         },
         permission_errors={
             "ekm_access_denied",
-            "missing_scope",
             "no_permission",
-            "not_allowed_token_type",
             "org_login_required",
         },
         detail_fields=("needed", "warning"),
     ),
+    scope_refusals=[
+        ScopeRefusal(
+            status=200,
+            signal=r"\"error\"\s*:\s*\"missing_scope\"",
+            needed_field="needed",
+            alternatives=False,
+        ),
+        ScopeRefusal(
+            status=200,
+            signal=r"\"error\"\s*:\s*\"not_allowed_token_type\"",
+            kind=Kind("user", provider="slack"),
+        ),
+    ],
 )
 ```
 

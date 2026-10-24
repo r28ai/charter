@@ -17,7 +17,7 @@ result = asyncio.run(github.notifications_list.ainvoke({}))
 ```
 
 <Note>
-  Requires `repo`, `read:user`. Pages by number: `page` with `per_page`.
+  Requires `notifications` or `repo`. Cannot run with `github.APP` or `github.FINE_GRAINED`: GitHub serves notifications to OAuth apps and classic tokens only. Pages by number: `page` with `per_page`.
 </Note>
 
 ## Query parameters

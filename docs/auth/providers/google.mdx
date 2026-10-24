@@ -39,35 +39,64 @@ field the whole integration turns on.
 
 ## Scopes
 
-Every pack declares what its tools need, and [`scopes_for`](/reference/oauth#scopes_for) reads it back:
+Each tool lists the scopes Google's reference accepts for its method, narrowest
+first, leaving out any that reach only part of what the tool can do.
+[`scopes_for`](/reference/oauth#scopes_for) then picks the narrowest set that
+covers the tools you hand out. Every scope is under
+`https://www.googleapis.com/auth/` except the full-mailbox one:
 
-| pack | scope |
-|---|---|
-| `gmail` | `https://www.googleapis.com/auth/gmail.modify` |
-| `gmail`, `threads_delete` only | `https://mail.google.com/` |
-| `gcalendar` | `https://www.googleapis.com/auth/calendar.events` |
-| `gsheets` | `https://www.googleapis.com/auth/spreadsheets` |
-| `gdocs` | `https://www.googleapis.com/auth/documents` |
-| `gdocs`, `documents_get` only | `https://www.googleapis.com/auth/documents.readonly` |
-| `gdrive` | `https://www.googleapis.com/auth/drive` |
-| `gforms` | `https://www.googleapis.com/auth/forms.body` |
-| `gforms`, the two response readers | `https://www.googleapis.com/auth/forms.responses.readonly` |
+| pack | tools | narrowest | Google's category | also accepted |
+|---|---|---|---|---|
+| `gmail` | `messages_send` | `gmail.send` | sensitive | `gmail.compose`, `gmail.modify`, `https://mail.google.com/` |
+| `gmail` | `messages_list`, `messages_get`, `messages_attachments_get`, `threads_list`, `threads_get` | `gmail.readonly` | restricted | `gmail.modify`, `https://mail.google.com/` |
+| `gmail` | `messages_modify`, `messages_batch_modify`, `threads_modify`, `threads_trash`, `threads_untrash` | `gmail.modify` | restricted | `https://mail.google.com/` |
+| `gmail` | `threads_delete` | `https://mail.google.com/` | restricted | — |
+| `gmail` | `drafts_create`, `drafts_update`, `drafts_delete`, `drafts_send` | `gmail.compose` | restricted | `gmail.modify`, `https://mail.google.com/` |
+| `gmail` | `drafts_get`, `drafts_list` | `gmail.compose` | restricted | `gmail.readonly`, `gmail.modify`, `https://mail.google.com/` |
+| `gmail` | `labels_list`, `labels_get` | `gmail.labels` | non-sensitive | `gmail.metadata`, `gmail.readonly`, `gmail.modify`, `https://mail.google.com/` |
+| `gmail` | `labels_create`, `labels_update`, `labels_patch`, `labels_delete` | `gmail.labels` | non-sensitive | `gmail.modify`, `https://mail.google.com/` |
+| `gdrive` | `files_list`, `files_get`, `files_export`, `permissions_list`, `permissions_get`, `comments_list`, `revisions_list`, `revisions_get`, `drives_list`, `drives_get` | `drive.readonly` | restricted | `drive` |
+| `gdrive` | `files_create` | `drive.file` | non-sensitive | `drive` |
+| `gdrive` | `files_update`, `files_copy`, `files_delete`, `files_empty_trash`, `permissions_create`, `permissions_update`, `permissions_delete`, `comments_create`, `comments_update`, `comments_delete`, `replies_create`, `replies_update`, `replies_delete` | `drive` | restricted | — |
+| `gdrive` | `about_get` | `drive.file` | non-sensitive | `drive.readonly`, `drive` |
+| `gcalendar` | `events_get`, `events_list`, `events_instances` | `calendar.events.readonly` | sensitive | `calendar.readonly`, `calendar.events`, `calendar` |
+| `gcalendar` | `events_insert`, `events_update`, `events_patch`, `events_move`, `events_quick_add`, `events_import`, `events_delete` | `calendar.events` | sensitive | `calendar` |
+| `gcalendar` | `calendar_list_list`, `calendar_list_get` | `calendar.calendarlist.readonly` | sensitive | `calendar.readonly`, `calendar` |
+| `gcalendar` | `calendars_get` | `calendar.calendars.readonly` | sensitive | `calendar.readonly`, `calendar` |
+| `gdocs` | `documents_get` | `documents.readonly` | sensitive | `documents`, `drive.readonly`, `drive` |
+| `gdocs` | `documents_create` | `drive.file` | non-sensitive | `documents`, `drive` |
+| `gdocs` | `documents_batch_update` | `documents` | sensitive | `drive` |
+| `gsheets` | `spreadsheets_values_get`, `spreadsheets_values_batch_get`, `spreadsheets_get` | `spreadsheets.readonly` | sensitive | `spreadsheets`, `drive.readonly`, `drive` |
+| `gsheets` | `spreadsheets_values_update`, `spreadsheets_values_append`, `spreadsheets_values_clear`, `spreadsheets_values_batch_update`, `spreadsheets_values_batch_clear`, `values_batch_get_by_data_filter`, `values_batch_update_by_data_filter`, `values_batch_clear_by_data_filter`, `spreadsheets_batch_update`, `spreadsheets_sheets_copy_to`, `spreadsheets_get_by_data_filter`, `spreadsheets_developer_metadata_get`, `spreadsheets_developer_metadata_search` | `spreadsheets` | sensitive | `drive` |
+| `gsheets` | `spreadsheets_create` | `drive.file` | non-sensitive | `spreadsheets`, `drive` |
+| `gforms` | `forms_create` | `drive.file` | non-sensitive | `forms.body`, `drive` |
+| `gforms` | `forms_get` | `forms.body.readonly` | sensitive | `forms.body`, `drive.readonly`, `drive` |
+| `gforms` | `forms_batch_update`, `forms_set_publish_settings` | `forms.body` | sensitive | `drive` |
+| `gforms` | `forms_responses_get`, `forms_responses_list` | `forms.responses.readonly` | sensitive | `drive` |
 
-Read the second row as the reason `scopes_for` takes tools rather than packs.
-Google covers every Gmail endpoint here with `gmail.modify` except
-`threads_delete`, which it puts behind full mailbox access because the delete
-cannot be undone. That scope is declared on the tool, so it enters a consent
-request only when you hand the tool out:
+The category is what launching costs: any restricted scope means a security
+assessment before other people can connect, repeated every year, and a sensitive
+one means Google's verification without it. Hand out tools, not packs, and the
+consent screen follows:
 
 ```python gmail_narrow_scopes.py
 from charter.auth import scopes_for
-from charter.packs import gmail
+from charter.packs import gdocs, gmail
 
-read_and_label = [t for t in gmail.TOOLS if t is not gmail.threads_delete]
-
-scopes_for(read_and_label)  # ['https://www.googleapis.com/auth/gmail.modify']
-scopes_for(gmail.TOOLS)     # ...and 'https://mail.google.com/' as well
+scopes_for([gmail.messages_send])                        # ['…/gmail.send']: no assessment
+scopes_for([gdocs.documents_create])                     # ['…/drive.file']: no review at all
+scopes_for([gmail.threads_list, gmail.threads_modify])   # ['…/gmail.modify']
+scopes_for(gmail.TOOLS)                                  # ['https://mail.google.com/']
 ```
+
+The third asks for `gmail.modify` alone: it covers reading as well, and a grant
+of both would be no wider. Only `threads_delete` needs the full mailbox, and it
+covers every other Gmail tool, so the whole pack asks for that one scope.
+
+`drive.file` reaches only files your app created or the user opened with it,
+which is why only `files_create`, `about_get` and the three create tools in Docs,
+Sheets and Forms offer it. `files_create` under it can create at the root or in a
+folder your app made; a `parents` folder the user made needs `drive`.
 
 ```python google_scopes.py
 from charter.auth import scopes_for
@@ -76,7 +105,7 @@ from charter.packs import gcalendar, gdocs, gdrive, gforms, gmail, gsheets
 CONNECT_SCOPES = scopes_for([*gmail.TOOLS, *gcalendar.TOOLS, *gsheets.TOOLS, *gdocs.TOOLS, *gdrive.TOOLS, *gforms.TOOLS])
 ```
 
-Ask for the union in one authorization request and one refresh token covers all
+Ask for these in one authorization request and one refresh token covers all
 six packs. Adding a pack later means sending the user back through consent: a
 grant covers the scopes it was issued for and nothing else, and the failure when
 it does not is a `403` from the API, not from the token endpoint.
@@ -88,6 +117,12 @@ Each pack also reads the environment, so a script or the
 through one shared client built on the server above. Failing those they read
 `$GOOGLE_ACCESS_TOKEN`, the static-token path, which never refreshes. The order
 is on [environment fallbacks](/reference/configuration#environment-fallbacks).
+
+A call the grant does not cover answers 403 with the standard
+`WWW-Authenticate: Bearer error="insufficient_scope", scope="…"` challenge, which
+lists every scope Google would accept, legacy aliases included. Charter reads it on
+any response and raises [`InsufficientScope`](/reference/errors#insufficientscope)
+with the narrowest of them the tool lists.
 
 ## Wiring the packs
 
@@ -142,7 +177,7 @@ At the callback, check what Google actually granted before you store it:
 async def callback():
     grant = await flow.exchange(code, code_verifier=verifier)
 
-    missing = set(scopes_for(gmail.TOOLS)) - set(grant.scopes)
+    missing = missing_scopes(gmail.TOOLS, grant.scopes)
     if missing:
         abort(400)  # the user unticked a permission on the consent screen
 
@@ -151,7 +186,7 @@ async def callback():
 
 Google's consent screen lets a user approve some scopes and refuse others, and
 the exchange still succeeds. `grant.scopes` is what was really issued; comparing
-it against [`scopes_for`](/reference/oauth#scopes_for) is the only place that gap is visible before a tool call
+it with [`missing_scopes`](/reference/oauth#missing_scopes) is the only place that gap is visible before a tool call
 returns `403`.
 
 [`OAuth2Client.from_grant(GOOGLE, grant, client_id=..., client_secret=...)`](/reference/oauth#oauth2client-from_grant) turns

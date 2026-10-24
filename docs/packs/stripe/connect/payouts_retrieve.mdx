@@ -16,6 +16,10 @@ from charter.packs import stripe
 result = asyncio.run(stripe.payouts_retrieve.ainvoke({"payout": ...}))
 ```
 
+<Note>
+  With `stripe.RESTRICTED_KEY`, requires `payout_read` or `payout_write`.
+</Note>
+
 ## Path parameters
 
 <div className="reference-table">

@@ -9,5 +9,6 @@ cleaner = [*reader, gmail.threads_delete]
 for name, tools in (("reader", reader), ("cleaner", cleaner)):
     scopes = (s.removeprefix("https://www.googleapis.com/auth/") for s in scopes_for(tools))
     print(f"a {name:7} asks for  {', '.join(scopes)}")
-# a reader  asks for  gmail.modify, calendar.events
-# a cleaner asks for  gmail.modify, calendar.events, https://mail.google.com/  <- the whole mailbox
+# a reader  asks for  gmail.readonly, calendar.events.readonly
+# a cleaner asks for  https://mail.google.com/, calendar.events.readonly  <- the whole mailbox,
+#                     which covers the reading too, so gmail.readonly drops out

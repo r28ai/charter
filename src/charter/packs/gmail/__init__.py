@@ -23,10 +23,20 @@ is set; the first two renew themselves.
 
 from __future__ import annotations
 
-from charter.auth import CredentialProvider
+from charter.auth import CredentialProvider, scopes_for
 from charter.factories import oauth_tool_factory
 from charter.packs._config import DeferredCredentialProvider
-from charter.packs._google import ENV_GRANT
+from charter.packs._google import (
+    ENV_GRANT,
+    FULL_MAILBOX,
+    GMAIL_COMPOSE,
+    GMAIL_LABELS,
+    GMAIL_METADATA,
+    GMAIL_MODIFY,
+    GMAIL_READONLY,
+    GMAIL_SEND,
+    google_accepts,
+)
 from charter.packs.gmail.response_handlers import (
     extract_attachment,
     extract_draft_text,
@@ -70,12 +80,24 @@ BASE_URL = "https://gmail.googleapis.com/"
 GOOGLE_PAGINATION = Pagination(cursor_field="nextPageToken", cursor_param="pageToken")
 
 QUOTA_DOC_URL = "https://developers.google.com/workspace/gmail/api/reference/quota"
-SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
+# What each tool needs, as the scopes Google's reference accepts for its method,
+# less any that reach only part of what the tool can ask for: gmail.metadata
+# cannot run a search or read a body, so the readers do not offer it.
+# scopes_for() picks the narrowest set covering the tools handed out, so an
+# agent that only sends asks for gmail.send, one that reads and relabels asks for
+# gmail.modify alone, and only threads_delete ever needs the full mailbox.
+READ = google_accepts(GMAIL_READONLY, GMAIL_MODIFY, FULL_MAILBOX)
+RELABEL = google_accepts(GMAIL_MODIFY, FULL_MAILBOX)
+SEND = google_accepts(GMAIL_SEND, GMAIL_COMPOSE, GMAIL_MODIFY, FULL_MAILBOX)
+DRAFT_READ = google_accepts(GMAIL_COMPOSE, GMAIL_READONLY, GMAIL_MODIFY, FULL_MAILBOX)
+DRAFT_WRITE = google_accepts(GMAIL_COMPOSE, GMAIL_MODIFY, FULL_MAILBOX)
+LABEL_READ = google_accepts(
+    GMAIL_LABELS, GMAIL_METADATA, GMAIL_READONLY, GMAIL_MODIFY, FULL_MAILBOX
+)
+LABEL_WRITE = google_accepts(GMAIL_LABELS, GMAIL_MODIFY, FULL_MAILBOX)
 # threads.delete is the only endpoint here that gmail.modify does not cover;
-# Google requires full-mailbox access for the irreversible delete. It is
-# declared on that tool alone, so a consent screen built with scopes_for()
-# asks for it only when the tool is actually handed out.
-FULL_MAILBOX_SCOPE = "https://mail.google.com/"
+# Google requires full-mailbox access for the irreversible delete.
+FULL_MAILBOX_SCOPE = FULL_MAILBOX
 
 _credentials = DeferredCredentialProvider(
     "gmail", env_var="GOOGLE_ACCESS_TOKEN", env_grant=ENV_GRANT
@@ -92,7 +114,7 @@ _gmail = oauth_tool_factory(
     base_url=BASE_URL,
     provider="google",
     credential_provider=_credentials,
-    scopes=SCOPES,
+    scopes=[READ],
     # Google's query parameters are camelCase (`maxResults`, `singleEvents`),
     # like its bodies. Without this the default snake casing sends `max_results`,
     # which Google silently ignores — the worst kind of wrong, because the call
@@ -134,6 +156,7 @@ threads_modify = _gmail(
     url_template="gmail/v1/users/{userId}/threads/{id}/modify",
     description="Modify the labels on a thread, and so on every message in it.",
     action_label="Updates labels on a conversation.",
+    scopes_override=[RELABEL],
     response_handler=extract_thread_text,
     quota_cost=10,
 )
@@ -145,6 +168,7 @@ threads_trash = _gmail(
     url_template="gmail/v1/users/{userId}/threads/{id}/trash",
     description="Move a thread and all of its messages to the trash.",
     action_label="Moves a conversation to the trash.",
+    scopes_override=[RELABEL],
     response_handler=extract_thread_text,
     quota_cost=20,
 )
@@ -156,6 +180,7 @@ threads_untrash = _gmail(
     url_template="gmail/v1/users/{userId}/threads/{id}/untrash",
     description="Take a thread and all of its messages back out of the trash.",
     action_label="Restores a conversation from the trash.",
+    scopes_override=[RELABEL],
     response_handler=extract_thread_text,
     quota_cost=10,
 )
@@ -217,6 +242,7 @@ messages_modify = _gmail(
     url_template="gmail/v1/users/{userId}/messages/{id}/modify",
     description="Modify labels on a specific message.",
     action_label="Updates labels on a single message.",
+    scopes_override=[RELABEL],
     quota_cost=5,
     response_handler=extract_message_text,
 )
@@ -228,6 +254,7 @@ messages_batch_modify = _gmail(
     url_template="gmail/v1/users/{userId}/messages/batchModify",
     description="Modify labels on multiple messages at once.",
     action_label="Updates labels on messages in bulk.",
+    scopes_override=[RELABEL],
     quota_cost=50,
 )
 
@@ -244,6 +271,7 @@ messages_send = _gmail(
     url_template="gmail/v1/users/{userId}/messages/send",
     description="Send an email via the Gmail API.",
     action_label="Sends an email right away.",
+    scopes_override=[SEND],
     quota_cost=100,
     response_handler=extract_message_text,
 )
@@ -255,6 +283,7 @@ drafts_create = _gmail(
     url_template="gmail/v1/users/{userId}/drafts",
     description="Save an email draft to Gmail.",
     action_label="Saves a draft in Gmail.",
+    scopes_override=[DRAFT_WRITE],
     quota_cost=10,
     response_handler=extract_draft_text,
 )
@@ -266,6 +295,7 @@ drafts_get = _gmail(
     url_template="gmail/v1/users/{userId}/drafts/{id}",
     description="Read a saved draft, including the message it holds.",
     action_label="Reads a saved draft.",
+    scopes_override=[DRAFT_READ],
     response_handler=extract_draft_text,
     quota_cost=20,
 )
@@ -277,6 +307,7 @@ drafts_list = _gmail(
     url_template="gmail/v1/users/{userId}/drafts",
     description="List the drafts in the user's mailbox.",
     action_label="Lists saved drafts.",
+    scopes_override=[DRAFT_READ],
     quota_cost=5,
     pagination_override=GOOGLE_PAGINATION,
 )
@@ -288,6 +319,7 @@ drafts_update = _gmail(
     url_template="gmail/v1/users/{userId}/drafts/{id}",
     description="Replace a saved draft's content with a new message.",
     action_label="Rewrites a saved draft.",
+    scopes_override=[DRAFT_WRITE],
     quota_cost=15,
     response_handler=extract_draft_text,
 )
@@ -299,6 +331,7 @@ drafts_delete = _gmail(
     url_template="gmail/v1/users/{userId}/drafts/{id}",
     description="Permanently delete a draft. It is not moved to the trash.",
     action_label="Deletes a draft for good.",
+    scopes_override=[DRAFT_WRITE],
     quota_cost=10,
 )
 
@@ -309,6 +342,7 @@ drafts_send = _gmail(
     url_template="gmail/v1/users/{userId}/drafts/send",
     description="Send a saved draft to the recipients in its To, Cc and Bcc headers.",
     action_label="Sends a saved draft.",
+    scopes_override=[DRAFT_WRITE],
     quota_cost=100,
     response_handler=extract_message_text,
 )
@@ -320,6 +354,7 @@ labels_list = _gmail(
     url_template="gmail/v1/users/{userId}/labels",
     description="List all labels in the user's mailbox.",
     action_label="Lists Gmail labels.",
+    scopes_override=[LABEL_READ],
     quota_cost=1,
     response_handler=extract_labels,
 )
@@ -331,6 +366,7 @@ labels_get = _gmail(
     url_template="gmail/v1/users/{userId}/labels/{id}",
     description="Read one label, including its message and thread counts.",
     action_label="Reads a single label.",
+    scopes_override=[LABEL_READ],
     quota_cost=1,
     response_handler=extract_label,
 )
@@ -342,6 +378,7 @@ labels_create = _gmail(
     url_template="gmail/v1/users/{userId}/labels",
     description="Create a new Gmail label.",
     action_label="Creates a new label.",
+    scopes_override=[LABEL_WRITE],
     quota_cost=5,
     response_handler=extract_label,
 )
@@ -353,6 +390,7 @@ labels_update = _gmail(
     url_template="gmail/v1/users/{userId}/labels/{id}",
     description="Replace a label's name, visibility and colour.",
     action_label="Rewrites a label.",
+    scopes_override=[LABEL_WRITE],
     quota_cost=5,
     response_handler=extract_label,
 )
@@ -364,6 +402,7 @@ labels_patch = _gmail(
     url_template="gmail/v1/users/{userId}/labels/{id}",
     description="Change some of a label's fields, leaving the rest as they are.",
     action_label="Updates part of a label.",
+    scopes_override=[LABEL_WRITE],
     # Google's per-method quota table lists every labels.* method except patch.
     # This mirrors labels.update, which is the same write with patch semantics.
     quota_cost=5,
@@ -377,6 +416,7 @@ labels_delete = _gmail(
     url_template="gmail/v1/users/{userId}/labels/{id}",
     description="Delete a label and remove it from every message and thread it is on.",
     action_label="Deletes a label for good.",
+    scopes_override=[LABEL_WRITE],
     quota_cost=5,
 )
 
@@ -407,11 +447,23 @@ TOOLS: list[Tool] = [
     labels_delete,
 ]
 
+# What a consent for the whole pack asks for. threads_delete needs the full
+# mailbox, and that one scope covers every other tool, so this is it; hand out
+# fewer tools and scopes_for() asks for less.
+SCOPES = scopes_for(TOOLS)
+
 __all__ = [
     "TOOLS",
     "configure",
     "BASE_URL",
     "SCOPES",
+    "READ",
+    "RELABEL",
+    "SEND",
+    "DRAFT_READ",
+    "DRAFT_WRITE",
+    "LABEL_READ",
+    "LABEL_WRITE",
     "FULL_MAILBOX_SCOPE",
     "QUOTA_DOC_URL",
     "GOOGLE_PAGINATION",

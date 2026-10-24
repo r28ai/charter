@@ -17,7 +17,7 @@ result = asyncio.run(gcalendar.calendar_list_get.ainvoke({"calendarId": ...}))
 ```
 
 <Note>
-  Requires `https://www.googleapis.com/auth/calendar.readonly`. Costs 1 against the provider's own quota.
+  Requires `https://www.googleapis.com/auth/calendar.calendarlist.readonly`, or any of `https://www.googleapis.com/auth/calendar.readonly` or `https://www.googleapis.com/auth/calendar`. Costs 1 against the provider's own quota.
 </Note>
 
 ## Path parameters

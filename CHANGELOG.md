@@ -9,8 +9,115 @@ here, with the migration in the same entry.
 
 ## [Unreleased]
 
+### Added
+
+- **`AnyOf` and `missing_scopes`, in `charter.auth`.** A tool's `scopes` can now
+  say where a provider accepts several scopes for one call:
+  `AnyOf("…/gmail.send", "…/gmail.compose", "…/gmail.modify", "https://mail.google.com/")`,
+  narrowest first. `missing_scopes(tools, granted)` says what a grant still
+  lacks, comparing by requirement, so a grant holding `gmail.modify` runs a tool
+  whose narrowest option is `gmail.readonly`. Plain scopes keep their meaning:
+  each one is required, and every existing declaration works unchanged.
+- **`Tool.derived(scopes=...)`**, for an agent that only touches part of what a
+  tool can reach. `github.issues_create` asks for `repo`; one that only works on
+  public repositories derives it with `scopes=["public_repo"]`. It changes what
+  a consent asks for, never what a call may do.
+- **`InsufficientScope`, one error for a grant that does not cover the call,
+  from every provider.** A `CredentialError`, so existing handlers keep catching
+  it, with `needed` (the scopes to add, narrowest first), `accepted` (every scope
+  the provider said would do) and `kind`. The token is kept. Raised on the
+  standard `WWW-Authenticate: Bearer error="insufficient_scope"` challenge with no
+  declaration, which is how Google answers, and on whatever a factory's new
+  `scope_refusals=[ScopeRefusal(...)]` declares: Slack's `missing_scope` inside a
+  200, Linear's "Invalid scope: … required", GitHub's 404 beside
+  `X-Accepted-OAuth-Scopes`, Shopify's `ACCESS_DENIED`, Stripe's restricted-key
+  sentence, Notion's `restricted_resource`, Graph's `ErrorAccessDenied` and
+  Firecrawl's endpoint restriction. Every pack declares its provider's.
+- **Kinds of credential: `Kind` and `Unavailable`, in `charter.auth`, and
+  `scopes_for(tools, kind=...)`.** Where a provider issues credentials with
+  different permission names, a pack declares each kind as a constant and every
+  tool says what it needs under each: `github.APP` and `github.FINE_GRAINED`
+  (permissions, as GitHub's `X-Accepted-GitHub-Permissions` header names them for
+  every tool), `slack.USER`, `stripe.RESTRICTED_KEY` (from Stripe's permissions
+  reference), `granola.WORKSPACE_KEY` and `granola.AUDIT_KEY`, and
+  `firecrawl.RESTRICTED_KEY` (endpoint groups). A tool that cannot run under a
+  kind declares `Unavailable(reason)`, and `scopes_for` refuses it by name with
+  the kinds that would run it: GitHub's notifications for an App, Slack's search
+  for a bot token, every Granola tool but the audit log for an audit key. A
+  `scopes` mapping of kinds to lists is accepted wherever a list is, on a tool,
+  a factory and `derived()`; a list still means the default kind. A conformance
+  check makes every tool in a pack answer for every kind its pack declares.
+- **The Permissions page**, which puts the two layers in order: the tools you
+  hand the model decide what it can do, and the grant is the provider's check on
+  that.
+
+### Changed
+
+- **`scopes_for` returns the fewest, narrowest scopes that cover the tools,
+  rather than every scope they list.** For tools declared with plain scopes the
+  answer is the same union as before. Where tools offer alternatives, it drops a
+  scope a broader one in the set already covers, so an agent that reads and
+  relabels mail asks for `gmail.modify` alone, not `gmail.readonly` beside it.
+  Which scope covers which is read off the tools' own `AnyOf` lists rather than
+  declared, and the answer does not depend on the order the tools are passed in.
+  Two tools listing the same two scopes in opposite orders raise
+  `DeclarationError`.
+- **Each Google tool lists the scopes Google accepts for its method, instead of
+  one scope per pack.** Every Gmail tool but `threads_delete` used to declare
+  `gmail.modify` and every Drive tool `drive`, so an agent that only sent mail,
+  or only created a file, needed a restricted scope and with it Google's yearly
+  security assessment. Now `messages_send` asks for `gmail.send` (sensitive), the
+  label tools for `gmail.labels`, the creates in Drive, Docs, Sheets and Forms
+  for `drive.file` (non-sensitive), and the readers for their `.readonly`
+  scopes. Every option is one Google's discovery documents list for the method,
+  and `scripts/live_google_scopes_check.py` calls each tool against a real
+  account with exactly each scope it offers, and with none. The `SCOPES`
+  constant of each Google pack is now `scopes_for(TOOLS)`: `gmail.SCOPES` is the
+  full mailbox, since `threads_delete` needs it and it covers every other tool.
+  A grant you already hold keeps working.
+- **GitHub, Linear and Shopify tools declare their scopes per tool.** GitHub's
+  repository tools ask for `repo`, the security-alert tools for
+  `security_events` or `repo`, the notification tools for `notifications` or
+  `repo`, and `search_users` for nothing; `github.SCOPES` is unchanged. Linear's
+  tools declared none: readers now ask for `read`, `issue_create` and
+  `attachment_create` for `issues:create` or `write`, `comment_create` for
+  `comments:create` or `write`, the other mutations for `write`, and
+  `webhooks_list` and `webhook_get` for `admin`, which Linear requires to read
+  webhooks. Shopify's
+  declared none either: each asks for the access scopes of every object its
+  document reads, so `orders_list` needs `read_customers` as well as
+  `read_orders`. Each vendor's statement is recorded in
+  `tests/test_scope_declarations.py`, apart from the declarations, so the two can
+  be compared.
+- **Slack tools declare their own scopes, for a bot token and a user token.**
+  Every tool used to inherit the eleven scopes the readers, posters and reactors
+  share between them, so a poster asked to read every channel's history.
+  `chat_post_message` now asks for `chat:write`. `search_messages`, which a bot
+  token cannot call, used to ask a bot for those eleven and never for
+  `search:read`: it is now `Unavailable` for `slack.BOT` and needs `search:read`
+  for `slack.USER`. `slack.SCOPES` is every tool a bot token can call, and
+  `scopes_for(slack.TOOLS)` raises, naming `search_messages`; leave it out, or
+  ask with `kind=slack.USER`. `missing_scope` and `not_allowed_token_type` moved
+  from `SLACK_ENVELOPE.permission_errors` to `SLACK_REFUSALS`, and still raise a
+  `CredentialError` that keeps the token.
+- **Outlook tools accept the higher Graph permissions Microsoft lists, so
+  overlapping consent lines drop out.** A reader now accepts `Mail.Read` or
+  `Mail.ReadWrite`, so an agent that reads and writes asks for `Mail.ReadWrite`
+  alone, and `outlook.SCOPES` is four permissions instead of eight.
+  `translate_exchange_ids` asks for `User.Read`, which Microsoft accepts beside
+  `User.ReadBasic.All`. `outlook.SCOPES` is now `scopes_for(TOOLS)`.
+- **Granola note tools ask a personal key for `personal` and `public`**, the
+  access reaching every note takes; they declared nothing. `granola.SCOPES` is
+  new.
+
 ### Fixed
 
+- **A Meet link Google failed to make was trimmed out of the event.** A
+  conference asked for with `conferenceData.createRequest` is made after the
+  event is saved, and Google reports `pending` or `failure` inside the 200 that
+  saved it. The Calendar handlers dropped that status, so the agent saw an
+  event with no join link, the same as one that never asked for a link. It now
+  comes back as `conferenceStatus` whenever it is not `success`.
 - **Every pack docstring's example failed on its first line.** Ten packs opened
   their example with `from charter import StaticTokenProvider`, which has been
   `charter.auth` since before 0.1.0. They import it from there now, and a

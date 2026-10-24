@@ -16,6 +16,10 @@ from charter.packs import stripe
 result = asyncio.run(stripe.accounts_retrieve.ainvoke({"account": ...}))
 ```
 
+<Note>
+  With `stripe.RESTRICTED_KEY`, requires `connected_account_read` or `connected_account_write`.
+</Note>
+
 ## Path parameters
 
 <div className="reference-table">

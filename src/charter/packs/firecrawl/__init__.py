@@ -32,7 +32,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from charter.auth import CredentialProvider
+from charter.auth import CredentialProvider, Kind, ScopeRefusal
 from charter.factories import oauth_tool_factory
 from charter.packs._config import DeferredCredentialProvider, configure_key_or_provider
 from charter.packs.firecrawl.response_handlers import (
@@ -129,14 +129,118 @@ def configure(
     configure_key_or_provider(_credentials, api_key, credential_provider)
 
 
-_firecrawl = oauth_tool_factory(
-    pack="firecrawl",
-    base_url=BASE_URL,
+# A Firecrawl key can be restricted, per key, to a list of endpoint groups (an
+# enterprise feature). An unrestricted key, the default, calls everything. A
+# restricted key "may only call endpoints in those groups"; a job's status,
+# errors and cancellation share its group, and the team endpoints are always
+# reachable. https://docs.firecrawl.dev/features/key-restrictions (2026-10-24)
+#
+# A key can also be restricted to output formats, which no tool can declare:
+# the format is an argument, so whether a call passes depends on what it asks for.
+API_KEY = Kind(
+    "api_key",
     provider="firecrawl",
-    credential_provider=_credentials,
-    body_case="camel",
-    query_case="camel",
-    envelope=FIRECRAWL_ENVELOPE,
+    default=True,
+    granted="configured",
+    description="An unrestricted API key, which calls every endpoint.",
+)
+RESTRICTED_KEY = Kind(
+    "restricted_key",
+    provider="firecrawl",
+    granted="configured",
+    description="A key restricted to some endpoint groups, set on the key in the dashboard.",
+)
+
+# The group each tool calls, named by its path for all but the interact and
+# research endpoints. Those are read from the feature pages: a standalone
+# `/interact` session is the "Browser Sandbox", interacting with a scrape is an
+# action on that scrape's job, and the paper search is research. Firecrawl
+# names no group in its refusal, and key restrictions need an enterprise
+# account, so none of this has been checked against a key.
+_GROUPS: dict[str, list] = {
+    **dict.fromkeys(["search", "search_feedback", "developer_search"], ["search"]),
+    "map": ["map"],
+    **dict.fromkeys(
+        ["scrape", "scrape_status", "scrape_interact", "scrape_interact_stop"], ["scrape"]
+    ),
+    **dict.fromkeys(
+        ["batch_scrape", "batch_scrape_status", "batch_scrape_cancel", "batch_scrape_errors"],
+        ["batch-scrape"],
+    ),
+    **dict.fromkeys(
+        ["interact_create", "interact_execute", "interact_list", "interact_delete"], ["browser"]
+    ),
+    **dict.fromkeys(
+        ["research_papers_search", "research_paper_get", "research_similar_papers"], ["research"]
+    ),
+    **dict.fromkeys(
+        [
+            "crawl",
+            "crawl_status",
+            "crawl_params_preview",
+            "crawl_cancel",
+            "crawl_errors",
+            "crawl_active",
+        ],
+        ["crawl"],
+    ),
+    **dict.fromkeys(["extract", "extract_status"], ["extract"]),
+    **dict.fromkeys(
+        [
+            "monitor_create",
+            "monitor_list",
+            "monitor_get",
+            "monitor_update",
+            "monitor_delete",
+            "monitor_run",
+            "monitor_checks_list",
+            "monitor_check_get",
+        ],
+        ["monitor"],
+    ),
+    **dict.fromkeys(
+        [
+            "activity",
+            "credit_usage",
+            "historical_credit_usage",
+            "token_usage",
+            "historical_token_usage",
+            "queue_status",
+            "threat_protection_get",
+            "threat_protection_update",
+        ],
+        [],
+    ),
+}
+
+# The refusal names the groups the key has, not the one it lacks, so
+# InsufficientScope reports the tool's own group.
+FIRECRAWL_REFUSAL = ScopeRefusal(
+    status=403, signal=r"this API key is restricted to the following endpoints"
+)
+
+
+def _with_groups(factory):
+    """The factory, with each tool's endpoint group read from the table by name."""
+
+    def build(*, name: str, **kwargs) -> Tool:
+        kinds = {API_KEY: [], RESTRICTED_KEY: _GROUPS[name]}
+        return factory(name=name, scopes_override=kinds, **kwargs)
+
+    return build
+
+
+_firecrawl = _with_groups(
+    oauth_tool_factory(
+        pack="firecrawl",
+        base_url=BASE_URL,
+        provider="firecrawl",
+        credential_provider=_credentials,
+        body_case="camel",
+        query_case="camel",
+        envelope=FIRECRAWL_ENVELOPE,
+        scope_refusals=[FIRECRAWL_REFUSAL],
+    )
 )
 
 search = _firecrawl(
@@ -598,6 +702,9 @@ TOOLS: list[Tool] = [
 ]
 
 __all__ = [
+    "API_KEY",
+    "RESTRICTED_KEY",
+    "FIRECRAWL_REFUSAL",
     "TOOLS",
     "configure",
     "BASE_URL",

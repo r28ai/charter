@@ -17,7 +17,7 @@ result = asyncio.run(github.issues_list_sub_issues.ainvoke({"owner": ..., "repo"
 ```
 
 <Note>
-  Requires `repo`, `read:user`. Pages by number: `page` with `per_page`.
+  Requires `repo`. With `github.APP` or `github.FINE_GRAINED`, requires `issues=read` or `issues=write`. Pages by number: `page` with `per_page`.
 </Note>
 
 ## Path parameters

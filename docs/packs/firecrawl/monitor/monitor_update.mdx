@@ -16,6 +16,10 @@ from charter.packs import firecrawl
 result = asyncio.run(firecrawl.monitor_update.ainvoke({"monitorId": ...}))
 ```
 
+<Note>
+  With `firecrawl.RESTRICTED_KEY`, requires `monitor`.
+</Note>
+
 <Warning>
   This tool's JSON schema is 21 KB, because it models the whole resource this endpoint writes.
   That is more context than most tasks. Narrow it at the call site

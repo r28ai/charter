@@ -87,7 +87,7 @@ import math
 import os
 from typing import Any, Callable, Optional, Union
 
-from charter.auth import CredentialProvider, StaticTokenProvider
+from charter.auth import AnyOf, CredentialProvider, ScopeRefusal, StaticTokenProvider, scopes_for
 from charter.factories import oauth_tool_factory
 from charter.packs._config import DeferredCredentialProvider
 from charter.packs.shopify import queries
@@ -387,6 +387,62 @@ def base_url() -> str:
     return _base_url()
 
 
+# What each tool needs from the access scopes the app was installed with, from
+# each object's and mutation's "Requires ... access scope" in the Admin GraphQL
+# reference, for every object the tool's document reads. "Any scope that writes a
+# resource also grants read access to it" (shopify.dev/docs/api/usage/access-scopes),
+# so every reader also accepts the write scope.
+#
+# Two classes of resource sit behind their own scopes, and no tool asks for them:
+# orders older than 60 days (`read_all_orders`, which Shopify approves per app),
+# and fulfillment orders at fulfillment-service, third-party or marketplace
+# locations. A store's own app works with merchant-managed locations; one that
+# needs the others adds the scope with `tool.derived(scopes=[...])`.
+READ_PRODUCTS = AnyOf("read_products", "write_products")
+READ_ORDERS = AnyOf("read_orders", "write_orders")
+READ_CUSTOMERS = AnyOf("read_customers", "write_customers")
+READ_INVENTORY = AnyOf("read_inventory", "write_inventory")
+READ_LOCATIONS = AnyOf("read_locations", "write_locations", "read_inventory", "write_inventory")
+READ_FULFILLMENT_ORDERS = AnyOf(
+    "read_merchant_managed_fulfillment_orders", "write_merchant_managed_fulfillment_orders"
+)
+_SCOPES = {
+    "shop_get": [],
+    "products_list": [READ_PRODUCTS],
+    "product_get": [READ_PRODUCTS],
+    "product_create": ["write_products"],
+    "product_update": ["write_products"],
+    "product_variants_bulk_create": ["write_products"],
+    # The documents read each order's customer, which is the customers scope.
+    "orders_list": [READ_ORDERS, READ_CUSTOMERS],
+    "order_get": [READ_ORDERS, READ_CUSTOMERS],
+    "customers_list": [READ_CUSTOMERS],
+    "customer_get": [READ_CUSTOMERS],
+    "customer_create": ["write_customers"],
+    "customer_update": ["write_customers"],
+    "order_fulfillment_orders": [READ_ORDERS, READ_FULFILLMENT_ORDERS, READ_LOCATIONS],
+    "fulfillment_create": ["write_merchant_managed_fulfillment_orders"],
+    "inventory_adjust_quantities": ["write_inventory"],
+    "variant_inventory_level": [READ_PRODUCTS, READ_INVENTORY, READ_LOCATIONS],
+    "locations_list": [READ_LOCATIONS],
+    "order_close": ["write_orders"],
+    "order_open": ["write_orders"],
+    "order_cancel": ["write_orders"],
+    "draft_order_create": ["write_draft_orders"],
+    # Completing a draft returns the order it became.
+    "draft_order_complete": ["write_draft_orders", READ_ORDERS],
+}
+
+# A field the token's scopes do not reach comes back as 200 with an ACCESS_DENIED
+# error naming them: "Access denied for orders field. Required access:
+# `read_orders` access scope." Several are joined with "or".
+# https://shopify.dev/docs/api/usage/access-scopes
+SHOPIFY_REFUSAL = ScopeRefusal(
+    status=200,
+    signal=r"Required access:",
+    needed=r'Required access:\s*([^"]+)',
+)
+
 _shopify = oauth_tool_factory(
     pack="shopify",
     base_url=_base_url,
@@ -397,6 +453,7 @@ _shopify = oauth_tool_factory(
     body_case="camel",
     quota_doc_url=QUOTA_DOC_URL,
     envelope=SHOPIFY_ENVELOPE,
+    scope_refusals=[SHOPIFY_REFUSAL],
 )
 
 
@@ -412,6 +469,7 @@ def _query(name, schema, document, operation, description, action_label, *, pagi
         static_body={"query": document},
         response_handler=unwrap(operation),
         pagination_override=SHOPIFY_PAGINATION if paginates else None,
+        scopes_override=_SCOPES[name],
     )
 
 
@@ -426,6 +484,7 @@ def _mutation(name, schema, document, operation, description, action_label):
         action_label=action_label,
         static_body={"query": document},
         response_handler=unwrap_mutation(operation),
+        scopes_override=_SCOPES[name],
     )
 
 
@@ -750,8 +809,18 @@ TOOLS: list[Tool] = [
     product_variants_bulk_create,
 ]
 
+# What a consent for the whole pack asks for: the scopes the app is installed with.
+SCOPES = scopes_for(TOOLS)
+
 __all__ = [
     "TOOLS",
+    "SCOPES",
+    "READ_PRODUCTS",
+    "READ_ORDERS",
+    "READ_CUSTOMERS",
+    "READ_INVENTORY",
+    "READ_LOCATIONS",
+    "READ_FULFILLMENT_ORDERS",
     "configure",
     "base_url",
     "API_VERSION",
@@ -759,6 +828,7 @@ __all__ = [
     "QUOTA_DOC_URL",
     "SHOPIFY_PAGINATION",
     "SHOPIFY_ENVELOPE",
+    "SHOPIFY_REFUSAL",
     "queries",
     "shop_get",
     "products_list",

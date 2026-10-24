@@ -140,6 +140,7 @@ A store with a custom app made in the admin before 2026 keeps that app's
 import os
 
 from charter import Envelope, oauth_tool_factory
+from charter.auth import ScopeRefusal
 
 shop = os.environ["SHOPIFY_SHOP"]
 
@@ -163,6 +164,13 @@ shopify_api_client = oauth_tool_factory(
             "data.*.orderCancelUserErrors",
         ),
     ),
+    scope_refusals=[
+        ScopeRefusal(
+            status=200,
+            signal=r"Required access:",
+            needed=r"Required access:\s*([^\"]+)",
+        ),
+    ],
 )
 
 # static_body is per tool, not per API: query differs across 22

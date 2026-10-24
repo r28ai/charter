@@ -16,6 +16,10 @@ from charter.packs import stripe
 result = asyncio.run(stripe.disputes_retrieve.ainvoke({"dispute": ...}))
 ```
 
+<Note>
+  With `stripe.RESTRICTED_KEY`, requires `dispute_read` or `dispute_write`.
+</Note>
+
 ## Path parameters
 
 <div className="reference-table">

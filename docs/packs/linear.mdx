@@ -72,7 +72,7 @@ documents where a personal key is created in
 import os
 
 from charter import Envelope, oauth_tool_factory
-from charter.auth import StaticTokenProvider
+from charter.auth import ScopeRefusal, StaticTokenProvider
 
 api_key = os.environ["LINEAR_API_KEY"]
 
@@ -92,6 +92,13 @@ linear_api_client = oauth_tool_factory(
         ok_field="data.*.success",
         errors_field="errors",
     ),
+    scope_refusals=[
+        ScopeRefusal(
+            status={200, 400},
+            signal=r"Invalid scope:",
+            needed=r"Invalid scope:\s*(.+?)\s+required",
+        ),
+    ],
 )
 
 # static_body is per tool, not per API: query differs across 128

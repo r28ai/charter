@@ -17,7 +17,7 @@ result = asyncio.run(stripe.transfers_list.ainvoke({}))
 ```
 
 <Note>
-  Pages by cursor: `data[-1].id` is sent back as `starting_after`.
+  With `stripe.RESTRICTED_KEY`, requires `transfer_read` or `transfer_write`. Pages by cursor: `data[-1].id` is sent back as `starting_after`.
 </Note>
 
 ## Query parameters

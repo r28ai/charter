@@ -17,7 +17,7 @@ result = asyncio.run(github.repos_get_commit.ainvoke({"owner": ..., "repo": ...,
 ```
 
 <Note>
-  Requires `repo`, `read:user`. Pages by number: `page` with `per_page`.
+  Requires `repo`. With `github.APP` or `github.FINE_GRAINED`, requires `contents=read` or `contents=write`. Pages by number: `page` with `per_page`.
 </Note>
 
 ## Path parameters

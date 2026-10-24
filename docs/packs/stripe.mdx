@@ -71,7 +71,7 @@ server and the flow.
 import os
 
 from charter import oauth_tool_factory
-from charter.auth import StaticTokenProvider
+from charter.auth import Kind, ScopeRefusal, StaticTokenProvider
 
 api_key = os.environ["STRIPE_API_KEY"]
 
@@ -88,6 +88,14 @@ stripe_api_client = oauth_tool_factory(
     static_headers={"Stripe-Version": "2026-08-26.dahlia"},
     # this API reports failure with an HTTP status code
     envelope=None,
+    scope_refusals=[
+        ScopeRefusal(
+            status=403,
+            signal=r"does not have the required permissions",
+            needed=r"Having the 'rak_([^']+)' permission",
+            kind=Kind("restricted_key", provider="stripe", granted="configured"),
+        ),
+    ],
 )
 ```
 

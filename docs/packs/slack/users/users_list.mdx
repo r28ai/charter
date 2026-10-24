@@ -17,7 +17,7 @@ result = asyncio.run(slack.users_list.ainvoke({}))
 ```
 
 <Note>
-  Requires `chat:write`, `channels:read`, `groups:read`, `im:read`, `mpim:read`, `channels:history`, `groups:history`, `im:history`, `mpim:history`, `users:read`, `reactions:write`. Pages by cursor: `response_metadata.next_cursor` is sent back as `cursor`.
+  Requires `users:read`. With `slack.USER`, requires `users:read`. Pages by cursor: `response_metadata.next_cursor` is sent back as `cursor`.
 </Note>
 
 ## Query parameters

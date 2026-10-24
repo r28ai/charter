@@ -20,7 +20,7 @@ result = asyncio.run(outlook.mail_folders_list.ainvoke({}))
 ```
 
 <Note>
-  Requires `https://graph.microsoft.com/Mail.ReadBasic`. Pages by cursor: `next_link` is sent back as `next_link`.
+  Requires `https://graph.microsoft.com/Mail.ReadBasic`, or any of `https://graph.microsoft.com/Mail.Read` or `https://graph.microsoft.com/Mail.ReadWrite`. Pages by cursor: `next_link` is sent back as `next_link`.
 </Note>
 
 ## Path parameters

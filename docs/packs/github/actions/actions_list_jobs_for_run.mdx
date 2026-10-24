@@ -17,7 +17,7 @@ result = asyncio.run(github.actions_list_jobs_for_run.ainvoke({"owner": ..., "re
 ```
 
 <Note>
-  Requires `repo`, `read:user`. Pages by number: `page` with `per_page`.
+  Requires `repo`. With `github.APP` or `github.FINE_GRAINED`, requires `actions=read` or `actions=write`. Pages by number: `page` with `per_page`.
 </Note>
 
 ## Path parameters

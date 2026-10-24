@@ -415,6 +415,75 @@ def _enum_of(node: Dict[str, Any]) -> Optional[List[str]]:
     return None
 
 
+def _requirement(requirement: object) -> str:
+    """One item of a tool's scopes, as the page states it: an AnyOf narrowest first."""
+    from charter.auth import AnyOf
+
+    if isinstance(requirement, AnyOf):
+        first, *rest = requirement.options
+        if not rest:
+            return f"`{first}`"
+        others = ", ".join(f"`{o}`" for o in rest[:-1])
+        tail = f"{others} or `{rest[-1]}`" if others else f"`{rest[-1]}`"
+        return f"`{first}`, or any of {tail}" if others else f"`{first}` or `{rest[-1]}`"
+    return f"`{requirement}`"
+
+
+def _requires(requirements: List[object]) -> str:
+    parts = [_requirement(r) for r in requirements]
+    plain = all(isinstance(r, str) for r in requirements)
+    return (", " if plain else " and ").join(parts)
+
+
+def _scope_notes(tool: Any) -> List[str]:
+    """What the tool needs under each kind of credential its pack declares.
+
+    The default kind reads as it always has, "Requires …". Every other kind is
+    named by the constant a reader imports, so the sentence is also the code,
+    and kinds that need the same thing share one sentence.
+    """
+    from charter.auth import Unavailable
+
+    def label(kind: Any) -> str:
+        return f"`{tool.pack}.{kind.name.upper()}`"
+
+    def sentence(requirements: List[object], labels: List[str]) -> Optional[str]:
+        where = " or ".join(labels)
+        refused = [r for r in requirements if isinstance(r, Unavailable)]
+        if refused:
+            return f"Cannot run with {where}: {refused[0].reason}." if where else None
+        if not requirements:
+            return f"With {where}, needs no permission." if where else None
+        return (
+            (f"With {where}, requires " if where else "Requires ") + _requires(requirements) + "."
+        )
+
+    notes: List[str] = []
+    default = list(tool.scopes)
+    # The default kind is named only where it cannot run; otherwise it is the
+    # plain "Requires …" every page has always opened with.
+    named = any(isinstance(r, Unavailable) for r in default) and tool.default_kind
+    entries = [(default, tool.default_kind if named else None)] + [
+        (requirements, kind) for kind, requirements in tool.kind_scopes.items()
+    ]
+    grouped: List[Tuple[List[object], List[str]]] = []
+    for requirements, kind in entries:
+        if kind is None:
+            grouped.append((list(requirements), []))
+            continue
+        for seen, labels in grouped:
+            if labels and seen == list(requirements):
+                labels.append(label(kind))
+                break
+        else:
+            grouped.append((list(requirements), [label(kind)]))
+    for requirements, labels in grouped:
+        line = sentence(requirements, labels)
+        if line:
+            notes.append(line)
+    return [n for n in notes if n]
+
+
 def render_type(ctx: Context, node: Dict[str, Any]) -> Tuple[str, List[str]]:
     """One schema node as a type cell, plus any notes it pushed to the description.
 
@@ -718,8 +787,7 @@ def preamble(tool: Tool, shared_route: Optional[str] = None) -> Optional[str]:
             f"Posts a GraphQL document to `{tool.method} {shared_route}`, "
             "as every tool in this pack does."
         )
-    if tool.scopes:
-        notes.append("Requires " + ", ".join(f"`{scope}`" for scope in tool.scopes) + ".")
+    notes.extend(_scope_notes(tool))
     if tool.pagination is not None:
         pagination = tool.pagination
         if pagination.page_param:

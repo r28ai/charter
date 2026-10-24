@@ -17,7 +17,7 @@ result = asyncio.run(github.repos_get_branch_protection.ainvoke({"owner": ..., "
 ```
 
 <Note>
-  Requires `repo`, `read:user`.
+  Requires `repo`. With `github.APP` or `github.FINE_GRAINED`, requires `administration=read` or `administration=write`.
 </Note>
 
 ## Path parameters

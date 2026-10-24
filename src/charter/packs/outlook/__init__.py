@@ -88,7 +88,7 @@ from __future__ import annotations
 
 from typing import List
 
-from charter.auth import CredentialProvider
+from charter.auth import AnyOf, CredentialProvider, ScopeRefusal, scopes_for
 from charter.factories import oauth_tool_factory
 from charter.packs._config import DeferredCredentialProvider
 from charter.packs.outlook.response_handlers import (
@@ -153,31 +153,53 @@ from charter.types.pagination import Pagination
 BASE_URL = "https://graph.microsoft.com/v1.0/"
 QUOTA_DOC_URL = "https://learn.microsoft.com/en-us/graph/throttling-limits#outlook-service-limits"
 
-# Delegated permissions, least privileged for each operation as Microsoft's
-# reference lists it. Declared per tool: a consent screen built with
-# scopes_for() asks for Mail.Send only when a sending tool is handed out.
+# Delegated permissions. Each operation's reference page lists the least
+# privileged permission and the higher ones it also accepts; a tool declares
+# them all, least first, as one AnyOf, so scopes_for() over a reading tool and a
+# writing one asks for Mail.ReadWrite alone rather than for it beside Mail.Read.
+# Where a table lists only the least, the higher one is added when Microsoft's
+# permissions reference says it includes it: every *.ReadWrite "allows the app
+# to create, read, update, and delete". Pages read 2026-10-24.
+#
+# Left out, under the rule that an alternative must reach everything the tool
+# can name: Mail.ReadBasic for the message readers (it has no body and no
+# attachments), and Calendars.ReadWrite for the upload session (it reaches
+# event attachments, not a message's).
 _GRAPH = "https://graph.microsoft.com/"
 MAIL_READ_BASIC = _GRAPH + "Mail.ReadBasic"
 MAIL_READ = _GRAPH + "Mail.Read"
 MAIL_READ_WRITE = _GRAPH + "Mail.ReadWrite"
+MAIL_READ_SHARED = _GRAPH + "Mail.Read.Shared"
 MAIL_SEND = _GRAPH + "Mail.Send"
+MAILTIPS_READ_BASIC_SHARED = _GRAPH + "MailTips.ReadBasic.Shared"
 MAILBOX_SETTINGS_READ = _GRAPH + "MailboxSettings.Read"
 MAILBOX_SETTINGS_READ_WRITE = _GRAPH + "MailboxSettings.ReadWrite"
 USER_READ = _GRAPH + "User.Read"
 USER_READ_BASIC_ALL = _GRAPH + "User.ReadBasic.All"
+USER_READ_ALL = _GRAPH + "User.Read.All"
+USER_READ_WRITE = _GRAPH + "User.ReadWrite"
+USER_READ_WRITE_ALL = _GRAPH + "User.ReadWrite.All"
 
-# Everything the pack collectively needs, for consent screens and approval UIs.
-# Charter never requests these itself.
-SCOPES = [
-    MAIL_READ_BASIC,
-    MAIL_READ,
-    MAIL_READ_WRITE,
-    MAIL_SEND,
-    MAILBOX_SETTINGS_READ,
-    MAILBOX_SETTINGS_READ_WRITE,
-    USER_READ,
-    USER_READ_BASIC_ALL,
-]
+READ_MAIL = AnyOf(MAIL_READ, MAIL_READ_WRITE)
+READ_FOLDERS = AnyOf(MAIL_READ_BASIC, MAIL_READ, MAIL_READ_WRITE)
+WRITE_MAIL = MAIL_READ_WRITE
+SEND_MAIL = MAIL_SEND
+READ_SETTINGS = AnyOf(MAILBOX_SETTINGS_READ, MAILBOX_SETTINGS_READ_WRITE)
+WRITE_SETTINGS = MAILBOX_SETTINGS_READ_WRITE
+READ_PROFILE = AnyOf(USER_READ, USER_READ_BASIC_ALL, USER_READ_ALL)
+# translateExchangeIds names User.ReadBasic.All least privileged and User.Read
+# among the higher ones; supportedLanguages names them the other way round. Both
+# accept both, and User.Read reaches only the signed-in user, so it goes first
+# in each. The AgentIdUser.* permissions it also lists are for agent identities.
+TRANSLATE_IDS = AnyOf(
+    USER_READ, USER_READ_BASIC_ALL, USER_READ_ALL, USER_READ_WRITE, USER_READ_WRITE_ALL
+)
+MAIL_TIPS = AnyOf(MAIL_READ, MAIL_READ_WRITE, MAIL_READ_SHARED, MAILTIPS_READ_BASIC_SHARED)
+
+# Graph refuses a permission the token lacks with 403 ErrorAccessDenied and
+# names none, so InsufficientScope reports what the tool declares.
+# https://learn.microsoft.com/en-us/graph/errors
+OUTLOOK_REFUSAL = ScopeRefusal(status=403, signal=r'"code"\s*:\s*"ErrorAccessDenied"')
 
 # Graph hands back the next page's whole URL. The handlers return it as
 # `next_link`, and the paging tools take it back under the same name.
@@ -217,7 +239,8 @@ _outlook = oauth_tool_factory(
     base_url=BASE_URL,
     provider="microsoft",
     credential_provider=_credentials,
-    scopes=[MAIL_READ],
+    scopes=[READ_MAIL],
+    scope_refusals=[OUTLOOK_REFUSAL],
     body_case="camel",
     query_case="camel",
     quota_doc_url=QUOTA_DOC_URL,
@@ -228,7 +251,8 @@ _outlook_text = oauth_tool_factory(
     base_url=BASE_URL,
     provider="microsoft",
     credential_provider=_credentials,
-    scopes=[MAIL_READ],
+    scopes=[READ_MAIL],
+    scope_refusals=[OUTLOOK_REFUSAL],
     body_case="camel",
     query_case="camel",
     quota_doc_url=QUOTA_DOC_URL,
@@ -308,7 +332,7 @@ messages_create = _outlook(
         "message or as MIME. messages_send sends it later."
     ),
     action_label="Saves a draft.",
-    scopes_override=[MAIL_READ_WRITE],
+    scopes_override=[WRITE_MAIL],
     response_handler=trim_message,
 )
 
@@ -323,7 +347,7 @@ messages_update = _outlook(
         "categories, and on a draft its recipients, subject and body."
     ),
     action_label="Updates an email.",
-    scopes_override=[MAIL_READ_WRITE],
+    scopes_override=[WRITE_MAIL],
     response_handler=trim_message,
 )
 
@@ -339,7 +363,7 @@ messages_delete = _outlook(
         "messages_permanent_delete purges it."
     ),
     action_label="Deletes an email.",
-    scopes_override=[MAIL_READ_WRITE],
+    scopes_override=[WRITE_MAIL],
 )
 
 messages_permanent_delete = _outlook(
@@ -352,7 +376,7 @@ messages_permanent_delete = _outlook(
         "the mailbox is on hold it is purged after the retention period."
     ),
     action_label="Deletes an email for good.",
-    scopes_override=[MAIL_READ_WRITE],
+    scopes_override=[WRITE_MAIL],
 )
 
 messages_move = _outlook(
@@ -365,7 +389,7 @@ messages_move = _outlook(
         "moved message has a new id, which this returns."
     ),
     action_label="Moves an email.",
-    scopes_override=[MAIL_READ_WRITE],
+    scopes_override=[WRITE_MAIL],
     response_handler=trim_message,
 )
 
@@ -376,7 +400,7 @@ messages_copy = _outlook(
     url_template="me/messages/{message_id}/copy",
     description="Copy a message into another folder, by folder ID or well-known name.",
     action_label="Copies an email.",
-    scopes_override=[MAIL_READ_WRITE],
+    scopes_override=[WRITE_MAIL],
     response_handler=trim_message,
 )
 
@@ -387,7 +411,7 @@ messages_send = _outlook(
     url_template="me/messages/{message_id}/send",
     description="Send a saved draft — a new message, reply, reply-all or forward draft.",
     action_label="Sends a draft.",
-    scopes_override=[MAIL_SEND],
+    scopes_override=[SEND_MAIL],
 )
 
 messages_reply = _outlook(
@@ -401,7 +425,7 @@ messages_reply = _outlook(
         "message.body to write the whole reply; or give the reply as MIME."
     ),
     action_label="Replies to an email.",
-    scopes_override=[MAIL_SEND],
+    scopes_override=[SEND_MAIL],
 )
 
 messages_reply_all = _outlook(
@@ -414,7 +438,7 @@ messages_reply_all = _outlook(
         "Reply to the sender and every recipient of a message right away, as JSON or MIME."
     ),
     action_label="Replies to everyone on an email.",
-    scopes_override=[MAIL_SEND],
+    scopes_override=[SEND_MAIL],
 )
 
 messages_forward = _outlook(
@@ -428,7 +452,7 @@ messages_forward = _outlook(
         "or message.toRecipients; or give the forward as MIME."
     ),
     action_label="Forwards an email.",
-    scopes_override=[MAIL_SEND],
+    scopes_override=[SEND_MAIL],
 )
 
 messages_create_reply = _outlook(
@@ -442,7 +466,7 @@ messages_create_reply = _outlook(
         "send with messages_send."
     ),
     action_label="Drafts a reply.",
-    scopes_override=[MAIL_READ_WRITE],
+    scopes_override=[WRITE_MAIL],
     response_handler=trim_message,
 )
 
@@ -454,7 +478,7 @@ messages_create_reply_all = _outlook(
     mode="create",
     description="Create a draft reply to the sender and every recipient of a message.",
     action_label="Drafts a reply to everyone.",
-    scopes_override=[MAIL_READ_WRITE],
+    scopes_override=[WRITE_MAIL],
     response_handler=trim_message,
 )
 
@@ -466,7 +490,7 @@ messages_create_forward = _outlook(
     mode="create",
     description="Create a draft forward of a message, to edit and send later.",
     action_label="Drafts a forward.",
-    scopes_override=[MAIL_READ_WRITE],
+    scopes_override=[WRITE_MAIL],
     response_handler=trim_message,
 )
 
@@ -481,7 +505,7 @@ send_mail = _outlook(
         "Items unless saveToSentItems is false; Graph answers with no content."
     ),
     action_label="Sends an email right away.",
-    scopes_override=[MAIL_SEND],
+    scopes_override=[SEND_MAIL],
 )
 
 # =====================================================
@@ -537,7 +561,7 @@ attachments_create = _outlook(
         "which is base64-encoded for you."
     ),
     action_label="Attaches a file to a draft.",
-    scopes_override=[MAIL_READ_WRITE],
+    scopes_override=[WRITE_MAIL],
     response_handler=read_attachment,
 )
 
@@ -551,7 +575,7 @@ attachments_create_upload_session = _outlook(
         "file's bytes are then PUT to, in ranges of up to 4 MB, before expirationDateTime."
     ),
     action_label="Starts a large attachment upload.",
-    scopes_override=[MAIL_READ_WRITE],
+    scopes_override=[WRITE_MAIL],
     response_handler=upload_session,
 )
 
@@ -562,7 +586,7 @@ attachments_delete = _outlook(
     url_template="me/messages/{message_id}/attachments/{attachment_id}",
     description="Delete an attachment from a message or a draft.",
     action_label="Removes an attachment.",
-    scopes_override=[MAIL_READ_WRITE],
+    scopes_override=[WRITE_MAIL],
 )
 
 # =====================================================
@@ -580,7 +604,7 @@ mail_folders_list = _outlook(
         "includeHiddenFolders."
     ),
     action_label="Lists mail folders.",
-    scopes_override=[MAIL_READ_BASIC],
+    scopes_override=[READ_FOLDERS],
     build_request=follow_next_link(_FOLDERS),
     pagination_override=OUTLOOK_PAGINATION,
     response_handler=trim_page,
@@ -596,7 +620,7 @@ mail_folders_get = _outlook(
         "Expand extended properties with expand."
     ),
     action_label="Reads a mail folder.",
-    scopes_override=[MAIL_READ_BASIC],
+    scopes_override=[READ_FOLDERS],
     response_handler=trim_entity,
 )
 
@@ -610,7 +634,7 @@ mail_folders_create = _outlook(
         "saved filter over folders you name. A folder can be made hidden only here."
     ),
     action_label="Creates a mail folder.",
-    scopes_override=[MAIL_READ_WRITE],
+    scopes_override=[WRITE_MAIL],
     response_handler=trim_entity,
 )
 
@@ -624,7 +648,7 @@ mail_folders_update = _outlook(
         "source folders or filter."
     ),
     action_label="Updates a mail folder.",
-    scopes_override=[MAIL_READ_WRITE],
+    scopes_override=[WRITE_MAIL],
     response_handler=trim_entity,
 )
 
@@ -639,7 +663,7 @@ mail_folders_delete = _outlook(
         "mail_folders_permanent_delete purges it."
     ),
     action_label="Deletes a mail folder.",
-    scopes_override=[MAIL_READ_WRITE],
+    scopes_override=[WRITE_MAIL],
 )
 
 mail_folders_permanent_delete = _outlook(
@@ -652,7 +676,7 @@ mail_folders_permanent_delete = _outlook(
         "message, a folder is not kept in the purges folder: it is gone."
     ),
     action_label="Deletes a mail folder for good.",
-    scopes_override=[MAIL_READ_WRITE],
+    scopes_override=[WRITE_MAIL],
 )
 
 mail_folders_move = _outlook(
@@ -662,7 +686,7 @@ mail_folders_move = _outlook(
     url_template="me/mailFolders/{folder_id}/move",
     description="Move a folder and everything in it into another folder.",
     action_label="Moves a mail folder.",
-    scopes_override=[MAIL_READ_WRITE],
+    scopes_override=[WRITE_MAIL],
     response_handler=trim_entity,
 )
 
@@ -673,7 +697,7 @@ mail_folders_copy = _outlook(
     url_template="me/mailFolders/{folder_id}/copy",
     description="Copy a folder and everything in it into another folder.",
     action_label="Copies a mail folder.",
-    scopes_override=[MAIL_READ_WRITE],
+    scopes_override=[WRITE_MAIL],
     response_handler=trim_entity,
 )
 
@@ -687,7 +711,7 @@ mail_folders_delta = _outlook(
         "ends with a delta_link; pass that as next_link later to get only what changed."
     ),
     action_label="Checks for changed mail folders.",
-    scopes_override=[MAIL_READ_BASIC],
+    scopes_override=[READ_FOLDERS],
     build_request=follow_next_link(_FOLDERS_DELTA),
     pagination_override=OUTLOOK_PAGINATION,
     response_handler=trim_page,
@@ -704,7 +728,7 @@ master_categories_list = _outlook(
     url_template="me/outlook/masterCategories",
     description="List the categories defined for the mailbox, with their colors.",
     action_label="Lists email categories.",
-    scopes_override=[MAILBOX_SETTINGS_READ],
+    scopes_override=[READ_SETTINGS],
     response_handler=trim_page,
 )
 
@@ -715,7 +739,7 @@ master_categories_get = _outlook(
     url_template="me/outlook/masterCategories/{category_id}",
     description="Read one category.",
     action_label="Reads an email category.",
-    scopes_override=[MAILBOX_SETTINGS_READ],
+    scopes_override=[READ_SETTINGS],
     response_handler=trim_entity,
 )
 
@@ -726,7 +750,7 @@ master_categories_create = _outlook(
     url_template="me/outlook/masterCategories",
     description="Create a category. Its name is fixed once created; only the color can change.",
     action_label="Creates an email category.",
-    scopes_override=[MAILBOX_SETTINGS_READ_WRITE],
+    scopes_override=[WRITE_SETTINGS],
     response_handler=trim_entity,
 )
 
@@ -737,7 +761,7 @@ master_categories_update = _outlook(
     url_template="me/outlook/masterCategories/{category_id}",
     description="Change a category's color.",
     action_label="Recolors an email category.",
-    scopes_override=[MAILBOX_SETTINGS_READ_WRITE],
+    scopes_override=[WRITE_SETTINGS],
     response_handler=trim_entity,
 )
 
@@ -748,7 +772,7 @@ master_categories_delete = _outlook(
     url_template="me/outlook/masterCategories/{category_id}",
     description="Delete a category from the mailbox's list.",
     action_label="Deletes an email category.",
-    scopes_override=[MAILBOX_SETTINGS_READ_WRITE],
+    scopes_override=[WRITE_SETTINGS],
 )
 
 # =====================================================
@@ -762,7 +786,7 @@ message_rules_list = _outlook(
     url_template="me/mailFolders/inbox/messageRules",
     description="List the Inbox rules, in the order they run.",
     action_label="Lists inbox rules.",
-    scopes_override=[MAILBOX_SETTINGS_READ],
+    scopes_override=[READ_SETTINGS],
     response_handler=trim_page,
 )
 
@@ -773,7 +797,7 @@ message_rules_get = _outlook(
     url_template="me/mailFolders/inbox/messageRules/{rule_id}",
     description="Read one Inbox rule: its conditions, exceptions and actions.",
     action_label="Reads an inbox rule.",
-    scopes_override=[MAILBOX_SETTINGS_READ],
+    scopes_override=[READ_SETTINGS],
     response_handler=trim_entity,
 )
 
@@ -787,7 +811,7 @@ message_rules_create = _outlook(
         "the exceptions, Outlook takes the actions."
     ),
     action_label="Creates an inbox rule.",
-    scopes_override=[MAILBOX_SETTINGS_READ_WRITE],
+    scopes_override=[WRITE_SETTINGS],
     response_handler=trim_entity,
 )
 
@@ -798,7 +822,7 @@ message_rules_update = _outlook(
     url_template="me/mailFolders/inbox/messageRules/{rule_id}",
     description="Change some of an Inbox rule's properties, leaving the rest as they are.",
     action_label="Edits an inbox rule.",
-    scopes_override=[MAILBOX_SETTINGS_READ_WRITE],
+    scopes_override=[WRITE_SETTINGS],
     response_handler=trim_entity,
 )
 
@@ -809,7 +833,7 @@ message_rules_delete = _outlook(
     url_template="me/mailFolders/inbox/messageRules/{rule_id}",
     description="Delete an Inbox rule.",
     action_label="Deletes an inbox rule.",
-    scopes_override=[MAILBOX_SETTINGS_READ_WRITE],
+    scopes_override=[WRITE_SETTINGS],
 )
 
 # =====================================================
@@ -826,7 +850,7 @@ mailbox_settings_get = _outlook(
         "hours, language, and date and time formats."
     ),
     action_label="Reads mailbox settings.",
-    scopes_override=[MAILBOX_SETTINGS_READ],
+    scopes_override=[READ_SETTINGS],
     response_handler=trim_entity,
 )
 
@@ -840,7 +864,7 @@ mailbox_settings_update = _outlook(
         "zone, working hours, language, formats."
     ),
     action_label="Changes mailbox settings.",
-    scopes_override=[MAILBOX_SETTINGS_READ_WRITE],
+    scopes_override=[WRITE_SETTINGS],
     response_handler=trim_entity,
 )
 
@@ -851,7 +875,7 @@ supported_languages = _outlook(
     url_template="me/outlook/supportedLanguages",
     description="List the languages and locales the user's mailbox server supports.",
     action_label="Lists supported languages.",
-    scopes_override=[USER_READ],
+    scopes_override=[READ_PROFILE],
     response_handler=trim_page,
 )
 
@@ -866,7 +890,7 @@ supported_time_zones = _outlook(
     ),
     description="List the time zones the user's mailbox server supports, as Windows or IANA names.",
     action_label="Lists supported time zones.",
-    scopes_override=[USER_READ],
+    scopes_override=[READ_PROFILE],
     response_handler=trim_page,
 )
 
@@ -894,7 +918,7 @@ inference_overrides_create = _outlook(
         "has an override, it is updated."
     ),
     action_label="Adds a Focused Inbox override.",
-    scopes_override=[MAIL_READ_WRITE],
+    scopes_override=[WRITE_MAIL],
     response_handler=trim_entity,
 )
 
@@ -905,7 +929,7 @@ inference_overrides_update = _outlook(
     url_template="me/inferenceClassification/overrides/{override_id}",
     description="Switch an override between Focused and Other.",
     action_label="Changes a Focused Inbox override.",
-    scopes_override=[MAIL_READ_WRITE],
+    scopes_override=[WRITE_MAIL],
     response_handler=trim_entity,
 )
 
@@ -916,7 +940,7 @@ inference_overrides_delete = _outlook(
     url_template="me/inferenceClassification/overrides/{override_id}",
     description="Remove an override, so the sender's mail is sorted automatically again.",
     action_label="Removes a Focused Inbox override.",
-    scopes_override=[MAIL_READ_WRITE],
+    scopes_override=[WRITE_MAIL],
 )
 
 # =====================================================
@@ -943,7 +967,7 @@ extensions_create = _outlook(
         "pairs of primitive values or arrays of them."
     ),
     action_label="Stores app data on an email.",
-    scopes_override=[MAIL_READ_WRITE],
+    scopes_override=[WRITE_MAIL],
     response_handler=trim_entity,
 )
 
@@ -954,7 +978,7 @@ extensions_delete = _outlook(
     url_template="me/messages/{message_id}/extensions/{extension_id}",
     description="Delete an open extension from a message.",
     action_label="Removes app data from an email.",
-    scopes_override=[MAIL_READ_WRITE],
+    scopes_override=[WRITE_MAIL],
 )
 
 # =====================================================
@@ -971,6 +995,7 @@ get_mail_tips = _outlook(
         "restrictions, moderation, external recipients and distribution-list sizes."
     ),
     action_label="Checks recipients before sending.",
+    scopes_override=[MAIL_TIPS],
     response_handler=trim_page,
 )
 
@@ -984,7 +1009,7 @@ translate_exchange_ids = _outlook(
         "restId to the immutable restImmutableEntryId, which survives a move."
     ),
     action_label="Converts Outlook IDs.",
-    scopes_override=[USER_READ_BASIC_ALL],
+    scopes_override=[TRANSLATE_IDS],
     response_handler=trim_page,
 )
 
@@ -1056,8 +1081,13 @@ TOOLS: List[Tool] = [
     translate_exchange_ids,
 ]
 
+# Everything the whole pack needs, for a consent screen that hands out all of
+# it: four permissions, because Mail.ReadWrite covers every reader.
+SCOPES = scopes_for(TOOLS)
+
 __all__ = [
     "TOOLS",
+    "OUTLOOK_REFUSAL",
     "configure",
     "BASE_URL",
     "SCOPES",

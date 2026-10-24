@@ -58,10 +58,19 @@ Known limits, named rather than hidden:
 
 from __future__ import annotations
 
-from charter.auth import CredentialProvider
+from charter.auth import CredentialProvider, scopes_for
 from charter.factories import oauth_tool_factory
 from charter.packs._config import DeferredCredentialProvider
-from charter.packs._google import ENV_GRANT
+from charter.packs._google import (
+    DRIVE,
+    DRIVE_FILE,
+    DRIVE_READONLY,
+    ENV_GRANT,
+    FORMS_BODY,
+    FORMS_BODY_READONLY,
+    FORMS_RESPONSES_READONLY,
+    google_accepts,
+)
 from charter.packs.gforms.response_handlers import extract_response, extract_responses
 from charter.packs.gforms.types.form_responses.actions import (
     FormsResponsesGetRequest,
@@ -84,11 +93,15 @@ QUOTA_DOC_URL = "https://developers.google.com/workspace/forms/api/limits"
 # is needed.
 GOOGLE_PAGINATION = Pagination(cursor_field="nextPageToken", cursor_param="pageToken")
 
+# What each tool needs, as the scopes Google's reference accepts for its method.
 # `forms.body` covers reading and editing the form itself. It does not reach the
 # responses: Google scopes those separately, and `drive` is the only scope that
-# would cover both.
-SCOPES = ["https://www.googleapis.com/auth/forms.body"]
-RESPONSE_SCOPES = ["https://www.googleapis.com/auth/forms.responses.readonly"]
+# covers both. Reading a form alone takes `forms.body.readonly`, and creating one
+# names no existing file, so Google's non-sensitive `drive.file` covers it.
+READ = google_accepts(FORMS_BODY_READONLY, FORMS_BODY, DRIVE_READONLY, DRIVE)
+CREATE = google_accepts(DRIVE_FILE, FORMS_BODY, DRIVE)
+WRITE = google_accepts(FORMS_BODY, DRIVE)
+RESPONSES_READ = google_accepts(FORMS_RESPONSES_READONLY, DRIVE)
 
 _credentials = DeferredCredentialProvider(
     "gforms", env_var="GOOGLE_ACCESS_TOKEN", env_grant=ENV_GRANT
@@ -105,7 +118,7 @@ _forms = oauth_tool_factory(
     base_url=BASE_URL,
     provider="google",
     credential_provider=_credentials,
-    scopes=SCOPES,
+    scopes=[WRITE],
     # Google is camelCase in both directions: `pageToken` and `pageSize`, not
     # `page_token` and `page_size`, which it would accept and ignore — every
     # call would return the unfiltered first page and none of them would fail.
@@ -130,6 +143,7 @@ forms_create = _forms(
         "create a form that does not yet accept responses."
     ),
     action_label="Creates an empty titled form.",
+    scopes_override=[CREATE],
     quota_cost=1,
 )
 
@@ -145,6 +159,7 @@ forms_get = _forms(
         "forms_batch_update's update_item, keeping the IDs."
     ),
     action_label="Reads a form.",
+    scopes_override=[READ],
     quota_cost=1,
 )
 
@@ -195,7 +210,7 @@ forms_responses_get = _forms(
     ),
     action_label="Reads one form response.",
     quota_cost=1,
-    scopes_override=RESPONSE_SCOPES,
+    scopes_override=[RESPONSES_READ],
     response_handler=extract_response,
 )
 
@@ -212,7 +227,7 @@ forms_responses_list = _forms(
     ),
     action_label="Reads a form's responses.",
     quota_cost=1,
-    scopes_override=RESPONSE_SCOPES,
+    scopes_override=[RESPONSES_READ],
     pagination_override=GOOGLE_PAGINATION,
     response_handler=extract_responses,
 )
@@ -226,12 +241,18 @@ TOOLS: list[Tool] = [
     forms_responses_list,
 ]
 
+# What a consent for the whole pack asks for.
+SCOPES = scopes_for(TOOLS)
+
 __all__ = [
     "TOOLS",
     "configure",
     "BASE_URL",
     "SCOPES",
-    "RESPONSE_SCOPES",
+    "READ",
+    "CREATE",
+    "WRITE",
+    "RESPONSES_READ",
     "QUOTA_DOC_URL",
     "GOOGLE_PAGINATION",
     "forms_create",

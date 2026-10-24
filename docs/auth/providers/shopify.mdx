@@ -45,6 +45,48 @@ store. `scope_separator` is the comma Shopify documents. [`dead_grant_errors`](/
 how Shopify says a grant is gone: [Refresh behaviour](#refresh-behaviour).
 [`revocation`](/reference/oauth#revocation) uninstalls the app: [Disconnecting](#disconnecting).
 
+## Scopes
+
+Each tool declares the access scopes it needs, from the "Requires … access scope"
+line on every object and mutation it touches in the
+[Admin GraphQL reference](https://shopify.dev/docs/api/admin-graphql). "Any scope
+that writes a resource also grants read access to it", so each reader also
+accepts the write scope:
+
+```python shopify_scopes.py
+from charter.auth import scopes_for
+from charter.packs import shopify
+
+scopes_for([shopify.products_list])   # ['read_products']
+scopes_for([shopify.orders_list])     # ['read_orders', 'read_customers']: it reads each order's customer
+SHOPIFY_SCOPES = scopes_for(shopify.TOOLS)
+```
+
+On Shopify the scopes are set on the app's released version rather than taken
+from the install link, so `SHOPIFY_SCOPES` is the list to type under **Access**
+when you [register the app](/auth/apps/shopify).
+
+Two classes of resource sit behind their own scopes, and no tool asks for them.
+Orders older than 60 days need `read_all_orders` beside `read_orders`, and Shopify
+approves that scope per app; without it the order tools see the last 60 days, with
+no error for the rest. Fulfillment orders at fulfillment-service, third-party or
+marketplace locations need their own `*_fulfillment_orders` scopes; the tools ask
+for the merchant-managed ones, which is where a store's own app works. An app
+that needs either derives the tools with `scopes=[...]`.
+
+A field the token's scopes do not reach comes back as 200 with an `ACCESS_DENIED`
+error naming them ("Required access: `read_orders` access scope."), and raises
+[`InsufficientScope`](/reference/errors#insufficientscope) with those scopes.
+A public app's access to
+[protected customer data](https://shopify.dev/docs/apps/launch/protected-customer-data)
+is approved in the Partner Dashboard rather than granted by a scope: customer data
+at all, and a customer's name, address, phone and email on top. Until it is, a
+field the app is not approved for comes back `null` in a 200, beside an `errors`
+entry ("This app is not approved to access the Customer object"), which the
+pack's envelope raises as an `APIError`. A custom app has both levels without
+review, unless a merchant created it in the admin, where level 2 depends on the
+plan.
+
 ## Connecting a merchant
 
 ```python shopify_users.py

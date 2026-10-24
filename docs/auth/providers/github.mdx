@@ -109,23 +109,80 @@ the token, so nothing about them reaches the model. Serving many end users is
 
 ## Scopes
 
+Each tool declares what a **classic OAuth App or a classic PAT** needs for it,
+from the sentence GitHub's REST reference gives each endpoint and from
+[GitHub's scope list](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps):
+
+| tools | scope | also accepted |
+|---|---|---|
+| every tool that reads or writes a repository | `repo` | — |
+| `dependabot_*`, `code_scanning_*`, `secret_scanning_list_alerts` | `security_events` | `repo` |
+| `notifications_*` | `notifications` | `repo` |
+| `users_get_authenticated` | `read:user` | `user` |
+| `search_users`, `rate_limit_get` | none | — |
+
+A public repository needs no scope to read and `public_repo` to write, but a
+private one needs `repo` for both, so the repository tools ask for `repo`. An
+agent that only ever works on public repositories can say so, and ask for less:
+
 ```python github_scopes.py
 from charter.auth import scopes_for
 from charter.packs import github
 
 REPO_SCOPES = scopes_for(github.TOOLS)   # ['repo', 'read:user']
+
+scopes_for([github.dependabot_list_alerts])   # ['security_events']
+
+public = github.issues_create.derived(name="issues_create", scopes=["public_repo"])
+scopes_for([public])                          # ['public_repo']
 ```
 
-Those are the scopes a **classic OAuth App or a classic PAT** needs for the
-pack's twenty-nine tools. The other two token types do not use them:
+GitHub also wants `workflow` for a write that adds or changes a file under
+`.github/workflows`, a release whose commit does, included. No tool asks for it,
+because almost no write does that; an agent that edits workflows derives its
+tools with `scopes=["repo", "workflow"]`.
 
-- A **fine-grained PAT** wants read/write on Issues, Pull requests and Contents,
-  plus Metadata.
-- A **GitHub App** derives its permissions from the app's installation, and
-  ignores the `scope` parameter on the authorization URL entirely. Pass
-  [`scopes_for(github.TOOLS)`](/reference/oauth#scopes_for) anyway — [`authorize()`](/reference/oauth#oauth2flow-authorize) refuses an empty scope list,
-  since an authorization request for nothing is a bug upstream — and set the real
-  permissions on the app.
+The other token types carry **permissions** instead of scopes, set where the app
+or the token is created rather than asked for on consent, and the pack declares
+them too, as two [kinds](/auth/permissions#kinds-of-credential):
+
+- `github.APP` is a **GitHub App installation token**, which acts as the app.
+- `github.FINE_GRAINED` is a **fine-grained PAT**, or a GitHub App's **user access
+  token**, which act as a user.
+
+Each tool's permissions are what GitHub's `X-Accepted-GitHub-Permissions` header
+names for its endpoint, spelled the same way, and
+`scripts/live_github_scopes_check.py --kind fine_grained` asks GitHub for every
+tool again. Write access includes read, so a reader takes either:
+
+```python github_permissions.py
+from charter.auth import scopes_for
+from charter.packs import github
+
+tools = [github.issues_get, github.issues_create, github.pulls_list]
+
+scopes_for(tools, kind=github.APP)   # ['issues=write', 'pull_requests=read']
+```
+
+That list is the checklist for the app's **Permissions** page, or the token's.
+GitHub also takes `pull_requests` on an issue endpoint, but only for a pull
+request's number, so the issue tools ask for `issues`. Three endpoints serve a
+user's token only (`users_get_authenticated`, `issues_list_for_authenticated_user`,
+`repos_list_for_authenticated_user`), and the notification endpoints serve
+neither kind; [`scopes_for`](/reference/oauth#scopes_for) names them rather than
+build a grant that cannot run them.
+
+A GitHub App ignores the `scope` parameter on the authorization URL entirely.
+Pass [`scopes_for(github.TOOLS)`](/reference/oauth#scopes_for) anyway —
+[`authorize()`](/reference/oauth#oauth2flow-authorize) refuses an empty scope
+list, since an authorization request for nothing is a bug upstream — and set the
+real permissions on the app.
+
+A call the grant does not cover raises
+[`InsufficientScope`](/reference/errors#insufficientscope). To a classic token
+GitHub answers a private repository it will not show with the same 404 as a
+missing one, beside `X-Accepted-OAuth-Scopes` and `X-OAuth-Scopes`; it counts as
+a refusal only when the token holds none of the scopes GitHub accepts.
 
 ## Getting the first grant
 

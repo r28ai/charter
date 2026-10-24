@@ -16,7 +16,6 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 
-from charter.auth import scopes_for
 from charter.mcp import PACKS
 from charter.packs import github, slack
 
@@ -67,7 +66,8 @@ def test_the_slack_link_carries_the_manifest_on_the_page():
     shown = json.loads(block.group(1))
 
     assert carried == shown
-    assert shown["oauth_config"]["scopes"]["bot"] == scopes_for(slack.TOOLS)
+    # Every tool a bot token can call; search_messages takes a user token.
+    assert shown["oauth_config"]["scopes"]["bot"] == slack.SCOPES
 
 
 def test_the_github_link_asks_for_the_pack_s_scopes():

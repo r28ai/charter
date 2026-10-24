@@ -17,7 +17,7 @@ result = asyncio.run(gmail.labels_get.ainvoke({"id": ...}))
 ```
 
 <Note>
-  Requires `https://www.googleapis.com/auth/gmail.modify`. Costs 1 against the provider's own quota.
+  Requires `https://www.googleapis.com/auth/gmail.labels`, or any of `https://www.googleapis.com/auth/gmail.metadata`, `https://www.googleapis.com/auth/gmail.readonly`, `https://www.googleapis.com/auth/gmail.modify` or `https://mail.google.com/`. Costs 1 against the provider's own quota.
 </Note>
 
 ## Path parameters

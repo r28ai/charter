@@ -17,7 +17,7 @@ result = asyncio.run(github.pulls_update_review_comment.ainvoke({"owner": ..., "
 ```
 
 <Note>
-  Requires `repo`, `read:user`.
+  Requires `repo`. With `github.APP` or `github.FINE_GRAINED`, requires `pull_requests=write`.
 </Note>
 
 ## Path parameters

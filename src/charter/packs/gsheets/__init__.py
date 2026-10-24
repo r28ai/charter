@@ -25,10 +25,18 @@ is set; the first two renew themselves.
 
 from __future__ import annotations
 
-from charter.auth import CredentialProvider
+from charter.auth import CredentialProvider, scopes_for
 from charter.factories import oauth_tool_factory
 from charter.packs._config import DeferredCredentialProvider
-from charter.packs._google import ENV_GRANT
+from charter.packs._google import (
+    DRIVE,
+    DRIVE_FILE,
+    DRIVE_READONLY,
+    ENV_GRANT,
+    SPREADSHEETS,
+    SPREADSHEETS_READONLY,
+    google_accepts,
+)
 from charter.packs.gsheets.response_handlers import (
     extract_batch_update,
     extract_spreadsheet,
@@ -56,7 +64,14 @@ from charter.tool import Tool
 
 BASE_URL = "https://sheets.googleapis.com/"
 QUOTA_DOC_URL = "https://developers.google.com/workspace/sheets/api/limits"
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+# What each tool needs, as the scopes Google's reference accepts for its method.
+# The plain readers accept `spreadsheets.readonly`; the data-filter and
+# developer-metadata reads are POSTs Google lists under `spreadsheets` only.
+# Creating names no existing file, so Google's non-sensitive `drive.file`
+# covers it.
+READ = google_accepts(SPREADSHEETS_READONLY, SPREADSHEETS, DRIVE_READONLY, DRIVE)
+CREATE = google_accepts(DRIVE_FILE, SPREADSHEETS, DRIVE)
+WRITE = google_accepts(SPREADSHEETS, DRIVE)
 
 _credentials = DeferredCredentialProvider(
     "gsheets", env_var="GOOGLE_ACCESS_TOKEN", env_grant=ENV_GRANT
@@ -73,7 +88,7 @@ _sheets = oauth_tool_factory(
     base_url=BASE_URL,
     provider="google",
     credential_provider=_credentials,
-    scopes=SCOPES,
+    scopes=[WRITE],
     # Google's query parameters are camelCase (`maxResults`, `singleEvents`),
     # like its bodies. Without this the default snake casing sends `max_results`,
     # which Google silently ignores — the worst kind of wrong, because the call
@@ -89,6 +104,7 @@ spreadsheets_values_get = _sheets(
     url_template="v4/spreadsheets/{spreadsheet_id}/values/{range}",
     description="Returns a range of values from a spreadsheet.",
     action_label="Reads rows from a sheet.",
+    scopes_override=[READ],
     quota_cost=1,
 )
 
@@ -129,6 +145,7 @@ spreadsheets_values_batch_get = _sheets(
     url_template="v4/spreadsheets/{spreadsheet_id}/values:batchGet",
     description="Returns one or more ranges of values from a spreadsheet.",
     action_label="Reads multiple ranges.",
+    scopes_override=[READ],
     quota_cost=1,
 )
 
@@ -195,6 +212,7 @@ spreadsheets_create_full = _sheets(
     url_template="v4/spreadsheets",
     description="Create a new spreadsheet.",
     action_label="Creates a new spreadsheet.",
+    scopes_override=[CREATE],
     quota_cost=1,
     response_handler=extract_spreadsheet,
 )
@@ -224,6 +242,7 @@ spreadsheets_get = _sheets(
     url_template="v4/spreadsheets/{spreadsheet_id}",
     description="Get spreadsheet metadata and structure.",
     action_label="Retrieves spreadsheet information.",
+    scopes_override=[READ],
     quota_cost=1,
     response_handler=extract_spreadsheet,
 )
@@ -320,11 +339,17 @@ TOOLS: list[Tool] = [
     spreadsheets_developer_metadata_search,
 ]
 
+# What a consent for the whole pack asks for.
+SCOPES = scopes_for(TOOLS)
+
 __all__ = [
     "TOOLS",
     "configure",
     "BASE_URL",
     "SCOPES",
+    "READ",
+    "CREATE",
+    "WRITE",
     "QUOTA_DOC_URL",
     "spreadsheets_values_get",
     "spreadsheets_values_update",

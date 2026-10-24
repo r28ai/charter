@@ -16,6 +16,10 @@ from charter.packs import stripe
 result = asyncio.run(stripe.charges_retrieve.ainvoke({"charge": ...}))
 ```
 
+<Note>
+  With `stripe.RESTRICTED_KEY`, requires `charge_read` or `charge_write`.
+</Note>
+
 ## Path parameters
 
 <div className="reference-table">

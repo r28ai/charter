@@ -17,7 +17,7 @@ result = asyncio.run(slack.search_messages.ainvoke({"query": ...}))
 ```
 
 <Note>
-  Requires `chat:write`, `channels:read`, `groups:read`, `im:read`, `mpim:read`, `channels:history`, `groups:history`, `im:history`, `mpim:history`, `users:read`, `reactions:write`. Pages by cursor: `response_metadata.next_cursor` is sent back as `cursor`.
+  Cannot run with `slack.BOT`: search.messages takes a user token only. With `slack.USER`, requires `search:read`. Pages by cursor: `response_metadata.next_cursor` is sent back as `cursor`.
 </Note>
 
 ## Query parameters

@@ -52,7 +52,9 @@ Untick it unless your app is built for that.
 <Step title="Choose the scopes and add your redirect URL">
 
 Further down, under **Access**, set the **Scopes** the tools need, either with
-**Select scopes** or typed in and separated by commas. Below them, add your
+**Select scopes** or typed in and separated by commas.
+[`scopes_for(shopify.TOOLS)`](/auth/providers/shopify#scopes) lists them, or
+`scopes_for` over just the tools you hand out. Below them, add your
 callback route under **Redirect URLs**.
 
 <Frame>

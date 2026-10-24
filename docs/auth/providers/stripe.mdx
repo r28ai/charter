@@ -99,8 +99,35 @@ code and what it measured without one.
 
 Not every product wants to publish a Stripe App. The other path is a
 [restricted key](https://docs.stripe.com/keys/restricted-api-keys) (`rk_...`):
-the user creates it with read-only permissions and pastes it, and `stripe_for`
-returns [`StaticTokenProvider(row.api_key)`](/reference/credentials#statictokenprovider). Many tools start this way.
+the user creates it with only the permissions your tools use and pastes it, and
+`stripe_for` returns [`StaticTokenProvider(row.api_key)`](/reference/credentials#statictokenprovider). Many tools start this way.
+
+Each tool declares the permission
+[Stripe's reference](https://docs.stripe.com/keys/permissions-reference) names
+for its endpoint, as the `stripe.RESTRICTED_KEY`
+[kind](/auth/permissions#kinds-of-credential). "Write permissions imply read
+permissions", so a reader takes either:
+
+```python stripe_restricted_key.py
+from charter.auth import scopes_for
+from charter.packs import stripe
+
+scopes_for([stripe.refunds_create, stripe.charges_list], kind=stripe.RESTRICTED_KEY)
+# ['charge_write']: refunds are the charge's resource
+stripe.RESTRICTED_KEY_PERMISSIONS   # the narrowest key for the whole pack
+```
+
+That list is what to set to Read or Write when the key is made; everything else
+stays None. A secret key needs nothing. A call the key may not make raises
+[`InsufficientScope`](/reference/errors#insufficientscope) with the permission
+Stripe names ("Having the 'rak_charge_read' permission would allow this request
+to continue"). Seven endpoints are missing from Stripe's table and take their
+resource's permission, as every neighbouring endpoint does. Stripe's own
+refusals confirmed six of them, and 62 of the pack's tools in all, against a
+test-mode key holding no permission the pack uses
+(`scripts/live_stripe_permissions_check.py`). Creating a refund is the one that
+cannot be asked this way: Stripe looks the charge up first, and tells a key that
+cannot read charges that the charge does not exist.
 
 A Connect platform is different again. It acts on its connected accounts with
 its own key and a `Stripe-Account` header, which is

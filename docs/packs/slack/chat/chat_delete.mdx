@@ -17,7 +17,7 @@ result = asyncio.run(slack.chat_delete.ainvoke({"channel": ..., "ts": ...}))
 ```
 
 <Note>
-  Requires `chat:write`, `channels:read`, `groups:read`, `im:read`, `mpim:read`, `channels:history`, `groups:history`, `im:history`, `mpim:history`, `users:read`, `reactions:write`.
+  Requires `chat:write`. With `slack.USER`, requires `chat:write`.
 </Note>
 
 ## Body

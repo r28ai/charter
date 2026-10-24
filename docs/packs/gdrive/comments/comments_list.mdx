@@ -17,7 +17,7 @@ result = asyncio.run(gdrive.comments_list.ainvoke({"fileId": ..., "fields": ...}
 ```
 
 <Note>
-  Requires `https://www.googleapis.com/auth/drive`. Pages by cursor: `nextPageToken` is sent back as `pageToken`. Costs 1 against the provider's own quota.
+  Requires `https://www.googleapis.com/auth/drive.readonly` or `https://www.googleapis.com/auth/drive`. Pages by cursor: `nextPageToken` is sent back as `pageToken`. Costs 1 against the provider's own quota.
 </Note>
 
 ## Path parameters

@@ -16,6 +16,10 @@ from charter.packs import stripe
 result = asyncio.run(stripe.customer_payment_method_retrieve.ainvoke({"paymentMethod": ..., "customer": ...}))
 ```
 
+<Note>
+  With `stripe.RESTRICTED_KEY`, requires `payment_method_read` or `payment_method_write`.
+</Note>
+
 ## Path parameters
 
 <div className="reference-table">

@@ -808,6 +808,54 @@ async def test_a_non_meet_conference_is_read_out_of_entry_points():
     assert result["items"][0]["conferenceUrl"] == "https://zoom.us/j/123"
 
 
+@pytest.mark.parametrize("status", ["failure", "pending"])
+@respx.mock
+async def test_a_conference_that_failed_or_is_pending_is_reported(status):
+    """Google saves the event with a 200 and reports the Meet link it could not
+    make inside it. Trimmed away, the failure would read as no link requested."""
+    event = _event_with_long_description(1)
+    del event["hangoutLink"]
+    event["conferenceData"] = {
+        "createRequest": {
+            "requestId": "req-1",
+            "conferenceSolutionKey": {"type": "hangoutsMeet"},
+            "status": {"statusCode": status},
+        }
+    }
+    respx.post(f"{API}calendar/v3/calendars/primary/events").mock(
+        return_value=httpx.Response(200, json=event)
+    )
+    result = await gcalendar.events_insert.ainvoke(
+        calendar_id="primary",
+        conference_data_version=1,
+        event={
+            "summary": "Weekly sync",
+            "start": {"date_time": "2026-09-11T10:00:00+01:00"},
+            "end": {"date_time": "2026-09-11T10:30:00+01:00"},
+            "conference_data": {
+                "create_request": {
+                    "request_id": "req-1",
+                    "conference_solution_key": {"type": "hangoutsMeet"},
+                }
+            },
+        },
+    )
+    assert result["conferenceStatus"] == status
+    assert "conferenceUrl" not in result
+
+
+@respx.mock
+async def test_a_conference_that_was_made_says_nothing_but_its_link():
+    event = _event_with_long_description(1)
+    event["conferenceData"] = {"createRequest": {"status": {"statusCode": "success"}}}
+    respx.get(f"{API}calendar/v3/calendars/primary/events/evt1").mock(
+        return_value=httpx.Response(200, json=event)
+    )
+    result = await gcalendar.events_get.ainvoke(calendar_id="primary", event_id="evt1")
+    assert result["conferenceUrl"] == "https://meet.google.com/abc-defg-hij"
+    assert "conferenceStatus" not in result
+
+
 @respx.mock
 async def test_a_short_description_is_not_touched():
     event = _event_with_long_description(1)

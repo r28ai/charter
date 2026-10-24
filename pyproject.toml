@@ -162,6 +162,10 @@ filterwarnings = ["error::DeprecationWarning"]
 markers = [
     "live: hits a real provider API with hardcoded arguments. Needs credentials.",
 ]
+# The suite is offline by rule. A live test spends the provider's credits, so it
+# runs only when asked for: `pytest -m live tests/test_pack_firecrawl_live.py`.
+# Without this, a key left in .env made every full run call Firecrawl for real.
+addopts = "-m 'not live'"
 
 [tool.ruff]
 line-length = 100

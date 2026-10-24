@@ -17,7 +17,7 @@ result = asyncio.run(outlook.get_mail_tips.ainvoke({"EmailAddresses": ...}))
 ```
 
 <Note>
-  Requires `https://graph.microsoft.com/Mail.Read`.
+  Requires `https://graph.microsoft.com/Mail.Read`, or any of `https://graph.microsoft.com/Mail.ReadWrite`, `https://graph.microsoft.com/Mail.Read.Shared` or `https://graph.microsoft.com/MailTips.ReadBasic.Shared`.
 </Note>
 
 ## Body

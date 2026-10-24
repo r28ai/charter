@@ -17,7 +17,7 @@ result = asyncio.run(granola.audit_list.ainvoke({}))
 ```
 
 <Note>
-  Pages by cursor: `cursor` is sent back as `cursor`.
+  Cannot run with `granola.PERSONAL_KEY` or `granola.WORKSPACE_KEY`: only an audit key reads the audit log. With `granola.AUDIT_KEY`, needs no permission. Pages by cursor: `cursor` is sent back as `cursor`.
 </Note>
 
 ## Query parameters

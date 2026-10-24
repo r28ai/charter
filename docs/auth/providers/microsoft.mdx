@@ -81,10 +81,12 @@ doesn't retire a refresh token when it issues the next one:
 
 ## Scopes
 
-Every Outlook tool declares the least-privileged Graph permission Microsoft's
-reference lists for its operation, and
-[`scopes_for`](/reference/oauth#scopes_for) reads them back. Hand out only the
-reading tools, and the consent screen asks for no write or send permission:
+Every Outlook tool declares the Graph permissions Microsoft's reference accepts
+for its operation, least privileged first, and
+[`scopes_for`](/reference/oauth#scopes_for) picks the narrowest set that covers
+the tools you hand out. Hand out only the reading tools, and the consent screen
+asks for no write or send permission; hand out a reader and a writer, and it asks
+for `Mail.ReadWrite` alone, because that one reads too:
 
 ```python microsoft_scopes.py
 from charter.auth import scopes_for
@@ -92,9 +94,19 @@ from charter.packs import outlook
 
 reading = [outlook.messages_list, outlook.messages_get, outlook.mail_folders_list]
 
-scopes_for(reading)
-# ['https://graph.microsoft.com/Mail.Read', 'https://graph.microsoft.com/Mail.ReadBasic']
+scopes_for(reading)                                      # ['…/Mail.Read']
+scopes_for([outlook.messages_get, outlook.messages_update])   # ['…/Mail.ReadWrite']
+scopes_for(outlook.TOOLS)
+# ['…/Mail.ReadWrite', '…/Mail.Send', '…/MailboxSettings.ReadWrite', '…/User.Read']
 ```
+
+Where an operation's table lists only `Mail.Read`, `Mail.ReadWrite` is accepted
+too, because Microsoft's permissions reference says it "allows the app to create,
+read, update, and delete" mail. `Mail.ReadBasic` is offered only to the folder
+readers: it carries no message body and no attachments. Graph refuses a
+permission the token lacks with 403 `ErrorAccessDenied` and names none, so
+[`InsufficientScope`](/reference/errors#insufficientscope) reports what the tool
+declares.
 
 Each scope is written with its resource, `https://graph.microsoft.com/`, which
 is how Microsoft tells a Graph permission from another API's. `offline_access`

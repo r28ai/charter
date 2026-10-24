@@ -17,7 +17,7 @@ result = asyncio.run(slack.conversations_create.ainvoke({"name": ...}))
 ```
 
 <Note>
-  Requires `channels:manage`, `groups:write`.
+  Requires `channels:manage`, `groups:write`. With `slack.USER`, requires `channels:write`, `groups:write`.
 </Note>
 
 ## Body

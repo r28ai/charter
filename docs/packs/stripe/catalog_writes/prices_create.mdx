@@ -16,6 +16,10 @@ from charter.packs import stripe
 result = asyncio.run(stripe.prices_create.ainvoke({"currency": ..., "product": ...}))
 ```
 
+<Note>
+  With `stripe.RESTRICTED_KEY`, requires `plan_write`.
+</Note>
+
 ## Body
 
 <div className="reference-table">

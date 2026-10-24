@@ -17,7 +17,7 @@ result = asyncio.run(stripe.customer_payment_methods_list.ainvoke({"customer": .
 ```
 
 <Note>
-  Pages by cursor: `data[-1].id` is sent back as `starting_after`.
+  With `stripe.RESTRICTED_KEY`, requires `payment_method_read` or `payment_method_write`. Pages by cursor: `data[-1].id` is sent back as `starting_after`.
 </Note>
 
 ## Path parameters

@@ -23,10 +23,10 @@ text. ``files.delete`` is permanent — to trash, ``files.update`` with
 
 from __future__ import annotations
 
-from charter.auth import CredentialProvider
+from charter.auth import CredentialProvider, scopes_for
 from charter.factories import oauth_tool_factory
 from charter.packs._config import DeferredCredentialProvider
-from charter.packs._google import ENV_GRANT
+from charter.packs._google import DRIVE, DRIVE_FILE, DRIVE_READONLY, ENV_GRANT, google_accepts
 from charter.packs.gdrive.response_handlers import (
     extract_about,
     extract_comment,
@@ -77,7 +77,16 @@ BASE_URL = "https://www.googleapis.com/"
 GOOGLE_PAGINATION = Pagination(cursor_field="nextPageToken", cursor_param="pageToken")
 
 QUOTA_DOC_URL = "https://developers.google.com/workspace/drive/api/guides/limits"
-SCOPES = ["https://www.googleapis.com/auth/drive"]
+# What each tool needs, as the scopes Google's reference accepts for its method,
+# less any that reach only part of what the tool can ask for. drive.file reaches
+# only files this app created or the user opened with it, so it is offered where
+# no existing file is named: creating one, and reading the account. files_create
+# under it creates at the root or in a folder the app made; a `parents` folder
+# the user made needs `drive`, and Google answers 404.
+READ = google_accepts(DRIVE_READONLY, DRIVE)
+CREATE = google_accepts(DRIVE_FILE, DRIVE)
+ABOUT = google_accepts(DRIVE_FILE, DRIVE_READONLY, DRIVE)
+WRITE = DRIVE
 
 _credentials = DeferredCredentialProvider(
     "gdrive", env_var="GOOGLE_ACCESS_TOKEN", env_grant=ENV_GRANT
@@ -94,7 +103,7 @@ _drive = oauth_tool_factory(
     base_url=BASE_URL,
     provider="google",
     credential_provider=_credentials,
-    scopes=SCOPES,
+    scopes=[READ],
     # Google's query parameters are camelCase (`pageSize`, `supportsAllDrives`),
     # like its bodies. Without this the default snake casing sends `page_size`,
     # which Google silently ignores — the worst kind of wrong, because the call
@@ -162,6 +171,7 @@ files_create = _drive(
         "most one folder ID."
     ),
     action_label="Creates a Drive file or folder.",
+    scopes_override=[CREATE],
     quota_cost=1,
     response_handler=extract_file,
 )
@@ -178,6 +188,7 @@ files_update = _drive(
         "`parents`."
     ),
     action_label="Updates a Drive file.",
+    scopes_override=[WRITE],
     quota_cost=1,
     response_handler=extract_file,
 )
@@ -192,6 +203,7 @@ files_copy = _drive(
         "semantics. Typically send a new `name` and optionally `parents`."
     ),
     action_label="Copies a Drive file.",
+    scopes_override=[WRITE],
     quota_cost=1,
     response_handler=extract_file,
 )
@@ -208,6 +220,7 @@ files_delete = _drive(
         "trashed=true."
     ),
     action_label="Permanently deletes a Drive file.",
+    scopes_override=[WRITE],
     quota_cost=1,
 )
 
@@ -221,6 +234,7 @@ files_empty_trash = _drive(
         "empty a shared drive's trash instead."
     ),
     action_label="Empties Drive trash.",
+    scopes_override=[WRITE],
     quota_cost=1,
 )
 
@@ -237,6 +251,7 @@ permissions_create = _drive(
         "file are not supported."
     ),
     action_label="Shares a Drive file.",
+    scopes_override=[WRITE],
     quota_cost=1,
     response_handler=extract_permission,
 )
@@ -274,6 +289,7 @@ permissions_update = _drive(
         "changed. Concurrent permission writes on the same file are not supported."
     ),
     action_label="Updates a sharing permission.",
+    scopes_override=[WRITE],
     quota_cost=1,
     response_handler=extract_permission,
 )
@@ -287,6 +303,7 @@ permissions_delete = _drive(
         "Delete a permission. Concurrent permission writes on the same file are not supported."
     ),
     action_label="Removes a sharing permission.",
+    scopes_override=[WRITE],
     quota_cost=1,
 )
 
@@ -315,6 +332,7 @@ comments_create = _drive(
         "`content` to the plain text of the comment."
     ),
     action_label="Adds a comment on a file.",
+    scopes_override=[WRITE],
     quota_cost=1,
     response_handler=extract_comment,
 )
@@ -329,6 +347,7 @@ comments_update = _drive(
         "required. Typically send a new `content`."
     ),
     action_label="Updates a comment.",
+    scopes_override=[WRITE],
     quota_cost=1,
     response_handler=extract_comment,
 )
@@ -340,6 +359,7 @@ comments_delete = _drive(
     url_template="drive/v3/files/{file_id}/comments/{comment_id}",
     description="Delete a comment.",
     action_label="Deletes a comment.",
+    scopes_override=[WRITE],
     quota_cost=1,
 )
 
@@ -353,6 +373,7 @@ replies_create = _drive(
         "or `reopen`. `content` is required if no `action` is specified."
     ),
     action_label="Replies to a comment.",
+    scopes_override=[WRITE],
     quota_cost=1,
     response_handler=extract_reply,
 )
@@ -364,6 +385,7 @@ replies_update = _drive(
     url_template="drive/v3/files/{file_id}/comments/{comment_id}/replies/{reply_id}",
     description="Update a reply with patch semantics. Typically send a new `content`.",
     action_label="Updates a comment reply.",
+    scopes_override=[WRITE],
     quota_cost=1,
     response_handler=extract_reply,
 )
@@ -375,6 +397,7 @@ replies_delete = _drive(
     url_template="drive/v3/files/{file_id}/comments/{comment_id}/replies/{reply_id}",
     description="Delete a reply.",
     action_label="Deletes a comment reply.",
+    scopes_override=[WRITE],
     quota_cost=1,
 )
 
@@ -439,6 +462,7 @@ about_get = _drive(
         "`user,storageQuota`."
     ),
     action_label="Reads Drive account info.",
+    scopes_override=[ABOUT],
     quota_cost=1,
     response_handler=extract_about,
 )
@@ -471,11 +495,18 @@ TOOLS: list[Tool] = [
     about_get,
 ]
 
+# What a consent for the whole pack asks for: `drive` covers every tool here.
+SCOPES = scopes_for(TOOLS)
+
 __all__ = [
     "TOOLS",
     "configure",
     "BASE_URL",
     "SCOPES",
+    "READ",
+    "CREATE",
+    "ABOUT",
+    "WRITE",
     "QUOTA_DOC_URL",
     "GOOGLE_PAGINATION",
     "files_list",

@@ -26,7 +26,7 @@ def Tool(
     timeout: int = 20,
     mode: Optional[str] = None,
     provider: Optional[str] = None,
-    scopes: Optional[Sequence[str]] = None,
+    scopes: Optional[ScopesDeclaration] = None,
     quota_cost: Optional[int] = None,
     quota_doc_url: Optional[str] = None,
     api_key_headers: Optional[ApiKeyHeaders] = None,
@@ -34,6 +34,7 @@ def Tool(
     build_request: Optional[Callable[[BaseModel], TransportOverride]] = None,
     response_handler: Optional[ResponseHandler] = None,
     envelope: Optional[Envelope] = None,
+    scope_refusals: Optional[Iterable[ScopeRefusal]] = None,
     pagination: Optional[Pagination] = None,
     body_format: BodyFormat = "json",
     query_format: QueryFormat = "repeat",
@@ -109,11 +110,14 @@ both, or neither, raises [`DeclarationError`](/reference/errors#declarationerror
   label on every `ToolCall`. One provider implementation can serve several APIs.
 </ParamField>
 
-<ParamField path="scopes" type="Optional[Sequence[str]]" default="None">
-  The scopes this tool needs. Metadata for consent screens and approval UIs —
+<ParamField path="scopes" type="Optional[ScopesDeclaration]" default="None">
+  What this tool needs from a grant: scope strings, an
+  [`AnyOf`](/reference/oauth#anyof) where the provider accepts several, or
+  [`Unavailable`](/reference/oauth#unavailable). A mapping of
+  [`Kind`](/reference/oauth#kind) to such lists declares them for each kind of
+  credential the provider issues. Metadata for consent screens and approval UIs —
   Charter never requests them. Read back by
-  [`scopes_for`](/reference/oauth#scopes_for). Stored as a list; `None` becomes
-  `[]`.
+  [`scopes_for`](/reference/oauth#scopes_for).
 </ParamField>
 
 <ParamField path="expiry_leeway_seconds" type="int" default="10">
@@ -197,6 +201,13 @@ both, or neither, raises [`DeclarationError`](/reference/errors#declarationerror
   [`Envelope`](/reference/envelopes-and-pagination#envelope).
 </ParamField>
 
+<ParamField path="scope_refusals" type="Optional[Iterable[ScopeRefusal]]" default="None">
+  How this API says the token's grant does not cover the call, so each such answer
+  raises [`InsufficientScope`](/reference/errors#insufficientscope). The standard
+  `WWW-Authenticate` challenge needs no declaration. See
+  [`ScopeRefusal`](/reference/oauth#scoperefusal).
+</ParamField>
+
 <ParamField path="pagination" type="Optional[Pagination]" default="None">
   Where this API keeps its cursor. Declares the location; does not loop. See
   [`Pagination`](/reference/envelopes-and-pagination#pagination).
@@ -227,10 +238,20 @@ both, or neither, raises [`DeclarationError`](/reference/errors#declarationerror
 ## Attributes
 
 Every constructor parameter above is readable as an attribute of the same name,
-with three that are normalised on the way in.
+with these normalised on the way in.
 
-<ResponseField name="scopes" type="List[str]">
-  Always a list. `None` becomes `[]`.
+<ResponseField name="scopes" type="List[ScopeRequirement]">
+  The default kind's requirements, always a list: what every caller that knows
+  nothing of kinds reads. `None` becomes `[]`.
+</ResponseField>
+
+<ResponseField name="default_kind, kind_scopes" type="Optional[Kind], Dict[Kind, List[ScopeRequirement]]">
+  The kind a plain list means, when the tool's pack names one, and every other
+  kind's requirements. `None` and `{}` for a tool declared with a plain list.
+</ResponseField>
+
+<ResponseField name="scope_refusals" type="Tuple[ScopeRefusal, ...]">
+  Always a tuple. `None` becomes `()`.
 </ResponseField>
 
 <ResponseField name="static_query, static_headers, static_body" type="Optional[Dict]">
@@ -329,6 +350,7 @@ def derived(
     pin: Optional[Dict[str, Any]] = None,
     action_label: Optional[str] = None,
     response_handler: Optional[ResponseHandler] = None,
+    scopes: Optional[ScopesDeclaration] = None,
 ) -> Tool: ...
 ```
 
@@ -350,6 +372,21 @@ pack tool, the handler written for that endpoint. Pass
 and receive the response whole, or your own `async` callable to reshape it. A
 non-async one raises [`DeclarationError`](/reference/errors#declarationerror) here,
 not mid-request.
+
+`scopes` replaces what the tool says it needs from a grant, for an agent that
+only ever touches part of what the tool can reach: public repositories on GitHub,
+files its own app made on Drive. It changes the consent
+[`scopes_for`](/reference/oauth#scopes_for) builds and nothing about the call.
+Charter cannot check the claim; the provider will, with a 403 or a 404 on the
+first resource the scope does not reach. A list replaces the default kind's
+requirements and keeps the others; a mapping of [`Kind`](/reference/oauth#kind)
+to lists replaces the kinds it names.
+
+```python
+from charter.packs import github
+
+issues_create = github.issues_create.derived(name="issues_create", scopes=["public_repo"])
+```
 
 Selectors are dotted paths, unambiguous field names, or the model class a field
 is annotated with. Raises [`DeclarationError`](/reference/errors#declarationerror)

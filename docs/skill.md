@@ -305,9 +305,25 @@ failure in the body — Slack's `{"ok": false}`, GraphQL's `errors` array,
 factory = oauth_tool_factory(
     ...,
     envelope=Envelope(ok_field="ok", error_field="error",
-                      credential_errors={"invalid_auth", "missing_scope"}),
+                      credential_errors={"invalid_auth"}),
 )
 ```
+
+`credential_errors` means the token itself was refused, and it is dropped. A
+missing scope is not that: the token works and a refresh returns the same grant.
+Declare how the API says it as a `ScopeRefusal` instead, so the call raises
+`InsufficientScope` with the scopes to add:
+
+```python
+factory = oauth_tool_factory(
+    ...,
+    scope_refusals=[ScopeRefusal(status=200, signal=r'"error"\s*:\s*"missing_scope"',
+                                 needed_field="needed", alternatives=False)],
+)
+```
+
+An API that answers with the standard `WWW-Authenticate: Bearer
+error="insufficient_scope"` header needs no declaration.
 
 Getting this wrong is the worst failure mode in a pack: the model is told the
 call succeeded when it did not. See [envelopes.md](https://docs.r28.ai/charter/tools/envelopes.md).
@@ -386,6 +402,15 @@ them: `users.messages.send` becomes the tool `messages_send` and the schema
 in snake_case and `<Resource><Action>Request` in PascalCase. The names are half of
 what the model reads, and a pack that renames its endpoints cannot be checked
 against the documentation it came from.
+
+Give every tool the scopes its endpoint's reference page names, per tool rather
+than one list on the factory: a factory default hands every tool every scope, and
+a consent screen built from it asks a poster to read every channel. Where the page
+accepts several, list them narrowest first as `AnyOf(...)`, leaving out any that
+reach only part of what the tool can name (`drive.file`, `public_repo`). Where the
+provider issues more than one kind of credential with different names, declare a
+`Kind` per kind and `scopes={KIND: [...], ...}` on each tool. See
+[Permissions](https://docs.r28.ai/charter/auth/permissions.md).
 
 Give every tool a `description` (for the model) and an `action_label` (a short
 user-facing phrase, for approval UIs). Tools are built at import so `TOOLS` is

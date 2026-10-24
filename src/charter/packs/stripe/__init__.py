@@ -83,7 +83,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from charter.auth import CredentialProvider
+from charter.auth import AnyOf, CredentialProvider, Kind, ScopeRefusal, scopes_for
 from charter.factories import oauth_tool_factory
 from charter.packs._config import DeferredCredentialProvider, configure_key_or_provider
 from charter.packs.stripe._apps import StripeAppUninstall
@@ -224,21 +224,154 @@ def configure(
     configure_key_or_provider(_credentials, api_key, credential_provider)
 
 
-_stripe = oauth_tool_factory(
-    pack="stripe",
-    base_url=BASE_URL,
+# Stripe issues two kinds of key. A secret key can do anything in the account,
+# so a tool needs nothing from it. A restricted key can do only what was ticked
+# when it was made, resource by resource, Read or Write; "write permissions
+# imply read permissions". Each tool's permission is the one Stripe's reference
+# names for its endpoint, spelled as that page spells it, which is the name its
+# refusal quotes without the `rak_` prefix.
+# https://docs.stripe.com/keys/permissions-reference (read 2026-10-24)
+SECRET_KEY = Kind(
+    "secret_key",
     provider="stripe",
-    credential_provider=_credentials,
-    # Stripe is snake_case natively, and form-encoded in both directions.
-    body_case="snake",
-    query_case="snake",
-    body_format="form",
-    query_format="bracket",
-    # Pagination is a property of a list endpoint, not of the API: declaring it
-    # on the factory labels every retrieve and write with a cursor parameter
-    # they do not accept. It is declared per tool below.
-    quota_doc_url=QUOTA_DOC_URL,
-    static_headers=STRIPE_HEADERS,
+    default=True,
+    granted="configured",
+    description="A secret key (sk_), which can do anything in the account.",
+)
+RESTRICTED_KEY = Kind(
+    "restricted_key",
+    provider="stripe",
+    granted="configured",
+    description="A restricted key (rk_), which can do only what was ticked when it was made.",
+)
+
+
+def _read(resource: str) -> AnyOf:
+    return AnyOf(f"{resource}_read", f"{resource}_write")
+
+
+# Seven endpoints are missing from Stripe's table: creating and cancelling a
+# payment intent and reading one, updating a customer, creating a refund, and
+# reading transfers. Each is given its resource's permission, as every
+# neighbouring endpoint of that resource is. Stripe's own refusals confirmed six
+# on 2026-10-24 (scripts/live_stripe_permissions_check.py, a key with no
+# permission the pack uses). The refund cannot be asked that way: Stripe looks
+# the charge up first, and a key that cannot read charges is told it does not
+# exist.
+_PERMISSIONS: dict[str, list] = {
+    **dict.fromkeys(
+        ["customers_list", "customers_retrieve", "customers_search"], [_read("customer")]
+    ),
+    **dict.fromkeys(["customers_create", "customers_update"], ["customer_write"]),
+    **dict.fromkeys(
+        ["payment_intents_list", "payment_intents_retrieve", "payment_intents_search"],
+        [_read("payment_intent")],
+    ),
+    **dict.fromkeys(
+        ["payment_intents_create", "payment_intents_capture", "payment_intents_cancel"],
+        ["payment_intent_write"],
+    ),
+    # Refunds are the charge's resource.
+    **dict.fromkeys(
+        ["charges_list", "charges_retrieve", "charges_search", "refunds_list", "refunds_retrieve"],
+        [_read("charge")],
+    ),
+    "refunds_create": ["charge_write"],
+    **dict.fromkeys(["products_list", "products_search"], [_read("product")]),
+    **dict.fromkeys(["products_create", "products_update"], ["product_write"]),
+    # Prices are still `plan` to a restricted key.
+    **dict.fromkeys(["prices_list", "prices_search"], [_read("plan")]),
+    **dict.fromkeys(["prices_create", "prices_update"], ["plan_write"]),
+    **dict.fromkeys(["subscriptions_list", "subscriptions_search"], [_read("subscription")]),
+    **dict.fromkeys(
+        ["subscriptions_create", "subscriptions_update", "subscriptions_cancel"],
+        ["subscription_write"],
+    ),
+    # Invoice items are the invoice's resource.
+    **dict.fromkeys(
+        ["invoices_list", "invoices_retrieve", "invoices_search", "invoice_items_list"],
+        [_read("invoice")],
+    ),
+    **dict.fromkeys(
+        [
+            "invoices_create",
+            "invoices_update",
+            "invoices_finalize",
+            "invoices_send",
+            "invoices_void",
+            "invoices_mark_uncollectible",
+            "invoice_items_create",
+            "invoice_items_update",
+            "invoice_items_delete",
+        ],
+        ["invoice_write"],
+    ),
+    **dict.fromkeys(
+        ["checkout_sessions_retrieve", "checkout_sessions_list", "checkout_sessions_line_items"],
+        [_read("checkout_session")],
+    ),
+    "checkout_sessions_create": ["checkout_session_write"],
+    **dict.fromkeys(
+        [
+            "payment_methods_list",
+            "payment_methods_retrieve",
+            "customer_payment_methods_list",
+            "customer_payment_method_retrieve",
+        ],
+        [_read("payment_method")],
+    ),
+    **dict.fromkeys(["payment_methods_attach", "payment_methods_detach"], ["payment_method_write"]),
+    **dict.fromkeys(["disputes_list", "disputes_retrieve"], [_read("dispute")]),
+    **dict.fromkeys(["disputes_update", "disputes_close"], ["dispute_write"]),
+    # Marked "(Direct)" by Stripe: these authorize a call on your own account,
+    # not one made on a connected account's behalf.
+    **dict.fromkeys(["accounts_list", "accounts_retrieve"], [_read("connected_account")]),
+    **dict.fromkeys(["transfers_list", "transfers_retrieve"], [_read("transfer")]),
+    "application_fees_list": [_read("application_fee")],
+    **dict.fromkeys(["payouts_list", "payouts_retrieve"], [_read("payout")]),
+    **dict.fromkeys(["balance_transactions_list", "balance_retrieve"], [_read("balance")]),
+}
+
+# A restricted key without the permission gets 403, and Stripe names the one
+# that would do: "Having the 'rak_charge_read' permission would allow this
+# request to continue."
+STRIPE_REFUSAL = ScopeRefusal(
+    status=403,
+    signal=r"does not have the required permissions",
+    needed=r"Having the 'rak_([^']+)' permission",
+    kind=RESTRICTED_KEY,
+)
+
+
+def _with_permissions(factory):
+    """The factory, with each tool's restricted-key permission read from the
+    table by its name, so a tool missing from it fails at import."""
+
+    def build(*, name: str, **kwargs) -> Tool:
+        kinds = {SECRET_KEY: [], RESTRICTED_KEY: _PERMISSIONS[name]}
+        return factory(name=name, scopes_override=kinds, **kwargs)
+
+    return build
+
+
+_stripe = _with_permissions(
+    oauth_tool_factory(
+        pack="stripe",
+        base_url=BASE_URL,
+        provider="stripe",
+        credential_provider=_credentials,
+        # Stripe is snake_case natively, and form-encoded in both directions.
+        body_case="snake",
+        query_case="snake",
+        body_format="form",
+        query_format="bracket",
+        # Pagination is a property of a list endpoint, not of the API: declaring it
+        # on the factory labels every retrieve and write with a cursor parameter
+        # they do not accept. It is declared per tool below.
+        quota_doc_url=QUOTA_DOC_URL,
+        static_headers=STRIPE_HEADERS,
+        scope_refusals=[STRIPE_REFUSAL],
+    )
 )
 
 # ---------- customers ----------
@@ -1142,9 +1275,16 @@ TOOLS: list[Tool] = [
     subscriptions_search,
 ]
 
+# The narrowest restricted key that runs the whole pack. A secret key needs nothing.
+RESTRICTED_KEY_PERMISSIONS = scopes_for(TOOLS, kind=RESTRICTED_KEY)
+
 __all__ = [
     "TOOLS",
     "configure",
+    "SECRET_KEY",
+    "RESTRICTED_KEY",
+    "RESTRICTED_KEY_PERMISSIONS",
+    "STRIPE_REFUSAL",
     "StripeAppUninstall",
     "BASE_URL",
     "QUOTA_DOC_URL",

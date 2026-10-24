@@ -24,6 +24,7 @@ from typing import (
     Iterable,
     Mapping,
     Optional,
+    Sequence,
     Type,
     Union,
     get_args,
@@ -35,6 +36,8 @@ from pydantic import BaseModel
 
 from charter.auth import CredentialProvider, Credentials
 from charter.auth.credentials import invalidate
+from charter.auth.refusals import ScopeRefusal
+from charter.auth.scopes import Kind, ScopeRequirement
 from charter.execution.http import (
     BaseUrl,
     BodyFormat,
@@ -354,6 +357,9 @@ class ToolExecutor:
         credential_statuses: Optional[Iterable[int]] = None,
         follow_redirects: bool = False,
         token_header: Optional[str] = None,
+        scope_refusals: Sequence[ScopeRefusal] = (),
+        scope_requirements: Optional[Callable[[Optional[Kind]], Sequence[ScopeRequirement]]] = None,
+        name: str = "this tool",
     ) -> None:
         has_oauth = credential_provider is not None
         # A callable resolves later, so it counts as configured auth; a literal
@@ -420,6 +426,9 @@ class ToolExecutor:
         self._credential_statuses = credential_statuses
         self._follow_redirects = follow_redirects
         self._token_header = token_header
+        self._scope_refusals = tuple(scope_refusals)
+        self._scope_requirements = scope_requirements
+        self._name = name
 
         # Auto-generate build_request if not provided
         if build_request is None:
@@ -550,6 +559,9 @@ class ToolExecutor:
             credential_statuses=self._credential_statuses,
             follow_redirects=self._follow_redirects,
             body_field_count=self._body_field_count,
+            scope_refusals=self._scope_refusals,
+            scope_requirements=self._scope_requirements,
+            tool_name=self._name,
         )
 
     def _resolve_api_key_headers(self) -> Dict[str, str]:
@@ -638,6 +650,9 @@ class ToolExecutor:
                 credential_statuses=self._credential_statuses,
                 follow_redirects=self._follow_redirects,
                 body_field_count=self._body_field_count,
+                scope_refusals=self._scope_refusals,
+                scope_requirements=self._scope_requirements,
+                tool_name=self._name,
             )
         except CredentialError as exc:
             # The API refused this token — a status in credential_statuses, or an

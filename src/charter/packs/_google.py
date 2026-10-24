@@ -44,10 +44,95 @@ import os
 from pathlib import Path
 from typing import Optional, Set, Tuple
 
-from charter.auth import CredentialProvider, OAuth2Client, OAuth2Server, Revocation
-from charter.types.errors import CredentialError
+from charter.auth import AnyOf, CredentialProvider, OAuth2Client, OAuth2Server, Revocation
+from charter.types.errors import CredentialError, DeclarationError
 
-__all__ = ["GOOGLE", "GoogleEnvGrant", "ENV_GRANT"]
+__all__ = ["GOOGLE", "GoogleEnvGrant", "ENV_GRANT", "google_accepts", "GOOGLE_SCOPE_ORDER"]
+
+# -----------------------------------------------------------------------------
+# Scopes
+# -----------------------------------------------------------------------------
+#
+# Every Google scope a tool here can be granted, with Google's category: a
+# restricted scope means a yearly security assessment before launch, a sensitive
+# one means verification, a non-sensitive one neither. Sources: each method's
+# "Authorization scopes" in the API's discovery document, and the categories on
+# developers.google.com/workspace/gmail/api/auth/scopes and
+# developers.google.com/workspace/drive/api/guides/api-specific-auth.
+
+_AUTH = "https://www.googleapis.com/auth/"
+DRIVE_FILE = (
+    _AUTH + "drive.file"
+)  # non-sensitive: files this app created or the user opened with it
+GMAIL_LABELS = _AUTH + "gmail.labels"  # non-sensitive
+GMAIL_SEND = _AUTH + "gmail.send"  # sensitive
+CALENDAR_LIST_READONLY = _AUTH + "calendar.calendarlist.readonly"  # sensitive
+CALENDARS_READONLY = _AUTH + "calendar.calendars.readonly"  # sensitive
+CALENDAR_EVENTS_READONLY = _AUTH + "calendar.events.readonly"  # sensitive
+CALENDAR_READONLY = _AUTH + "calendar.readonly"  # sensitive
+CALENDAR_EVENTS = _AUTH + "calendar.events"  # sensitive
+CALENDAR = _AUTH + "calendar"  # sensitive
+DOCUMENTS_READONLY = _AUTH + "documents.readonly"  # sensitive
+DOCUMENTS = _AUTH + "documents"  # sensitive
+SPREADSHEETS_READONLY = _AUTH + "spreadsheets.readonly"  # sensitive
+SPREADSHEETS = _AUTH + "spreadsheets"  # sensitive
+FORMS_BODY_READONLY = _AUTH + "forms.body.readonly"  # sensitive
+FORMS_BODY = _AUTH + "forms.body"  # sensitive
+FORMS_RESPONSES_READONLY = _AUTH + "forms.responses.readonly"  # sensitive
+GMAIL_METADATA = _AUTH + "gmail.metadata"  # restricted
+GMAIL_COMPOSE = _AUTH + "gmail.compose"  # restricted
+GMAIL_READONLY = _AUTH + "gmail.readonly"  # restricted
+GMAIL_MODIFY = _AUTH + "gmail.modify"  # restricted
+FULL_MAILBOX = "https://mail.google.com/"  # restricted
+DRIVE_READONLY = _AUTH + "drive.readonly"  # restricted
+DRIVE = _AUTH + "drive"  # restricted
+
+# Narrowest first, by category and then by reach, for all six packs at once. It
+# is declared once so that two packs cannot list the same pair in opposite
+# orders, which would leave scopes_for unable to say which is narrower. Where
+# two scopes reach different things (gmail.compose sends, gmail.readonly reads
+# everything) the order is a judgement, and scopes_for only uses it to break a tie
+# between tools that accept either.
+GOOGLE_SCOPE_ORDER = (
+    DRIVE_FILE,
+    GMAIL_LABELS,
+    GMAIL_SEND,
+    CALENDAR_LIST_READONLY,
+    CALENDARS_READONLY,
+    CALENDAR_EVENTS_READONLY,
+    CALENDAR_READONLY,
+    CALENDAR_EVENTS,
+    CALENDAR,
+    DOCUMENTS_READONLY,
+    DOCUMENTS,
+    SPREADSHEETS_READONLY,
+    SPREADSHEETS,
+    FORMS_BODY_READONLY,
+    FORMS_BODY,
+    FORMS_RESPONSES_READONLY,
+    GMAIL_METADATA,
+    GMAIL_COMPOSE,
+    GMAIL_READONLY,
+    GMAIL_MODIFY,
+    FULL_MAILBOX,
+    DRIVE_READONLY,
+    DRIVE,
+)
+
+
+def google_accepts(*scopes: str) -> AnyOf:
+    """The scopes a Google method accepts that reach everything the tool can ask for.
+
+    Pass them in any order; they come back narrowest first by
+    :data:`GOOGLE_SCOPE_ORDER`. Leave out a scope Google accepts that reaches only
+    part of the tool's range: ``drive.file`` for a reader of arbitrary files,
+    ``gmail.metadata`` for a reader that can ask for the full message.
+    """
+    unknown = [s for s in scopes if s not in GOOGLE_SCOPE_ORDER]
+    if unknown:
+        raise DeclarationError(f"google_accepts: {unknown} not in GOOGLE_SCOPE_ORDER")
+    return AnyOf(*sorted(scopes, key=GOOGLE_SCOPE_ORDER.index))
+
 
 # Equal to the canonical copy in docs/auth/providers/google.mdx;
 # tests/test_docs_oauth.py holds them together.

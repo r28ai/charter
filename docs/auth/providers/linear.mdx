@@ -35,6 +35,41 @@ LINEAR = OAuth2Server(
 Linear says a grant is gone: [Refresh behaviour](#refresh-behaviour).
 [`revocation`](/reference/oauth#revocation) is how a user is disconnected: [Disconnecting](#disconnecting).
 
+## Scopes
+
+Each tool declares what an OAuth grant needs for it, from
+[Linear's list](https://linear.app/developers/oauth-2-0-authentication):
+
+| tools | scope | also accepted |
+|---|---|---|
+| every query but the two below | `read` | — |
+| `webhooks_list`, `webhook_get` | `admin` | — |
+| `issue_create`, `attachment_create` | `issues:create` | `write` |
+| `comment_create` | `comments:create` | `write` |
+| every other mutation | `write` | — |
+
+`read` is on every grant ("this scope will always be present"), so an agent that
+only files issues asks to change nothing else:
+
+```python linear_scopes.py
+from charter.auth import scopes_for
+from charter.packs import linear
+
+scopes_for([linear.issues_list, linear.issue_create])   # ['read', 'issues:create']
+scopes_for([linear.issue_create, linear.issue_update])  # ['write']
+```
+
+Reading webhooks takes `admin`, though creating and deleting one takes only
+`write`; Linear's own refusal says so, and
+`scripts/live_linear_scopes_check.py` asks it for every tool. A personal API key
+carries the account's full access and takes no scopes.
+
+A call the grant does not cover raises
+[`InsufficientScope`](/reference/errors#insufficientscope) with the scope Linear
+names, the narrowest the tool lists first: "Invalid scope: `write` or
+`comments:create` required" gives `needed == ['comments:create']`. Linear sends
+it with 400 to a mutation and 200 to a query.
+
 ## Connecting a user
 
 ```python linear_users.py

@@ -17,10 +17,19 @@ is set; the first two renew themselves.
 
 from __future__ import annotations
 
-from charter.auth import CredentialProvider
+from charter.auth import CredentialProvider, scopes_for
 from charter.factories import oauth_tool_factory
 from charter.packs._config import DeferredCredentialProvider
-from charter.packs._google import ENV_GRANT
+from charter.packs._google import (
+    CALENDAR,
+    CALENDAR_EVENTS,
+    CALENDAR_EVENTS_READONLY,
+    CALENDAR_LIST_READONLY,
+    CALENDAR_READONLY,
+    CALENDARS_READONLY,
+    ENV_GRANT,
+    google_accepts,
+)
 from charter.packs.gcalendar.response_handlers import (
     extract_calendar,
     extract_calendar_metadata,
@@ -53,10 +62,16 @@ BASE_URL = "https://www.googleapis.com/"
 GOOGLE_PAGINATION = Pagination(cursor_field="nextPageToken", cursor_param="pageToken")
 
 QUOTA_DOC_URL = "https://developers.google.com/workspace/calendar/api/guides/quota"
-SCOPES = ["https://www.googleapis.com/auth/calendar.events"]
-# Neither calendarList nor calendars is an events resource, and `calendar.events`
-# does not reach either of them.
-CALENDAR_LIST_SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
+# What each tool needs, as the scopes Google's reference accepts for its method,
+# less any that reach only some calendars: `calendar.events.owned` and
+# `calendar.app.created` miss calendars shared with the user. All of them are in
+# Google's sensitive category: verification, no security assessment.
+EVENTS_READ = google_accepts(CALENDAR_EVENTS_READONLY, CALENDAR_READONLY, CALENDAR_EVENTS, CALENDAR)
+EVENTS_WRITE = google_accepts(CALENDAR_EVENTS, CALENDAR)
+# Neither calendarList nor calendars is an events resource, and calendar.events
+# does not reach either of them. Each has its own read scope.
+CALENDAR_LIST_READ = google_accepts(CALENDAR_LIST_READONLY, CALENDAR_READONLY, CALENDAR)
+CALENDARS_READ = google_accepts(CALENDARS_READONLY, CALENDAR_READONLY, CALENDAR)
 
 _credentials = DeferredCredentialProvider(
     "gcalendar", env_var="GOOGLE_ACCESS_TOKEN", env_grant=ENV_GRANT
@@ -73,7 +88,7 @@ _calendar = oauth_tool_factory(
     base_url=BASE_URL,
     provider="google",
     credential_provider=_credentials,
-    scopes=SCOPES,
+    scopes=[EVENTS_WRITE],
     # Google's query parameters are camelCase (`maxResults`, `singleEvents`),
     # like its bodies. Without this the default snake casing sends `max_results`,
     # which Google silently ignores — the worst kind of wrong, because the call
@@ -107,6 +122,7 @@ events_list = _calendar(
     url_template="calendar/v3/calendars/{calendar_id}/events",
     description="List events matching a given search filter.",
     action_label="Reads the calendar.",
+    scopes_override=[EVENTS_READ],
     quota_cost=1,
     pagination_override=GOOGLE_PAGINATION,
     response_handler=extract_events,
@@ -129,7 +145,7 @@ calendar_list_list = _calendar(
     url_template="calendar/v3/users/{user_id}/calendarList",
     description="List the calendars on the user's calendar list.",
     action_label="Reads the list of calendars.",
-    scopes_override=CALENDAR_LIST_SCOPES,
+    scopes_override=[CALENDAR_LIST_READ],
     quota_cost=1,
     pagination_override=GOOGLE_PAGINATION,
     response_handler=extract_calendars,
@@ -143,6 +159,7 @@ events_get = _calendar(
     url_template="calendar/v3/calendars/{calendar_id}/events/{event_id}",
     description="Get one event by its ID.",
     action_label="Reads an event.",
+    scopes_override=[EVENTS_READ],
     quota_cost=1,
     response_handler=extract_event,
 )
@@ -239,6 +256,7 @@ events_instances = _calendar(
         "ID that can be updated or deleted on its own."
     ),
     action_label="Reads the occurrences of a recurring event.",
+    scopes_override=[EVENTS_READ],
     quota_cost=1,
     pagination_override=GOOGLE_PAGINATION,
     response_handler=extract_events,
@@ -251,7 +269,7 @@ calendar_list_get = _calendar(
     url_template="calendar/v3/users/me/calendarList/{calendar_id}",
     description="Get one calendar from the user's calendar list, with their access role for it.",
     action_label="Reads a calendar list entry.",
-    scopes_override=CALENDAR_LIST_SCOPES,
+    scopes_override=[CALENDAR_LIST_READ],
     quota_cost=1,
     response_handler=extract_calendar,
 )
@@ -266,7 +284,7 @@ calendars_get = _calendar(
         "against. Use this before writing a naive dateTime rather than assuming a zone."
     ),
     action_label="Reads calendar settings.",
-    scopes_override=CALENDAR_LIST_SCOPES,
+    scopes_override=[CALENDARS_READ],
     quota_cost=1,
     response_handler=extract_calendar_metadata,
 )
@@ -287,12 +305,18 @@ TOOLS: list[Tool] = [
     calendars_get,
 ]
 
+# What a consent for the whole pack asks for.
+SCOPES = scopes_for(TOOLS)
+
 __all__ = [
     "TOOLS",
     "configure",
     "BASE_URL",
     "SCOPES",
-    "CALENDAR_LIST_SCOPES",
+    "EVENTS_READ",
+    "EVENTS_WRITE",
+    "CALENDAR_LIST_READ",
+    "CALENDARS_READ",
     "QUOTA_DOC_URL",
     "GOOGLE_PAGINATION",
     "events_get",

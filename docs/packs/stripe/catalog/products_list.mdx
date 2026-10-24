@@ -17,7 +17,7 @@ result = asyncio.run(stripe.products_list.ainvoke({}))
 ```
 
 <Note>
-  Pages by cursor: `data[-1].id` is sent back as `starting_after`.
+  With `stripe.RESTRICTED_KEY`, requires `product_read` or `product_write`. Pages by cursor: `data[-1].id` is sent back as `starting_after`.
 </Note>
 
 ## Query parameters

@@ -69,7 +69,7 @@ Known limits, named rather than hidden:
 
 from __future__ import annotations
 
-from charter.auth import CredentialProvider
+from charter.auth import CredentialProvider, ScopeRefusal
 from charter.factories import oauth_tool_factory
 from charter.packs._config import DeferredCredentialProvider
 from charter.packs.notion.response_handlers import (
@@ -186,6 +186,11 @@ def configure(credential_provider: CredentialProvider) -> None:
     _credentials.configure(credential_provider)
 
 
+# An integration without the capability gets 403 restricted_resource, "Insufficient
+# permissions for this endpoint", naming none; the tool's own declaration says
+# which to tick. https://developers.notion.com/reference/status-codes
+NOTION_REFUSAL = ScopeRefusal(status=403, signal=r'"code"\s*:\s*"restricted_resource"')
+
 _notion = oauth_tool_factory(
     pack="notion",
     base_url=BASE_URL,
@@ -200,6 +205,7 @@ _notion = oauth_tool_factory(
     path_case="snake",
     quota_doc_url=QUOTA_DOC_URL,
     static_headers=NOTION_HEADERS,
+    scope_refusals=[NOTION_REFUSAL],
 )
 
 # ---------- users ----------
@@ -811,6 +817,7 @@ __all__ = [
     "custom_emojis_list",
     "async_tasks_retrieve",
     "TOOLS",
+    "NOTION_REFUSAL",
     "configure",
     "API_VERSION",
     "BASE_URL",

@@ -17,7 +17,7 @@ result = asyncio.run(github.pulls_list_files.ainvoke({"owner": ..., "repo": ...,
 ```
 
 <Note>
-  Requires `repo`, `read:user`. Pages by number: `page` with `per_page`.
+  Requires `repo`. With `github.APP` or `github.FINE_GRAINED`, requires `pull_requests=read` or `pull_requests=write`. Pages by number: `page` with `per_page`.
 </Note>
 
 ## Path parameters

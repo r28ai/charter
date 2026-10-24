@@ -40,6 +40,16 @@ import httpx
 from pydantic import BaseModel
 
 from charter.auth import CredentialProvider
+from charter.auth.refusals import ScopeRefusal
+from charter.auth.scopes import (
+    Kind,
+    ScopeRequirement,
+    Scopes,
+    ScopesDeclaration,
+    _requirements,
+    merge_scopes,
+    normalize_scopes,
+)
 from charter.execution.executor import ApiKeyHeaders, ResponseHandler, ToolExecutor
 from charter.execution.http import BaseUrl, BodyFormat, HTTPMethod, QueryFormat
 from charter.execution.routes import UrlTemplate, check_routes, routes_of
@@ -424,6 +434,12 @@ class Tool:
     some do, and a runtime that trusts the status line hands those back as
     successes. See :class:`~charter.types.envelope.Envelope`.
 
+    ``scope_refusals`` declares how the API says the token's grant does not
+    cover the call, so every such answer raises
+    :class:`~charter.types.errors.InsufficientScope` naming the scopes to add.
+    The standard ``WWW-Authenticate: Bearer error="insufficient_scope"`` needs
+    no declaration. See :class:`~charter.auth.refusals.ScopeRefusal`.
+
     ``expiry_leeway_seconds`` is how dead a bearer token has to be before the
     runtime refuses to send it. It is a last guard, not a refresh policy —
     keeping credentials fresh is the provider's job, and
@@ -501,7 +517,7 @@ class Tool:
         session_mode: Optional[str] = None,
         pack: Optional[str] = None,
         provider: Optional[str] = None,
-        scopes: Optional[Sequence[str]] = None,
+        scopes: Optional[ScopesDeclaration] = None,
         quota_cost: Optional[int] = None,
         quota_doc_url: Optional[str] = None,
         api_key_headers: Optional[ApiKeyHeaders] = None,
@@ -509,6 +525,7 @@ class Tool:
         build_request: Optional[Callable[[BaseModel], TransportOverride]] = None,
         response_handler: Optional[ResponseHandler] = None,
         envelope: Optional[Envelope] = None,
+        scope_refusals: Optional[Iterable[ScopeRefusal]] = None,
         pagination: Optional[Pagination] = None,
         body_format: BodyFormat = "json",
         query_format: QueryFormat = "repeat",
@@ -551,12 +568,20 @@ class Tool:
         self.session_mode = session_mode
         self.pack = pack
         self.provider = provider
-        self.scopes = list(scopes) if scopes else []
+        declared = normalize_scopes(scopes, where=f"tool {name!r}")
+        # The default kind's requirements, as a list: what every caller that knows
+        # nothing of kinds reads. The other kinds, keyed by Kind, beside it.
+        self.scopes: list[ScopeRequirement] = list(declared.default)
+        self.default_kind: Optional[Kind] = declared.default_kind
+        self.kind_scopes: Dict[Kind, list[ScopeRequirement]] = {
+            k: list(v) for k, v in declared.kinds.items()
+        }
         self.quota_cost = quota_cost
         self.quota_doc_url = quota_doc_url
         self.api_key_headers = api_key_headers
         self.credential_provider = credential_provider
         self.envelope = envelope
+        self.scope_refusals: Tuple[ScopeRefusal, ...] = tuple(scope_refusals or ())
         self.pagination = pagination
         self.body_format: BodyFormat = body_format
         self.query_format: QueryFormat = query_format
@@ -684,6 +709,9 @@ class Tool:
             build_request=build_request,
             response_handler=response_handler,
             envelope=envelope,
+            scope_refusals=self.scope_refusals,
+            scope_requirements=lambda kind: _requirements(self, kind),
+            name=name,
             body_format=body_format,
             query_format=query_format,
             static_query=self.static_query,
@@ -919,6 +947,7 @@ class Tool:
         pin: Optional[Dict[str, Any]] = None,
         action_label: Optional[str] = None,
         response_handler: Optional[ResponseHandler] = None,
+        scopes: Optional[ScopesDeclaration] = None,
     ) -> Tool:
         """This tool, narrowed — a projection of the same contract.
 
@@ -965,9 +994,24 @@ class Tool:
         field is annotated with; :meth:`paths` lists them. Projections compose —
         deriving from a projection narrows what is left.
 
+        ``scopes`` replaces what the tool says it needs from a grant, for an agent
+        that only ever touches part of what the tool can reach. A pack's
+        ``files_create`` asks for ``drive.file`` or ``drive``; one that only reads
+        files its own app made can say ``drive.file`` on ``files_get`` too::
+
+            read_own_files = gdrive.files_get.derived(
+                name="read_own_files",
+                scopes=["https://www.googleapis.com/auth/drive.file"],
+            )
+
+        It changes the consent :func:`~charter.auth.scopes_for` builds and
+        nothing about the call. Charter cannot check the claim; the provider
+        will, with a 403 or a 404 on the first file the scope does not reach.
+
         Nothing here is a new capability: a projection can only ever remove. That
         is the property that makes it safe to hand to whoever owns the deployment
-        rather than the pack.
+        rather than the pack. ``scopes`` is no exception — what a call may do is
+        decided by the token, and this changes only what a consent asks for.
 
         Raises:
             DeclarationError: a selector names nothing, names several things,
@@ -988,6 +1032,7 @@ class Tool:
             prune=self._prune | prune,
             pins={**self._pins, **pins},
             response_handler=response_handler,
+            scopes=scopes,
         )
 
     def with_mode(self, mode: Optional[str]) -> Tool:
@@ -1069,6 +1114,14 @@ class Tool:
             pins=self._pins,
         )
 
+    def _declared_scopes(self) -> Scopes:
+        """This tool's requirements under every kind, as one value to merge into."""
+        return Scopes(
+            default=tuple(self.scopes),
+            default_kind=self.default_kind,
+            kinds={k: tuple(v) for k, v in self.kind_scopes.items()},
+        )
+
     def _copy(
         self,
         *,
@@ -1079,8 +1132,9 @@ class Tool:
         prune: frozenset,
         pins: Dict[str, Any],
         response_handler: Optional[ResponseHandler] = None,
+        scopes: Optional[ScopesDeclaration] = None,
     ) -> Tool:
-        """This tool again, with the seven things a variant is allowed to change.
+        """This tool again, with the eight things a variant is allowed to change.
 
         ``mode`` is not among them. It is the author's statement of which
         operation this tool is, and a variant of a create is still a create — a
@@ -1107,7 +1161,7 @@ class Tool:
             session_mode=session_mode,
             pack=self.pack,
             provider=self.provider,
-            scopes=self.scopes,
+            scopes=merge_scopes(self._declared_scopes(), scopes, where=f"tool {name!r}"),
             quota_cost=self.quota_cost,
             quota_doc_url=self.quota_doc_url,
             api_key_headers=self.api_key_headers,
@@ -1117,6 +1171,7 @@ class Tool:
                 self._response_handler if response_handler is None else response_handler
             ),
             envelope=self.envelope,
+            scope_refusals=self.scope_refusals,
             pagination=self.pagination,
             body_format=self.body_format,
             query_format=self.query_format,

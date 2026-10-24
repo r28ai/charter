@@ -17,7 +17,7 @@ result = asyncio.run(granola.notes_list.ainvoke({}))
 ```
 
 <Note>
-  Pages by cursor: `cursor` is sent back as `cursor`.
+  Requires `personal`, `public`. With `granola.WORKSPACE_KEY`, requires `workspace`. Cannot run with `granola.AUDIT_KEY`: an audit key reads the audit log and nothing else; Granola answers that the rest do not exist. Pages by cursor: `cursor` is sent back as `cursor`.
 </Note>
 
 ## Query parameters

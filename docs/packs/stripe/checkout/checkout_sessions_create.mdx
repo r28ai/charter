@@ -16,6 +16,10 @@ from charter.packs import stripe
 result = asyncio.run(stripe.checkout_sessions_create.ainvoke({"mode": ...}))
 ```
 
+<Note>
+  With `stripe.RESTRICTED_KEY`, requires `checkout_session_write`.
+</Note>
+
 ## Body
 
 <div className="reference-table">

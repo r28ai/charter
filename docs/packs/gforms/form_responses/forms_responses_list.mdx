@@ -17,7 +17,7 @@ result = asyncio.run(gforms.forms_responses_list.ainvoke({"formId": ...}))
 ```
 
 <Note>
-  Requires `https://www.googleapis.com/auth/forms.responses.readonly`. Pages by cursor: `nextPageToken` is sent back as `pageToken`. Costs 1 against the provider's own quota.
+  Requires `https://www.googleapis.com/auth/forms.responses.readonly` or `https://www.googleapis.com/auth/drive`. Pages by cursor: `nextPageToken` is sent back as `pageToken`. Costs 1 against the provider's own quota.
 </Note>
 
 ## Path parameters

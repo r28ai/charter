@@ -260,20 +260,17 @@ def test_states_match_handles_non_ascii_input_from_the_wire():
 # -----------------------------------------------------
 
 
-def test_scopes_for_dedupes_across_packs_preserving_first_seen_order():
-    from charter.packs import gcalendar, gmail
+def test_scopes_for_keeps_the_union_of_plain_scopes_in_first_seen_order():
+    """Tools declared with plain scopes need each of them, as they always did."""
+    from charter.packs import slack
 
-    scopes = scopes_for([*gmail.TOOLS, *gcalendar.TOOLS])
-
-    assert scopes == [
-        "https://www.googleapis.com/auth/gmail.modify",
-        # threads_delete alone; Google covers no other Gmail endpoint here with
-        # anything narrower, and the consent screen widens only because that
-        # tool is in the list.
-        "https://mail.google.com/",
-        "https://www.googleapis.com/auth/calendar.events",
-        "https://www.googleapis.com/auth/calendar.readonly",
-    ]
+    readers = [slack.conversations_history, slack.chat_post_message, slack.users_info]
+    expected: list[str] = []
+    for tool in readers:
+        for scope in tool.scopes:
+            if scope not in expected:
+                expected.append(scope)
+    assert scopes_for(readers) == expected
 
 
 def test_scopes_for_asks_for_full_access_only_when_a_tool_needs_it():
@@ -282,7 +279,7 @@ def test_scopes_for_asks_for_full_access_only_when_a_tool_needs_it():
 
     everything_else = [t for t in gmail.TOOLS if t is not gmail.threads_delete]
 
-    assert scopes_for(everything_else) == ["https://www.googleapis.com/auth/gmail.modify"]
+    assert "https://mail.google.com/" not in scopes_for(everything_else)
     assert "https://mail.google.com/" in scopes_for(gmail.TOOLS)
 
 
@@ -294,8 +291,18 @@ def test_scopes_for_reading_a_doc_asks_only_to_read_docs():
     assert scopes_for([gdocs.documents_get]) == [
         "https://www.googleapis.com/auth/documents.readonly"
     ]
-    writers = [t for t in gdocs.TOOLS if t is not gdocs.documents_get]
-    assert scopes_for(writers) == ["https://www.googleapis.com/auth/documents"]
+    assert scopes_for([gdocs.documents_batch_update]) == [
+        "https://www.googleapis.com/auth/documents"
+    ]
+
+
+def test_scopes_for_drops_a_scope_a_broader_one_it_needs_already_covers():
+    """Reading and editing a document is one consent line, not two."""
+    from charter.packs import gdocs
+
+    assert scopes_for([gdocs.documents_get, gdocs.documents_batch_update]) == [
+        "https://www.googleapis.com/auth/documents"
+    ]
 
 
 def test_scopes_for_of_nothing_is_empty():

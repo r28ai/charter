@@ -157,6 +157,7 @@ has shared with it. A page that has not been shared is a 404, not a 403, so an e
 
 ```python Without the pack
 from charter import oauth_tool_factory
+from charter.auth import ScopeRefusal
 
 notion_api_client = oauth_tool_factory(
     base_url="https://api.notion.com/",
@@ -171,6 +172,12 @@ notion_api_client = oauth_tool_factory(
     static_headers={"Notion-Version": "2026-03-11"},
     # this API reports failure with an HTTP status code
     envelope=None,
+    scope_refusals=[
+        ScopeRefusal(
+            status=403,
+            signal=r"\"code\"\s*:\s*\"restricted_resource\"",
+        ),
+    ],
 )
 ```
 

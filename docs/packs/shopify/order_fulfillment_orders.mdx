@@ -17,7 +17,7 @@ result = asyncio.run(shopify.order_fulfillment_orders.ainvoke({"variables": ...}
 ```
 
 <Note>
-  Posts a GraphQL document to `POST /admin/api/2026-07/graphql.json`, as every tool in this pack does.
+  Posts a GraphQL document to `POST /admin/api/2026-07/graphql.json`, as every tool in this pack does. Requires `read_orders` or `write_orders` and `read_merchant_managed_fulfillment_orders` or `write_merchant_managed_fulfillment_orders` and `read_locations`, or any of `write_locations`, `read_inventory` or `write_inventory`.
 </Note>
 
 ## Body

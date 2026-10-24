@@ -16,6 +16,10 @@ from charter.packs import stripe
 result = asyncio.run(stripe.payment_intents_retrieve.ainvoke({"paymentIntent": ...}))
 ```
 
+<Note>
+  With `stripe.RESTRICTED_KEY`, requires `payment_intent_read` or `payment_intent_write`.
+</Note>
+
 ## Path parameters
 
 <div className="reference-table">

@@ -61,7 +61,7 @@ The key is prefixed `fc-…` and goes out as a bearer token.
 import os
 
 from charter import Envelope, oauth_tool_factory
-from charter.auth import StaticTokenProvider
+from charter.auth import ScopeRefusal, StaticTokenProvider
 
 api_key = os.environ["FIRECRAWL_API_KEY"]
 
@@ -76,6 +76,12 @@ firecrawl_api_client = oauth_tool_factory(
     query_case="camel",
     path_case="snake",
     envelope=Envelope(ok_field="success", error_field="error"),
+    scope_refusals=[
+        ScopeRefusal(
+            status=403,
+            signal=r"this API key is restricted to the following endpoints",
+        ),
+    ],
 )
 ```
 

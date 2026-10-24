@@ -32,7 +32,7 @@ import re
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Any, Dict, Iterable, Mapping, Optional
+from typing import Any, Dict, Iterable, Mapping, Optional
 from urllib.parse import quote, urlencode
 
 import httpx
@@ -47,10 +47,8 @@ from charter.auth.oauth import (
     _post_token_form,
     _token_failure,
 )
+from charter.auth.scopes import scopes_for
 from charter.types.errors import CredentialError
-
-if TYPE_CHECKING:
-    from charter.tool import Tool
 
 __all__ = [
     "AuthorizationRequest",
@@ -97,22 +95,6 @@ def states_match(expected: str, received: str) -> bool:
     obvious call rather than a thing to remember.
     """
     return hmac.compare_digest(expected.encode("utf-8"), received.encode("utf-8"))
-
-
-def scopes_for(tools: Iterable[Tool]) -> list[str]:
-    """The scopes an authorization request must cover to run these tools.
-
-    Reads the ``scopes`` metadata every tool is declared with, deduped in
-    first-seen order — so ``scopes_for([*gmail.TOOLS, *gcalendar.TOOLS])`` is
-    the consent screen for exactly what the agent can do, kept in lockstep with
-    the tool set instead of hand-maintained beside it.
-    """
-    seen: list[str] = []
-    for tool in tools:
-        for scope in tool.scopes:
-            if scope not in seen:
-                seen.append(scope)
-    return seen
 
 
 @dataclass(frozen=True)

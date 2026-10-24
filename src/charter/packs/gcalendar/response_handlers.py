@@ -93,6 +93,25 @@ def _conference(event: Dict[str, Any]) -> Optional[str]:
     return None
 
 
+def _conference_request_status(event: Dict[str, Any]) -> Optional[str]:
+    """How a requested conference is coming along: pending, success or failure.
+
+    A conference asked for with ``conferenceData.createRequest`` is made after
+    the event is saved, so Google answers the save with a 200 and reports the
+    conference in ``createRequest.status.statusCode``. A failure is reported
+    nowhere else: the event simply has no join link, which reads the same as
+    never having asked for one.
+    """
+    data = event.get("conferenceData")
+    if not isinstance(data, dict):
+        return None
+    request = data.get("createRequest")
+    if not isinstance(request, dict) or not isinstance(request.get("status"), dict):
+        return None
+    code = request["status"].get("statusCode")
+    return code if isinstance(code, str) else None
+
+
 def _trim_event(event: Dict[str, Any], *, full_description: bool = True) -> Dict[str, Any]:
     """One event, reduced to what an agent can act on."""
     out: Dict[str, Any] = {
@@ -125,6 +144,9 @@ def _trim_event(event: Dict[str, Any], *, full_description: bool = True) -> Dict
     join_url = _conference(event)
     if join_url:
         out["conferenceUrl"] = join_url
+    request_status = _conference_request_status(event)
+    if request_status and request_status != "success":
+        out["conferenceStatus"] = request_status
 
     # The organiser matters only when it is somebody else.
     organizer = event.get("organizer") or {}

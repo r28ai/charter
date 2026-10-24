@@ -28,7 +28,7 @@ import respx
 from pydantic import ValidationError
 
 from charter import CharterError, CredentialError, ToolValidationError, egress_map
-from charter.auth import StaticTokenProvider
+from charter.auth import StaticTokenProvider, scopes_for
 from charter.packs import outlook
 
 API = "https://graph.microsoft.com/v1.0/"
@@ -1227,10 +1227,23 @@ async def test_graph_answers_failure_with_a_status_code_so_there_is_no_envelope(
 
 
 def test_each_tool_asks_for_the_least_privileged_permission():
-    assert outlook.send_mail.scopes == [outlook.MAIL_SEND]
-    assert outlook.messages_get.scopes == [outlook.MAIL_READ]
-    assert outlook.mail_folders_list.scopes == [outlook.MAIL_READ_BASIC]
-    assert outlook.mailbox_settings_update.scopes == [outlook.MAILBOX_SETTINGS_READ_WRITE]
-    assert outlook.translate_exchange_ids.scopes == [outlook.USER_READ_BASIC_ALL]
-    declared = {scope for tool in outlook.TOOLS for scope in tool.scopes or ()}
-    assert declared == set(outlook.SCOPES)
+    assert scopes_for([outlook.send_mail]) == [outlook.MAIL_SEND]
+    assert scopes_for([outlook.messages_get]) == [outlook.MAIL_READ]
+    assert scopes_for([outlook.mail_folders_list]) == [outlook.MAIL_READ_BASIC]
+    assert scopes_for([outlook.mailbox_settings_update]) == [outlook.MAILBOX_SETTINGS_READ_WRITE]
+    assert scopes_for([outlook.translate_exchange_ids]) == [outlook.USER_READ]
+
+
+def test_a_reader_and_a_writer_ask_for_the_writer_alone():
+    """Mail.ReadWrite reads, so a consent screen does not list Mail.Read beside it."""
+    assert scopes_for([outlook.messages_get, outlook.messages_update]) == [outlook.MAIL_READ_WRITE]
+    assert (
+        scopes_for(outlook.TOOLS)
+        == outlook.SCOPES
+        == [
+            outlook.MAIL_READ_WRITE,
+            outlook.MAIL_SEND,
+            outlook.MAILBOX_SETTINGS_READ_WRITE,
+            outlook.USER_READ,
+        ]
+    )

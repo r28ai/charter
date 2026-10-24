@@ -16,6 +16,10 @@ from charter.packs import granola
 result = asyncio.run(granola.webhook_endpoints_update.ainvoke({"webhookEndpointId": ...}))
 ```
 
+<Note>
+  With `granola.WORKSPACE_KEY`, needs no permission. Cannot run with `granola.AUDIT_KEY`: an audit key reads the audit log and nothing else; Granola answers that the rest do not exist.
+</Note>
+
 ## Path parameters
 
 <div className="reference-table">

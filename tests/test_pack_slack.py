@@ -8,8 +8,15 @@ import httpx
 import pytest
 import respx
 
-from charter import APIError, CredentialError, Tool, ToolValidationError
-from charter.auth import StaticTokenProvider, scopes_for
+from charter import (
+    APIError,
+    CredentialError,
+    DeclarationError,
+    InsufficientScope,
+    Tool,
+    ToolValidationError,
+)
+from charter.auth import StaticTokenProvider, Unavailable, scopes_for
 from charter.packs import slack
 
 API = "https://slack.com/api/"
@@ -58,36 +65,101 @@ def test_no_quota_cost_is_claimed():
         assert tool.quota_doc_url == slack.QUOTA_DOC_URL
 
 
-@pytest.mark.parametrize(
-    ("tool", "needed"),
-    [
-        # One per kind of conversation the tool can reach, from each method's
-        # reference page; any one lets the call through for that kind.
-        pytest.param(t, needed, id=t.name)
-        for t, needed in [
-            (slack.conversations_create, {"channels:manage", "groups:write"}),
-            (slack.conversations_invite, {"channels:write.invites", "groups:write.invites"}),
-            (slack.conversations_join, {"channels:join"}),
-            (slack.conversations_open, {"im:write", "mpim:write"}),
-            (slack.reactions_get, {"reactions:read"}),
-        ]
-    ],
-)
-def test_a_tool_outside_the_core_scopes_declares_its_own(tool, needed):
-    """Inheriting the factory's list left these five unconsented: the app installed,
-    and the first call answered missing_scope."""
-    assert set(tool.scopes) == needed
+# Each method page's "Scopes" box, read 2026-10-24 from
+# docs.slack.dev/reference/methods: what a bot token and a user token need. A page
+# lists one scope per kind of conversation, and the tool, which can reach any,
+# declares one of each; where a page lists several that would do for the same
+# kind (channels:manage beside channels:write.invites), the narrowest.
+SLACK_DOCUMENTED = {
+    # method: (bot token, user token); None where the page lists no bot scope
+    "chat.postMessage": ({"chat:write"}, {"chat:write"}),
+    "chat.update": ({"chat:write"}, {"chat:write"}),
+    "chat.delete": ({"chat:write"}, {"chat:write"}),
+    "chat.postEphemeral": ({"chat:write"}, {"chat:write"}),
+    "chat.scheduleMessage": ({"chat:write"}, {"chat:write"}),
+    "conversations.list": (
+        {"channels:read", "groups:read", "im:read", "mpim:read"},
+        {"channels:read", "groups:read", "im:read", "mpim:read"},
+    ),
+    "conversations.history": (
+        {"channels:history", "groups:history", "im:history", "mpim:history"},
+        {"channels:history", "groups:history", "im:history", "mpim:history"},
+    ),
+    "conversations.replies": (
+        {"channels:history", "groups:history", "im:history", "mpim:history"},
+        {"channels:history", "groups:history", "im:history", "mpim:history"},
+    ),
+    "users.list": ({"users:read"}, {"users:read"}),
+    "users.info": ({"users:read"}, {"users:read"}),
+    "reactions.add": ({"reactions:write"}, {"reactions:write"}),
+    "reactions.remove": ({"reactions:write"}, {"reactions:write"}),
+    "reactions.get": ({"reactions:read"}, {"reactions:read"}),
+    "conversations.open": (
+        {"channels:manage", "groups:write", "im:write", "mpim:write"},
+        {"channels:write", "groups:write", "im:write", "mpim:write"},
+    ),
+    "conversations.create": (
+        {"channels:manage", "channels:write", "groups:write", "im:write", "mpim:write"},
+        {"channels:write", "groups:write", "im:write", "mpim:write"},
+    ),
+    "conversations.invite": (
+        {
+            "channels:manage",
+            "channels:write.invites",
+            "groups:write",
+            "groups:write.invites",
+            "im:write",
+            "mpim:write",
+        },
+        {
+            "channels:write",
+            "channels:write.invites",
+            "groups:write",
+            "groups:write.invites",
+            "im:write",
+            "mpim:write",
+        },
+    ),
+    "conversations.join": ({"channels:join"}, {"channels:write"}),
+    "search.messages": (None, {"search:read"}),
+}
+
+
+@pytest.mark.parametrize("tool", slack.TOOLS, ids=lambda t: t.name)
+def test_each_tool_asks_for_scopes_its_method_page_lists_for_each_kind_of_token(tool):
+    bot, user = SLACK_DOCUMENTED[tool.url_template]
+    if bot is None:
+        assert [type(r) for r in tool.scopes] == [Unavailable]
+    else:
+        assert tool.scopes and set(tool.scopes) <= bot, tool.scopes
+    declared = set(tool.kind_scopes[slack.USER])
+    assert declared and declared <= user, declared
+
+
+def test_every_method_in_the_table_is_a_tool():
+    assert sorted(t.url_template for t in slack.TOOLS) == sorted(SLACK_DOCUMENTED)
 
 
 def test_scopes_for_a_subset_asks_only_for_that_subset():
+    """A poster asks for chat:write, not the eleven scopes the whole core reads with."""
+    assert scopes_for([slack.chat_post_message]) == ["chat:write"]
     readers = [slack.conversations_list, slack.conversations_history, slack.chat_post_message]
-    assert scopes_for(readers) == slack.CORE
+    assert scopes_for(readers) == slack.READ_CHANNELS + slack.READ_HISTORY + slack.CHAT
 
 
 def test_the_pack_scopes_are_what_its_tools_declare():
     """SCOPES is what a consent screen for the whole pack asks for, so it cannot
     drift from the tools: the Slack guide's manifest is built from scopes_for."""
-    assert scopes_for(slack.TOOLS) == slack.SCOPES
+    bot_tools = [t for t in slack.TOOLS if t is not slack.search_messages]
+    assert scopes_for(bot_tools) == slack.SCOPES
+    assert scopes_for(slack.TOOLS, kind=slack.USER) == slack.USER_SCOPES
+    assert "search:read" in slack.USER_SCOPES and "search:read" not in slack.SCOPES
+
+
+def test_a_bot_grant_for_search_is_refused_and_says_which_kind_would_do():
+    with pytest.raises(DeclarationError, match=r"search_messages.*kind=slack\.USER"):
+        scopes_for(slack.TOOLS)
+    assert scopes_for([slack.search_messages], kind=slack.USER) == ["search:read"]
 
 
 def test_token_is_not_a_schema_field():
@@ -162,8 +234,21 @@ async def test_missing_scope_surfaces_the_needed_scope():
             200, json={"ok": False, "error": "missing_scope", "needed": "reactions:write"}
         )
     )
-    with pytest.raises(CredentialError, match="reactions:write"):
+    with pytest.raises(InsufficientScope, match="reactions:write") as excinfo:
         await slack.reactions_add.ainvoke(channel="C1", timestamp="1.0", name="tada")
+    assert excinfo.value.needed == ["reactions:write"]
+    assert excinfo.value.kind is None
+
+
+@respx.mock
+async def test_a_bot_token_on_search_says_a_user_token_with_search_read_would_do():
+    respx.get(f"{API}search.messages").mock(
+        return_value=httpx.Response(200, json={"ok": False, "error": "not_allowed_token_type"})
+    )
+    with pytest.raises(InsufficientScope) as excinfo:
+        await slack.search_messages.ainvoke(query="deploy")
+    assert excinfo.value.kind is slack.USER
+    assert excinfo.value.needed == ["search:read"]
 
 
 @respx.mock

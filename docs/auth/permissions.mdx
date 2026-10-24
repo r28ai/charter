@@ -1,0 +1,210 @@
+---
+title: "Permissions"
+description: "What an agent can do is the tools you hand it. What its credential is granted is the provider's check on that. One declaration per tool keeps the two in step, for every API."
+---
+
+Two layers decide what an agent can do, and they are not equally strong.
+
+1. **The tools you hand the model.** An agent can call what its tools call and
+   nothing else. A [projection](/tools/projections) narrows a tool further, down
+   to the fields it may set. This is where you decide.
+2. **What the credential is granted.** The provider checks it on every call,
+   whatever the tool asks for. It is the backstop for a tool, or a prompt, that
+   asks for more than you meant.
+
+Each tool declares what it needs from a grant, so the second layer can be read
+off the first: hand out five tools, ask for exactly what those five need.
+
+## Ask for exactly what the tools need
+
+```python permissions_scopes_for.py
+from charter.auth import scopes_for
+from charter.packs import gmail
+
+scopes_for([gmail.messages_send])                        # ['…/gmail.send']
+scopes_for([gmail.threads_list, gmail.threads_modify])   # ['…/gmail.modify']
+```
+
+Where a provider accepts several scopes for one call, the tool lists them
+narrowest first as an [`AnyOf`](/reference/oauth#anyof), and
+[`scopes_for`](/reference/oauth#scopes_for) picks the fewest, narrowest set that
+covers every tool. Gmail's readers accept `gmail.readonly` or `gmail.modify`, the
+relabeller needs `gmail.modify`, so an agent that does both asks for
+`gmail.modify` alone. Which scope covers which is never declared: it is read off
+the tools' own lists, which are the provider's.
+
+A tool that declares no scopes needs none, and `scopes_for` over it is `[]`. A
+tool you write for your own API works the same whether or not you declare any.
+
+## Kinds of credential
+
+Some providers issue more than one kind of credential, and the names a tool needs
+differ by kind. A GitHub OAuth app asks for `repo` on the consent screen; a
+GitHub App is configured with `issues=write` where it is created. Each pack
+declares its kinds as constants, every tool says what it needs under each, and
+the question names one:
+
+```python permissions_kinds.py
+from charter.auth import scopes_for
+from charter.packs import github, stripe
+
+tools = [github.issues_get, github.issues_create, github.pulls_list]
+
+scopes_for(tools)                                  # ['repo']
+scopes_for(tools, kind=github.APP)                 # ['issues=write', 'pull_requests=read']
+scopes_for([stripe.refunds_create], kind=stripe.RESTRICTED_KEY)   # ['charge_write']
+```
+
+| pack | kinds, the default first | what the names are |
+|---|---|---|
+| `github` | `OAUTH`, `APP`, `FINE_GRAINED` | scopes for an OAuth app or a classic token; permissions for an App's installation token, and for a fine-grained token or an App's user token, as GitHub's `X-Accepted-GitHub-Permissions` header spells them |
+| `slack` | `BOT`, `USER` | bot scopes, which go in the authorize URL's `scope`; user scopes, which go in `user_scope` |
+| `stripe` | `SECRET_KEY`, `RESTRICTED_KEY` | nothing for a secret key; a restricted key's permissions, as [Stripe's reference](https://docs.stripe.com/keys/permissions-reference) names them |
+| `granola` | `PERSONAL_KEY`, `WORKSPACE_KEY`, `AUDIT_KEY` | the note access a key is made with |
+| `firecrawl` | `API_KEY`, `RESTRICTED_KEY` | nothing for an unrestricted key; the endpoint groups a restricted key allows |
+| every other pack | one | its scopes, or Notion's capabilities |
+
+A kind's `granted` says where its names go. `"consent"` names travel in the
+authorization request, so `scopes_for` is the list to pass to
+[`authorize()`](/reference/oauth#oauth2flow-authorize). `"configured"` names are
+ticked where the app or key is made, so `scopes_for` is the checklist for that
+screen. A kind can also be named by its string, `kind="app"`, and a misspelling
+is refused with the kinds that exist; importing the constant cannot be misspelt.
+
+A tool that cannot run under a kind says so, with
+[`Unavailable`](/reference/oauth#unavailable), and `scopes_for` refuses rather
+than build a grant that cannot run it:
+
+```text
+These tools cannot run with a github.app credential: notifications_list (GitHub
+serves notifications to OAuth apps and classic tokens only). Leave them out, or
+ask with kind=github.OAUTH.
+```
+
+Every tool in a pack answers for every kind the pack declares. That is one of the
+[conformance checks](/guarantees/conformance), so a tool added next year cannot
+ship silent about one.
+
+## A grant you already hold
+
+[`missing_scopes`](/reference/oauth#missing_scopes) says what to add before
+handing out a new tool, so the user is asked once, for the difference:
+
+```python permissions_missing.py
+from charter.auth import missing_scopes
+from charter.packs import gmail
+
+held = ["https://www.googleapis.com/auth/gmail.readonly"]
+missing_scopes([gmail.threads_list, gmail.messages_send], held)   # ['…/gmail.send']
+```
+
+## When the provider refuses anyway
+
+A grant that does not cover a call raises
+[`InsufficientScope`](/reference/errors#insufficientscope), whichever provider
+said it and however it said it. `needed` is what to add, narrowest first; the
+token is kept, because a refresh returns the same grant.
+
+```python permissions_refused.py
+from charter import InsufficientScope
+from charter.packs import github
+
+
+async def call(tool, args):
+    try:
+        return await tool.ainvoke(args)
+    except InsufficientScope as exc:
+        # Send the user through consent for exc.needed, or tell them which
+        # permission to tick when exc.kind is configured rather than consented.
+        return {"needs": exc.needed, "kind": str(exc.kind) if exc.kind else None}
+```
+
+Where the provider names the scopes it would accept, `accepted` holds them all
+and `needed` is the narrowest of them the tool lists. Where it names none,
+`accepted` is empty and `needed` is the tool's own declaration.
+
+| provider | how it refuses | names the scope |
+|---|---|---|
+| Google | 403 with `WWW-Authenticate: Bearer error="insufficient_scope", scope="…"` | every scope it accepts |
+| Slack | 200 with `ok: false`, `missing_scope` and `needed`; `not_allowed_token_type` for a bot token on a user method | the missing one; for the wrong token, `slack.USER`'s |
+| GitHub, OAuth app or classic token | the call's own 404 or 403, with `X-Accepted-OAuth-Scopes` naming what it accepts and `X-OAuth-Scopes` what the token holds | yes |
+| GitHub, App or fine-grained token | 403 "Resource not accessible by integration" or "…by personal access token" | no |
+| Linear | "Invalid scope: `write` or `comments:create` required", 400 to a mutation and 200 to a query | yes |
+| Shopify | 200 with `ACCESS_DENIED`, "Required access: `read_orders` access scope." | yes |
+| Stripe | 403, "Having the 'rak_charge_read' permission would allow this request to continue." | yes, for `stripe.RESTRICTED_KEY` |
+| Notion | 403 `restricted_resource` | no |
+| Microsoft Graph | 403 `ErrorAccessDenied` | no |
+| Firecrawl | 403 "this API key is restricted to the following endpoints" | no |
+
+GitHub answers a private repository the token cannot see with the same 404 as one
+that does not exist. A classic token's 404 counts as a refusal only when the token
+holds none of the scopes GitHub accepts for the call; otherwise it is GitHub's own
+404.
+
+## Your own API
+
+Declare scopes on your tools the way the packs do, and they behave the same:
+
+```python permissions_own_api.py
+from charter import oauth_tool_factory
+from charter.auth import AnyOf, EnvTokenProvider, ScopeRefusal
+
+acme = oauth_tool_factory(
+    base_url="https://api.acme.example/",
+    provider="acme",
+    credential_provider=EnvTokenProvider("ACME_TOKEN"),
+    pack="acme",
+    scopes=["invoices:read"],
+    # How Acme says a grant falls short, if not with the standard header:
+    scope_refusals=[
+        ScopeRefusal(status=403, signal=r"missing_scope", needed_field="error.required_scope")
+    ],
+)
+
+READ = AnyOf("invoices:read", "invoices:write")
+```
+
+An API that answers with the standard `WWW-Authenticate: Bearer
+error="insufficient_scope"` challenge needs no
+[`ScopeRefusal`](/reference/oauth#scoperefusal): Charter reads that header on
+every response. For an API with more than one kind of credential, declare
+[`Kind`](/reference/oauth#kind) constants and pass `scopes={KIND: [...], ...}`.
+
+## Narrowing a tool you hand out
+
+`tool.derived(scopes=[...])` makes a copy that asks for less, for an agent you
+know reaches less. A Drive agent that only ever opens files your app created can
+ask for `drive.file`; a GitHub agent that only works on public repositories can
+ask for `public_repo`:
+
+```python permissions_narrow.py
+from charter.auth import scopes_for
+from charter.packs import github
+
+public = github.issues_create.derived(name="issues_create", scopes=["public_repo"])
+scopes_for([public])   # ['public_repo']
+```
+
+## What a declaration cannot say
+
+- **Scopes that reach part of what a tool can name are not offered.**
+  `drive.file`, `public_repo`, `gmail.metadata` for a searcher, Shopify's
+  fulfillment orders at other kinds of location, the `pull_requests` permission
+  on a GitHub issue endpoint: each would pass the consent screen and then fail on
+  part of the input. Narrow with `derived(scopes=...)` when you know the part.
+- **What depends on the arguments is not mandated.** GitHub wants `workflow` for
+  a write that touches `.github/workflows`. A Firecrawl key can be restricted to
+  output formats, which is a property of each call. A Granola key with only
+  `personal` access lists only personal notes, with no error for the rest.
+- **Some access is approved, not consented to.** Shopify approves
+  `read_all_orders` (orders older than 60 days) and protected customer data per
+  public app, in the Partner Dashboard; until it does, older orders are simply
+  absent, and an unapproved customer field is `null` beside an error the pack
+  raises. Google's restricted scopes need a security assessment before a
+  published app can request them. Neither appears on a consent screen. See [Shopify](/auth/providers/shopify#scopes) and
+  [Google](/auth/providers/google#scopes).
+- **Some APIs have no permissions at all.** Tavily documents none for a key:
+  every endpoint takes it, and the optional project id only groups usage.
+- **Microsoft's application permissions are a different shape.** An app-only
+  token cannot call `/me`, which is every Outlook route, so the pack declares
+  delegated permissions only.

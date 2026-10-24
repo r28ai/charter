@@ -17,7 +17,7 @@ result = asyncio.run(stripe.payment_intents_list.ainvoke({}))
 ```
 
 <Note>
-  Pages by cursor: `data[-1].id` is sent back as `starting_after`.
+  With `stripe.RESTRICTED_KEY`, requires `payment_intent_read` or `payment_intent_write`. Pages by cursor: `data[-1].id` is sent back as `starting_after`.
 </Note>
 
 ## Query parameters

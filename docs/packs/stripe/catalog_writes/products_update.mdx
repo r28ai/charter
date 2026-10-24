@@ -16,6 +16,10 @@ from charter.packs import stripe
 result = asyncio.run(stripe.products_update.ainvoke({"id": ...}))
 ```
 
+<Note>
+  With `stripe.RESTRICTED_KEY`, requires `product_write`.
+</Note>
+
 ## Path parameters
 
 <div className="reference-table">

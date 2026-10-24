@@ -27,12 +27,13 @@ reading the trace afterwards, and the link is what they need next.
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, Optional, Tuple, Type
+from typing import Any, Dict, Optional, Sequence, Tuple, Type
 
 __all__ = [
     "CharterError",
     "DeclarationError",
     "CredentialError",
+    "InsufficientScope",
     "ToolValidationError",
     "TransformError",
     "APIError",
@@ -225,6 +226,53 @@ class CredentialError(CharterError):
         if self.provider:
             return self._with_docs(f"[{self.provider}] {self.message}")
         return self._with_docs(self.message)
+
+
+class InsufficientScope(CredentialError):
+    """The token works, and what it was granted does not cover this call.
+
+    One error for every provider, however the provider says it: Google's
+    ``WWW-Authenticate: Bearer error="insufficient_scope"``, Slack's
+    ``missing_scope`` inside a 200, Linear's "Invalid scope: `write` required",
+    GitHub's 404 beside ``X-Accepted-OAuth-Scopes``. Each pack declares its
+    provider's shape once, as a ``ScopeRefusal``; the standard header needs no
+    declaration at all.
+
+    ``token_refused`` is always False: the token is kept, because a refresh
+    returns the same grant. The fix is a wider grant, or another credential.
+
+    Attributes
+    ----------
+    needed:
+        The scopes to add so this call runs, narrowest first. What the provider
+        named when it named something, read against the tool's own declaration
+        so that of several it would accept the narrowest the tool lists comes
+        first; what the tool declares when the provider names nothing.
+    accepted:
+        Every scope the provider said would let the call through, any one of
+        which will do, in the provider's order. Empty when it named none.
+    kind:
+        The kind of credential the scopes belong to, when it is not the pack's
+        default — a Stripe restricted key's permission, say.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        provider: Optional[str] = None,
+        status_code: Optional[int] = 403,
+        docs: Optional[str] = "reference/errors#insufficientscope",
+        needed: Sequence[str] = (),
+        accepted: Sequence[str] = (),
+        kind: Optional[Any] = None,
+    ) -> None:
+        super().__init__(
+            message, provider=provider, status_code=status_code, docs=docs, token_refused=False
+        )
+        self.needed = list(needed)
+        self.accepted = tuple(accepted)
+        self.kind = kind
 
 
 class ToolValidationError(CharterError):

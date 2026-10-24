@@ -16,6 +16,10 @@ from charter.packs import stripe
 result = asyncio.run(stripe.invoices_send.ainvoke({"invoice": ...}))
 ```
 
+<Note>
+  With `stripe.RESTRICTED_KEY`, requires `invoice_write`.
+</Note>
+
 ## Path parameters
 
 <div className="reference-table">

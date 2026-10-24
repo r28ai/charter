@@ -899,3 +899,83 @@ def test_every_pack_model_is_built_on_first_use(pack_name):
         f"{len(eager)} {pack_name} model(s) subclass BaseModel rather than PackModel, so "
         "they are built when the pack is imported:\n  " + "\n  ".join(eager[:10])
     )
+
+
+def _kinds(tools):
+    """Every kind of credential these tools declare, the default (None) first."""
+    kinds = [None]
+    for tool in tools:
+        for kind in tool.kind_scopes:
+            if kind not in kinds:
+                kinds.append(kind)
+    return kinds
+
+
+def _scope_clauses(tools, kind=None):
+    from charter.auth.scopes import _options, _requirements
+
+    return [_options(r) for t in tools for r in _requirements(t, kind) if _options(r)]
+
+
+def _runnable(tools, kind=None):
+    """The tools that can run under ``kind`` at all: no ``Unavailable`` among them."""
+    from charter.auth import Unavailable
+    from charter.auth.scopes import _requirements
+
+    return [t for t in tools if not any(isinstance(r, Unavailable) for r in _requirements(t, kind))]
+
+
+@pytest.mark.parametrize("pack_name", [*PACK_NAMES, "every pack together"])
+def test_a_packs_scopes_agree_and_cover_every_tool(pack_name):
+    """Where tools offer alternative scopes, they agree on which is narrower.
+
+    ``scopes_for`` reads which scope covers which off the ``AnyOf`` lists
+    themselves, so two tools listing the same two scopes in opposite orders leave
+    it unable to choose, and a consent screen built from them fails at runtime.
+    Across all packs at once too: an agent mixes packs, and Google's six share
+    their scopes. Whatever it picks must meet every tool's requirements, under
+    every kind of credential the pack declares, for every tool that kind can run.
+    """
+    from charter.auth import scopes_for
+    from charter.types.errors import DeclarationError
+
+    tools = (
+        [t for _, t in ALL_TOOLS] if pack_name == "every pack together" else PACKS[pack_name].TOOLS
+    )
+    kinds = [None] if pack_name == "every pack together" else _kinds(tools)
+    for kind in kinds:
+        runnable = _runnable(tools, kind)
+        try:
+            chosen = set(scopes_for(runnable, kind=kind))
+        except DeclarationError as exc:
+            raise AssertionError(f"{pack_name} [{kind}]: {exc}") from None
+        unmet = [c for c in _scope_clauses(runnable, kind) if not chosen & set(c)]
+        assert not unmet, f"{pack_name} [{kind}]: scopes_for leaves {unmet[:3]} unmet"
+
+
+@pytest.mark.parametrize("pack_name", PACK_NAMES)
+def test_every_tool_answers_for_every_kind_of_credential_its_pack_declares(pack_name):
+    """A kind one tool declares, every tool in the pack declares.
+
+    ``scopes_for(tools, kind=github.APP)`` answers for whichever tools it is
+    handed, so a tool with nothing under that kind is either a gap (it inherited
+    nothing and asks for nothing) or an error at the worst moment (a host
+    building an App's permissions finds out when the call is refused). A tool
+    that cannot run under a kind says so with ``Unavailable``, which is an
+    answer. And the pack agrees on which kind a plain list means.
+    """
+    tools = PACKS[pack_name].TOOLS
+    declared = set(_kinds(tools)) - {None}
+    gaps = [
+        f"{t.name} has nothing for {sorted(str(k) for k in declared - set(t.kind_scopes))}"
+        for t in tools
+        if declared - set(t.kind_scopes)
+    ]
+    assert not gaps, f"{pack_name}: " + "; ".join(gaps[:5])
+    defaults = {t.default_kind for t in tools}
+    assert len(defaults) == 1, f"{pack_name}: tools disagree on the default kind: {defaults}"
+    if declared:
+        assert None not in defaults, (
+            f"{pack_name} declares {sorted(str(k) for k in declared)} but not which kind a "
+            "plain list of scopes means"
+        )

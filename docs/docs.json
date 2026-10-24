@@ -95,6 +95,7 @@
                   }
                 ]
               },
+              "auth/permissions",
               "auth/authorization-servers",
               "auth/api-key-tool-factory",
               {

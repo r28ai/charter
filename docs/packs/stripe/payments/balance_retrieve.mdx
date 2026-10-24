@@ -16,4 +16,8 @@ from charter.packs import stripe
 result = asyncio.run(stripe.balance_retrieve.ainvoke({}))
 ```
 
+<Note>
+  With `stripe.RESTRICTED_KEY`, requires `balance_read` or `balance_write`.
+</Note>
+
 This tool takes no arguments.

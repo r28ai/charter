@@ -68,10 +68,18 @@ Known limits, named rather than hidden:
 
 from __future__ import annotations
 
-from charter.auth import CredentialProvider
+from charter.auth import CredentialProvider, scopes_for
 from charter.factories import oauth_tool_factory
 from charter.packs._config import DeferredCredentialProvider
-from charter.packs._google import ENV_GRANT
+from charter.packs._google import (
+    DOCUMENTS,
+    DOCUMENTS_READONLY,
+    DRIVE,
+    DRIVE_FILE,
+    DRIVE_READONLY,
+    ENV_GRANT,
+    google_accepts,
+)
 from charter.packs.gdocs.response_handlers import extract_document
 from charter.packs.gdocs.types import (
     DocumentsBatchUpdateRequest,
@@ -83,11 +91,14 @@ from charter.tool import Tool
 BASE_URL = "https://docs.googleapis.com/"
 QUOTA_DOC_URL = "https://developers.google.com/workspace/docs/api/limits"
 
-# Docs needs write access to the document itself. `documents.readonly` is
-# enough for documents_get alone, so it is declared on that tool: an agent that
-# only reads gets a consent screen that says "see", not "edit and delete".
-SCOPES = ["https://www.googleapis.com/auth/documents"]
-READONLY_SCOPE = "https://www.googleapis.com/auth/documents.readonly"
+# What each tool needs, as the scopes Google's reference accepts for its method.
+# Reading takes `documents.readonly`, and an agent that only reads gets a consent
+# screen that says "see", not "edit and delete". documents_create names no
+# existing document, so Google's non-sensitive `drive.file` covers it: an agent
+# that only creates documents asks for a scope Google does not review.
+READ = google_accepts(DOCUMENTS_READONLY, DOCUMENTS, DRIVE_READONLY, DRIVE)
+CREATE = google_accepts(DRIVE_FILE, DOCUMENTS, DRIVE)
+WRITE = google_accepts(DOCUMENTS, DRIVE)
 
 _credentials = DeferredCredentialProvider(
     "gdocs", env_var="GOOGLE_ACCESS_TOKEN", env_grant=ENV_GRANT
@@ -104,7 +115,7 @@ _docs = oauth_tool_factory(
     base_url=BASE_URL,
     provider="google",
     credential_provider=_credentials,
-    scopes=SCOPES,
+    scopes=[WRITE],
     # Google is camelCase in both directions: `includeTabsContent`, not
     # `include_tabs_content`, which it would silently ignore.
     query_case="camel",
@@ -123,7 +134,7 @@ documents_get = _docs(
         "default response covers only the first."
     ),
     action_label="Reads a document.",
-    scopes_override=[READONLY_SCOPE],
+    scopes_override=[READ],
     quota_cost=1,
     response_handler=extract_document,
 )
@@ -139,6 +150,7 @@ documents_create = _docs(
         "documents_batch_update with the returned documentId."
     ),
     action_label="Creates a blank titled document.",
+    scopes_override=[CREATE],
     quota_cost=1,
     response_handler=extract_document,
 )
@@ -161,11 +173,17 @@ documents_batch_update = _docs(
 
 TOOLS: list[Tool] = [documents_get, documents_create, documents_batch_update]
 
+# What a consent for the whole pack asks for.
+SCOPES = scopes_for(TOOLS)
+
 __all__ = [
     "TOOLS",
     "configure",
     "BASE_URL",
     "SCOPES",
+    "READ",
+    "CREATE",
+    "WRITE",
     "QUOTA_DOC_URL",
     "documents_get",
     "documents_create",

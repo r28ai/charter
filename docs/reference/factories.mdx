@@ -25,6 +25,7 @@ def api_key_tool_factory(
     timeout: int = 20,
     quota_doc_url: Optional[str] = None,
     envelope: Optional[Envelope] = None,
+    scope_refusals: Optional[Iterable[ScopeRefusal]] = None,
     pagination: Optional[Pagination] = None,
     body_format: BodyFormat = "json",
     query_format: QueryFormat = "repeat",
@@ -71,6 +72,13 @@ def api_key_tool_factory(
 <ParamField path="envelope" type="Optional[Envelope]" default="None">
   How this API reports failure inside a 200 response. Declared once here,
   enforced on every tool the factory builds.
+</ParamField>
+
+<ParamField path="scope_refusals" type="Optional[Iterable[ScopeRefusal]]" default="None">
+  How this API says a credential's grant does not cover the call, so each such
+  answer raises [`InsufficientScope`](/reference/errors#insufficientscope) naming
+  the scopes to add. The standard `WWW-Authenticate` challenge needs no
+  declaration. See [`ScopeRefusal`](/reference/oauth#scoperefusal).
 </ParamField>
 
 <ParamField path="pagination" type="Optional[Pagination]" default="None">
@@ -143,7 +151,7 @@ def oauth_tool_factory(
     base_url: BaseUrl,
     provider: str,
     credential_provider: CredentialProvider,
-    scopes: Optional[Sequence[str]] = None,
+    scopes: Optional[ScopesDeclaration] = None,
     *,
     pack: str,
     body_case: KeyCase = "camel",
@@ -152,6 +160,7 @@ def oauth_tool_factory(
     timeout: int = 20,
     quota_doc_url: Optional[str] = None,
     envelope: Optional[Envelope] = None,
+    scope_refusals: Optional[Iterable[ScopeRefusal]] = None,
     pagination: Optional[Pagination] = None,
     body_format: BodyFormat = "json",
     query_format: QueryFormat = "repeat",
@@ -166,7 +175,7 @@ def oauth_tool_factory(
 ```
 
 The keyword parameters it shares with `api_key_tool_factory` — `body_case`,
-`query_case`, `path_case`, `timeout`, `quota_doc_url`, `envelope`, `pagination`,
+`query_case`, `path_case`, `timeout`, `quota_doc_url`, `envelope`, `scope_refusals`, `pagination`,
 `body_format`, `query_format`, `static_query`, `static_headers`, `on_call`,
 `credential_statuses`, `follow_redirects` — behave identically. The five that
 differ:
@@ -180,9 +189,14 @@ differ:
   Supplies the bearer token. See [Credentials](/reference/credentials).
 </ParamField>
 
-<ParamField path="scopes" type="Optional[Sequence[str]]" default="None">
-  The scopes these tools need, carried as metadata for consent screens and
-  approval UIs. Charter does not request them.
+<ParamField path="scopes" type="Optional[ScopesDeclaration]" default="None">
+  What these tools need from a grant: scope strings, or
+  [`AnyOf(...)`](/reference/oauth#anyof) where the provider accepts several,
+  narrowest first. A mapping of [`Kind`](/reference/oauth#kind) to lists declares
+  them for each kind of credential the provider issues. Carried as metadata for
+  [`scopes_for`](/reference/oauth#scopes_for), consent screens and approval UIs;
+  Charter does not request them. A tool's `scopes_override` list replaces the
+  default kind's and keeps the others; a mapping replaces the kinds it names.
 </ParamField>
 
 <ParamField path="expiry_leeway_seconds" type="int" default="10">

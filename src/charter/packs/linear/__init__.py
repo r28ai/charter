@@ -102,7 +102,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from charter.auth import CredentialProvider, Credentials
+from charter.auth import AnyOf, CredentialProvider, Credentials, ScopeRefusal, scopes_for
 from charter.factories import oauth_tool_factory
 from charter.packs._config import DeferredCredentialProvider, configure_key_or_provider
 from charter.packs.linear import curation, queries, types
@@ -188,6 +188,37 @@ def configure(
     configure_key_or_provider(_credentials, api_key, credential_provider)
 
 
+# What each tool needs from an OAuth grant, from Linear's list at
+# https://linear.app/developers/oauth-2-0-authentication. `read` is on every
+# grant ("this scope will always be present"), so a reader asks for nothing more.
+# `write` covers every mutation; Linear offers two narrower ones, `issues:create`
+# ("creating new issues and their attachments") and `comments:create`, so an
+# agent that only files issues or comments never asks to change anything else.
+# A personal API key carries the account's full access and takes no scopes.
+READ = "read"
+WRITE = "write"
+ISSUES_CREATE = AnyOf("issues:create", WRITE)
+COMMENTS_CREATE = AnyOf("comments:create", WRITE)
+_MUTATION_SCOPES = {
+    "issueCreate": ISSUES_CREATE,
+    "attachmentCreate": ISSUES_CREATE,
+    "commentCreate": COMMENTS_CREATE,
+}
+# Reading webhooks takes `admin`, though creating and deleting one takes only
+# `write`. Linear says so in the refusal itself ("Invalid scope: `admin`
+# required"), measured on 2026-10-24 by scripts/live_linear_scopes_check.py.
+ADMIN = "admin"
+_QUERY_SCOPES = {"webhooks": ADMIN, "webhook": ADMIN}
+
+# Linear refuses a scope the grant lacks before it runs the operation, and names
+# what it would accept: "Invalid scope: `write` or `comments:create` required",
+# with HTTP 400 to a mutation and 200 to a query (2026-10-24).
+LINEAR_REFUSAL = ScopeRefusal(
+    status={200, 400},
+    signal=r"Invalid scope:",
+    needed=r"Invalid scope:\s*(.+?)\s+required",
+)
+
 _linear = oauth_tool_factory(
     pack="linear",
     base_url=BASE_URL,
@@ -200,6 +231,7 @@ _linear = oauth_tool_factory(
     body_case="camel",
     quota_doc_url=QUOTA_DOC_URL,
     envelope=LINEAR_ENVELOPE,
+    scope_refusals=[LINEAR_REFUSAL],
 )
 
 
@@ -219,6 +251,7 @@ def _query(name, schema, document, operation, description, action_label, *, pagi
         static_body={"query": document},
         response_handler=unwrap(operation),
         pagination_override=LINEAR_PAGINATION if paginates else None,
+        scopes_override=[_QUERY_SCOPES.get(operation, READ)],
     )
 
 
@@ -233,6 +266,7 @@ def _mutation(name, schema, document, operation, description, action_label):
         action_label=action_label,
         static_body={"query": document},
         response_handler=unwrap_mutation(operation),
+        scopes_override=[_MUTATION_SCOPES.get(operation, WRITE)],
     )
 
 
@@ -1743,14 +1777,24 @@ TOOLS: list[Tool] = [
     webhook_delete,
 ]
 
+# What a consent for the whole pack asks for.
+SCOPES = scopes_for(TOOLS)
+
 __all__ = [
     "TOOLS",
+    "SCOPES",
+    "READ",
+    "WRITE",
+    "ISSUES_CREATE",
+    "COMMENTS_CREATE",
+    "ADMIN",
     "configure",
     "BASE_URL",
     "GRAPHQL_PATH",
     "QUOTA_DOC_URL",
     "LINEAR_PAGINATION",
     "LINEAR_ENVELOPE",
+    "LINEAR_REFUSAL",
     "queries",
     "types",
 ] + [tool.name.split("__")[-1] for tool in TOOLS]

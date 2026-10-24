@@ -17,7 +17,7 @@ result = asyncio.run(slack.conversations_replies.ainvoke({"channel": ..., "ts": 
 ```
 
 <Note>
-  Requires `chat:write`, `channels:read`, `groups:read`, `im:read`, `mpim:read`, `channels:history`, `groups:history`, `im:history`, `mpim:history`, `users:read`, `reactions:write`. Pages by cursor: `response_metadata.next_cursor` is sent back as `cursor`.
+  Requires `channels:history`, `groups:history`, `im:history`, `mpim:history`. With `slack.USER`, requires `channels:history`, `groups:history`, `im:history`, `mpim:history`. Pages by cursor: `response_metadata.next_cursor` is sent back as `cursor`.
 </Note>
 
 ## Query parameters

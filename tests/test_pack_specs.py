@@ -489,10 +489,21 @@ def test_no_hidden_field_is_rendered(pack):
 
 @pytest.mark.parametrize("pack", PACKS)
 def test_scopes_and_pagination_are_stated_where_they_apply(pack):
+    from charter.auth import Unavailable
+
     for tool in GEN.pack_module(pack).TOOLS:
         text = _page(pack, tool)
-        for scope in tool.scopes:
-            assert f"`{scope}`" in text, f"{pack}.{tool.name} does not state {scope}"
+        # Under every kind of credential, each scope by name, and a kind that
+        # cannot run the tool by its reason.
+        for requirements in [tool.scopes, *tool.kind_scopes.values()]:
+            for requirement in requirements:
+                if isinstance(requirement, Unavailable):
+                    assert requirement.reason in text, f"{pack}.{tool.name}: {requirement}"
+                    continue
+                for scope in getattr(requirement, "options", (requirement,)):
+                    assert f"`{scope}`" in text, f"{pack}.{tool.name} does not state {scope}"
+        for kind in tool.kind_scopes:
+            assert f"`{pack}.{kind.name.upper()}`" in text, f"{pack}.{tool.name}: {kind}"
         if tool.pagination is not None:
             assert "Pages by" in text, f"{pack}.{tool.name} paginates but does not say so"
 

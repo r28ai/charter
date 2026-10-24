@@ -16,6 +16,10 @@ from charter.packs import stripe
 result = asyncio.run(stripe.transfers_retrieve.ainvoke({"transfer": ...}))
 ```
 
+<Note>
+  With `stripe.RESTRICTED_KEY`, requires `transfer_read` or `transfer_write`.
+</Note>
+
 ## Path parameters
 
 <div className="reference-table">

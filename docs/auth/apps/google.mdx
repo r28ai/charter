@@ -157,13 +157,18 @@ reads them off whichever tools you actually hand out:
 
 | Pack | Scope | Google's category |
 |---|---|---|
-| `gmail` | `gmail.modify` | restricted |
+| `gmail` | `gmail.labels` (the label list) | non-sensitive |
+| `gmail` | `gmail.send` (`messages_send`) | sensitive |
+| `gmail` | `gmail.readonly`, `gmail.compose`, `gmail.modify` | restricted |
 | `gmail`, `threads_delete` only | `https://mail.google.com/` | restricted |
-| `gdrive` | `drive` | restricted |
-| `gcalendar` | `calendar.events`, `calendar.readonly` | sensitive |
-| `gsheets` | `spreadsheets` | sensitive |
-| `gdocs` | `documents` | sensitive |
-| `gforms` | `forms.body`, `forms.responses.readonly` | sensitive |
+| `gdrive`, `gdocs`, `gsheets`, `gforms` | `drive.file` (creating a file) | non-sensitive |
+| `gdrive` | `drive.readonly`, `drive` | restricted |
+| `gcalendar` | `calendar.events.readonly`, `calendar.events`, `calendar.calendarlist.readonly`, `calendar.calendars.readonly` | sensitive |
+| `gsheets` | `spreadsheets.readonly`, `spreadsheets` | sensitive |
+| `gdocs` | `documents.readonly`, `documents` | sensitive |
+| `gforms` | `forms.body.readonly`, `forms.body`, `forms.responses.readonly` | sensitive |
+
+Which tool declares which is on [Google OAuth](/auth/providers/google#scopes).
 
 The categories are Google's, and Google can change them. **Data access** shows
 the current category next to each scope as you add it.
@@ -188,10 +193,11 @@ while you build. It isn't a way to launch.
 
 Once it's published, what happens next depends on the scopes from step 6:
 
-- **Only sensitive scopes** (Calendar, Sheets, Docs, Forms): Google verifies
-  the app. It checks your branding and domains, reads a justification for each
+- **Only sensitive scopes** (Calendar, Sheets, Docs, Forms, and sending
+  mail with `gmail.send`): Google verifies the app. It checks your branding and domains, reads a justification for each
   scope, and watches a short video of your app using them.
-- **Any restricted scope** (Gmail, Drive): the same review, plus an
+- **Any restricted scope** (reading, drafting or relabelling mail; reading or
+  changing Drive files your app did not create): the same review, plus an
   independent **security assessment** of how your servers store and handle
   Google data. It's repeated every year, and you arrange and pay for it.
 
@@ -202,9 +208,10 @@ longer with an assessment, so start it well before launch.
 before planning around any of this.
 
 <Tip>
-A product that only needs Calendar, Sheets, Docs or Forms avoids the security
-assessment entirely. Hand those packs out first, and add Gmail or Drive once
-the assessment is booked.
+A product that only needs Calendar, Sheets, Docs or Forms, only sends mail,
+or only creates Drive files avoids the security assessment entirely, because
+`scopes_for` asks for nothing restricted for those tools. Hand them out first,
+and add the mail readers or the Drive readers once the assessment is booked.
 </Tip>
 
 </Step>
@@ -216,7 +223,7 @@ Your app's "Connect Google" button opens the link that
 picks an account and approves the scopes.
 
 ```python google_connect.py
-from charter.auth import OAuth2Flow, scopes_for
+from charter.auth import OAuth2Flow, missing_scopes, scopes_for
 
 flow = OAuth2Flow(
     GOOGLE,  # the server constant, from /auth/providers/google
@@ -228,7 +235,7 @@ request = flow.authorize(scopes=scopes_for(tools), login_hint=user.email)
 
 # At the callback, after checking state:
 grant = await flow.exchange(code, code_verifier=verifier)
-missing = set(scopes_for(tools)) - set(grant.scopes)  # unticked on the consent screen
+missing = missing_scopes(tools, grant.scopes)  # unticked on the consent screen
 ```
 
 Google lets a user untick a permission and still finish the flow, so compare
