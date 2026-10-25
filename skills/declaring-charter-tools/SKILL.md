@@ -241,10 +241,12 @@ and firecrawl packs carry several.
 wire.** They are different defaults and they are often the same convention, which
 is exactly why this gets missed. Google's query parameters are camelCase like its
 bodies; leaving `query_case` at its snake default sent `max_results` instead of
-`maxResults` in three shipped packs here for weeks. Nothing failed — Google
-ignores query parameters it does not recognise, so every call succeeded and every
-filter was silently dropped. Assert the parameter names your API documents against
-a `respx` route; do not read the schema and assume.
+`maxResults` in three shipped packs here for weeks. Nothing failed, and that is
+the danger: Calendar, Gmail and Drive ignore a query parameter they do not
+recognise and answer 200. Google happens to accept some snake_case spellings
+(`max_results` took effect when checked on 2026-10-24) and not others (`i_cal_uid`
+was ignored, so the filter returned every event). Assert the parameter names your
+API documents against a `respx` route; do not read the schema and assume.
 
 ## 6. Mark `Mode("response_only")` on server-set fields
 

@@ -117,7 +117,7 @@ It can fix the call or stop; Charter never improvises.
 | | What Charter does | Measured |
 |---|---|---|
 | **Sees** | Cuts a tool down to the fields the job needs | Google Docs' write tool has 33 kinds of edit; cut to the 3 a job needs, its schema goes from 7,336 tokens to 1,553 ([details](https://docs.r28.ai/charter/tools/projections#why-the-tool-is-shaped-this-way)) |
-| **Sends** | Builds wire formats like MIME, base64 and GraphQL, so the model fills in plain fields | Over 534 runs, a raw HTTP tool sent 32 malformed GraphQL documents and tried 10 calls to endpoints never declared; Charter did neither ([details](#control-what-goes-out)) |
+| **Sends** | Builds wire formats like MIME, base64 and GraphQL, so the model fills in plain fields | Over 534 runs, a raw HTTP tool sent 32 malformed GraphQL documents and tried 10 calls to endpoints never declared; Charter did neither ([details](#control-what-goes-out)). Of six calls that break the vendor's own documented rules, Charter refused all six before sending; the APIs' own or most-starred MCP servers let four of five through ([details](https://docs.r28.ai/charter/guarantees/benchmarks#the-same-calls-through-each-tool-layer)) |
 | **Gets back** | Trims responses, and raises when a `200` is really a failure | GitHub sends 346.6 KB, the model gets 10.7 KB ([details](#control-what-comes-back)) |
 
 ## Who it's for

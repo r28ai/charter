@@ -398,6 +398,12 @@ The other 17 tools return Gmail's payload as it arrived.
     send and `name` is required. `labels_patch` keeps every field you omit, so
     it requires nothing: recolouring a label is a `color` and no name. The other
     six fields on a `Label` are Gmail's own, and neither endpoint offers them.
+
+    They also differ on an id that does not exist, which Google documents
+    nowhere: `labels_patch` gets a 404, and `labels_update` gets 200 with the
+    request echoed back while nothing changes (found live on 23 October 2026).
+    Nothing in that echo marks it, so `labels_update` reports a success. Prefer
+    `labels_patch` unless the id came from a `labels_list` you just made.
   </Accordion>
 
   <Accordion title="A colour is two fields or none">

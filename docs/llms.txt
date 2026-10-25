@@ -74,6 +74,7 @@
 
 - [Conformance](https://docs.r28.ai/charter/guarantees/conformance.md): Twenty-three properties that must hold for every pack, checked without knowing anything about any particular API.
 - [Measured results](https://docs.r28.ai/charter/guarantees/measured-results.md): 534 runs against live APIs, what they show, what they do not, and the one scenario that goes the other way.
+- [Benchmarks](https://docs.r28.ai/charter/guarantees/benchmarks.md): When an agent's API call goes wrong, does anyone find out? Rules across models, prompt injection, a support policy, the same calls through each tool layer, a task whose target is gone, failures inside a 200, scopes, latency, and where Charter lost.
 - [What this can't express](https://docs.r28.ai/charter/guarantees/limitations.md): The edges of a declarative boundary — what belongs in your agent, and what is a real gap.
 
 ## Packs

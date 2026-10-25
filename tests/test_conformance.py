@@ -522,10 +522,12 @@ def test_a_patch_body_mandates_nothing(pack: str, tool: Tool):
 
 @pytest.mark.parametrize("pack", GOOGLE_PACKS)
 def test_google_packs_send_camel_cased_query_parameters(pack: str):
-    """Google's query parameters are camelCase, and it ignores what it cannot read.
+    """Google documents its query parameters in camelCase, and Calendar, Gmail and
+    Drive ignore a name they do not recognise.
 
     Two shipped packs sent `max_results` and `value_render_option` for weeks.
-    Every call returned 200 with unfiltered results.
+    Google happens to accept those two (checked 2026-10-24), but not every
+    snake_case spelling: `i_cal_uid` was ignored and the filter returned every event.
     """
     for tool in PACKS[pack].TOOLS:
         snake = [
@@ -536,7 +538,7 @@ def test_google_packs_send_camel_cased_query_parameters(pack: str):
         if snake:
             assert tool.query_case == "camel", (
                 f"{pack}.{tool.name} has snake_case query fields {snake} but "
-                f"query_case={tool.query_case!r}; Google would ignore them"
+                f"query_case={tool.query_case!r}; Google may ignore them"
             )
 
 

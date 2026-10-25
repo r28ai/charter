@@ -142,6 +142,7 @@
             "pages": [
               "guarantees/conformance",
               "guarantees/measured-results",
+              "guarantees/benchmarks",
               "guarantees/limitations"
             ]
           }

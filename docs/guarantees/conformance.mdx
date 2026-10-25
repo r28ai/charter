@@ -10,7 +10,7 @@ So the properties that must hold for every pack are checked separately, without 
 - a `Pagination` names fields the schema actually accepts, only endpoints that page declare one, and a walk over it terminates;
 - no `model_validator` is lost on the way to the LLM view, so a `oneof` is enforced against the model's input and not only against the wire;
 - failure detection is an [`Envelope`](/tools/envelopes) on the factory and never logic inside a response handler, where the first tool added without one reports a failed write as a success;
-- Google packs send camelCase query parameters, which Google requires and otherwise ignores without complaint;
+- Google packs send query parameters under the camelCase names Google documents, because Calendar, Gmail and Drive answer 200 to a name they do not recognise and ignore it;
 - a `static_body`, `static_query` or `static_headers` constant is never also reachable as a tool argument;
 - a [`Gloss`](/reference/markers#gloss) reaches the model's schema and never the documented description, so the vendor's own text stays comparable to their reference page;
 - a `PATCH` body mandates nothing, so a partial update cannot demand a field it is not changing.

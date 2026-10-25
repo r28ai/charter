@@ -1434,9 +1434,10 @@ def test_quota_cost_is_metadata_and_does_not_affect_execution():
 #
 # Google's query parameters are camelCase, like its bodies. Three shipped packs
 # defaulted to snake_case and sent `max_results`, `valueRenderOption` spelled
-# `value_render_option`, and so on. Google ignores unknown query parameters, so
-# every call succeeded and every filter was silently dropped — the worst kind of
-# wrong, because nothing looks broken.
+# `value_render_option`, and so on. Those two Google happens to accept (checked
+# 2026-10-24); others it does not, and Calendar, Gmail and Drive ignore a name they
+# do not recognise, so the filter is dropped and the call still succeeds — the
+# worst kind of wrong, because nothing looks broken.
 # -----------------------------------------------------
 
 

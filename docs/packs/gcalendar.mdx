@@ -258,12 +258,15 @@ links to its parameters, its response and what it costs.
 ## Why query casing is the load-bearing line
 
 Charter's default query casing is snake, because most REST APIs are snake. Google
-is not: it wants `singleEvents`, `maxResults`, `timeMin`, `orderBy`.
+documents camelCase: `singleEvents`, `maxResults`, `timeMin`, `iCalUID`.
 
-Send `single_events=true` and Google does not complain. It returns 200 with a
-correct-looking list of events — recurring ones unexpanded, because the parameter
-that asked for expansion was a name it did not recognise and dropped. The agent
-then reasons over a wrong answer that arrived with every sign of being right.
+Calendar answers 200 to a query parameter it does not recognise, and ignores it.
+It does recognise some snake_case spellings, the ones that match its own internal
+field names: `single_events` and `max_results` both took effect when tested on
+2026-10-24. `i_cal_uid` did not. Filtering by `i_cal_uid=` an id that matches
+nothing returned all 94 of the test calendar's events, where `iCalUID=` returned
+none. The agent then reasons over a wrong answer that arrived with every sign of
+being right, and which spellings happen to work is nowhere documented.
 
 So the factory declares `query_case="camel"`, and the
 [key case cascade](/tools/key-case-cascade) converts every parameter on its way
