@@ -375,6 +375,25 @@ def test_json_string_list_is_coerced():
     assert llm.model_validate({"items": "[1, 2, 3]"}).items == [1, 2, 3]
 
 
+def test_json_string_list_is_coerced_under_every_accepted_spelling():
+    """The schema advertises `itemIds`, so that is the spelling a model sends.
+    Coercion once looked only under the snake_case field name and refused it."""
+    from charter.types import WireName
+
+    class ItemsHolder(BaseModel):
+        item_ids: Annotated[list[str], Body()]
+        wire_ids: Annotated[list[str], Body(), WireName("WIRE_ids")]
+
+    llm = create_llm_schema(ItemsHolder)
+    for item_key, wire_key in [
+        ("itemIds", "WIRE_ids"),
+        ("item_ids", "wireIds"),
+        ("ItemIds", "wire_ids"),
+    ]:
+        m = llm.model_validate({item_key: '["1", "2"]', wire_key: '["3"]'})
+        assert (m.item_ids, m.wire_ids) == (["1", "2"], ["3"])
+
+
 def test_malformed_json_string_reports_a_syntax_error_not_a_type_error():
     """Told only that the type is wrong, a model retries with the same broken
     syntax forever. The message has to say it is a syntax problem."""

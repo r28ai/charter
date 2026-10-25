@@ -266,9 +266,20 @@ class LLMBase(BaseModel):
         if not isinstance(values, dict):
             return values
         for field_name, field_info in cls.model_fields.items():
-            if field_name not in values:
+            # Looked up under every spelling validation accepts, not the field's
+            # own name alone: that is snake_case, and the schema advertises
+            # camelCase, so a list sent as `itemIds: "[...]"` was refused while
+            # `item_ids: "[...]"` was repaired (τ²-bench retail, 2026-10-24).
+            alias = field_info.validation_alias
+            keys: List[Any] = [field_name]
+            if isinstance(alias, AliasChoices):
+                keys = [*alias.choices, field_name]
+            elif isinstance(alias, str):
+                keys = [alias, field_name]
+            key = next((k for k in keys if isinstance(k, str) and k in values), None)
+            if key is None:
                 continue
-            value = values[field_name]
+            value = values[key]
             if not isinstance(value, str):
                 continue
             stripped = value.strip()
@@ -285,7 +296,7 @@ class LLMBase(BaseModel):
             is_model = isinstance(field_type, type) and issubclass(field_type, BaseModel)
             if origin in (list, dict) or field_type in (list, dict) or is_model:
                 try:
-                    values[field_name] = json.loads(stripped)
+                    values[key] = json.loads(stripped)
                 except json.JSONDecodeError as exc:
                     raise ValueError(
                         f"'{field_name}' looks like JSON but is malformed — "
