@@ -78,6 +78,10 @@ class Scenario(ABC):
     id: str
     packs: tuple[str, ...]
     summary: str = ""
+    # "office" is the corpus the campaigns run. "trap" scenarios (t??_*.py) are
+    # benchmark material and are left out of "all" and of pack selections, so
+    # adding one never changes what a published campaign reproduces.
+    family: str = "office"
     # Providers the seed/observe/teardown need beyond the packs the model gets
     # (a scrape target hosted on GitHub, say). Empty for most scenarios.
     seed_only: tuple[str, ...] = ()

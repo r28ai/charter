@@ -50,10 +50,12 @@ Slack scope list is missing `groups:history`, `channels:join` and
 `channels:manage`, and `GOOGLE_REDIRECT_URI` defaults to port 8765 while the
 script that mints the token listens on the port your OAuth client has registered.
 
-The Slack app itself is also short two scopes the pack covers: `reactions:read`
-(for `reactions_get`) and `im:write` (for `conversations_open`). The live suite
-skips those two tools until they are granted, naming them — reinstall the app
-after adding them, since a bot token does not gain a scope without it.
+The Slack app also needs two scopes the pack covers: `reactions:read` (for
+`reactions_get`) and `im:write` (for `conversations_open`); the live suite skips
+those two tools without them, naming them. The same-calls benchmark's Slack MCP
+server (`bench/same_calls/servers.py`) will not start without `im:read` and
+`mpim:read`. All four were granted on 2026-10-25. Reinstall the app after adding a
+scope, since a bot token does not gain one without it.
 
 ## The accounts, and what the harness does to them
 

@@ -1,0 +1,85 @@
+{
+  "built": {
+    "the figure": true,
+    "the rest of the text": true,
+    "heading 1 (named style)": true,
+    "heading 2 (named style)": true,
+    "bold": true,
+    "coloured text": true,
+    "link": true,
+    "bulleted list": true,
+    "table": true,
+    "footnote": true,
+    "named range": true
+  },
+  "charter": {
+    "reply": "ok",
+    "kept": {
+      "the figure": true,
+      "the rest of the text": true,
+      "heading 1 (named style)": true,
+      "heading 2 (named style)": true,
+      "bold": true,
+      "coloured text": true,
+      "link": true,
+      "bulleted list": true,
+      "table": true,
+      "footnote": true,
+      "named range": true
+    },
+    "text": "Quarterly review\nRevenue grew 14% this quarter, led by renewals.\nNext steps\nShip the new pricing page\nHire two engineers\n\n\n",
+    "bullets": 2,
+    "footnotes": 1,
+    "named_ranges": [
+      "headline"
+    ]
+  },
+  "composio_typed": {
+    "reply": {
+      "successful": true,
+      "error": null
+    },
+    "kept": {
+      "the figure": true,
+      "the rest of the text": true,
+      "heading 1 (named style)": true,
+      "heading 2 (named style)": true,
+      "bold": true,
+      "coloured text": true,
+      "link": true,
+      "bulleted list": true,
+      "table": true,
+      "footnote": true,
+      "named range": true
+    },
+    "text": "Quarterly review\nRevenue grew 14% this quarter, led by renewals.\nNext steps\nShip the new pricing page\nHire two engineers\n\n\n",
+    "bullets": 2,
+    "footnotes": 1,
+    "named_ranges": [
+      "headline"
+    ]
+  },
+  "composio_markdown": {
+    "reply": {
+      "successful": true,
+      "error": null
+    },
+    "kept": {
+      "the figure": true,
+      "the rest of the text": false,
+      "heading 1 (named style)": true,
+      "heading 2 (named style)": true,
+      "bold": true,
+      "coloured text": false,
+      "link": true,
+      "bulleted list": false,
+      "table": true,
+      "footnote": false,
+      "named range": false
+    },
+    "text": "Quarterly review\nRevenue grew 14% this quarter, led by renewals1.\nNext steps\nShip the new pricing page\nHire two engineers\n\n\n\n__________________________________________________\nRenewals include multi-year contracts.\u00a0\u21a9\n\n",
+    "bullets": 3,
+    "footnotes": 0,
+    "named_ranges": []
+  }
+}

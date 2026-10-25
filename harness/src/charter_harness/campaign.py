@@ -41,6 +41,11 @@ MODELS: dict[str, str] = {
     # concession. `glm` is the swap arm - a different lineage at a similar price.
     "lightning": "fireworks/accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b",
     "glm": "fireworks/accounts/fireworks/models/glm-5p3-flash",
+    # Claude through bench/claude_provider.py on a Claude subscription, as a model and
+    # nothing else (no tools of its own, no Claude Code prompt). Needs the provider
+    # running and CLAUDE_BASE_URL=http://127.0.0.1:<port>/v1, CLAUDE_API_KEY=local.
+    "opus": "openai-api/claude/opus",
+    "sonnet": "openai-api/claude/sonnet",
 }
 
 RESULTS_ROOT = Path(__file__).resolve().parents[2] / "results"
@@ -197,7 +202,7 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument(
         "--models", default="nemotron", help=f"comma-separated; short names: {', '.join(MODELS)}"
     )
-    p_run.add_argument("--scenarios", default="all", help="all | id,id,... | pack name")
+    p_run.add_argument("--scenarios", default="all", help="all | traps | id,id,... | pack name")
     p_run.add_argument("--epochs", type=int, default=3)
     p_run.add_argument(
         "--max-samples", type=int, default=2, help="samples in flight per task (quota-bound)"

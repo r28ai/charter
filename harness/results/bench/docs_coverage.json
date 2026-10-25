@@ -1,0 +1,318 @@
+{
+  "kinds": 53,
+  "per_kind": [
+    {
+      "kind": "replaceImage",
+      "charter": "typed",
+      "composio": "typed"
+    },
+    {
+      "kind": "insertRichLink",
+      "charter": "not reachable",
+      "composio": "untyped passthrough"
+    },
+    {
+      "kind": "updateDocumentStyle",
+      "charter": "typed",
+      "composio": "typed"
+    },
+    {
+      "kind": "insertText",
+      "charter": "typed",
+      "composio": "typed"
+    },
+    {
+      "kind": "deleteNamedRange",
+      "charter": "typed",
+      "composio": "typed"
+    },
+    {
+      "kind": "mergeTableCells",
+      "charter": "typed",
+      "composio": "untyped passthrough"
+    },
+    {
+      "kind": "insertPageBreak",
+      "charter": "typed",
+      "composio": "typed"
+    },
+    {
+      "kind": "updateDocumentTabProperties",
+      "charter": "not reachable",
+      "composio": "untyped passthrough"
+    },
+    {
+      "kind": "insertDropdown",
+      "charter": "not reachable",
+      "composio": "untyped passthrough"
+    },
+    {
+      "kind": "deleteComment",
+      "charter": "not reachable",
+      "composio": "untyped passthrough"
+    },
+    {
+      "kind": "updateCommentPost",
+      "charter": "not reachable",
+      "composio": "untyped passthrough"
+    },
+    {
+      "kind": "updateTableColumnProperties",
+      "charter": "typed",
+      "composio": "untyped passthrough"
+    },
+    {
+      "kind": "deleteContentRange",
+      "charter": "typed",
+      "composio": "typed"
+    },
+    {
+      "kind": "updateSectionStyle",
+      "charter": "typed",
+      "composio": "untyped passthrough"
+    },
+    {
+      "kind": "insertSectionBreak",
+      "charter": "typed",
+      "composio": "untyped passthrough"
+    },
+    {
+      "kind": "insertTable",
+      "charter": "typed",
+      "composio": "typed"
+    },
+    {
+      "kind": "createFooter",
+      "charter": "typed",
+      "composio": "typed"
+    },
+    {
+      "kind": "replaceAllText",
+      "charter": "typed",
+      "composio": "typed"
+    },
+    {
+      "kind": "acceptSuggestion",
+      "charter": "not reachable",
+      "composio": "untyped passthrough"
+    },
+    {
+      "kind": "deleteCommentReply",
+      "charter": "not reachable",
+      "composio": "untyped passthrough"
+    },
+    {
+      "kind": "insertTableColumn",
+      "charter": "typed",
+      "composio": "typed"
+    },
+    {
+      "kind": "insertInlineImage",
+      "charter": "typed",
+      "composio": "typed"
+    },
+    {
+      "kind": "updateDropdownDefinitionProperties",
+      "charter": "not reachable",
+      "composio": "untyped passthrough"
+    },
+    {
+      "kind": "deleteFooter",
+      "charter": "typed",
+      "composio": "typed"
+    },
+    {
+      "kind": "addDocumentTab",
+      "charter": "not reachable",
+      "composio": "untyped passthrough"
+    },
+    {
+      "kind": "deleteTab",
+      "charter": "not reachable",
+      "composio": "untyped passthrough"
+    },
+    {
+      "kind": "deleteDropdownDefinition",
+      "charter": "not reachable",
+      "composio": "untyped passthrough"
+    },
+    {
+      "kind": "rejectSuggestion",
+      "charter": "not reachable",
+      "composio": "untyped passthrough"
+    },
+    {
+      "kind": "pinTableHeaderRows",
+      "charter": "typed",
+      "composio": "untyped passthrough"
+    },
+    {
+      "kind": "deleteTableRow",
+      "charter": "typed",
+      "composio": "typed"
+    },
+    {
+      "kind": "deleteTableColumn",
+      "charter": "typed",
+      "composio": "typed"
+    },
+    {
+      "kind": "deleteSuggestion",
+      "charter": "not reachable",
+      "composio": "untyped passthrough"
+    },
+    {
+      "kind": "unmergeTableCells",
+      "charter": "typed",
+      "composio": "typed"
+    },
+    {
+      "kind": "replaceNamedRangeContent",
+      "charter": "typed",
+      "composio": "untyped passthrough"
+    },
+    {
+      "kind": "updateTableRowStyle",
+      "charter": "typed",
+      "composio": "typed"
+    },
+    {
+      "kind": "createDropdownDefinition",
+      "charter": "not reachable",
+      "composio": "untyped passthrough"
+    },
+    {
+      "kind": "insertPerson",
+      "charter": "not reachable",
+      "composio": "untyped passthrough"
+    },
+    {
+      "kind": "updateTextStyle",
+      "charter": "typed",
+      "composio": "untyped passthrough"
+    },
+    {
+      "kind": "updateParagraphStyle",
+      "charter": "typed",
+      "composio": "untyped passthrough"
+    },
+    {
+      "kind": "updateDropdownProperties",
+      "charter": "not reachable",
+      "composio": "untyped passthrough"
+    },
+    {
+      "kind": "createParagraphBullets",
+      "charter": "typed",
+      "composio": "typed"
+    },
+    {
+      "kind": "deleteParagraphBullets",
+      "charter": "typed",
+      "composio": "typed"
+    },
+    {
+      "kind": "addCommentReply",
+      "charter": "not reachable",
+      "composio": "untyped passthrough"
+    },
+    {
+      "kind": "insertTableRow",
+      "charter": "typed",
+      "composio": "untyped passthrough"
+    },
+    {
+      "kind": "createFootnote",
+      "charter": "typed",
+      "composio": "typed"
+    },
+    {
+      "kind": "deletePositionedObject",
+      "charter": "typed",
+      "composio": "untyped passthrough"
+    },
+    {
+      "kind": "createHeader",
+      "charter": "typed",
+      "composio": "typed"
+    },
+    {
+      "kind": "deleteHeader",
+      "charter": "typed",
+      "composio": "typed"
+    },
+    {
+      "kind": "insertComment",
+      "charter": "not reachable",
+      "composio": "untyped passthrough"
+    },
+    {
+      "kind": "updateTableCellStyle",
+      "charter": "typed",
+      "composio": "untyped passthrough"
+    },
+    {
+      "kind": "insertDate",
+      "charter": "not reachable",
+      "composio": "untyped passthrough"
+    },
+    {
+      "kind": "createNamedRange",
+      "charter": "typed",
+      "composio": "typed"
+    },
+    {
+      "kind": "updateNamedStyle",
+      "charter": "not reachable",
+      "composio": "untyped passthrough"
+    }
+  ],
+  "charter": {
+    "tools": 3,
+    "typed_kinds": 33,
+    "trace": {
+      "fields": 155,
+      "traceable": 155,
+      "unmapped": []
+    }
+  },
+  "composio": {
+    "tools": 32,
+    "docs_tools": 28,
+    "not_docs": {
+      "GOOGLEDOCS_COPY_DOCUMENT": "copies through Drive",
+      "GOOGLEDOCS_GET_CHARTS_FROM_SPREADSHEET": "reads a Sheets spreadsheet",
+      "GOOGLEDOCS_LIST_SPREADSHEET_CHARTS_ACTION": "reads a Sheets spreadsheet",
+      "GOOGLEDOCS_SEARCH_DOCUMENTS": "searches Drive"
+    },
+    "typed_kinds": 22,
+    "passthrough": "GOOGLEDOCS_UPDATE_EXISTING_DOCUMENT",
+    "trace": {
+      "fields": 186,
+      "traceable": 172,
+      "unmapped": [
+        "editDocs",
+        "find_text",
+        "insertAtEndOfSegment",
+        "insertion_index",
+        "markdown_text",
+        "new_markdown_text",
+        "oddPageFooterId",
+        "oddPageHeaderId",
+        "rangeEndIndex",
+        "rangeSegmentId",
+        "rangeStartIndex",
+        "table_end_index",
+        "table_start_index",
+        "text_to_insert"
+      ]
+    },
+    "unmapped_tools": [
+      "GOOGLEDOCS_CREATE_DOCUMENT",
+      "GOOGLEDOCS_CREATE_DOCUMENT_MARKDOWN",
+      "GOOGLEDOCS_GET_DOCUMENT_BY_ID",
+      "GOOGLEDOCS_UPDATE_DOCUMENT_MARKDOWN",
+      "GOOGLEDOCS_UPDATE_EXISTING_DOCUMENT"
+    ]
+  }
+}

@@ -26,6 +26,9 @@ harness/results/stage3-final-all/*
 !harness/results/stage2-final/summary.md
 !harness/results/stage3-final-all/summary.json
 !harness/results/stage3-final-all/summary.md
+# The benchmark tables under bench/ are cited the same way, so they are tracked
+# whole: every file there is a table's evidence or the run that produced it.
+!harness/results/bench/
 
 # A library declares dependency ranges; it does not pin them. CI installs from
 # pyproject.toml, so a committed lock would never be exercised and would rot

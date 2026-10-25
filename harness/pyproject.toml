@@ -23,6 +23,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# bench/false_passes.py: ROUGE-1 as Google ADK computes it.
+bench = ["rouge-score>=0.1.2", "mcp>=1.2"]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",

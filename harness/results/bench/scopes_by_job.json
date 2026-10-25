@@ -1,0 +1,114 @@
+[
+  {
+    "job": "send notification emails",
+    "charter": [
+      "gmail.send"
+    ],
+    "charter_restricted": false,
+    "workspace_mcp_service": [
+      "gmail.readonly",
+      "gmail.send",
+      "gmail.compose",
+      "gmail.modify",
+      "gmail.labels",
+      "gmail.settings.basic"
+    ],
+    "workspace_mcp_service_restricted": true,
+    "workspace_mcp_narrowest_flag": "gmail:send",
+    "workspace_mcp_narrowest": [
+      "gmail.readonly",
+      "gmail.labels",
+      "gmail.modify",
+      "gmail.compose",
+      "gmail.send"
+    ],
+    "workspace_mcp_narrowest_restricted": true
+  },
+  {
+    "job": "draft replies for a person to send",
+    "charter": [
+      "gmail.readonly",
+      "gmail.compose"
+    ],
+    "charter_restricted": true,
+    "workspace_mcp_service": [
+      "gmail.readonly",
+      "gmail.send",
+      "gmail.compose",
+      "gmail.modify",
+      "gmail.labels",
+      "gmail.settings.basic"
+    ],
+    "workspace_mcp_service_restricted": true,
+    "workspace_mcp_narrowest_flag": "gmail:drafts",
+    "workspace_mcp_narrowest": [
+      "gmail.readonly",
+      "gmail.labels",
+      "gmail.modify",
+      "gmail.compose"
+    ],
+    "workspace_mcp_narrowest_restricted": true
+  },
+  {
+    "job": "triage the inbox with labels",
+    "charter": [
+      "gmail.modify"
+    ],
+    "charter_restricted": true,
+    "workspace_mcp_service": [
+      "gmail.readonly",
+      "gmail.send",
+      "gmail.compose",
+      "gmail.modify",
+      "gmail.labels",
+      "gmail.settings.basic"
+    ],
+    "workspace_mcp_service_restricted": true,
+    "workspace_mcp_narrowest_flag": "gmail:organize",
+    "workspace_mcp_narrowest": [
+      "gmail.readonly",
+      "gmail.labels",
+      "gmail.modify"
+    ],
+    "workspace_mcp_narrowest_restricted": true
+  },
+  {
+    "job": "write a report into a new Google Doc",
+    "charter": [
+      "documents"
+    ],
+    "charter_restricted": false,
+    "workspace_mcp_service": [
+      "documents.readonly",
+      "documents",
+      "drive.readonly",
+      "drive.file"
+    ],
+    "workspace_mcp_service_restricted": true,
+    "workspace_mcp_narrowest_flag": "docs:full",
+    "workspace_mcp_narrowest": [
+      "documents",
+      "drive.readonly",
+      "drive.file"
+    ],
+    "workspace_mcp_narrowest_restricted": true
+  },
+  {
+    "job": "answer questions from Drive files",
+    "charter": [
+      "drive.readonly"
+    ],
+    "charter_restricted": true,
+    "workspace_mcp_service": [
+      "drive",
+      "drive.readonly",
+      "drive.file"
+    ],
+    "workspace_mcp_service_restricted": true,
+    "workspace_mcp_narrowest_flag": "drive:readonly",
+    "workspace_mcp_narrowest": [
+      "drive.readonly"
+    ],
+    "workspace_mcp_narrowest_restricted": true
+  }
+]

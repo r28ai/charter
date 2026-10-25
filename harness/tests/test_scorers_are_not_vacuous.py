@@ -25,6 +25,9 @@ from charter_harness.scenarios.base import Verdict
 # wrong_observations() may be shaped by its parameters, so each is checked.
 SCENARIOS = all_scenarios(variants=True)
 TEMPLATES = templates()
+# The trap family is benchmark material, outside the corpus counts above, but its
+# judges are held to the same standard.
+JUDGED = SCENARIOS + all_scenarios(variants=True, family="trap")
 MIN_WRONG = 2
 MIN_INSTANCES = 100  # phase 3 target: 100-300 scenario instances
 
@@ -62,7 +65,7 @@ def test_the_variants_reach_the_phase_three_corpus():
     assert not without, f"templates with no variants: {without}"
 
 
-@pytest.mark.parametrize("scenario", SCENARIOS, ids=_ids)
+@pytest.mark.parametrize("scenario", JUDGED, ids=_ids)
 def test_judge_accepts_the_example(scenario: Scenario):
     expected, observed = scenario.example()
     verdict = scenario.judge(expected, observed)
@@ -72,7 +75,7 @@ def test_judge_accepts_the_example(scenario: Scenario):
     )
 
 
-@pytest.mark.parametrize("scenario", SCENARIOS, ids=_ids)
+@pytest.mark.parametrize("scenario", JUDGED, ids=_ids)
 def test_judge_rejects_every_wrong_observation(scenario: Scenario):
     expected, observed = scenario.example()
     wrongs = scenario.wrong_observations(expected, observed)
@@ -87,7 +90,7 @@ def test_judge_rejects_every_wrong_observation(scenario: Scenario):
     assert not vacuous, f"scorer for {scenario.id} is vacuous against: " + "; ".join(vacuous)
 
 
-@pytest.mark.parametrize("scenario", SCENARIOS, ids=_ids)
+@pytest.mark.parametrize("scenario", JUDGED, ids=_ids)
 def test_wrong_observations_are_actually_different(scenario: Scenario):
     """A 'wrong' observation identical to the correct one would pass trivially in reverse."""
     expected, observed = scenario.example()
@@ -97,7 +100,7 @@ def test_wrong_observations_are_actually_different(scenario: Scenario):
         )
 
 
-@pytest.mark.parametrize("scenario", SCENARIOS, ids=_ids)
+@pytest.mark.parametrize("scenario", JUDGED, ids=_ids)
 def test_judge_is_pure_and_explains_failures(scenario: Scenario):
     expected, observed = scenario.example()
     first = scenario.judge(expected, observed)

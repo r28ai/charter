@@ -1,0 +1,47 @@
+{
+  "run_at": "2026-10-23T19:24:15Z",
+  "probes": {
+    "slack": {
+      "what": "conversations.info on a channel that does not exist",
+      "status": 200,
+      "ok": false,
+      "error": "channel_not_found"
+    },
+    "linear": {
+      "what": "issue(id:) for an id that does not exist",
+      "status": 200,
+      "data": null,
+      "errors": [
+        {
+          "message": "Entity not found: Issue",
+          "code": "INPUT_ERROR"
+        }
+      ]
+    },
+    "firecrawl": {
+      "what": "scrape of a page that answers 404",
+      "status": 200,
+      "success": true,
+      "metadata.statusCode": 404,
+      "metadata.error": "Not Found",
+      "markdown_chars": 992
+    },
+    "tavily": {
+      "what": "extract of a page that answers 404",
+      "status": 432,
+      "results": 0,
+      "failed_results": null
+    },
+    "stripe": {
+      "what": "refund that does not exist (control)",
+      "status": 404,
+      "type": "invalid_request_error",
+      "code": "resource_missing"
+    },
+    "github": {
+      "what": "issue that does not exist (control)",
+      "status": 404,
+      "message": "Not Found"
+    }
+  }
+}

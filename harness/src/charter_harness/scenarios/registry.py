@@ -35,16 +35,16 @@ def load_all() -> dict[str, Scenario]:
         import charter_harness.scenarios as package
 
         for info in pkgutil.iter_modules(package.__path__):
-            if info.name[:1] == "s" and info.name[1:3].isdigit():
+            if info.name[:1] in ("s", "t") and info.name[1:3].isdigit():
                 importlib.import_module(f"{package.__name__}.{info.name}")
         _LOADED = True
     return SCENARIOS
 
 
-def all_scenarios(*, variants: bool = False) -> list[Scenario]:
+def all_scenarios(*, variants: bool = False, family: str = "office") -> list[Scenario]:
     """The templates (phase 1/2), or every instance including variants (phase 3)."""
     load_all()
-    chosen = [SCENARIOS[k] for k in sorted(SCENARIOS)]
+    chosen = [SCENARIOS[k] for k in sorted(SCENARIOS) if SCENARIOS[k].family == family]
     return chosen if variants else [s for s in chosen if not s.variant]
 
 
@@ -74,6 +74,8 @@ def select(
     load_all()
     if not spec or spec == "all":
         chosen = all_scenarios(variants=variants)
+    elif spec == "traps":
+        chosen = all_scenarios(variants=variants, family="trap")
     else:
         parts = [p.strip() for p in spec.split(",") if p.strip()]
         chosen = []
@@ -83,7 +85,8 @@ def select(
                 if named.variant:  # one explicit variant
                     chosen.append(named)
                 else:  # a template: itself, plus its variants when asked for
-                    chosen.extend(s for s in all_scenarios(variants=variants) if s.template == part)
+                    family = all_scenarios(variants=variants, family=named.family)
+                    chosen.extend(s for s in family if s.template == part)
             else:
                 matching = [s for s in all_scenarios(variants=variants) if part in s.packs]
                 if not matching:

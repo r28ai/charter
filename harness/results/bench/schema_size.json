@@ -1,0 +1,198 @@
+{
+  "operations": [
+    {
+      "operation": "Slack: add a reaction",
+      "charter": {
+        "tool": "reactions_add",
+        "bytes": 568
+      },
+      "mcp": {
+        "server": "korotovsky/slack-mcp-server 1.3.0",
+        "tool": "reactions_add",
+        "bytes": 669
+      }
+    },
+    {
+      "operation": "Slack: post a message",
+      "charter": {
+        "tool": "chat_post_message",
+        "bytes": 3750
+      },
+      "mcp": {
+        "server": "korotovsky/slack-mcp-server 1.3.0",
+        "tool": "conversations_add_message",
+        "bytes": 1403
+      }
+    },
+    {
+      "operation": "Linear: update an issue",
+      "charter": {
+        "tool": "issue_update",
+        "bytes": 5757
+      },
+      "mcp": {
+        "server": "Linear's hosted MCP server (mcp.linear.app)",
+        "tool": "save_issue",
+        "bytes": 8271
+      }
+    },
+    {
+      "operation": "Linear: comment on an issue",
+      "charter": {
+        "tool": "comment_create",
+        "bytes": 3239
+      },
+      "mcp": {
+        "server": "Linear's hosted MCP server (mcp.linear.app)",
+        "tool": "save_comment",
+        "bytes": 2821
+      }
+    },
+    {
+      "operation": "Gmail: update a label",
+      "charter": {
+        "tool": "labels_patch",
+        "bytes": 3842
+      },
+      "mcp": {
+        "server": "taylorwilsdon/google_workspace_mcp 2.2.0",
+        "tool": "manage_gmail_label",
+        "bytes": 1887
+      },
+      "composio": {
+        "tool": "GMAIL_PATCH_LABEL",
+        "bytes": 2100
+      }
+    },
+    {
+      "operation": "Gmail: list messages",
+      "charter": {
+        "tool": "messages_list",
+        "bytes": 1477
+      },
+      "mcp": {
+        "server": "taylorwilsdon/google_workspace_mcp 2.2.0",
+        "tool": "search_gmail_messages",
+        "bytes": 1341
+      },
+      "composio": {
+        "tool": "GMAIL_FETCH_EMAILS",
+        "bytes": 2789
+      }
+    },
+    {
+      "operation": "Gmail: create a draft",
+      "charter": {
+        "tool": "drafts_create",
+        "bytes": 3240
+      },
+      "mcp": {
+        "server": "taylorwilsdon/google_workspace_mcp 2.2.0",
+        "tool": "draft_gmail_message",
+        "bytes": 5759
+      },
+      "composio": {
+        "tool": "GMAIL_CREATE_EMAIL_DRAFT",
+        "bytes": 2510
+      }
+    },
+    {
+      "operation": "Calendar: list events",
+      "charter": {
+        "tool": "events_list",
+        "bytes": 7367
+      },
+      "mcp": {
+        "server": "taylorwilsdon/google_workspace_mcp 2.2.0",
+        "tool": "get_events",
+        "bytes": 3490
+      }
+    },
+    {
+      "operation": "GitHub: list a repository's issues",
+      "charter": {
+        "tool": "issues_list_for_repo",
+        "bytes": 2605
+      },
+      "mcp": {
+        "server": "github/github-mcp-server 2.0.3",
+        "tool": "list_issues",
+        "bytes": 2340
+      }
+    },
+    {
+      "operation": "Stripe: list customers",
+      "charter": {
+        "tool": "customers_list",
+        "bytes": 1075
+      },
+      "mcp": {
+        "server": "@stripe/mcp 0.3.3",
+        "tool": "stripe_api_read",
+        "bytes": 1246
+      }
+    }
+  ],
+  "surfaces": [
+    {
+      "api": "Github",
+      "mcp": {
+        "server": "github/github-mcp-server 2.0.3",
+        "tools": 46,
+        "bytes": 49408
+      },
+      "charter": {
+        "tools": 139,
+        "bytes": 160089
+      }
+    },
+    {
+      "api": "Gmail and Calendar",
+      "mcp": {
+        "server": "taylorwilsdon/google_workspace_mcp 2.2.0",
+        "tools": 22,
+        "bytes": 46828
+      },
+      "charter": {
+        "tools": 37,
+        "bytes": 176906
+      }
+    },
+    {
+      "api": "Linear",
+      "mcp": {
+        "server": "Linear's hosted MCP server (mcp.linear.app)",
+        "tools": 60,
+        "bytes": 84263
+      },
+      "charter": {
+        "tools": 128,
+        "bytes": 375895
+      }
+    },
+    {
+      "api": "Slack",
+      "mcp": {
+        "server": "korotovsky/slack-mcp-server 1.3.0",
+        "tools": 16,
+        "bytes": 13269
+      },
+      "charter": {
+        "tools": 18,
+        "bytes": 20035
+      }
+    },
+    {
+      "api": "Stripe",
+      "mcp": {
+        "server": "@stripe/mcp 0.3.3",
+        "tools": 9,
+        "bytes": 15840
+      },
+      "charter": {
+        "tools": 66,
+        "bytes": 118596
+      }
+    }
+  ]
+}
