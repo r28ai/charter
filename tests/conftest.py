@@ -22,6 +22,7 @@ _READS = {
     "test_agent_docs.py": ("docs", "scripts", "skills"),
     "test_doc_figures.py": ("docs",),
     "test_measured_results.py": ("docs", "harness"),
+    "test_openapi_to_pack.py": ("scripts",),
     "test_docs_oauth.py": ("docs", "scripts"),
     "test_error_docs.py": ("docs",),
     "test_landing_docs.py": ("docs",),
