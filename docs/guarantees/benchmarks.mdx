@@ -8,7 +8,7 @@ the places it can go wrong without anyone noticing: a rule the model was told an
 broke anyway, an injected instruction it followed, a policy step skipped and graded
 a pass, a call outside the API's limits let through, a task done to the wrong object
 and reported as done, a failure the API reported as a success. Everything here was run
-on 23 and 24 October 2026, except the cost per task, which is read from September's
+between 23 and 26 October 2026, except the cost per task, which is read from September's
 campaign, and every number links to the code and the raw records that produced it. Where Charter lost, it says so, in
 [its own section](#where-charter-lost).
 
@@ -141,9 +141,14 @@ code: [`harness/bench/agentdojo/`](https://github.com/r28ai/charter/tree/main/ha
 
 [τ²-bench](https://github.com/sierra-research/tau2-bench) (Sierra) puts an agent in
 front of a simulated customer, with a written policy and a store's tools, and scores
-the store's database afterwards against the one the task's gold actions produce. Its retail domain,
-the first 20 tasks of its test split, three ways, with the same agent model and policy
-and glm-5p3-flash as the customer throughout:
+the store's database afterwards against the one the task's gold actions produce. It
+ran here twice over: first its retail domain's first 20 tasks on three models, then
+every retail and airline task on Claude Sonnet 5.
+
+### Retail, 20 tasks, three models (24 October)
+
+The first 20 tasks of retail's test split, three ways, with the same agent model and
+policy and glm-5p3-flash as the customer throughout:
 
 - **stock**: the domain's own tools and agent.
 - **charter_plain**: the same tools declared with Charter, field for field, and
@@ -196,7 +201,65 @@ came out one ahead (15 and 14 of 20). `RULES.md` named this cost before the run.
 The same arm moved by up to five tasks of 40 between the two runs, which is the
 noise in these numbers, and the declaration alone moved nothing outside it.
 
-Records: [`harness/results/bench/tau/`](https://github.com/r28ai/charter/tree/main/harness/results/bench/tau),
+### Every retail and airline task, Claude Sonnet 5 (25 and 26 October)
+
+τ²-bench's whole `base` split: retail's 114 tasks and airline's 50, with Sonnet as the
+agent and glm-5p3-flash as the customer again. The grade is τ²-bench's full one:
+retail's database check times its natural-language assertions, and airline's
+database check times the facts the agent had to tell the customer. τ²-bench judges
+both with OpenAI models; glm-5p3-flash judged them, with τ²-bench's own prompts. Each
+arm ran each task once. Four trials were planned, and the runs were stopped after one
+because they used up the subscription's limits, so these rows have no pass^k beyond
+pass^1, and the noise between trials (up to five tasks of 40 above) is not measured
+in them.
+
+Airline's rules were written the same way, from its policy and tools before any of
+its tasks was read, and committed with predictions
+([`RULES_AIRLINE.md`](https://github.com/r28ai/charter/tree/main/harness/bench/tau/RULES_AIRLINE.md)):
+eleven rules, among them that the customer gives their own user id, an explicit yes
+before any change, what a basic-economy booking may change, when a booking may be
+cancelled, the free-bag allowance, and when a certificate may be offered. The stock
+arm ran first, to see whether there was anything to measure. It scored 44 of 50, and
+4 calls broke a rule and ran, in 2 conversations, both scored as passes. All four
+broke the explicit-yes rule after the customer had agreed in other words ("Just get
+those bags on there"; "Go ahead then. Upgrade…", said before the agent listed the
+charges). No other rule was broken. The prediction had been 15 to 40 such calls; with
+4, the Charter arm was not run on airline.
+
+| retail, 114 tasks × 1 | stock | charter_rules |
+|---|---:|---:|
+| database right | 96 | 88 |
+| database and assertions | **93** | **82** |
+| calls that broke a rule and still ran | 84: 9 before anyone was authenticated, 77 broke rule 3 (two did both) | **0** (184 refused) |
+| conversations with such a call | 52 | 0 |
+| of those, scored as passes | **45** | **0** |
+
+Two of the 45 changed an account before the customer had been authenticated, and
+neither is a clean case. In task 5 the agent opened the account by the user id the
+customer gave and checked the zip code on it, where the policy asks it to find the id
+by email, or by name and zip code, first. In task 13 its call to look the customer up
+came out as text instead of a call, the simulated customer answered with a user id in
+JSON, and the agent took that as verified. The other 43 broke rule 3 alone: the
+customer agreed, but not in a message that begins with "yes".
+
+Rule 3 cost tasks. The rules arm scored 82 against stock's 93: it failed 19 tasks
+stock passed, 9 of them with a rule-3 refusal in the conversation and 10 with no
+refusal at all, and passed 8 that stock failed. After its 183 rule-3 refusals the
+agent asked again, and a call to the same tool later went through 168 times.
+
+One thing in these runs is the harness's, not either arm's. Sonnet ran through
+`claude -p` with its tools written into its system prompt, and in 54 stock and 62
+charter_rules retail conversations (and 9 airline ones) at least one of its calls came
+out in a form the provider could not read as a call, and reached the customer as text:
+89 and 88 such messages. It hit both arms alike, and task 13 is one of its results.
+
+The Claude calls would have cost about $69 at API prices, for everything the provider
+served over the two days, including episodes cut off by a limit and 17 of a second
+trial that are left out; the subscription was charged nothing extra. The customer on
+Fireworks cost $0.73.
+
+Records: [`harness/results/bench/tau/`](https://github.com/r28ai/charter/tree/main/harness/results/bench/tau)
+(the Sonnet runs in `sonnet5-2026-10-25/`, with every conversation),
 code: [`harness/bench/tau/`](https://github.com/r28ai/charter/tree/main/harness/bench/tau).
 
 ## The same calls through each tool layer
@@ -525,7 +588,9 @@ by all runs:
 - **A rule worded tighter than the people it reads.** τ²-bench's rule 3 asks for a
   message that begins with "yes"; its simulated customers mostly agree with "yeah,
   go ahead". The rule refused 99 writes over two runs, and on glm-5p3-flash it cost
-  3 tasks of 80, where after the refusal the agent never made the change.
+  3 tasks of 80, where after the refusal the agent never made the change. On every
+  retail task with Sonnet the rules arm scored 82 of 114 against stock's 93; 9 of
+  the 19 tasks it lost had a rule-3 refusal in them.
 - **The benchmark found a bug in Charter.** A list sent as a JSON string is parsed
   for the model, but only under the field's snake_case name, while Charter's schema
   advertises camelCase: `item_ids: "[...]"` worked and `itemIds: "[...]"` was
@@ -571,9 +636,11 @@ by all runs:
 - **Three models, one of them frontier.** Sonnet kept every prompted rule; the
   point of the rules table is that a guarantee should not depend on which model.
   Sonnet saw its tools as text in its system prompt, not through tool calling.
-- **τ²-bench is 20 tasks**, with one model as every simulated customer and
-  glm-5p3-flash, not the OpenAI model τ²-bench names, judging the assertions; Sonnet
-  ran 10 of them, once per run.
+- **τ²-bench's three-model runs are 20 tasks**, with one model as every simulated
+  customer and glm-5p3-flash, not the OpenAI models τ²-bench names, judging the
+  assertions. Sonnet ran all 164 retail and airline tasks, but once each, so its rows
+  carry no measure of noise, and in about half its retail conversations a call came
+  out as text the harness could not read.
 - **One AgentDojo suite and one attack.** Banking with `important_instructions`.
   Other suites, and attacks written against field rules, are not measured.
 - **The rules pilot calls no real API.** Requests go to a mock that records them,
@@ -605,6 +672,11 @@ CLAUDE_BASE_URL=http://127.0.0.1:8800/v1 CLAUDE_API_KEY=local .venv/bin/python -
 python bench/tau/run.py --model glm-5p3-flash --tasks 20 --trials 2   # in a venv with tau2
 python bench/tau/run.py --model glm-5p3-flash --tasks 20 --trials 2 --out run2 --judge
 python bench/tau/report.py [--run run2] glm-5p3-flash nemotron-lightning claude-sonnet
+python bench/tau/resume.py -- --model claude-sonnet --domain airline --split base --tasks 0 \
+    --arms stock --trials 1 --judge --out sonnet5-2026-10-25   # reruns run.py across limits
+python bench/tau/resume.py -- --model claude-sonnet --domain retail --split base --tasks 0 \
+    --arms stock,charter_rules --trials 1 --judge --out sonnet5-2026-10-25
+python bench/tau/report.py --run sonnet5-2026-10-25 --trials 1 claude-sonnet
 .venv/bin/python bench/claude_provider.py --port 8799   # for --models claude-sonnet
 ```
 
