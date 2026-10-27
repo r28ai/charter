@@ -1,0 +1,56 @@
+2026-10-25T09:32:19+01:00 start 1: run.py --model claude-sonnet --domain airline --split base --tasks 0 --arms stock --trials 1 --workers 4 --judge --out sonnet5-2026-10-25
+2026-10-25T10:01:20+01:00 finished: every episode is recorded
+2026-10-25T14:34:20+01:00 start 1: run.py --model claude-sonnet --domain retail --split base --tasks 0 --arms stock,charter_rules --trials 4 --workers 4 --judge --out sonnet5-2026-10-25
+2026-10-25T18:46:01+01:00 start 1: run.py --model claude-sonnet --domain retail --split base --tasks 0 --arms stock,charter_rules --trials 4 --workers 4 --judge --out sonnet5-2026-10-25
+2026-10-25T18:51:18+01:00 stopped by the provider: litellm.APIError: APIError: OpenAIException - claude subscription limit: You've hit your session limit · resets 7:30pm (Europe/Paris)
+2026-10-25T18:51:18+01:00 waiting: provider reset at 2026-10-25T19:30
+2026-10-25T19:06:25+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 7:30pm (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-25T19:21:29+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 7:30pm (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-25T19:31:04+01:00 provider answers again (HTTP 200)
+2026-10-25T19:31:04+01:00 start 2: run.py --model claude-sonnet --domain retail --split base --tasks 0 --arms stock,charter_rules --trials 4 --workers 4 --judge --out sonnet5-2026-10-25
+2026-10-25T20:11:08+01:00 stopped by the provider: litellm.APIError: APIError: OpenAIException - claude subscription limit: You've hit your session limit · resets 12:30am (Europe/Paris)
+2026-10-25T20:11:08+01:00 waiting: provider reset at 2026-10-26T00:30
+2026-10-25T20:26:11+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 12:30am (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-25T20:41:14+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 12:30am (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-25T21:16:36+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 12:30am (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-25T21:31:40+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 12:30am (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-25T21:46:43+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 12:30am (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-25T22:01:47+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 12:30am (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-25T22:16:51+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 12:30am (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-25T22:31:55+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 12:30am (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-25T22:46:59+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 12:30am (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-25T23:02:03+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 12:30am (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-25T23:17:21+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 12:30am (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-25T23:32:26+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 12:30am (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-25T23:47:30+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 12:30am (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-26T00:02:34+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 12:30am (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-26T00:17:37+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 12:30am (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-26T00:31:05+01:00 provider answers again (HTTP 200)
+2026-10-26T00:31:05+01:00 start 3: run.py --model claude-sonnet --domain retail --split base --tasks 0 --arms stock,charter_rules --trials 4 --workers 4 --judge --out sonnet5-2026-10-25
+2026-10-26T01:09:56+01:00 stopped by the provider: litellm.APIError: APIError: OpenAIException - claude subscription limit: You've hit your session limit · resets 5:30am (Europe/Paris)
+2026-10-26T01:09:56+01:00 waiting: provider reset at 2026-10-26T05:30
+2026-10-26T01:25:00+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 5:30am (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-26T01:40:03+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 5:30am (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-26T01:55:06+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 5:30am (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-26T02:10:10+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 5:30am (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-26T02:25:13+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 5:30am (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-26T02:40:16+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 5:30am (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-26T02:55:20+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 5:30am (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-26T03:10:23+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 5:30am (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-26T03:25:27+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 5:30am (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-26T03:40:29+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 5:30am (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-26T03:55:33+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 5:30am (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-26T04:10:36+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 5:30am (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-26T04:25:40+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 5:30am (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-26T04:40:43+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 5:30am (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-26T04:55:46+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 5:30am (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-26T05:10:49+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 5:30am (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-26T05:25:52+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your session limit \u00b7 resets 5:30am (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-26T05:31:04+01:00 provider answers again (HTTP 200)
+2026-10-26T05:31:04+01:00 start 4: run.py --model claude-sonnet --domain retail --split base --tasks 0 --arms stock,charter_rules --trials 4 --workers 4 --judge --out sonnet5-2026-10-25
+2026-10-26T05:48:55+01:00 stopped by the provider: litellm.APIError: APIError: OpenAIException - claude subscription limit: You've hit your weekly limit · resets Oct 30, 6pm (Europe/Paris)
+2026-10-26T05:48:55+01:00 waiting: provider reset at 2026-10-30T18:00
+2026-10-26T16:03:28+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your weekly limit \u00b7 resets Oct 30, 6pm (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-26T22:00:35+01:00 still refused: HTTP 402: {"error": {"message": "claude subscription limit: You've hit your weekly limit \u00b7 resets Oct 30, 6pm (Europe/Paris)", "type": "insufficient_quota"}}
+2026-10-26T22:15:41+01:00 provider answers again (HTTP 200)
+2026-10-26T22:15:41+01:00 start 5: run.py --model claude-sonnet --domain retail --split base --tasks 0 --arms stock,charter_rules --trials 4 --workers 4 --judge --out sonnet5-2026-10-25
