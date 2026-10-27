@@ -65,6 +65,9 @@ class Session:
     last_user_message: str = ""
     refusals: list[dict[str, Any]] = field(default_factory=list)
 
+    def heard(self, text: str) -> None:
+        self.last_user_message = text
+
 
 SESSION: contextvars.ContextVar[Session] = contextvars.ContextVar("retail_session")
 

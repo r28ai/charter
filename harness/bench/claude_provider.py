@@ -140,11 +140,15 @@ _LIMIT_WORDS = (
     "credit balance",
     "out of extra usage",
 )
+# Any "You've hit your <period> limit": the weekly one ("You've hit your weekly limit
+# · resets Oct 26, 10pm", 2026-10-25) was missed by the list above, so a run kept
+# scheduling episodes that could only fail.
+_HIT_LIMIT = re.compile(r"hit your [\w-]+ limit")
 
 
 def _is_limit(text: str) -> bool:
     lowered = text.lower()
-    return any(word in lowered for word in _LIMIT_WORDS)
+    return any(word in lowered for word in _LIMIT_WORDS) or bool(_HIT_LIMIT.search(lowered))
 
 
 def _parse(result: str) -> tuple[str, list[dict[str, Any]], bool]:
@@ -174,15 +178,42 @@ def _parse(result: str) -> tuple[str, list[dict[str, Any]], bool]:
 
 
 class Provider:
-    def __init__(self, model: str, concurrency: int, effort: str | None) -> None:
+    def __init__(
+        self,
+        model: str,
+        concurrency: int,
+        effort: str | None,
+        simulate_limit: tuple[int, float] | None = None,
+    ) -> None:
         self.model = model
         self.effort = effort
         self.slots = threading.Semaphore(concurrency)
         self.cwd = tempfile.mkdtemp(prefix="claude-provider-")
         self.log_lock = threading.Lock()
         LOG.parent.mkdir(parents=True, exist_ok=True)
+        # (after this many requests, refuse every request for this many seconds)
+        self.simulate_limit = simulate_limit
+        self.requests = 0
+        self.limited_until: float | None = None
+
+    def _simulated_limit(self) -> None:
+        """A rehearsal of a subscription limit, for testing a runner's stop and resume."""
+        if self.simulate_limit is None:
+            return
+        with self.log_lock:
+            self.requests += 1
+            after, seconds = self.simulate_limit
+            if self.limited_until is None and self.requests > after:
+                self.limited_until = time.time() + seconds
+            if self.limited_until is not None and time.time() < self.limited_until:
+                resets = time.strftime("%I:%M%p", time.localtime(self.limited_until)).lower()
+                raise SubscriptionLimit(
+                    f"claude subscription limit: You've hit your session limit · resets "
+                    f"{resets.lstrip('0')} (simulated)"
+                )
 
     def complete(self, request: dict[str, Any]) -> dict[str, Any]:
+        self._simulated_limit()
         messages = request.get("messages", [])
         tools = request.get("tools") or []
         # Both can run to hundreds of kilobytes with a big tool set, past what an
@@ -324,9 +355,17 @@ def main() -> None:
     ap.add_argument("--port", type=int, default=8799)
     ap.add_argument("--concurrency", type=int, default=4)
     ap.add_argument("--effort", default=None, help="low, medium, high; the CLI's default if unset")
+    ap.add_argument(
+        "--simulate-limit",
+        nargs=2,
+        type=float,
+        metavar=("AFTER", "SECONDS"),
+        help="rehearse a limit: after AFTER requests, refuse every request for SECONDS",
+    )
     args = ap.parse_args()
     print(f"serving {args.model} on http://127.0.0.1:{args.port}/v1", flush=True)
-    serve(Provider(args.model, args.concurrency, args.effort), args.port)
+    limit = (int(args.simulate_limit[0]), args.simulate_limit[1]) if args.simulate_limit else None
+    serve(Provider(args.model, args.concurrency, args.effort, limit), args.port)
 
 
 if __name__ == "__main__":
