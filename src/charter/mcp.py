@@ -72,6 +72,7 @@ PACKS = (
     "granola",
     "tavily",
     "outlook",
+    "luma",
 )
 
 

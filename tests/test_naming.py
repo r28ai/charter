@@ -234,7 +234,7 @@ def test_every_shipped_name_is_valid_for_the_strictest_surface():
 
     from charter.mcp import PACKS
 
-    assert len(PACKS) == 16, "a pack was added or removed; this test must cover all of them"
+    assert len(PACKS) == 17, "a pack was added or removed; this test must cover all of them"
     names = [
         qualified_name(t)
         for p in PACKS

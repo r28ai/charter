@@ -540,6 +540,16 @@ _SETUP: Dict[str, _Setup] = {
         ),
         connect="OAuth",
     ),
+    "luma": _Setup(
+        need="A calendar API key, on Luma Plus",
+        where="[luma.com/calendar/manage/api-keys](https://luma.com/calendar/manage/api-keys)",
+        env="`LUMA_API_KEY`",
+        lead=(
+            "**Get a key:** at [luma.com/calendar/manage/api-keys](https://luma.com/calendar/manage/api-keys)"
+            " choose the calendar and generate a key — it reaches that calendar only, and"
+            " the API needs a Luma Plus subscription — then `export LUMA_API_KEY=…`."
+        ),
+    ),
     "granola": _Setup(
         need="An API key, on a Business or Enterprise plan",
         where=(
@@ -912,10 +922,11 @@ def render_auth(pack: str, module: ModuleType) -> str:
         # application whose users each bring their own — is a provider instead
         # of a string, and this is the only place a reader of a key pack learns
         # that configure() takes one.
+        header = _code(first.token_header) if first.token_header else "`Authorization`"
         return (
             f"{lead}\n"
             "\n"
-            f"This pack takes an API key in `Authorization`{source}.\n"
+            f"This pack takes an API key in {header}{source}.\n"
             "\n"
             "That key serves every call the process makes. For an application"
             " whose users each connect their own account, hand"

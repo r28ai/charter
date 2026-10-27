@@ -30,6 +30,7 @@ from charter.packs import (
     granola,
     gsheets,
     linear,
+    luma,
     notion,
     outlook,
     shopify,
@@ -54,12 +55,15 @@ ALL_PACKS = [
     notion,
     granola,
     outlook,
+    luma,
 ]
 GOOGLE_PACKS = [gmail, gcalendar, gsheets, gdocs, gdrive, gforms]
 # Bearer-token packs, Google and otherwise — they share a configure() shape.
 OAUTH_PACKS = [gmail, gcalendar, gsheets, gdocs, gdrive, gforms, slack, github, notion, outlook]
 # Packs whose credential is an API key. They take it through a credential
 # provider like the OAuth packs, so one user's key never serves another's call.
+# Luma reads its key from `x-luma-api-key`, not `Authorization`, so like Shopify it
+# is pinned in its own tests rather than by the bearer-header ones below.
 API_KEY_PACKS = [firecrawl, stripe, linear, granola, tavily]
 # Where each one reads its key from when configure() was never called.
 API_KEY_ENV = {

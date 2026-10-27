@@ -45,7 +45,7 @@
 
 ## Authentication
 
-- [Connect your own account](https://docs.r28.ai/charter/auth/your-own-account.md): What each of the sixteen packs needs before its first call, and the page that issues it.
+- [Connect your own account](https://docs.r28.ai/charter/auth/your-own-account.md): What each of the seventeen packs needs before its first call, and the page that issues it.
 - [Connect your users' accounts](https://docs.r28.ai/charter/auth/your-users.md): How each pack's users connect their own account, what you store, and the one configure() call that serves all of them.
 - [Getting the grant](https://docs.r28.ai/charter/auth/oauth-flow.md): Build the authorization URL and exchange the callback's code. The route, session, and storage stay yours.
 - [Permissions](https://docs.r28.ai/charter/auth/permissions.md): What an agent can do is the tools you hand it. What its credential is granted is the provider's check on that. One declaration per tool keeps the two in step, for every API.

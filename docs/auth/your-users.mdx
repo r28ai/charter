@@ -62,7 +62,7 @@ afterwards. *Provider* is what `for_user` returns.
 | Stripe | a Stripe App install link, or a pasted restricted key | a refresh token, or the key | `OAuth2Client(STRIPE_APPS, ...)` or `StaticTokenProvider` — [Stripe](/auth/providers/stripe) |
 | Shopify | an OAuth link on the merchant's store | the store, and its token | `OAuth2Client(shopify_server(shop), ...)`, with `shop=` per call — [Shopify](/auth/providers/shopify) |
 | Outlook | an OAuth link | a refresh token | `OAuth2Client(MICROSOFT, ...)` — [Microsoft](/auth/providers/microsoft) |
-| Granola | a pasted API key | the key | `StaticTokenProvider` |
+| Granola, Luma | a pasted API key | the key | `StaticTokenProvider` |
 | Firecrawl, Tavily | nothing: these are services you pay for | your own key | `configure(api_key=...)`, once |
 
 Every row takes the same [`OAuth2Flow`](/reference/oauth#oauth2flow), with a

@@ -1458,6 +1458,121 @@
                     ]
                   }
                 ]
+              },
+              {
+                "group": "Luma",
+                "expanded": false,
+                "pages": [
+                  "packs/luma",
+                  {
+                    "group": "Events",
+                    "pages": [
+                      "packs/luma/events/events_get",
+                      "packs/luma/events/events_guests_get",
+                      "packs/luma/events/events_guests_list",
+                      "packs/luma/events/events_coupons_list",
+                      "packs/luma/events/events_ticket_types_list",
+                      "packs/luma/events/events_ticket_types_get",
+                      "packs/luma/events/events_blasts_list",
+                      "packs/luma/events/events_blasts_get",
+                      "packs/luma/events/events_create",
+                      "packs/luma/events/events_update",
+                      "packs/luma/events/events_guests_update_status",
+                      "packs/luma/events/events_guests_update_tickets",
+                      "packs/luma/events/events_guests_send_invites",
+                      "packs/luma/events/events_guests_add",
+                      "packs/luma/events/events_hosts_add",
+                      "packs/luma/events/events_hosts_update",
+                      "packs/luma/events/events_hosts_remove",
+                      "packs/luma/events/events_coupons_create",
+                      "packs/luma/events/events_coupons_update",
+                      "packs/luma/events/events_ticket_types_create",
+                      "packs/luma/events/events_ticket_types_update",
+                      "packs/luma/events/events_ticket_types_delete",
+                      "packs/luma/events/events_blasts_create",
+                      "packs/luma/events/events_blasts_update",
+                      "packs/luma/events/events_blasts_delete",
+                      "packs/luma/events/events_cancel_request",
+                      "packs/luma/events/events_cancel",
+                      "packs/luma/events/objects"
+                    ]
+                  },
+                  {
+                    "group": "Calendars",
+                    "pages": [
+                      "packs/luma/calendars/calendars_get",
+                      "packs/luma/calendars/calendars_events_list",
+                      "packs/luma/calendars/calendars_contact_tags_list",
+                      "packs/luma/calendars/calendars_event_tags_list",
+                      "packs/luma/calendars/calendars_admins_list",
+                      "packs/luma/calendars/calendars_events_lookup",
+                      "packs/luma/calendars/calendars_contacts_list",
+                      "packs/luma/calendars/calendars_coupons_list",
+                      "packs/luma/calendars/calendars_coupons_create",
+                      "packs/luma/calendars/calendars_coupons_update",
+                      "packs/luma/calendars/calendars_contacts_import",
+                      "packs/luma/calendars/calendars_contacts_block",
+                      "packs/luma/calendars/calendars_contacts_remove",
+                      "packs/luma/calendars/calendars_contacts_restore",
+                      "packs/luma/calendars/calendars_contact_tags_create",
+                      "packs/luma/calendars/calendars_contact_tags_update",
+                      "packs/luma/calendars/calendars_contact_tags_delete",
+                      "packs/luma/calendars/calendars_contact_tags_apply",
+                      "packs/luma/calendars/calendars_contact_tags_unapply",
+                      "packs/luma/calendars/calendars_event_tags_create",
+                      "packs/luma/calendars/calendars_event_tags_update",
+                      "packs/luma/calendars/calendars_event_tags_delete",
+                      "packs/luma/calendars/calendars_event_tags_apply",
+                      "packs/luma/calendars/calendars_event_tags_unapply",
+                      "packs/luma/calendars/calendars_events_add",
+                      "packs/luma/calendars/calendars_events_approve",
+                      "packs/luma/calendars/calendars_events_reject",
+                      "packs/luma/calendars/calendars_admins_add",
+                      "packs/luma/calendars/calendars_update",
+                      "packs/luma/calendars/objects"
+                    ]
+                  },
+                  {
+                    "group": "Miscellaneous",
+                    "pages": [
+                      "packs/luma/miscellaneous/users_get_self",
+                      "packs/luma/miscellaneous/entities_lookup",
+                      "packs/luma/miscellaneous/places_search",
+                      "packs/luma/miscellaneous/images_search",
+                      "packs/luma/miscellaneous/images_create_upload_url"
+                    ]
+                  },
+                  {
+                    "group": "Memberships",
+                    "pages": [
+                      "packs/luma/memberships/memberships_tiers_list",
+                      "packs/luma/memberships/memberships_members_add",
+                      "packs/luma/memberships/memberships_members_update_status",
+                      "packs/luma/memberships/objects"
+                    ]
+                  },
+                  {
+                    "group": "Webhooks",
+                    "pages": [
+                      "packs/luma/webhooks/webhooks_list",
+                      "packs/luma/webhooks/webhooks_get",
+                      "packs/luma/webhooks/webhooks_create",
+                      "packs/luma/webhooks/webhooks_update",
+                      "packs/luma/webhooks/webhooks_delete",
+                      "packs/luma/webhooks/objects"
+                    ]
+                  },
+                  {
+                    "group": "Organizations",
+                    "pages": [
+                      "packs/luma/organizations/organizations_admins_list",
+                      "packs/luma/organizations/organizations_calendars_list",
+                      "packs/luma/organizations/organizations_events_list",
+                      "packs/luma/organizations/organizations_calendars_create",
+                      "packs/luma/organizations/organizations_events_transfer_calendar"
+                    ]
+                  }
+                ]
               }
             ]
           },
@@ -4012,6 +4127,302 @@
     {
       "source": "/packs/outlook/tools/translate_exchange_ids",
       "destination": "/packs/outlook/other/translate_exchange_ids"
+    },
+    {
+      "source": "/packs/luma/tools/events_get",
+      "destination": "/packs/luma/events/events_get"
+    },
+    {
+      "source": "/packs/luma/tools/calendars_get",
+      "destination": "/packs/luma/calendars/calendars_get"
+    },
+    {
+      "source": "/packs/luma/tools/calendars_events_list",
+      "destination": "/packs/luma/calendars/calendars_events_list"
+    },
+    {
+      "source": "/packs/luma/tools/events_guests_get",
+      "destination": "/packs/luma/events/events_guests_get"
+    },
+    {
+      "source": "/packs/luma/tools/events_guests_list",
+      "destination": "/packs/luma/events/events_guests_list"
+    },
+    {
+      "source": "/packs/luma/tools/users_get_self",
+      "destination": "/packs/luma/miscellaneous/users_get_self"
+    },
+    {
+      "source": "/packs/luma/tools/calendars_contact_tags_list",
+      "destination": "/packs/luma/calendars/calendars_contact_tags_list"
+    },
+    {
+      "source": "/packs/luma/tools/calendars_event_tags_list",
+      "destination": "/packs/luma/calendars/calendars_event_tags_list"
+    },
+    {
+      "source": "/packs/luma/tools/calendars_admins_list",
+      "destination": "/packs/luma/calendars/calendars_admins_list"
+    },
+    {
+      "source": "/packs/luma/tools/entities_lookup",
+      "destination": "/packs/luma/miscellaneous/entities_lookup"
+    },
+    {
+      "source": "/packs/luma/tools/places_search",
+      "destination": "/packs/luma/miscellaneous/places_search"
+    },
+    {
+      "source": "/packs/luma/tools/images_search",
+      "destination": "/packs/luma/miscellaneous/images_search"
+    },
+    {
+      "source": "/packs/luma/tools/calendars_events_lookup",
+      "destination": "/packs/luma/calendars/calendars_events_lookup"
+    },
+    {
+      "source": "/packs/luma/tools/calendars_contacts_list",
+      "destination": "/packs/luma/calendars/calendars_contacts_list"
+    },
+    {
+      "source": "/packs/luma/tools/events_coupons_list",
+      "destination": "/packs/luma/events/events_coupons_list"
+    },
+    {
+      "source": "/packs/luma/tools/calendars_coupons_list",
+      "destination": "/packs/luma/calendars/calendars_coupons_list"
+    },
+    {
+      "source": "/packs/luma/tools/events_ticket_types_list",
+      "destination": "/packs/luma/events/events_ticket_types_list"
+    },
+    {
+      "source": "/packs/luma/tools/events_ticket_types_get",
+      "destination": "/packs/luma/events/events_ticket_types_get"
+    },
+    {
+      "source": "/packs/luma/tools/events_blasts_list",
+      "destination": "/packs/luma/events/events_blasts_list"
+    },
+    {
+      "source": "/packs/luma/tools/events_blasts_get",
+      "destination": "/packs/luma/events/events_blasts_get"
+    },
+    {
+      "source": "/packs/luma/tools/memberships_tiers_list",
+      "destination": "/packs/luma/memberships/memberships_tiers_list"
+    },
+    {
+      "source": "/packs/luma/tools/webhooks_list",
+      "destination": "/packs/luma/webhooks/webhooks_list"
+    },
+    {
+      "source": "/packs/luma/tools/webhooks_get",
+      "destination": "/packs/luma/webhooks/webhooks_get"
+    },
+    {
+      "source": "/packs/luma/tools/organizations_admins_list",
+      "destination": "/packs/luma/organizations/organizations_admins_list"
+    },
+    {
+      "source": "/packs/luma/tools/organizations_calendars_list",
+      "destination": "/packs/luma/organizations/organizations_calendars_list"
+    },
+    {
+      "source": "/packs/luma/tools/organizations_events_list",
+      "destination": "/packs/luma/organizations/organizations_events_list"
+    },
+    {
+      "source": "/packs/luma/tools/events_create",
+      "destination": "/packs/luma/events/events_create"
+    },
+    {
+      "source": "/packs/luma/tools/events_update",
+      "destination": "/packs/luma/events/events_update"
+    },
+    {
+      "source": "/packs/luma/tools/events_guests_update_status",
+      "destination": "/packs/luma/events/events_guests_update_status"
+    },
+    {
+      "source": "/packs/luma/tools/events_guests_update_tickets",
+      "destination": "/packs/luma/events/events_guests_update_tickets"
+    },
+    {
+      "source": "/packs/luma/tools/events_guests_send_invites",
+      "destination": "/packs/luma/events/events_guests_send_invites"
+    },
+    {
+      "source": "/packs/luma/tools/events_guests_add",
+      "destination": "/packs/luma/events/events_guests_add"
+    },
+    {
+      "source": "/packs/luma/tools/events_hosts_add",
+      "destination": "/packs/luma/events/events_hosts_add"
+    },
+    {
+      "source": "/packs/luma/tools/events_hosts_update",
+      "destination": "/packs/luma/events/events_hosts_update"
+    },
+    {
+      "source": "/packs/luma/tools/events_hosts_remove",
+      "destination": "/packs/luma/events/events_hosts_remove"
+    },
+    {
+      "source": "/packs/luma/tools/events_coupons_create",
+      "destination": "/packs/luma/events/events_coupons_create"
+    },
+    {
+      "source": "/packs/luma/tools/events_coupons_update",
+      "destination": "/packs/luma/events/events_coupons_update"
+    },
+    {
+      "source": "/packs/luma/tools/calendars_coupons_create",
+      "destination": "/packs/luma/calendars/calendars_coupons_create"
+    },
+    {
+      "source": "/packs/luma/tools/calendars_coupons_update",
+      "destination": "/packs/luma/calendars/calendars_coupons_update"
+    },
+    {
+      "source": "/packs/luma/tools/calendars_contacts_import",
+      "destination": "/packs/luma/calendars/calendars_contacts_import"
+    },
+    {
+      "source": "/packs/luma/tools/calendars_contacts_block",
+      "destination": "/packs/luma/calendars/calendars_contacts_block"
+    },
+    {
+      "source": "/packs/luma/tools/calendars_contacts_remove",
+      "destination": "/packs/luma/calendars/calendars_contacts_remove"
+    },
+    {
+      "source": "/packs/luma/tools/calendars_contacts_restore",
+      "destination": "/packs/luma/calendars/calendars_contacts_restore"
+    },
+    {
+      "source": "/packs/luma/tools/calendars_contact_tags_create",
+      "destination": "/packs/luma/calendars/calendars_contact_tags_create"
+    },
+    {
+      "source": "/packs/luma/tools/calendars_contact_tags_update",
+      "destination": "/packs/luma/calendars/calendars_contact_tags_update"
+    },
+    {
+      "source": "/packs/luma/tools/calendars_contact_tags_delete",
+      "destination": "/packs/luma/calendars/calendars_contact_tags_delete"
+    },
+    {
+      "source": "/packs/luma/tools/calendars_contact_tags_apply",
+      "destination": "/packs/luma/calendars/calendars_contact_tags_apply"
+    },
+    {
+      "source": "/packs/luma/tools/calendars_contact_tags_unapply",
+      "destination": "/packs/luma/calendars/calendars_contact_tags_unapply"
+    },
+    {
+      "source": "/packs/luma/tools/calendars_event_tags_create",
+      "destination": "/packs/luma/calendars/calendars_event_tags_create"
+    },
+    {
+      "source": "/packs/luma/tools/calendars_event_tags_update",
+      "destination": "/packs/luma/calendars/calendars_event_tags_update"
+    },
+    {
+      "source": "/packs/luma/tools/calendars_event_tags_delete",
+      "destination": "/packs/luma/calendars/calendars_event_tags_delete"
+    },
+    {
+      "source": "/packs/luma/tools/calendars_event_tags_apply",
+      "destination": "/packs/luma/calendars/calendars_event_tags_apply"
+    },
+    {
+      "source": "/packs/luma/tools/calendars_event_tags_unapply",
+      "destination": "/packs/luma/calendars/calendars_event_tags_unapply"
+    },
+    {
+      "source": "/packs/luma/tools/calendars_events_add",
+      "destination": "/packs/luma/calendars/calendars_events_add"
+    },
+    {
+      "source": "/packs/luma/tools/calendars_events_approve",
+      "destination": "/packs/luma/calendars/calendars_events_approve"
+    },
+    {
+      "source": "/packs/luma/tools/calendars_events_reject",
+      "destination": "/packs/luma/calendars/calendars_events_reject"
+    },
+    {
+      "source": "/packs/luma/tools/images_create_upload_url",
+      "destination": "/packs/luma/miscellaneous/images_create_upload_url"
+    },
+    {
+      "source": "/packs/luma/tools/events_ticket_types_create",
+      "destination": "/packs/luma/events/events_ticket_types_create"
+    },
+    {
+      "source": "/packs/luma/tools/events_ticket_types_update",
+      "destination": "/packs/luma/events/events_ticket_types_update"
+    },
+    {
+      "source": "/packs/luma/tools/events_ticket_types_delete",
+      "destination": "/packs/luma/events/events_ticket_types_delete"
+    },
+    {
+      "source": "/packs/luma/tools/events_blasts_create",
+      "destination": "/packs/luma/events/events_blasts_create"
+    },
+    {
+      "source": "/packs/luma/tools/events_blasts_update",
+      "destination": "/packs/luma/events/events_blasts_update"
+    },
+    {
+      "source": "/packs/luma/tools/events_blasts_delete",
+      "destination": "/packs/luma/events/events_blasts_delete"
+    },
+    {
+      "source": "/packs/luma/tools/memberships_members_add",
+      "destination": "/packs/luma/memberships/memberships_members_add"
+    },
+    {
+      "source": "/packs/luma/tools/memberships_members_update_status",
+      "destination": "/packs/luma/memberships/memberships_members_update_status"
+    },
+    {
+      "source": "/packs/luma/tools/webhooks_create",
+      "destination": "/packs/luma/webhooks/webhooks_create"
+    },
+    {
+      "source": "/packs/luma/tools/webhooks_update",
+      "destination": "/packs/luma/webhooks/webhooks_update"
+    },
+    {
+      "source": "/packs/luma/tools/webhooks_delete",
+      "destination": "/packs/luma/webhooks/webhooks_delete"
+    },
+    {
+      "source": "/packs/luma/tools/events_cancel_request",
+      "destination": "/packs/luma/events/events_cancel_request"
+    },
+    {
+      "source": "/packs/luma/tools/events_cancel",
+      "destination": "/packs/luma/events/events_cancel"
+    },
+    {
+      "source": "/packs/luma/tools/calendars_admins_add",
+      "destination": "/packs/luma/calendars/calendars_admins_add"
+    },
+    {
+      "source": "/packs/luma/tools/calendars_update",
+      "destination": "/packs/luma/calendars/calendars_update"
+    },
+    {
+      "source": "/packs/luma/tools/organizations_calendars_create",
+      "destination": "/packs/luma/organizations/organizations_calendars_create"
+    },
+    {
+      "source": "/packs/luma/tools/organizations_events_transfer_calendar",
+      "destination": "/packs/luma/organizations/organizations_events_transfer_calendar"
     }
   ]
 }

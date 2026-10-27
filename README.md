@@ -274,7 +274,7 @@ tools = to_openai_tools(session)  # function definitions for any chat-completion
 
 ## Ready-made tools
 
-613 tools across sixteen APIs ship with Charter, from Gmail and Slack to Stripe and Linear
+687 tools across seventeen APIs ship with Charter, from Gmail and Slack to Stripe and Linear
 ([full list](https://docs.r28.ai/charter/packs/overview#coverage)). You can extend them with
 your own tools, [request a pack](https://github.com/r28ai/charter/issues), and [contributions are welcome](https://github.com/r28ai/charter/blob/main/CONTRIBUTING.md).
 

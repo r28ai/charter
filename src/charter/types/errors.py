@@ -75,6 +75,7 @@ _PROVIDER_PAGES = {
     "granola": "packs/granola#authenticating",
     "firecrawl": "packs/firecrawl#authenticating",
     "tavily": "packs/tavily#authenticating",
+    "luma": "packs/luma#authenticating",
 }
 
 

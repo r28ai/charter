@@ -112,7 +112,12 @@ def _links(text: str) -> list:
 
     The pack pages' tool lists are generated JSX — the whole row is the anchor —
     so a markdown-only sweep would call ninety live links orphaned.
+
+    Inline code is dropped first: a link written inside backticks renders as
+    code, and a vendor's own description quoting ``![alt](url)`` is not a link
+    to a page called ``url``.
     """
+    text = re.sub(r"`[^`\n]+`", "", text)
     return _LINK.findall(text) + _HREF.findall(text)
 
 
@@ -294,7 +299,7 @@ def test_the_readme_counts_the_shipped_tools_right():
 
     total = sum(len(importlib.import_module(f"charter.packs.{p}").TOOLS) for p in PACKS)
     text = README.read_text()
-    assert f"{total} tools across sixteen APIs" in text and len(PACKS) == 16
+    assert f"{total} tools across seventeen APIs" in text and len(PACKS) == 17
     assert "https://docs.r28.ai/charter/packs/overview#coverage" in text
 
 

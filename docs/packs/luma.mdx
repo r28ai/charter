@@ -1,0 +1,469 @@
+---
+title: "Luma"
+description: "Create and run events: guests, tickets, coupons, email blasts, calendars, contacts, memberships and webhooks."
+sidebarTitle: "Overview"
+---
+
+{/* generated:summary start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="pack-summary">
+  <span><Visibility for="humans"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg></Visibility>74 tools</span>
+  <span><Visibility for="humans"><svg viewBox="0 0 24 24"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4" /><path d="m21 2-9.6 9.6" /><circle cx="7.5" cy="15.5" r="5.5" /></svg></Visibility>API key</span>
+</div>
+{/* generated:summary end */}
+
+```python luma_example.py {10}
+import asyncio
+import os
+
+from charter.packs import luma
+
+luma.configure(api_key=os.environ["LUMA_API_KEY"])
+
+
+async def main():
+    going = await luma.events_guests_list.ainvoke(event_id="evt-...", approval_status="approved")
+
+
+asyncio.run(main())
+```
+
+Luma runs event pages and the calendars that list them. This API is how a
+program does what an organizer does in the app: create and update events, add
+and approve guests, issue ticket types and coupons, email the guest list, and
+manage the calendar's contacts, tags, admins and memberships.
+
+The pack was drafted from Luma's own
+[OpenAPI document](https://public-api.luma.com/openapi.json) by
+`scripts/openapi_to_pack.py`, so every parameter, enum member and description
+is Luma's, word for word. What a spec cannot carry — the rules Luma states in
+prose, the sentences a blank parameter needed, the limits below — was added in
+review.
+
+## Authenticating
+
+{/* generated:auth start — do not edit by hand; run scripts/generate_pack_docs.py */}
+**Get a key:** at [luma.com/calendar/manage/api-keys](https://luma.com/calendar/manage/api-keys) choose the calendar and generate a key — it reaches that calendar only, and the API needs a Luma Plus subscription — then `export LUMA_API_KEY=…`.
+
+This pack takes an API key in `x-luma-api-key`, and [`configure()`](/reference/configuration#configure) is optional when `$LUMA_API_KEY` is set.
+
+That key serves every call the process makes. For an application whose users each connect their own account, hand [`configure()`](/reference/configuration#configure) a `credential_provider` instead — a [`SubjectProvider`](/reference/credentials#subjectprovider) that answers per user — and each call carries the credential of the user [`use_subject`](/reference/credentials#use_subject) names. [Your users' accounts](/auth/your-users) says how each pack's users connect.
+{/* generated:auth end */}
+
+A calendar key reaches the calendar it was made on and nothing else, so the
+`calendars_*` tools act on that calendar and only `calendars_update` asks for its
+ID.
+
+An organization key reaches the `organizations_*` tools. Where Luma documents
+choosing one of the organization's calendars — approving or rejecting a
+submission — it is a header, and which calendar a call acts on is your decision,
+not the model's, so pass it per call rather than as an argument:
+
+```python
+await luma.calendars_events_approve.ainvoke(
+    {"calendar_event_id": "calev-..."}, headers={"x-luma-calendar-id": "cal-..."}
+)
+```
+
+## The client
+
+{/* generated:wire start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<Note>
+[`oauth_tool_factory`](/reference/factories#oauth_tool_factory) is the whole client: a thin wrapper over `httpx` that attaches your key and these endpoint constants to each request. No vendor SDK enters your dependency tree.
+</Note>
+
+<div className="named-tabs" data-files="luma_api_client.py|luma_pack_client.py">
+<CodeGroup>
+
+```python Without the pack
+import os
+
+from charter import oauth_tool_factory
+from charter.auth import StaticTokenProvider
+
+api_key = os.environ["LUMA_API_KEY"]
+
+luma_api_client = oauth_tool_factory(
+    base_url="https://public-api.luma.com/",
+    provider="luma",
+    credential_provider=StaticTokenProvider(api_key),
+    # the token is not sent in Authorization
+    token_header="x-luma-api-key",
+    pack="luma",
+    body_format="json",
+    query_format="repeat",
+    body_case="snake",
+    query_case="snake",
+    path_case="snake",
+    # this API reports failure with an HTTP status code
+    envelope=None,
+)
+```
+
+```python With the pack
+import os
+
+from charter.packs import luma
+
+luma.configure(api_key=os.environ["LUMA_API_KEY"])
+
+# The base URL, the casing, the envelope and the pagination are
+# already declared. 74 tools, ready to hand to a model:
+tools = luma.TOOLS
+```
+
+</CodeGroup>
+</div>
+
+### Paging through a list
+
+A cursor belongs to the tool that returns it, so it is declared on that tool's builder call:
+
+```python luma_pagination.py
+calendars_events_list = luma_api_client(
+    name="calendars_events_list",
+    args_schema=CalendarsEventsListRequest,
+    method="GET",
+    url_template="v1/calendars/events/list",
+    pagination=Pagination(
+        cursor_field="next_cursor",
+        cursor_param="pagination_cursor",
+        more_field="has_more",
+    ),
+)
+```
+
+<Note>
+Pagination is declared on `calendars_events_list`, `events_guests_list`, `images_search`, `calendars_contacts_list`, `events_coupons_list`, `calendars_coupons_list`, `memberships_tiers_list`, `webhooks_list`, `organizations_calendars_list` and `organizations_events_list`. The other 64 take no cursor.
+</Note>
+{/* generated:wire end */}
+
+Reads are `GET`s with query parameters and every write is a `POST`. Luma versions
+each route on its own, so `/v1/` and `/v2/` sit side by side and the version is
+part of each tool's URL. Failure is an HTTP status — `429` past the rate limit of
+200 requests a minute per calendar key — and the ten list tools page on
+`has_more`, sending `next_cursor` back as `pagination_cursor`.
+
+## Limits
+
+- **`null` cannot be sent.** Charter omits an unset field rather than sending
+  `null`, so what Luma clears with `null` — an event's `font`, a registration
+  question's library `source`, a calendar's `location`, a ticket type's
+  `max_per_guest` — can be set through these tools but not cleared.
+- **Uploading an image is two steps, and the second is not a tool.**
+  `images_create_upload_url` returns an `upload_url` to `PUT` the bytes to, which
+  is a file transfer to Luma's CDN rather than an API call.
+- **`events_create` and `events_update` are large**, about 22KB of schema each,
+  mostly themes, fonts and the thirteen kinds of registration question. A
+  [projection](/tools/projections) keeps what an agent uses.
+
+## Tools
+
+Each is a [`Tool`](/reference/tool), called with
+[`ainvoke`](/reference/tool#tool-ainvoke) as in the snippet above.
+
+{/* generated:tools start — do not edit by hand; run scripts/generate_pack_docs.py */}
+<div className="tool-list">
+  <span className="tool-list-group">Events</span>
+  <a className="tool-row" href="/packs/luma/events/events_get">
+    <span className="tool-row-head"><span className="tool-row-name">events_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Return details about an event.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/events/events_guests_get">
+    <span className="tool-row-head"><span className="tool-row-name">events_guests_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get detailed information for an event guest by looking them up by their ID.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/events/events_guests_list">
+    <span className="tool-row-head"><span className="tool-row-name">events_guests_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get list of guests who have registered or been invited to an event.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/events/events_coupons_list">
+    <span className="tool-row-head"><span className="tool-row-name">events_coupons_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List all coupons that have been created for an event.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/events/events_ticket_types_list">
+    <span className="tool-row-head"><span className="tool-row-name">events_ticket_types_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List all ticket types for an event</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/events/events_ticket_types_get">
+    <span className="tool-row-head"><span className="tool-row-name">events_ticket_types_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get a single ticket type by ID</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/events/events_blasts_list">
+    <span className="tool-row-head"><span className="tool-row-name">events_blasts_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the blasts (emails to guests) on an event, newest first.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/events/events_blasts_get">
+    <span className="tool-row-head"><span className="tool-row-name">events_blasts_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get a blast by ID.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/events/events_create">
+    <span className="tool-row-head"><span className="tool-row-name">events_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create an event on the calendar.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/events/events_update">
+    <span className="tool-row-head"><span className="tool-row-name">events_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Update an event by its ID.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/events/events_guests_update_status">
+    <span className="tool-row-head"><span className="tool-row-name">events_guests_update_status</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Update a guest’s status.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/events/events_guests_update_tickets">
+    <span className="tool-row-head"><span className="tool-row-name">events_guests_update_tickets</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Add or remove tickets from an existing guest.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/events/events_guests_send_invites">
+    <span className="tool-row-head"><span className="tool-row-name">events_guests_send_invites</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Send guests an invite to an event.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/events/events_guests_add">
+    <span className="tool-row-head"><span className="tool-row-name">events_guests_add</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Add guests to the event.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/events/events_hosts_add">
+    <span className="tool-row-head"><span className="tool-row-name">events_hosts_add</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Add a host to an event.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/events/events_hosts_update">
+    <span className="tool-row-head"><span className="tool-row-name">events_hosts_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Update a host's permissions or visibility on an event.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/events/events_hosts_remove">
+    <span className="tool-row-head"><span className="tool-row-name">events_hosts_remove</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Remove a host from an event.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/events/events_coupons_create">
+    <span className="tool-row-head"><span className="tool-row-name">events_coupons_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a coupon that can be applied when a guest is registering for an event.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/events/events_coupons_update">
+    <span className="tool-row-head"><span className="tool-row-name">events_coupons_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Change how many more times an event coupon can be used, or the window it is valid in.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/events/events_ticket_types_create">
+    <span className="tool-row-head"><span className="tool-row-name">events_ticket_types_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a new ticket type for an event.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/events/events_ticket_types_update">
+    <span className="tool-row-head"><span className="tool-row-name">events_ticket_types_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Update an existing ticket type configuration</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/events/events_ticket_types_delete">
+    <span className="tool-row-head"><span className="tool-row-name">events_ticket_types_delete</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Soft delete a ticket type.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/events/events_blasts_create">
+    <span className="tool-row-head"><span className="tool-row-name">events_blasts_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Email a message to an event's guests now, or at <code>scheduled_for</code>.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/events/events_blasts_update">
+    <span className="tool-row-head"><span className="tool-row-name">events_blasts_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Edit a blast.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/events/events_blasts_delete">
+    <span className="tool-row-head"><span className="tool-row-name">events_blasts_delete</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Delete a blast.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/events/events_cancel_request">
+    <span className="tool-row-head"><span className="tool-row-name">events_cancel_request</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Request a cancellation token for an event.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/events/events_cancel">
+    <span className="tool-row-head"><span className="tool-row-name">events_cancel</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Cancel an event.</span>
+  </a>
+  <span className="tool-list-group">Calendars</span>
+  <a className="tool-row" href="/packs/luma/calendars/calendars_get">
+    <span className="tool-row-head"><span className="tool-row-name">calendars_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get information about the calendar.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/calendars/calendars_events_list">
+    <span className="tool-row-head"><span className="tool-row-name">calendars_events_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Every event and API key on Luma is managed by a [Luma Calendar](https://help.luma.com/p/luma-calendar-overview).</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/calendars/calendars_contact_tags_list">
+    <span className="tool-row-head"><span className="tool-row-name">calendars_contact_tags_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the contact tags on the calendar, with the IDs that apply, unapply, update and delete them.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/calendars/calendars_event_tags_list">
+    <span className="tool-row-head"><span className="tool-row-name">calendars_event_tags_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the event tags on the calendar, with the IDs that apply, unapply, update and delete them.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/calendars/calendars_admins_list">
+    <span className="tool-row-head"><span className="tool-row-name">calendars_admins_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List all admins for the calendar.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/calendars/calendars_events_lookup">
+    <span className="tool-row-head"><span className="tool-row-name">calendars_events_lookup</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">See if an event already exists on the calendar.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/calendars/calendars_contacts_list">
+    <span className="tool-row-head"><span className="tool-row-name">calendars_contacts_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the calendar's contacts, optionally narrowed by search text, contact tags, or membership tier and status, and sorted by the column you choose.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/calendars/calendars_coupons_list">
+    <span className="tool-row-head"><span className="tool-row-name">calendars_coupons_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List all coupons that have been created for a calendar.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/calendars/calendars_coupons_create">
+    <span className="tool-row-head"><span className="tool-row-name">calendars_coupons_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a coupon that can be applied to any event that is managed by the calendar.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/calendars/calendars_coupons_update">
+    <span className="tool-row-head"><span className="tool-row-name">calendars_coupons_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Change how many more times a calendar coupon can be used, or the window it is valid in.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/calendars/calendars_contacts_import">
+    <span className="tool-row-head"><span className="tool-row-name">calendars_contacts_import</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Import contacts to the calendar, so they can be invited to events and sent newsletters.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/calendars/calendars_contacts_block">
+    <span className="tool-row-head"><span className="tool-row-name">calendars_contacts_block</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Block a contact so they can’t follow your calendar or join its events.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/calendars/calendars_contacts_remove">
+    <span className="tool-row-head"><span className="tool-row-name">calendars_contacts_remove</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Remove a contact from your calendar.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/calendars/calendars_contacts_restore">
+    <span className="tool-row-head"><span className="tool-row-name">calendars_contacts_restore</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Restore a blocked or removed contact, returning them to your active contacts.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/calendars/calendars_contact_tags_create">
+    <span className="tool-row-head"><span className="tool-row-name">calendars_contact_tags_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a contact tag on the calendar.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/calendars/calendars_contact_tags_update">
+    <span className="tool-row-head"><span className="tool-row-name">calendars_contact_tags_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Rename a contact tag or change its color.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/calendars/calendars_contact_tags_delete">
+    <span className="tool-row-head"><span className="tool-row-name">calendars_contact_tags_delete</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Delete a contact tag from the calendar.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/calendars/calendars_contact_tags_apply">
+    <span className="tool-row-head"><span className="tool-row-name">calendars_contact_tags_apply</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Apply a tag to existing calendar contacts.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/calendars/calendars_contact_tags_unapply">
+    <span className="tool-row-head"><span className="tool-row-name">calendars_contact_tags_unapply</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Unapply a tag from calendar contacts.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/calendars/calendars_event_tags_create">
+    <span className="tool-row-head"><span className="tool-row-name">calendars_event_tags_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create an event tag on the calendar.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/calendars/calendars_event_tags_update">
+    <span className="tool-row-head"><span className="tool-row-name">calendars_event_tags_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Rename an event tag or change its color.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/calendars/calendars_event_tags_delete">
+    <span className="tool-row-head"><span className="tool-row-name">calendars_event_tags_delete</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Delete an event tag from the calendar.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/calendars/calendars_event_tags_apply">
+    <span className="tool-row-head"><span className="tool-row-name">calendars_event_tags_apply</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Apply a tag to events on the calendar.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/calendars/calendars_event_tags_unapply">
+    <span className="tool-row-head"><span className="tool-row-name">calendars_event_tags_unapply</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Unapply a tag from events on the calendar.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/calendars/calendars_events_add">
+    <span className="tool-row-head"><span className="tool-row-name">calendars_events_add</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Add or submit an existing event (on Luma or on an external platform) to the Luma calendar.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/calendars/calendars_events_approve">
+    <span className="tool-row-head"><span className="tool-row-name">calendars_events_approve</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Approve a pending event submission on your calendar.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/calendars/calendars_events_reject">
+    <span className="tool-row-head"><span className="tool-row-name">calendars_events_reject</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Reject a pending event submission on your calendar.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/calendars/calendars_admins_add">
+    <span className="tool-row-head"><span className="tool-row-name">calendars_admins_add</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Add admins to the calendar.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/calendars/calendars_update">
+    <span className="tool-row-head"><span className="tool-row-name">calendars_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Update a calendar's settings.</span>
+  </a>
+  <span className="tool-list-group">Miscellaneous</span>
+  <a className="tool-row" href="/packs/luma/miscellaneous/users_get_self">
+    <span className="tool-row-head"><span className="tool-row-name">users_get_self</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get the Luma user the API key belongs to.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/miscellaneous/entities_lookup">
+    <span className="tool-row-head"><span className="tool-row-name">entities_lookup</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Look up an event or calendar by its slug, Luma URL, or permanent public path such as <code>event/evt-...</code>, <code>e/evt-...</code>, or <code>calendar/cal-...</code>.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/miscellaneous/places_search">
+    <span className="tool-row-head"><span className="tool-row-name">places_search</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Search Google Maps for a place and get up to 5 candidates.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/miscellaneous/images_search">
+    <span className="tool-row-head"><span className="tool-row-name">images_search</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Search Luma’s gallery of stock event cover images by keyword.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/miscellaneous/images_create_upload_url">
+    <span className="tool-row-head"><span className="tool-row-name">images_create_upload_url</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Get a URL to upload a JPEG or PNG to Luma's CDN.</span>
+  </a>
+  <span className="tool-list-group">Memberships</span>
+  <a className="tool-row" href="/packs/luma/memberships/memberships_tiers_list">
+    <span className="tool-row-head"><span className="tool-row-name">memberships_tiers_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List the calendar's membership tiers, including hidden ones (see is_hidden).</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/memberships/memberships_members_add">
+    <span className="tool-row-head"><span className="tool-row-name">memberships_members_add</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Add a user to a membership tier.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/memberships/memberships_members_update_status">
+    <span className="tool-row-head"><span className="tool-row-name">memberships_members_update_status</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Update a member's membership status.</span>
+  </a>
+  <span className="tool-list-group">Webhooks</span>
+  <a className="tool-row" href="/packs/luma/webhooks/webhooks_list">
+    <span className="tool-row-head"><span className="tool-row-name">webhooks_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List all webhook endpoints for the calendar.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/webhooks/webhooks_get">
+    <span className="tool-row-head"><span className="tool-row-name">webhooks_get</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">Get details about a specific webhook endpoint.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/webhooks/webhooks_create">
+    <span className="tool-row-head"><span className="tool-row-name">webhooks_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a new webhook endpoint to receive event notifications.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/webhooks/webhooks_update">
+    <span className="tool-row-head"><span className="tool-row-name">webhooks_update</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Update a webhook endpoint's event types or status (active/paused).</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/webhooks/webhooks_delete">
+    <span className="tool-row-head"><span className="tool-row-name">webhooks_delete</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Delete a webhook endpoint.</span>
+  </a>
+  <span className="tool-list-group">Organizations</span>
+  <a className="tool-row" href="/packs/luma/organizations/organizations_admins_list">
+    <span className="tool-row-head"><span className="tool-row-name">organizations_admins_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List all admins for the organization.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/organizations/organizations_calendars_list">
+    <span className="tool-row-head"><span className="tool-row-name">organizations_calendars_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List all calendars belonging to the organization.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/organizations/organizations_events_list">
+    <span className="tool-row-head"><span className="tool-row-name">organizations_events_list</span><span className="tool-row-method" data-method="GET">GET</span></span>
+    <span className="tool-row-desc">List all events across all calendars belonging to the organization.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/organizations/organizations_calendars_create">
+    <span className="tool-row-head"><span className="tool-row-name">organizations_calendars_create</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Create a new calendar within the organization.</span>
+  </a>
+  <a className="tool-row" href="/packs/luma/organizations/organizations_events_transfer_calendar">
+    <span className="tool-row-head"><span className="tool-row-name">organizations_events_transfer_calendar</span><span className="tool-row-method" data-method="POST">POST</span></span>
+    <span className="tool-row-desc">Transfer an event from its current managing calendar to a different calendar within the organization.</span>
+  </a>
+</div>
+{/* generated:tools end */}

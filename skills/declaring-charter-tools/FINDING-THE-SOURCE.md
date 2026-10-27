@@ -101,6 +101,34 @@ Four traps:
   Items; the MIME reply is `/reply` with `text/plain`, not `sendMail`. Each page
   lists its own HTTP requests; that list is the endpoint.
 
+## Luma: the spec is the reference
+
+`https://public-api.luma.com/openapi.json` (OpenAPI 3.1, no auth needed) is what
+docs.luma.com renders: each reference page's `.md` mirror embeds the same
+operation. So generate from the spec, and read only the overview pages
+(getting started, rate limits, conventions, formats). Three facts live there and
+nowhere in the spec:
+
+- **A key is one calendar.** A calendar key reaches the calendar it was made on.
+- **An organization key picks a calendar with `x-luma-calendar-id`.** That is a
+  per-call header the host sets, never a tool argument.
+- **Arrays in the query repeat the key** (`?platforms=luma&platforms=external`).
+
+The spec moves often (two event themes were added on the day the pack was
+drafted). To see what changed, draft it again beside the pack and diff:
+
+```
+uv run python scripts/openapi_to_pack.py https://public-api.luma.com/openapi.json \
+    --pack luma --out /tmp/luma --cursor-param pagination_cursor \
+    --cursor-field next_cursor --more-field has_more \
+    --reference-url 'https://docs.luma.com/reference/{method}_{slug}'
+diff -r /tmp/luma src/charter/packs/luma
+```
+
+The review's own edits show up in that diff too; they are the glosses on about
+sixty parameters the spec leaves undescribed, the conflict rules, two
+validators, and the tool descriptions and docstring.
+
 ## `llms.txt` is a starting point, not a path list
 
 Granola's omits `/v1/audit`. Assume any `llms.txt` is missing endpoints, cross-check

@@ -55,7 +55,7 @@ def configure(
 ) -> None: ...
 ```
 
-`stripe`, `linear`, `firecrawl`, `granola`, `tavily`. Exactly one of the two:
+`stripe`, `linear`, `firecrawl`, `granola`, `tavily`, `luma`. Exactly one of the two:
 `api_key` is one account for the whole process, and `credential_provider` is
 read on every call, so a [`SubjectProvider`](/reference/credentials) serves each
 of your users their own key or OAuth token. Both, or neither, raises
@@ -120,6 +120,7 @@ first use.
 | `granola` | `GRANOLA_API_KEY` |
 | `tavily` | `TAVILY_API_KEY` |
 | `outlook` | `MICROSOFT_ACCESS_TOKEN` |
+| `luma` | `LUMA_API_KEY` |
 
 Every variable is read per call, so one set after import is still found.
 

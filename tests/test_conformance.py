@@ -83,6 +83,7 @@ PACK_NAMES = [
     "granola",
     "tavily",
     "outlook",
+    "luma",
 ]
 
 PACKS = {name: importlib.import_module(f"charter.packs.{name}") for name in PACK_NAMES}

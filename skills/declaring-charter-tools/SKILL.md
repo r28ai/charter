@@ -8,7 +8,7 @@ description: Give an agent tools for any HTTP API with Charter, from the API's d
 A pack is a set of `Tool`s for one API, plus the schemas they are built from. The
 schema *is* the integration: if it is right, there is no glue code left to write.
 
-Use this for any API the user names, their own service included. The sixteen packs
+Use this for any API the user names, their own service included. The seventeen packs
 that ship with Charter are examples of the result.
 
 Work through this checklist in order. Do not skip the crawl.
@@ -21,6 +21,24 @@ reference is a hand-written relay that drops things. Which source to trust for w
 vendor, and the trap in each, is
 [`FINDING-THE-SOURCE.md`](FINDING-THE-SOURCE.md). Read it before you start crawling;
 it is the difference between an afternoon and a week.
+
+**If the source is an OpenAPI document, generate the draft instead of typing it.**
+[`scripts/openapi_to_pack.py`](https://github.com/r28ai/charter/blob/main/scripts/openapi_to_pack.py)
+reads OpenAPI 3.0, 3.1 and Swagger 2.0 and writes the whole pack: every parameter,
+enum member, constraint and description, word for word, with the mechanical
+rules below already applied (`Optional[...] = None` for anything not required, no
+documented default copied onto a field, `WireName` where casing cannot reach a
+name, `Mode` for read-only and deprecated fields, the casing and the auth header
+read off the spec). Transcription is the slow, lossy part of this checklist, and
+a script does it in seconds without dropping an enum member.
+
+What it cannot decide it prints, and that list plus steps 8 to 12 is the review:
+edit the draft directly, as you would any pack — a `Gloss` for a parameter the
+spec left blank, a `ConflictsWith` for a rule written in prose, a validator, a
+better tool description, the pack docstring. When the vendor's spec changes
+later, draft it again into a scratch directory with `--out` and diff that
+against the pack; the script will not write over a pack that exists. The `luma`
+pack is the worked example.
 
 Then close the graph. One endpoint routinely spans ten documentation pages: the request
 body references a resource; the resource references an enum; the enum has values

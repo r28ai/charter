@@ -64,7 +64,7 @@ src/charter/
   adapters/    openai, langchain, mcp  (extras)
   packs/       gmail, gcalendar, gsheets, gdocs, gdrive, gforms, slack, github,
                stripe, linear, shopify, firecrawl, notion, granola, tavily,
-               outlook
+               outlook, luma (generated: scripts/openapi_to_pack.py)
 ```
 
 ## Common tasks
@@ -155,6 +155,12 @@ see, so it must be a type a model can fill in sensibly.
 **Adding a pack.** See [skills/declaring-charter-tools/SKILL.md](skills/declaring-charter-tools/SKILL.md).
 Add it to `PACK_NAMES` in `tests/test_conformance.py`; the cross-pack checks then
 apply to it automatically.
+
+**A pack from an OpenAPI document.** Draft it with `scripts/openapi_to_pack.py`
+rather than transcribing fields, then review the draft by editing it like any
+other pack, starting from the list the script prints. When the vendor's spec
+moves, draft it again into a scratch directory (`--out`) and diff against the
+pack; the script refuses to write over one. Luma was built this way.
 
 **Conformance.** `tests/test_conformance.py` checks the properties every pack must
 have, across all of them at once. Most of its checks exist because the property was
@@ -325,3 +331,9 @@ inside a walk reaches back into a `Tool`.
   needs arrives as an argument.
 - Do not swallow a transform or validation failure. A silently untransformed value
   reaches the API as a confusing 400 that nobody can trace.
+- Do not keep a pack's rules, glosses or descriptions in a separate layer that is
+  synced into the models — a rules module, an overlay file, a config the generator
+  reads. A validator, a `Gloss` or a `ConflictsWith` goes on the model, beside the
+  fields it reads, where it cannot drift from them. A Luma review file and a
+  `rules.py` were built this way once and removed. If a genuine reason for a
+  separate layer comes up, raise it before building one.
