@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from charter.session import ToolSession, ToolsLike, view_of
 from charter.tool import Tool
@@ -124,6 +124,7 @@ async def run(
     messages: Sequence[Any],
     session: ToolSession,
     max_turns: int = 20,
+    context: Optional[Mapping[str, Any]] = None,
     **kwargs: Any,
 ) -> RunResult:
     """Run the tool-calling loop against ``client`` until the model answers.
@@ -151,6 +152,11 @@ async def run(
     ``chat.completions.create(model=..., messages=..., tools=...)``. Extra
     keyword arguments (``temperature``, ``tool_choice``, ...) are passed through
     to it unchanged.
+
+    ``context`` is what the host knows about this run that the model's
+    arguments cannot say, such as whom the agent is acting for. Every tool call
+    in the run gets it, for the schemas' validators to read (see
+    :meth:`~charter.tool.Tool.ainvoke`). It is never sent to the model.
 
     A :class:`~charter.types.errors.CharterError` from a tool becomes that tool's
     result, because its message is written for a model to read and act on — a
@@ -198,7 +204,9 @@ async def run(
                 content = f"Arguments were not valid JSON: {exc}"
             else:
                 try:
-                    content = _render(await session.dispatch(call.function.name, arguments))
+                    content = _render(
+                        await session.dispatch(call.function.name, arguments, context=context)
+                    )
                 except CharterError as exc:
                     content = str(exc)
                 except Exception as exc:

@@ -257,6 +257,34 @@ this is designed for, and
 [the auto-corrections](/running/llm-input-auto-corrections) applied before it
 raises.
 
+## `ContextError`
+
+```python
+class ContextError(CharterError):
+    def __init__(self, message: str, *, tool_name: str, field: str, key: str) -> None: ...
+```
+
+<ResponseField name="tool_name" type="str">
+  The tool that was called.
+</ResponseField>
+
+<ResponseField name="field" type="str">
+  The [`FromContext`](/reference/markers#fromcontext) field whose value was
+  missing or did not fit.
+</ResponseField>
+
+<ResponseField name="key" type="str">
+  The key the host was expected to pass it under in `context`.
+</ResponseField>
+
+Raised by `ainvoke` before any request, and before any rule reads the value,
+when the host's `context` lacks a value a required `FromContext` field needs or
+holds one of the wrong type. The mistake is the application's, and the message
+says so: the adapters hand a `CharterError` back to the model as the tool's
+result, and a model told only that a field was missing would try to supply it. A
+rule that refuses because of the host's value raises `ToolValidationError`
+instead, since that one is the model's to act on.
+
 ## `TransformError`
 
 ```python
@@ -421,6 +449,7 @@ whether to. In [observability](/reference/observability) the call's outcome is
 ```python
 from charter import (
     APIError,
+    ContextError,
     CredentialError,
     InsufficientScope,
     NetworkError,
@@ -431,6 +460,8 @@ try:
     ...
 except ToolValidationError as exc:
     handled = f"tell the model: {exc}"
+except ContextError as exc:
+    handled = f"fix the application: pass {exc.key!r} in context"
 except InsufficientScope as exc:
     handled = f"ask {exc.provider} for {exc.needed}"
 except CredentialError as exc:

@@ -54,7 +54,7 @@ from charter.execution.schema import should_include_field
 from charter.naming import _duplicate_row, _rows, report_key
 from charter.tool import Tool
 from charter.transforms import get_transform
-from charter.types.markers import Format, Mode
+from charter.types.markers import Format, Mode, refuse_nested_context
 
 __all__ = ["egress_map", "format_egress_map"]
 
@@ -236,14 +236,25 @@ def _walk(
     parent_modes: Optional[set] = None,
     prune: frozenset = frozenset(),
     pins: Optional[Dict[str, Any]] = None,
+    context: Optional[Dict[str, str]] = None,
 ) -> None:
     if depth > _MAX_DEPTH or id(schema) in seen:
         return
     seen = seen | {id(schema)}
     pins = pins or {}
+    context = context or {}
 
     for name, field in schema.model_fields.items():
         path = f"{prefix}{name}"
+        # The host's, per call, and never the model's: checked first because no
+        # other reason applies to a field the model is never offered. Below the
+        # top level the marker is refused, as the view builder refuses it,
+        # rather than reported as a visible field the tool cannot be built with.
+        if prefix:
+            refuse_nested_context(path, field)
+        elif path in context:
+            withheld.append({"field": path, "reason": "context", "key": context[path]})
+            continue
         # A projection is checked before Mode, because it is the narrower claim:
         # "withheld by this deployment" is what a reviewer needs to see, and
         # reporting the author's reason for a field the deployer also removed
@@ -365,6 +376,7 @@ def egress_map(tools: Surface) -> Dict[str, Dict[str, Any]]:
             None,
             tool._prune,
             tool._pins,
+            tool._context,
         )
         report[key] = {
             "name": tool.name,
@@ -399,7 +411,12 @@ def format_egress_map(tools: Surface) -> str:
         if entry["withheld"]:
             lines.append(f"  withheld ({len(entry['withheld'])}):")
             for item in entry["withheld"]:
-                note = f" = {item['value']}" if "value" in item else ""
+                if "value" in item:
+                    note = f" = {item['value']}"
+                elif "key" in item:
+                    note = f" <- context[{item['key']!r}]"
+                else:
+                    note = ""
                 lines.append(f"    - {item['field']}  [{item['reason']}]{note}")
         if entry["pinned"]:
             lines.append(f"  pinned ({len(entry['pinned'])}):")

@@ -76,6 +76,20 @@ src/charter/
 connected-account selector). That is `ainvoke(args, headers={...})` — not a schema
 field, and not something Charter generates. See [docs/tools/wire-contract.md](docs/tools/wire-contract.md).
 
+**A rule that depends on whom the agent acts for** ("only this customer's
+orders", "no write before they're verified", "no change without their
+confirmation"). Declare the fact as a field marked `FromContext()`, and the host
+passes it per call as `ainvoke(args, context={...})`; the rule reads
+`self.customer_id` on a `model_validator`. A required one the host leaves out is a
+`ContextError` before any rule runs, so the rule cannot be written to fail open,
+and there is no list of keys to keep in step with it. Add `Query()` (or another
+location) and it is also sent: a pin whose value arrives per call. Never a schema
+field the model fills in (it would be vouching for itself), and never a
+module-level `ContextVar` a validator reaches for: that is ambient state, and the
+τ²-bench harness's `retail_api.py` is the one place it was done, before `context`
+existed. `info.context` is for a rule on a nested model, which cannot see its
+parent's fields.
+
 **An argument the model decides that the API takes as a header** (Graph's
 `Prefer: odata.maxpagesize`). That *is* a schema field: mark it
 `Header("Prefer", template="odata.maxpagesize={}")`. Do not route it through a

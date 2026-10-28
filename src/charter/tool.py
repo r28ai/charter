@@ -69,7 +69,13 @@ from charter.observability import (
     format_call_line,
 )
 from charter.types.envelope import Envelope
-from charter.types.markers import KeyCase, TransportOverride, check_header_fields
+from charter.types.errors import ContextError, ToolValidationError
+from charter.types.markers import (
+    KeyCase,
+    TransportOverride,
+    check_header_fields,
+    context_fields,
+)
 from charter.types.pagination import Pagination
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -302,6 +308,46 @@ def _check_pin_values(exec_schema: Type[BaseModel], pins: Dict[str, Any]) -> Non
                 f"pin: the value for {path!r} does not satisfy that field: {exc}",
                 docs="tools/projections",
             ) from exc
+
+
+# What Pydantic calls an error a rule raised, as opposed to one a type raised.
+_RULE_ERRORS = frozenset({"value_error", "assertion_error"})
+
+
+def _check_context_fields(
+    source_schema: Type[BaseModel],
+    exec_schema: Type[BaseModel],
+    context: Dict[str, str],
+    pins: Dict[str, Any],
+    tool_name: str,
+) -> None:
+    """A ``FromContext`` field has to reach the view the runtime executes, unpinned.
+
+    The host's value is merged into that view and validated against it, the way a
+    pin is, so a field ``Mode`` keeps out of it would refuse every call that
+    supplied it. A pin on one is two answers to "who decides this value", and
+    the host is the one that knows it per call.
+    """
+    from charter.types.errors import DeclarationError
+
+    pinned = sorted(set(pins) & set(context))
+    if pinned:
+        listed = ", ".join(repr(name) for name in pinned)
+        raise DeclarationError(
+            f"pin: {tool_name!r} pins {listed}, which the host fills in with FromContext. "
+            f"A value comes from one place: pin it and drop FromContext, or let the host "
+            f"pass it per call.",
+            docs="tools/wire-contract#per-call-context",
+        )
+    withheld = sorted(name for name in context if name not in exec_schema.model_fields)
+    if withheld:
+        listed = ", ".join(repr(name) for name in withheld)
+        raise DeclarationError(
+            f"{tool_name!r}: {listed} comes from the host with FromContext, and its Mode "
+            f"keeps it out of the request the runtime executes, so the host's value could "
+            f"never arrive. A FromContext field cannot also be withheld by Mode.",
+            docs="tools/wire-contract#per-call-context",
+        )
 
 
 def _check_schema_resolvable(
@@ -605,6 +651,10 @@ class Tool:
         self._response_handler = response_handler
         self._prune: frozenset = frozenset(prune or ())
         self._pins: Dict[str, Any] = dict(pins or {})
+        # The fields the host fills in per call, by name -> context key. Absent
+        # from the view the model fills in and present in the one the runtime
+        # executes, which is exactly a pin whose value arrives with the call.
+        self._context: Dict[str, str] = context_fields(args_schema)
 
         # The LLM view is derived once and kept for the life of the tool. A
         # library has no deploy boundary to invalidate a cache against.
@@ -691,6 +741,8 @@ class Tool:
         if self._pins:
             _check_pins_reachable(args_schema, self._exec_schema, self._pins, self.modes, name)
             _check_pin_values(self._exec_schema, self._pins)
+        if self._context:
+            _check_context_fields(args_schema, self._exec_schema, self._context, self._pins, name)
 
         # build_request is auto-generated from the *original* schema: it is the
         # one that still carries the wire types the Format markers describe.
@@ -791,13 +843,23 @@ class Tool:
         """
         with self._schema_lock:
             llm = self._llm_schema
-            return llm, (self._exec_schema if self._pins else llm)
+            return llm, (self._exec_schema if self._split else llm)
+
+    @property
+    def _split(self) -> bool:
+        """Whether the model fills in one view and the runtime executes another.
+
+        True for a tool that pins a value or takes one from the host: both are
+        missing from what the model sees and present in what is sent, so a call
+        is validated twice, the second time with them merged in.
+        """
+        return bool(self._pins or self._context)
 
     @property
     def _views_ready(self) -> bool:
         """Whether a call can proceed without building anything."""
         return self._llm_schema_built is not None and (
-            not self._pins or self._exec_schema_built is not None
+            not self._split or self._exec_schema_built is not None
         )
 
     # -----------------------------------------------------
@@ -828,9 +890,17 @@ class Tool:
                 built = create_llm_schema(
                     self.args_schema,
                     mode=self.modes,
-                    prune=self._prune or None,
+                    prune=(self._prune | frozenset(self._context)) or None,
                     cache=self._llm_cache,
                 )
+                if self._split:
+                    # The fields this view lacks that the call will carry: the
+                    # pins and the host's values. A rule on the whole call cannot
+                    # be checked here without them, so it waits for the view the
+                    # runtime executes. On the view and not passed per call,
+                    # because LangChain validates this view itself, with no
+                    # context. A pruned root view is built for this tool alone.
+                    built.charter_pending = frozenset(self._pins) | frozenset(self._context)  # type: ignore[attr-defined]
                 self._llm_schema_built = built
             return built
 
@@ -848,8 +918,8 @@ class Tool:
 
     @property
     def _exec_schema(self) -> Type[BaseModel]:
-        """The view the runtime executes: the LLM view plus the pinned fields."""
-        if not self._pins:
+        """The view the runtime executes: the LLM view plus the pinned and host fields."""
+        if not self._split:
             return self._llm_schema
         built = self._exec_schema_built
         if built is not None:
@@ -918,7 +988,10 @@ class Tool:
         """
         from charter.derive import PathCost, path_costs, schema_paths
 
-        pruned = self._prune
+        # The host's fields are not in the model's view, so they are neither listed
+        # nor priced: naming one in a projection is refused, and its tokens are
+        # never in the prompt to save.
+        pruned = self._prune | frozenset(self._context)
         # Asked of the level wanted, not filtered out of the whole schema. The
         # difference is not a micro-optimisation: `search_issues_full` has 2,271,553
         # paths, and the eight this returns for `under="variables"` used to cost
@@ -1021,7 +1094,9 @@ class Tool:
         """
         from charter.derive import check_pin_routing, plan_projection
 
-        prune, pins = plan_projection(self.args_schema, keep=keep, drop=drop, pin=pin)
+        prune, pins = plan_projection(
+            self.args_schema, keep=keep, drop=drop, pin=pin, hosted=frozenset(self._context)
+        )
         check_pin_routing(self.args_schema, pins)
 
         return self._copy(
@@ -1256,6 +1331,7 @@ class Tool:
         args: Optional[Dict[str, Any]] = None,
         /,
         *,
+        context: Optional[Mapping[str, Any]] = None,
         headers: Optional[Mapping[str, str]] = None,
         client: Optional[httpx.AsyncClient] = None,
         **kwargs: Any,
@@ -1287,18 +1363,56 @@ class Tool:
         (Sharp edge: like ``client``, this shadows a schema field literally named
         ``headers``. Pass such a field in the positional dict.)
 
+        ``context`` carries what the host knows about this call that the model's
+        arguments cannot say: whom the agent is acting for, whether that person
+        has been verified, whether they confirmed the action. A field marked
+        :class:`~charter.FromContext` is filled in from it, so a rule reads the
+        value as a field, beside the one it guards::
+
+            class GetOrder(BaseModel):
+                order_id: Annotated[str, Path()]
+                customer_id: Annotated[str, FromContext()]
+
+                @model_validator(mode="after")
+                def _own_order(self) -> "GetOrder":
+                    if owner_of(self.order_id) != self.customer_id:
+                        raise ValueError("That order belongs to another customer.")
+                    return self
+
+            await tool.ainvoke(args, context={"customer_id": session.customer_id})
+
+        A required one missing from ``context``, or holding a value of the wrong
+        type, is refused with a :class:`~charter.types.errors.ContextError`
+        before any rule runs. The whole mapping also reaches every validator as
+        Pydantic's validation context (``info.context``, always a mapping), for a
+        rule on a nested model that cannot see its parent's fields.
+
+        Like ``headers`` it is keyword-only and never part of the tool's schema,
+        so a model cannot claim to be someone else by filling in an argument.
+        (Sharp edge: it shadows a schema field named ``context``, the same way.)
+
         Every call is measured, including the ones that fail: see ``on_call`` and
         :mod:`charter.observability`.
 
         Raises:
             ToolValidationError: the arguments do not satisfy the schema. The
                 message is written to be handed back to the model verbatim.
+            ContextError: ``context`` lacks a value a ``FromContext`` field
+                needs, or holds one that does not fit it.
             CredentialError: credentials missing, expired, or rejected (401 by
                 default — see ``credential_statuses``).
             APIError: any other non-success response.
             TransformError: a ``Format`` transform failed.
         """
         resolved = {**(args or {}), **kwargs}
+        if context is not None and not isinstance(context, Mapping):
+            # Read by key, for `FromContext` and by rules alike. A session object
+            # passed as is would fail later, inside a rule, as a TypeError naming
+            # an index rather than the argument.
+            raise TypeError(
+                f"{self.name}: context is a mapping of the host's values, such as "
+                f"{{'customer_id': ...}}; got {type(context).__name__}."
+            )
 
         # Validation runs here, before the executor, so a call the model got
         # wrong never reaches the network. That makes this — not the executor —
@@ -1330,14 +1444,20 @@ class Tool:
             # find out whether the model is sending malformed arguments.
             validate_started = perf_counter()
             try:
-                tool_input = validate_input(self._llm_schema, resolved, tool_name=self.name)
-                if self._pins:
-                    # Re-validated with the pins merged in, which is also what
-                    # makes a `ConflictsWith` naming a pinned field still fire.
-                    tool_input = validate_input(
-                        self._exec_schema,
-                        {**tool_input.model_dump(exclude_none=True), **self._pins},
-                        tool_name=self.name,
+                # The host's values first: a call the host did not supply them
+                # for is refused before any rule runs, so no rule ever reads a
+                # value nobody vouched for.
+                hosted = self._hosted_values(context)
+                tool_input = validate_input(
+                    self._llm_schema, resolved, tool_name=self.name, context=context
+                )
+                if self._split:
+                    # Re-validated with the pins and the host's values merged in,
+                    # which is also what makes a `ConflictsWith` naming a pinned
+                    # field still fire, and where the rules on the whole call run.
+                    tool_input = self._validate_executed(
+                        {**tool_input.model_dump(exclude_none=True), **self._pins, **hosted},
+                        context,
                     )
             finally:
                 probe.validate_ms = (perf_counter() - validate_started) * 1000
@@ -1362,11 +1482,72 @@ class Tool:
                 total_ms=(perf_counter() - started) * 1000,
             )
 
+    def _hosted_values(self, context: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
+        """This call's ``FromContext`` values, read from the host's ``context``.
+
+        A required one that is missing is the host's mistake and is refused here,
+        by name, rather than as a validation error a model would try to fix by
+        supplying the field. An optional one that is missing takes its default.
+        """
+        values: Dict[str, Any] = {}
+        supplied = context or {}
+        for field, key in self._context.items():
+            if key in supplied:
+                values[field] = supplied[key]
+            elif self.args_schema.model_fields[field].is_required():
+                raise ContextError(
+                    f"{self.name} cannot run: the application did not pass {key!r} in this "
+                    f"call's context, and the tool needs it for {field!r}. This is the "
+                    f"application's to fix; changing the call will not help.",
+                    tool_name=self.name,
+                    field=field,
+                    key=key,
+                )
+        return values
+
+    def _validate_executed(
+        self, values: Dict[str, Any], context: Optional[Mapping[str, Any]]
+    ) -> BaseModel:
+        """Validate the call as it will be sent, against the view the runtime executes.
+
+        A value the host passed that does not fit its field is the host's
+        mistake, like a missing one. A rule that refuses the call because of the
+        host's value is not: "that order belongs to another customer" is the
+        model's to read and act on. Pydantic tells the two apart by type, since a
+        rule raises a ``value_error`` and a mistyped value raises the type's own.
+        """
+        schema = self._exec_schema
+        try:
+            return validate_input(schema, values, tool_name=self.name, context=context)
+        except ToolValidationError as refused:
+            names = {
+                loc: field
+                for field in self._context
+                for loc in (field, schema.model_fields[field].alias)
+                if loc
+            }
+            for error in refused.errors:
+                loc = error.get("loc") or ()
+                field = names.get(loc[0]) if loc else None
+                if field is not None and error.get("type") not in _RULE_ERRORS:
+                    key = self._context[field]
+                    raise ContextError(
+                        f"{self.name} cannot run: the application passed {key!r} in this "
+                        f"call's context, and it does not fit {field!r}: "
+                        f"{error.get('msg')}. This is the application's to fix; changing "
+                        f"the call will not help.",
+                        tool_name=self.name,
+                        field=field,
+                        key=key,
+                    ) from refused
+            raise
+
     def invoke(
         self,
         args: Optional[Dict[str, Any]] = None,
         /,
         *,
+        context: Optional[Mapping[str, Any]] = None,
         headers: Optional[Mapping[str, str]] = None,
         **kwargs: Any,
     ) -> Any:
@@ -1388,7 +1569,7 @@ class Tool:
         from charter.types.errors import CharterError
 
         try:
-            return asyncio.run(self.ainvoke(args, headers=headers, **kwargs))
+            return asyncio.run(self.ainvoke(args, context=context, headers=headers, **kwargs))
         except CharterError as error:
             # A Charter error is written for the caller: a missing credential, a
             # refused argument, an API that said no. Between here and where it was

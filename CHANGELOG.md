@@ -50,6 +50,20 @@ here, with the migration in the same entry.
 - **The Permissions page**, which puts the two layers in order: the tools you
   hand the model decide what it can do, and the grant is the provider's check on
   that.
+- **`FromContext()` and `ainvoke(args, context=...)`, for rules that depend on
+  whom the agent acts for.** "Only this customer's orders", "nothing before the
+  customer is verified" and "no change without their confirmation" need a fact
+  the model's arguments cannot supply. Mark a field `FromContext()` and the host
+  fills it in per call from `context`: it is absent from the schema the model
+  fills in, a rule reads it as `self.customer_id`, typed, and a required one the
+  host leaves out is refused with the new `ContextError` before any rule runs, so
+  no rule can be written to let a missing value through. With `Query()`,
+  `Body()`, `Path()` or `Header()` beside it the value is sent too, which is a pin
+  whose value arrives per call; without one it is only for the rules.
+  `egress_map` lists it as withheld with the reason `context`. The whole mapping
+  also reaches every validator as `info.context`, for a rule on a nested model.
+  `invoke`, `ToolSession.dispatch` and the OpenAI `run()` loop pass `context`
+  through; the LangChain and MCP adapters do not yet.
 
 ### Changed
 
@@ -111,6 +125,17 @@ here, with the migration in the same entry.
   new.
 
 ### Fixed
+
+- **A rule on the whole call no longer crashes a tool that does not show the
+  model every field.** A `model_validator(mode="after")` was carried onto the
+  model's view as written, and read fields by name, so a field the view lacked
+  raised `AttributeError`: `gcalendar.events_list` with `order_by` pinned could
+  not be called at all, and with `time_max` cut it failed whenever `time_min` was
+  set. The rule now reads the call as it is sent: a field cut by a projection or
+  withheld by `Mode` reads as its default, at any depth, and on a tool that pins a
+  value or takes one from the host the rule runs once, on the view the runtime
+  executes, where the pin is set. That includes LangChain's own validation of the
+  view, which runs before Charter's.
 
 - **A Meet link Google failed to make was trimmed out of the event.** A
   conference asked for with `conferenceData.createRequest` is made after the

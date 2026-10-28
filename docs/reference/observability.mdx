@@ -393,7 +393,10 @@ given is the one failure a reader cannot catch.
     <ResponseField name="withheld" type="List[Dict[str, str]]">
       One `field` and `reason` pair per hidden field. The reason is
       `"disabled"`, `"response_only"`, `"mode=..."` naming the modes that did
-      not match, or `"filtered"`.
+      not match, or `"filtered"`, from the schema; `"projection"` or `"pinned"`
+      (with the pinned `value`) from a [`derived`](/reference/tool#tool-derived)
+      projection; or `"context"` (with the `key` it is read from) for a field the
+      host fills in with [`FromContext`](/reference/markers#fromcontext).
     </ResponseField>
   </Expandable>
 </ResponseField>

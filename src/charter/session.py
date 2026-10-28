@@ -50,7 +50,7 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Mapping, Optional, Tuple, Union
 
 from charter.discovery import (
     DEFAULT_MAX_RESULTS,
@@ -335,6 +335,7 @@ class ToolSession:
         name: str,
         arguments: Optional[Dict[str, Any]] = None,
         *,
+        context: Optional[Mapping[str, Any]] = None,
         client: Optional[httpx.AsyncClient] = None,
     ) -> Any:
         """Route one tool call from the model.
@@ -345,6 +346,10 @@ class ToolSession:
         ``client`` is an ``httpx.AsyncClient`` to reuse for this call, passed
         through to ``ainvoke`` unchanged. A loop you drive yourself can hold one
         open across a run rather than paying a TLS handshake per tool call.
+
+        ``context`` is what the host knows about the call, passed through to
+        ``ainvoke`` for the schema's validators to read (see
+        :meth:`~charter.tool.Tool.ainvoke`). ``ToolSearch`` ignores it.
 
         Raises:
             ToolValidationError: if the name is not a tool this session holds, is
@@ -359,7 +364,7 @@ class ToolSession:
 
         tool = self.visible().get(name)
         if tool is not None:
-            return await tool.ainvoke(args, client=client)
+            return await tool.ainvoke(args, context=context, client=client)
 
         if name in self.deferrable:
             raise ToolValidationError(

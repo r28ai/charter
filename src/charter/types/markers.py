@@ -42,6 +42,9 @@ __all__ = [
     "Body",
     "Header",
     "check_header_fields",
+    "FromContext",
+    "context_fields",
+    "refuse_nested_context",
     "Format",
     "Mode",
     "TransportOverride",
@@ -431,6 +434,95 @@ def check_header_fields(
                     docs="reference/markers#header",
                 )
             seen[key] = field_name
+
+
+# -----------------------------------------------------
+# A value the host supplies per call
+# -----------------------------------------------------
+
+
+class FromContext:
+    """A field the host fills in for each call, which the model never sees.
+
+    For the facts a rule needs and the model must not decide: whom the agent is
+    acting for, whether they were verified, whether they confirmed the action.
+    The field is left out of the schema the model fills in, and its value is read
+    from the ``context`` the host passes to
+    :meth:`~charter.tool.Tool.ainvoke`::
+
+        class GetOrder(BaseModel):
+            order_id: Annotated[str, Path()]
+            customer_id: Annotated[str, FromContext()]
+
+            @model_validator(mode="after")
+            def _own_order(self) -> "GetOrder":
+                if owner_of(self.order_id) != self.customer_id:
+                    raise ValueError("That order belongs to another customer.")
+                return self
+
+        await get_order.ainvoke(args, context={"customer_id": session.customer_id})
+
+    Requiring it and reading it are the same declaration. A field with no default
+    is required, so a call whose context lacks it is refused with a
+    :class:`~charter.types.errors.ContextError` before any rule runs; there is no
+    list of keys to keep in step with the rules that read them. Rules read it as
+    ``self.customer_id``, typed like any other field.
+
+    On its own the field never reaches the wire: it is there for the rules. Add
+    ``Path()``, ``Query()``, ``Body()`` or ``Header()`` and it is sent there too,
+    which is a pin whose value arrives per call. ``customer_id: Annotated[str,
+    Query(), FromContext()]`` scopes a list to the customer the host verified,
+    and the model can neither see nor change the filter.
+
+    Parameters
+    ----------
+    key : str, optional
+        The key in ``context``. Defaults to the field's name.
+
+    A top-level field only, and never one a ``Mode`` withholds or a projection
+    pins: the value has to reach the model the runtime executes.
+    :func:`~charter.egress_map` lists it as withheld, with the reason
+    ``context``.
+    """
+
+    def __init__(self, key: Optional[str] = None) -> None:
+        if key is not None and (not isinstance(key, str) or not key.strip()):
+            raise DeclarationError(
+                f"FromContext({key!r}) needs the key the host passes in context, "
+                "e.g. FromContext('customer_id'), or no argument to use the field's name.",
+                docs="tools/wire-contract#per-call-context",
+            )
+        self.key: Optional[str] = key
+
+    def __repr__(self) -> str:
+        return f"FromContext({self.key!r})" if self.key else "FromContext()"
+
+
+def context_fields(schema: Type[BaseModel]) -> Dict[str, str]:
+    """The top-level fields of ``schema`` the host fills in, by field name -> context key.
+
+    Top level only, which is where the host's values are merged in, the way a pin
+    is. A ``FromContext`` further down is refused when the view is built (see
+    :func:`refuse_nested_context`), because there it would be an ordinary field
+    the model fills in.
+    """
+    found: Dict[str, str] = {}
+    for name, field in schema.model_fields.items():
+        marker = next((m for m in field.metadata if isinstance(m, FromContext)), None)
+        if marker is not None:
+            found[name] = marker.key or name
+    return found
+
+
+def refuse_nested_context(path: str, field: Any) -> None:
+    """Refuse a ``FromContext`` on a field below the top level of a request model."""
+    if any(isinstance(m, FromContext) for m in getattr(field, "metadata", ())):
+        raise DeclarationError(
+            f"FromContext on {path!r} is nested. The host's values are merged in at the "
+            "top level of the request model, so mark a top-level field and read it from "
+            "a rule on the model that holds both.",
+            docs="tools/wire-contract#per-call-context",
+        )
 
 
 # -----------------------------------------------------

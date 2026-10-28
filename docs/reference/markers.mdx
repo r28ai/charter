@@ -1,6 +1,6 @@
 ---
 title: "Schema markers"
-description: "Path, Query, Body, Header, Format, Mode, Case, ConflictsWith, WireName, Gloss, KeyCase and TransportOverride: what each takes and where it is legal."
+description: "Path, Query, Body, Header, FromContext, Format, Mode, Case, ConflictsWith, WireName, Gloss, KeyCase and TransportOverride: what each takes and where it is legal."
 ---
 
 Markers are `Annotated` metadata on the fields of an `args_schema`. They are
@@ -27,7 +27,8 @@ Order does not matter, and several markers may sit on one field. A top-level
 field with no `Path`, `Query`, `Body` or `Header` marker is refused with a
 [`DeclarationError`](/reference/errors#declarationerror) naming it, at the first
 call: where it belongs in the request is undeclared, and the runtime does not
-guess.
+guess. The one exception is a [`FromContext`](#fromcontext) field, which is there
+for the rules and is not sent unless it also carries one.
 
 ## `Path`
 
@@ -183,6 +184,86 @@ value is:
 A header field is sent after `static_headers` and before a `build_request`
 override and the host's `ainvoke(headers=...)`, which are more specific than
 anything the model chose.
+
+## `FromContext`
+
+```python
+class FromContext:
+    def __init__(self, key: Optional[str] = None) -> None: ...
+```
+
+Marks a field the host fills in for each call, from the `context` it passes to
+[`ainvoke`](/reference/tool#tool-ainvoke). The model never sees it: it is left
+out of the schema the model fills in, and an argument of that name is refused as
+undeclared. Rules read it as a field, typed like any other, which is what a rule
+needs for "only this customer's orders":
+
+```python
+import asyncio
+from typing import Annotated
+
+from pydantic import BaseModel, model_validator
+from charter import FromContext, Path, ToolValidationError, api_key_tool_factory
+
+OWNERS = {"ord_1": "cus_a", "ord_2": "cus_b"}
+
+
+class GetOrder(BaseModel):
+    order_id: Annotated[str, Path()]
+    customer_id: Annotated[str, FromContext()]
+
+    @model_validator(mode="after")
+    def _own_order(self) -> "GetOrder":
+        if OWNERS.get(self.order_id) != self.customer_id:
+            raise ValueError("That order belongs to another customer.")
+        return self
+
+
+shop = api_key_tool_factory(
+    pack="shop",
+    base_url="https://shop.example.com/",
+    api_key_headers={"X-Key": "k"},
+)
+get_order = shop(
+    name="orders_get",
+    description="Get an order.",
+    method="GET",
+    url_template="v1/orders/{order_id}",
+    args_schema=GetOrder,
+)
+
+
+async def main():
+    await get_order.ainvoke({"order_id": "ord_1"}, context={"customer_id": "cus_a"})
+    try:
+        await get_order.ainvoke({"order_id": "ord_2"}, context={"customer_id": "cus_a"})
+    except ToolValidationError as refused:
+        print(refused)  # That order belongs to another customer.
+
+
+asyncio.run(main())
+```
+
+<ParamField path="key" type="Optional[str]" default="None">
+  The key the value is read from in `context`. Defaults to the field's name.
+</ParamField>
+
+- **Required unless it has a default.** A call whose context lacks a required one
+  is refused with a [`ContextError`](/reference/errors#contexterror) before any
+  rule runs; one with a default takes it. A value of the wrong type is a
+  `ContextError` too. A rule refusing *because of* the value is a
+  `ToolValidationError`, for the model to read.
+- **Sent only if it also carries `Path()`, `Query()`, `Body()` or `Header()`.**
+  With one, it is a pin whose value arrives per call:
+  `Annotated[str, Query(), FromContext()]` scopes a list to the host's customer.
+- **Top-level only**, refused below it with a `DeclarationError` when the view is
+  built. A rule on a nested model reads the host's mapping as `info.context`.
+- **Never withheld by `Mode`, never pinned or dropped.** A projection narrows what
+  the model sees, and this is not in it: `keep` leaves it alone.
+- [`egress_map`](/reference/observability#egress_map) lists it as withheld with
+  the reason `context` and the key it is read from.
+
+See [per-call context](/tools/wire-contract#per-call-context).
 
 ## `Format`
 

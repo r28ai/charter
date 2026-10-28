@@ -1,6 +1,6 @@
 ---
 title: "The wire contract"
-description: "Body format, a body in another media type, routes, static parameters, per-call headers, header arguments, pagination, and Retry-After."
+description: "Body format, a body in another media type, routes, static parameters, per-call headers, per-call context, header arguments, pagination, and Retry-After."
 ---
 
 Beyond where a field goes and how it is encoded, an API has a handful of
@@ -247,6 +247,127 @@ Precedence, lowest to highest: auth → `static_headers` → a
 `headers`. The call site is the most specific authority, so it is the final word.
 A `None` value is dropped rather than sent empty, which lets a caller pass an
 optional header unconditionally.
+
+## Per-call context
+
+Some rules depend on a fact only the host knows: whom the agent is acting for.
+"Only this customer's orders", "nothing before the customer is verified" and "no
+change without their confirmation" cannot be decided from the arguments, because
+the model fills those in, and a model can be talked into naming somebody else's
+order or account. Declare the fact as a field marked
+[`FromContext()`](/reference/markers#fromcontext), and pass its value per call
+as `context`:
+
+```python
+from typing import Annotated
+
+from pydantic import BaseModel, Field, model_validator
+from charter import FromContext, Path
+
+
+class GetOrder(BaseModel):
+    order_id: Annotated[str, Path()] = Field(description="The order.")
+    customer_id: Annotated[str, FromContext()]
+
+    @model_validator(mode="after")
+    def _own_order(self) -> "GetOrder":
+        if owner_of(self.order_id) != self.customer_id:
+            raise ValueError("That order belongs to another customer.")
+        return self
+
+
+await get_order.ainvoke(args, context={"customer_id": session.customer_id})
+```
+
+The model is offered `order_id` and nothing else. The rule reads
+`self.customer_id`, typed like any field, and a call it refuses never reaches the
+API: the model reads the reason as the tool's result, like any other refusal.
+
+**Requiring it and reading it are one declaration.** A field with no default is
+required, so a call whose context lacks `customer_id` is refused with a
+[`ContextError`](/reference/errors#contexterror) before any rule runs. There is no
+list of keys to keep in step with the rules that read them, and no rule can be
+written so that a missing value lets the call through. A field with a default
+takes it when the host leaves the key out.
+
+**The model cannot reach it.** The field is not in the tool's schema, and an
+argument of that name is an undeclared field, refused like any other. `context`
+itself is keyword-only, as `headers` is.
+
+**A missing or mistyped value is the host's error.** `ContextError` says so in its
+message, which matters because the adapters hand a `CharterError` back to the
+model as the tool's result: told only that a field was missing, a model would try
+to supply it. A rule that refuses *because of* the host's value ("verify the
+customer first") is a refusal like any other, for the model to read and act on.
+
+**On its own it never reaches the wire.** It is there for the rules. Add
+`Path()`, `Query()`, `Body()` or `Header()` and it is sent there as well, which is
+a [pin](/tools/projections#pin) whose value arrives with each call:
+
+```python
+class ListOrders(BaseModel):
+    customer_id: Annotated[str, Query(), FromContext()]
+    status: Annotated[Optional[Literal["open", "closed"]], Query()] = None
+```
+
+The list is scoped to the customer the host verified, and the model can neither
+see nor change the filter. `FromContext("customer")` reads a different key than
+the field's name.
+
+**A reviewer sees it.** [`egress_map`](/boundary/egress-control) lists the field
+as withheld with the reason `context`, and the key it is read from:
+
+```text
+shop_orders_list  (GET v1/orders)
+  visible to the model (1):
+    + status
+  withheld (1):
+    - customer_id  [context] <- context['customer_id']
+```
+
+A `FromContext` field is top-level only, is never one a `Mode` withholds, and is
+outside what a projection reaches: `keep` leaves it alone, and naming it in `drop`
+or `pin` is refused, since a value comes from one place.
+
+`invoke`, [`ToolSession.dispatch`](/reference/tool-discovery#toolsession) and the
+OpenAI adapter's `run(..., context=...)` pass `context` through. The LangChain
+and MCP adapters do not yet.
+
+### Rules that read the context directly
+
+A rule on a nested model cannot see its parent's fields, so it reads the host's
+mapping instead, as Pydantic's validation context:
+
+```python
+from pydantic import ValidationInfo, field_validator
+
+
+class Line(BaseModel):
+    order_id: str
+
+    @field_validator("order_id")
+    @classmethod
+    def _own_order(cls, value: str, info: ValidationInfo) -> str:
+        if owner_of(value) != info.context.get("customer_id"):
+            raise ValueError("That order belongs to another customer.")
+        return value
+```
+
+Inside `ainvoke`, `info.context` is always a mapping, empty when the host passed
+nothing. The rule then decides what a missing key means, and the one above
+refuses, which is the safe reading. Prefer `FromContext` wherever it reaches: it
+makes that decision once, for every rule.
+
+Two things hold for any rule, whichever way it reads the host's value:
+
+- **A field validator does not run on a field the model leaves out.** Pydantic
+  validates what was given, and an omitted field takes its default unchecked. A
+  rule that must hold on every call goes on a `model_validator(mode="after")`, or
+  the field takes `Field(validate_default=True)`.
+- **A rule on the whole call reads the call as it is sent.** A field the
+  projection cut or a `Mode` withholds reads as its default, which is what the API
+  receives; a pinned field reads as its pin, and a `FromContext` field as the
+  host's value.
 
 ## Header arguments
 

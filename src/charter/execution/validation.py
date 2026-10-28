@@ -12,7 +12,7 @@ that names the field path, the problem, and what was actually sent.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Type
+from typing import Any, Dict, Mapping, Optional, Type
 
 from pydantic import BaseModel, ValidationError
 
@@ -60,8 +60,15 @@ def validate_input(
     args: Dict[str, Any],
     *,
     tool_name: Optional[str] = None,
+    context: Optional[Mapping[str, Any]] = None,
 ) -> BaseModel:
     """Validate ``args`` against ``schema``.
+
+    ``context`` is handed to Pydantic as the validation context, so a validator
+    on the schema reads it as ``info.context``: what the host knows about the
+    call that the model's arguments cannot say, such as whom the agent is acting
+    for. The host's own mapping, or an empty one when it passed nothing, so a
+    rule reads ``info.context.get(...)`` with no ``None`` case to forget.
 
     Raises:
         ToolValidationError: carrying the LLM-facing message and the structured
@@ -69,7 +76,7 @@ def validate_input(
             back to the model or render its own.
     """
     try:
-        return schema.model_validate(args)
+        return schema.model_validate(args, context=context if context is not None else {})
     except ValidationError as exc:
         raise ToolValidationError(
             format_validation_error(exc),

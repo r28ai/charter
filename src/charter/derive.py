@@ -563,6 +563,7 @@ def plan_projection(
     keep: Optional[Iterable[Any]] = None,
     drop: Optional[Iterable[Any]] = None,
     pin: Optional[Dict[str, Any]] = None,
+    hosted: frozenset = frozenset(),
 ) -> Tuple[frozenset, Dict[str, Any]]:
     """Resolve a projection to the set of paths to prune and the pins to apply.
 
@@ -571,12 +572,25 @@ def plan_projection(
     members of that union and leaves ``document_id`` and ``body.write_control``
     alone. Anything else would make the first ``keep`` anyone writes produce a
     tool that cannot be called.
+
+    ``hosted`` names the fields the host fills in with ``FromContext``. They are
+    not in the model's view, so a projection, which narrows that view, does not
+    reach them: ``keep`` leaves them alone, and naming one in ``drop`` or ``pin``
+    is refused rather than quietly removing the value a rule reads.
     """
     prune: Set[str] = set()
     pins: Dict[str, Any] = {}
 
     for selector in drop or ():
-        prune.add(resolve_path(schema, selector, where="drop"))
+        path = resolve_path(schema, selector, where="drop")
+        if path in hosted:
+            raise DeclarationError(
+                f"drop: {path!r} comes from the host with FromContext, so it is not in "
+                "the model's view for a projection to remove. Remove the FromContext "
+                "field from the schema if the tool should not have it.",
+                docs="tools/wire-contract#per-call-context",
+            )
+        prune.add(path)
 
     kept = [resolve_path(schema, s, where="keep") for s in keep or ()]
     for path in kept:
@@ -584,6 +598,7 @@ def plan_projection(
             if sibling not in kept and not any(k.startswith(f"{sibling}.") for k in kept):
                 prune.add(sibling)
     prune -= set(kept)
+    prune -= hosted
     for path in kept:
         # An ancestor of a kept path is how you reach it; pruning one because a
         # sibling rule caught it would delete the branch being kept.
@@ -593,6 +608,13 @@ def plan_projection(
 
     for selector, value in (pin or {}).items():
         path = resolve_path(schema, selector, where="pin")
+        if path in hosted:
+            raise DeclarationError(
+                f"pin: {path!r} is one the host fills in with FromContext. A value comes "
+                "from one place: pin it and remove FromContext, or let the host pass it "
+                "per call.",
+                docs="tools/wire-contract#per-call-context",
+            )
         if "." in path:
             raise DeclarationError(
                 f"pin: {path!r} is nested, and a pin is merged in at the top level "

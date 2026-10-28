@@ -55,6 +55,7 @@ from charter.types.errors import (
 )
 from charter.types.markers import (
     Body,
+    FromContext,
     Header,
     KeyCase,
     Path,
@@ -387,6 +388,10 @@ def _extract_http_params(
         # and that `-W ignore` silences entirely. So the field went to the wire
         # on a guess, announced where nobody was listening. Every tool in every
         # pack marks its top-level fields; nothing was relying on the guess.
+        if loc is None and any(isinstance(m, FromContext) for m in field.metadata):
+            # The host's value for the rules to read, with nowhere declared to
+            # send it. That is the point of one with no location marker.
+            continue
         if loc is None:
             # The name the author wrote, not the generated `_LLM` variant: the
             # reader of this message goes looking for the class in their own

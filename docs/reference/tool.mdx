@@ -602,6 +602,7 @@ async def ainvoke(
     args: Optional[Dict[str, Any]] = None,
     /,
     *,
+    context: Optional[Mapping[str, Any]] = None,
     headers: Optional[Mapping[str, str]] = None,
     client: Optional[httpx.AsyncClient] = None,
     **kwargs: Any,
@@ -612,6 +613,17 @@ Validate the arguments, build the request, send it, return the result.
 
 <ParamField path="args" type="Optional[Dict[str, Any]]" default="None">
   Positional-only. Merged with `**kwargs`, which win on a conflict.
+</ParamField>
+
+<ParamField path="context" type="Optional[Mapping[str, Any]]" default="None">
+  What the host knows about this call that the model's arguments cannot say:
+  whom the agent is acting for, whether they were verified, whether they
+  confirmed the action. Fills in every [`FromContext`](/reference/markers#fromcontext)
+  field, and reaches every validator as Pydantic's validation context
+  (`info.context`, always a mapping). Keyword-only and never in the tool's
+  schema, so a model cannot supply it. A required value it lacks, or one that
+  does not fit, raises [`ContextError`](/reference/errors#contexterror). See
+  [per-call context](/tools/wire-contract#per-call-context).
 </ParamField>
 
 <ParamField path="headers" type="Optional[Mapping[str, str]]" default="None">
@@ -635,8 +647,8 @@ async def main():
     await tool.ainvoke({"city": "Tokyo"}, units="metric")
 ```
 
-`headers` and `client` shadow schema fields of those names. Pass such a field in
-the positional dict.
+`context`, `headers` and `client` shadow schema fields of those names. Pass such
+a field in the positional dict.
 
 Every call is measured, including the ones that fail. See `on_call` and
 [observability](/reference/observability).
@@ -649,6 +661,7 @@ def invoke(
     args: Optional[Dict[str, Any]] = None,
     /,
     *,
+    context: Optional[Mapping[str, Any]] = None,
     headers: Optional[Mapping[str, str]] = None,
     **kwargs: Any,
 ) -> Any: ...

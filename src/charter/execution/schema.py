@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import contextlib
 import copy
+import inspect
 import json
 import sys
 import threading
@@ -38,6 +39,7 @@ from typing import (
     FrozenSet,
     Iterable,
     List,
+    Mapping,
     Optional,
     Type,
     Union,
@@ -52,12 +54,14 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    ValidationInfo,
     create_model,
     field_validator,
     model_serializer,
     model_validator,
 )
 from pydantic.alias_generators import to_camel, to_pascal, to_snake
+from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined
 
 from charter.transforms import get_transform
@@ -68,6 +72,7 @@ from charter.types.markers import (
     Mode,
     WireName,
     raw_body_exclusions,
+    refuse_nested_context,
 )
 
 __all__ = [
@@ -234,6 +239,30 @@ class LLMBase(BaseModel):
     # ClassVar, so pydantic treats it as class data rather than a field the
     # model would then demand on every call.
     charter_declared_name: ClassVar[str] = ""
+    # The schema the author wrote, which this view was generated from.
+    charter_source: ClassVar[Optional[Type[BaseModel]]] = None
+    # Fields this view lacks that the call will carry: a tool's pins and the
+    # host's `FromContext` values. Set by the tool that built the view.
+    charter_pending: ClassVar[FrozenSet[str]] = frozenset()
+
+    def __getattr__(self, name: str) -> Any:
+        """A field the author declared and this view lacks reads as what is sent.
+
+        Rules are written against the author's model and read its fields by name,
+        at any depth, while a view can lack some of them: cut by a projection or
+        withheld by ``Mode``. Such a field is never sent, so it reads as its
+        default, which is what the API receives. Before this, reading one raised
+        ``AttributeError`` on every call: cut ``time_max`` from Calendar's
+        ``events_list``, or pin its ``order_by``, and its own rules made the tool
+        uncallable. Anything else, pydantic's private attributes included, is
+        pydantic's to resolve.
+        """
+        source = type(self).charter_source
+        if source is not None and not name.startswith("_"):
+            field = source.model_fields.get(name)
+            if field is not None and name not in type(self).model_fields:
+                return _default_as_sent(field, self.__dict__)
+        return super().__getattr__(name)  # type: ignore[misc]
 
     model_config = ConfigDict(
         alias_generator=AliasGenerator(
@@ -485,12 +514,21 @@ def _carry_validators(original_schema: Type[BaseModel], kept_fields: set) -> dic
     for name, decorator in decorators.model_serializers.items():
         carried[name] = model_serializer(mode=decorator.info.mode)(_unbind(decorator.func))
 
+    # Fields the original declares and this view does not have: cut by a
+    # projection, pinned, filled by the host, or withheld by `Mode`.
+    hidden = frozenset(original_schema.model_fields) - frozenset(kept_fields)
+
     for name, decorator in decorators.model_validators.items():
         func = _unbind(decorator.func)
         if decorator.info.mode == "after":
-            # An after-validator takes ``self``; the LLM view carries the same
-            # field names, so it is duck-compatible with the original.
-            carried[name] = model_validator(mode="after")(func)
+            # An after-validator takes ``self``. The LLM view carries the same
+            # field names, and one it lacks reads as its default through
+            # `LLMBase.__getattr__`, so it is duck-compatible with the original.
+            # A view lacking a pin or a host value cannot be checked at all: see
+            # `_not_while_pending`.
+            carried[name] = model_validator(mode="after")(
+                _not_while_pending(func, hidden) if hidden else func
+            )
         else:
             carried[name] = model_validator(mode=decorator.info.mode)(classmethod(func))
 
@@ -504,6 +542,66 @@ def _carry_validators(original_schema: Type[BaseModel], kept_fields: set) -> dic
         carried[name] = field_validator(*targets, mode=mode)(classmethod(_unbind(decorator.func)))
 
     return carried
+
+
+def _takes_info(func: Any) -> bool:
+    """Whether an after-validator takes ``(self, info)`` rather than ``(self)``."""
+    positional = [
+        p
+        for p in inspect.signature(func).parameters.values()
+        if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)
+    ]
+    return len(positional) >= 2
+
+
+def _default_as_sent(field: Any, values: Mapping[str, Any]) -> Any:
+    """What a field the view lacks carries on the wire: its default, or ``None``.
+
+    A ``default_factory`` may take the validated data (pydantic 2.10 and later),
+    and is handed the values the view holds. ``None`` for a field with no default
+    at all, which only a pinned or host field can be on a view, and a rule on the
+    whole call does not run on the view that lacks those.
+    """
+    if field.is_required():
+        return None
+    if _DEFAULTS_TAKE_DATA:
+        return field.get_default(call_default_factory=True, validated_data=dict(values))
+    return field.get_default(call_default_factory=True)
+
+
+# pydantic 2.10 added factories that take the validated data. Before it there is
+# no `validated_data` to pass, and no factory that needs one.
+_DEFAULTS_TAKE_DATA = "validated_data" in inspect.signature(FieldInfo.get_default).parameters
+
+
+def _not_while_pending(func: Any, hidden: frozenset) -> Any:
+    """``func``, held back on a view that lacks a value the call will carry.
+
+    A pinned field, or one the host fills in with ``FromContext``, is absent from
+    the view the model fills in and present in the one the runtime executes. On
+    the first, a rule reading it would read its default, which is not what is
+    sent, and refuse a call the pin makes valid. So it does not run there: it
+    runs on the view the runtime executes, once, on the call as it is sent.
+
+    Which hidden fields those are is marked on the view itself, as
+    ``charter_pending``, by the tool that built it, and not passed in the
+    validation context: code outside Charter validates the model's view too. The
+    LangChain adapter hands it to LangChain as the tool's ``args_schema``, which
+    validates every call before Charter sees it, with no context at all. A root
+    view with anything pruned is built for one tool alone, so the mark cannot
+    reach another tool's view.
+    """
+    takes_info = _takes_info(func)
+
+    def check(self: Any, info: ValidationInfo) -> Any:
+        if hidden & getattr(type(self), "charter_pending", frozenset()):
+            return self
+        return func(self, info) if takes_info else func(self)
+
+    check.__name__ = getattr(func, "__name__", "check")
+    check.__qualname__ = getattr(func, "__qualname__", check.__name__)
+    check.__doc__ = getattr(func, "__doc__", None)
+    return check
 
 
 def _resolve_annotation_ref(name: str, owner: Type[BaseModel], parked: str) -> Any:
@@ -916,6 +1014,15 @@ def _create_llm_schema(
         # Return the already-created LLM schema to avoid duplicates and handle cycles
         return _seen_types[cache_key]
 
+    # A host's value is merged in at the top level of the request model, the way
+    # a pin is. Below it a `FromContext` field would be an ordinary field the
+    # model fills in, which is the one thing the marker exists to prevent. Checked
+    # before the shared cache, which keys on the model and not on where it was
+    # reached from.
+    if _path:
+        for nested_name, nested_field in original_schema.model_fields.items():
+            refuse_nested_context(f"{_path}.{nested_name}", nested_field)
+
     # A model no prune path reaches is the same model on every call, so a caller
     # pricing a level can hand the same one back instead of rebuilding it. It
     # still has to join `_seen_types`: `_rebuild_generated` resolves forward refs
@@ -1092,6 +1199,7 @@ def _create_llm_schema(
         **fields,
     )
     new_model.charter_declared_name = original_schema.__name__
+    new_model.charter_source = original_schema
 
     # Same for the strictness half of model_config. LLMBase owns the alias
     # machinery, so only the keys that decide whether a wrong input is rejected

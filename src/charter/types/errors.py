@@ -35,6 +35,7 @@ __all__ = [
     "CredentialError",
     "InsufficientScope",
     "ToolValidationError",
+    "ContextError",
     "TransformError",
     "APIError",
     "NetworkError",
@@ -310,6 +311,32 @@ class ToolValidationError(CharterError):
 
     def __str__(self) -> str:
         return self.message
+
+
+class ContextError(CharterError):
+    """The host's ``context`` for a call lacks a value a tool needs, or holds a wrong one.
+
+    Raised for a ``FromContext`` field before any request is built, and before any
+    rule reads it, so a rule never runs on a value the host did not supply. The
+    mistake is the host's, not the model's, and the message says so: the adapters
+    hand a :class:`CharterError` back to the model as the tool's result, and a
+    model told only that a field is missing would try to supply it.
+
+    Attributes
+    ----------
+    tool_name:
+        The tool that was called.
+    field:
+        The ``FromContext`` field whose value was missing or invalid.
+    key:
+        The key the host was expected to pass it under.
+    """
+
+    def __init__(self, message: str, *, tool_name: str, field: str, key: str) -> None:
+        super().__init__(message, docs="tools/wire-contract#per-call-context")
+        self.tool_name = tool_name
+        self.field = field
+        self.key = key
 
 
 class TransformError(CharterError):

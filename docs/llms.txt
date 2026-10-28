@@ -30,7 +30,7 @@
 
 ## Declaring a tool
 
-- [The wire contract](https://docs.r28.ai/charter/tools/wire-contract.md): Body format, a body in another media type, routes, static parameters, per-call headers, header arguments, pagination, and Retry-After.
+- [The wire contract](https://docs.r28.ai/charter/tools/wire-contract.md): Body format, a body in another media type, routes, static parameters, per-call headers, per-call context, header arguments, pagination, and Retry-After.
 - [Transform system](https://docs.r28.ai/charter/tools/transforms.md): Turn semantic types the model understands into the wire formats an API requires.
 - [Key case cascade](https://docs.r28.ai/charter/tools/key-case-cascade.md): Four levels of granularity for the casing an API expects on the wire.
 - [Envelopes](https://docs.r28.ai/charter/tools/envelopes.md): Detect the APIs that report failure inside an HTTP 200.
@@ -89,7 +89,7 @@
 - [Naming](https://docs.r28.ai/charter/reference/naming.md): Qualifying tool names when several packs share one tool surface.
 - [Tool discovery](https://docs.r28.ai/charter/reference/tool-discovery.md): Sending a tool's schema when the model asks for it, not before.
 - [Response handling](https://docs.r28.ai/charter/reference/response-handling.md): ResponseHandler, decode_base64url and html_to_text: reshaping a payload before the model reads it.
-- [Schema markers](https://docs.r28.ai/charter/reference/markers.md): Path, Query, Body, Header, Format, Mode, Case, ConflictsWith, WireName, Gloss, KeyCase and TransportOverride: what each takes and where it is legal.
+- [Schema markers](https://docs.r28.ai/charter/reference/markers.md): Path, Query, Body, Header, FromContext, Format, Mode, Case, ConflictsWith, WireName, Gloss, KeyCase and TransportOverride: what each takes and where it is legal.
 - [Semantic types](https://docs.r28.ai/charter/reference/semantic-types.md): EmailContent, CalendarEvent, DocumentContent and FileContent: the shapes a model fills in before a transform encodes them.
 - [Protobuf types](https://docs.r28.ai/charter/reference/protobuf-types.md): Value, ListValue, Struct, FieldMask and NullValue: the google.protobuf well-known types as Pydantic models.
 - [Transforms](https://docs.r28.ai/charter/reference/transforms.md): TransformRegistry, TransformSpec, register_transform, get_transform, apply_transform, and the eleven built-in transform names.
