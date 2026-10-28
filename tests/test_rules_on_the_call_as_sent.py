@@ -20,7 +20,6 @@ from typing import Annotated, Optional
 import httpx
 import pytest
 import respx
-from pydantic import VERSION as PYDANTIC_VERSION
 from pydantic import BaseModel, Field, model_validator
 
 from charter import Body, Mode, ToolValidationError, api_key_tool_factory
@@ -247,10 +246,6 @@ class _Derives(BaseModel):
         return self
 
 
-@pytest.mark.skipif(
-    tuple(int(p) for p in PYDANTIC_VERSION.split(".")[:2]) < (2, 10),
-    reason="default factories that take the validated data arrived in pydantic 2.10",
-)
 @respx.mock
 async def test_a_hidden_field_whose_default_needs_the_data_gets_it():
     """A `default_factory` taking the validated data, on a field the view lacks.

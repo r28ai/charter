@@ -42,8 +42,21 @@ BASE = "https://api.example.com/"
 
 
 def _compact(value) -> bytes:
-    """The encoding httpx uses for a mocked JSON body — and the one Charter measures."""
+    """Compact JSON, the encoding Charter measures what it hands the model in."""
     return json.dumps(value, separators=(",", ":")).encode()
+
+
+def _served(value) -> httpx.Response:
+    """A JSON response whose bytes are fixed, whatever httpx is installed.
+
+    `httpx.Response(json=...)` formats the body itself, and httpx 0.27 puts
+    spaces after separators where 0.28 does not. `payload_bytes` is the response
+    as the server formatted it, so a mock that lets httpx choose measures the
+    installed httpx rather than the call.
+    """
+    return httpx.Response(
+        200, content=_compact(value), headers={"content-type": "application/json"}
+    )
 
 
 class Args(BaseModel):
@@ -77,7 +90,7 @@ def _tool(*, on_call=None, **kw):
 @respx.mock
 async def test_a_successful_call_is_recorded_with_both_sizes():
     payload = {"id": "t1", "envelope": "x" * 4000, "useful": "yes"}
-    respx.get(f"{BASE}v1/things/t1").mock(return_value=httpx.Response(200, json=payload))
+    respx.get(f"{BASE}v1/things/t1").mock(return_value=_served(payload))
 
     calls = CallCollector()
     tool = _tool(on_call=calls)
@@ -133,7 +146,7 @@ async def test_a_response_handler_shows_up_as_trimming():
 async def test_both_sides_of_the_saving_are_measured_the_same_way():
     """A pass-through handler must show zero saved, not a whitespace artifact."""
     payload = {"a": 1, "b": [1, 2, 3], "c": {"d": "e"}}
-    respx.get(f"{BASE}v1/things/t1").mock(return_value=httpx.Response(200, json=payload))
+    respx.get(f"{BASE}v1/things/t1").mock(return_value=_served(payload))
 
     async def identity(response):
         return response

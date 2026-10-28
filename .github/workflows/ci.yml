@@ -50,6 +50,31 @@ jobs:
         # them deliberately instead: `pytest -m live`.
         run: uv run pytest -q -m "not live"
 
+  floor:
+    # The oldest versions pyproject.toml admits, installed exactly. The job
+    # above resolves to the newest of everything, so nothing ever ran against
+    # the floor: `pydantic>=2.9` stood over releases where a `WireName` field
+    # refused its own wire name. Python 3.10 because that is the floor too.
+    # tests/test_dependency_floor.py keeps these pins equal to pyproject's.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python 3.10
+        run: uv python install 3.10
+
+      - name: Install at the floor
+        run: |
+          uv venv --python 3.10
+          uv pip install -e ".[dev,langchain,mcp]"
+          uv pip install "pydantic==2.12.3" "httpx==0.27.0"
+
+      - name: Pytest
+        run: uv run pytest -q -m "not live"
+
   secrets:
     runs-on: ubuntu-latest
     steps:

@@ -38,13 +38,21 @@ dependencies = [
     # means the day 3.0 ships, every `pip install charter` resolves to it and
     # breaks for someone who did nothing. Lift the cap after the suite runs
     # green against 3.0, not before.
-    "pydantic>=2.9,<3",
+    #
+    # The floor is the oldest release the suite passes on, measured 2026-10-28,
+    # and CI's `floor` job installs exactly it so it cannot drift again. It said
+    # 2.9 while nothing ran there: before 2.12.3 building a tool's view rewrote
+    # the author's own fields, so a field marked `WireName` refused its own wire
+    # name (Calendar's `iCalUID`, Outlook's `from`), and 2.10 and older fail
+    # more. 2.12.1 was never installable.
+    "pydantic>=2.12.3,<3",
     # Capped for the same reason on a smaller surface: Charter uses three public
     # names here (AsyncClient, Response, HTTPError) and no private API, so the
     # risk is lower than pydantic's — but respx, which every test asserts
     # through, tracks httpx internals closely, and fastapi, langchain-core and
     # langsmith all cap it at <1 as well. Same rule: lift it after a green run
-    # against 1.0, not in anticipation of one.
+    # against 1.0, not in anticipation of one. The floor is checked by the same
+    # CI job as pydantic's.
     "httpx>=0.27,<1",
 ]
 

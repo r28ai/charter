@@ -61,7 +61,6 @@ from pydantic import (
     model_validator,
 )
 from pydantic.alias_generators import to_camel, to_pascal, to_snake
-from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined
 
 from charter.transforms import get_transform
@@ -557,21 +556,14 @@ def _takes_info(func: Any) -> bool:
 def _default_as_sent(field: Any, values: Mapping[str, Any]) -> Any:
     """What a field the view lacks carries on the wire: its default, or ``None``.
 
-    A ``default_factory`` may take the validated data (pydantic 2.10 and later),
-    and is handed the values the view holds. ``None`` for a field with no default
+    A ``default_factory`` may take the validated data, and is handed the values
+    the view holds. ``None`` for a field with no default
     at all, which only a pinned or host field can be on a view, and a rule on the
     whole call does not run on the view that lacks those.
     """
     if field.is_required():
         return None
-    if _DEFAULTS_TAKE_DATA:
-        return field.get_default(call_default_factory=True, validated_data=dict(values))
-    return field.get_default(call_default_factory=True)
-
-
-# pydantic 2.10 added factories that take the validated data. Before it there is
-# no `validated_data` to pass, and no factory that needs one.
-_DEFAULTS_TAKE_DATA = "validated_data" in inspect.signature(FieldInfo.get_default).parameters
+    return field.get_default(call_default_factory=True, validated_data=dict(values))
 
 
 def _not_while_pending(func: Any, hidden: frozenset) -> Any:

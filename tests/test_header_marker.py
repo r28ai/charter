@@ -12,6 +12,7 @@ line break.
 
 from __future__ import annotations
 
+import json
 from enum import Enum
 from typing import Annotated, Literal, Optional
 
@@ -178,7 +179,8 @@ async def test_the_lone_body_field_still_unwraps_beside_a_header():
     await tool.ainvoke(message={"subject": "hi"}, priority="high")
 
     request = route.calls[0].request
-    assert request.content == b'{"subject":"hi"}'
+    # Parsed: httpx 0.27 writes JSON with spaces, 0.28 without.
+    assert json.loads(request.content) == {"subject": "hi"}
     assert request.headers["x-priority"] == "high"
 
 

@@ -67,6 +67,16 @@ here, with the migration in the same entry.
 
 ### Changed
 
+- **Requires pydantic 2.12.3 or later, up from 2.9.** The old floor was never
+  tested: CI resolved to the newest pydantic on every run. Measured against each
+  release, on pydantic 2.12.2 and earlier building a tool's view rewrote the
+  author's own fields, so a field marked `WireName` refused its own wire name:
+  `gcalendar` refused `iCalUID` and `outlook` refused a message's `from`. 2.11
+  fails 18 tests, 2.10 fails 91. A new CI job installs exactly the floors
+  `pyproject.toml` declares, pydantic's and httpx's, on Python 3.10, and a test
+  keeps the two in step. If something else pins pydantic below 2.12.3, upgrade
+  it: those versions were already sending the wrong calls.
+
 - **`scopes_for` returns the fewest, narrowest scopes that cover the tools,
   rather than every scope they list.** For tools declared with plain scopes the
   answer is the same union as before. Where tools offer alternatives, it drops a

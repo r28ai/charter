@@ -459,7 +459,7 @@ class _Thing(BaseModel):
 
 @pytest.mark.parametrize(
     ("status", "method", "body"),
-    [(303, "GET", b""), (307, "POST", b'{"thing":"v"}')],
+    [(303, "GET", None), (307, "POST", {"thing": "v"})],
 )
 def test_redirect_method_semantics_are_httpxs_own(status, method, body):
     """The walk is Charter's, the rules are httpx's: 303 downgrades to GET and
@@ -480,7 +480,10 @@ def test_redirect_method_semantics_are_httpxs_own(status, method, body):
         )
         tool.invoke({"thing": "v"})
 
-    assert (seen[-1].method, seen[-1].content) == (method, body)
+    # Parsed, not compared byte for byte: httpx 0.27 writes JSON with spaces and
+    # 0.28 without, and the pin is on whether the body survives, not its spelling.
+    sent = json.loads(seen[-1].content) if seen[-1].content else None
+    assert (seen[-1].method, sent) == (method, body)
 
 
 def test_a_relative_location_resolves_against_the_hop_it_came_from():
