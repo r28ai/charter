@@ -1,6 +1,6 @@
 ---
 title: "Quickstart"
-description: "Declare a tool for any API, put your own rules on it, watch one refuse a call before anything is sent, then pin a value and print what the model can reach."
+description: "Declare a tool for any API, put your own rules on it, watch one refuse a call before anything is sent, pin a value, print what the model can reach, then act for one customer."
 ---
 
 import FrameworkHandoff from '/snippets/framework-handoff.mdx';
@@ -137,6 +137,62 @@ payments_refund_usd  (POST v1/refunds)
 ```
 
 Commit that map and a change to it is a diff in review: a new tool, a widened field, a dropped pin. [The audit artifact](/boundary/egress-control#the-audit-artifact) has the CI check.
+
+## Act for one customer
+
+A rule like "only this customer's charges" needs to know whose account the call is for. That has to come from your app, not from the model, which can be talked into naming someone else. Mark the field [`FromContext()`](/reference/markers#fromcontext) and pass its value with each call: a pin whose value arrives per call.
+
+```python refund.py
+from pydantic import model_validator
+
+from charter import FromContext
+
+OWNERS = {"ch_3MmlLr": "cus_42", "ch_8KpQ2z": "cus_7"}  # from your database
+
+
+class CustomerRefund(CreateRefund):
+    customer_id: Annotated[str, FromContext()]  # your app's, per call
+
+    @model_validator(mode="after")
+    def their_own(self) -> "CustomerRefund":
+        if OWNERS.get(self.charge) != self.customer_id:
+            raise ValueError("that charge belongs to another customer")
+        return self
+
+
+customer_refund = payments(
+    name="customer_refund",
+    description="Refund one of the customer's charges.",
+    method="POST",
+    url_template="v1/refunds",
+    args_schema=CustomerRefund,
+)
+
+try:
+    customer_refund.invoke(
+        {"charge": "ch_8KpQ2z", "amount": 1500, "reason": "duplicate"},
+        context={"customer_id": "cus_42"},
+    )
+except ToolValidationError as refused:
+    print(refused)
+
+print(format_egress_map([customer_refund]))
+```
+
+```text
+Validation error:
+- **(input)**: Value error, that charge belongs to another customer
+payments_customer_refund  (POST v1/refunds)
+  visible to the model (4):
+    + charge
+    + amount
+    + reason
+    + currency
+  withheld (1):
+    - customer_id  [context] <- context['customer_id']
+```
+
+The model fills in the same four fields, and never `customer_id`. Asked for another customer's charge, the call is refused before anything is sent, and so is a call your app made without saying whose it is. The map now says where that field comes from, which answers what a customer's security team asks: can the agent choose whose data it touches? [Per-call context](/tools/wire-contract#per-call-context) has the rest.
 
 ## Call a pack
 

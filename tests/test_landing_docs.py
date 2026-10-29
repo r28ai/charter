@@ -181,7 +181,8 @@ def _run_quickstart() -> tuple[dict, list[tuple[str, str]]]:
     later = []
     for start, end in (
         ("## Break a rule", "## Pin a value"),
-        ("## Pin a value", "## Call a pack"),
+        ("## Pin a value", "## Act for one customer"),
+        ("## Act for one customer", "## Call a pack"),
     ):
         section = _quickstart_section(start, end)
         (code,) = _indented_blocks(section, "python")

@@ -21,6 +21,10 @@ pip install charter-ai
 
 The [quickstart](/start/quickstart) declares a tool for an API Charter has never seen, puts your rules on it, and shows a call refused before anything is sent.
 
+## Whose account each call is for
+
+An agent acting in a customer's account has to stay in that account, and only your app knows which one it is. A field marked [`FromContext()`](/reference/markers#fromcontext) is filled in by your app on every call and is absent from what the model sees, so a rule like "only this customer's charges" reads a value the model can't change. The [egress map](/boundary/egress-control) lists it beside everything else each tool can reach: commit it, and a change to what your agent can reach is a diff in review. [The quickstart does it.](/start/quickstart#act-for-one-customer)
+
 ## What the model sees and what gets sent can't disagree
 
 ```mermaid
@@ -77,7 +81,7 @@ Gmail is one of seventeen APIs that ship [already declared](/packs/overview). Fo
 
 <Columns cols={2}>
   <Card title="Quickstart" icon="rocket" href="/start/quickstart">
-    Declare a tool for any API, put your rules on it, watch one get refused, pin a value.
+    Declare a tool for any API, put your rules on it, watch one get refused, act for one customer.
   </Card>
   <Card title="Packs" icon="boxes" href="/packs/overview">
     Seventeen integrations, 687 tools, ready to configure and call.

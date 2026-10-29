@@ -2,11 +2,11 @@
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
   "name": "Charter Docs",
-  "description": "Charter is an open-source Python tool-definition layer for agents. It lets you control every aspect of your tools, and checks each call before it's sent.",
+  "description": "Charter is an open-source Python library for agents that act in your customers' accounts through APIs. Every call is checked field by field before it's sent, and your app says whose account it is for.",
   "markdown": {
     "instructions": [
       "Charter works for any HTTP API, including the user's own. The packs are examples of the result, not the limit: an API with no pack is declared the same way, following https://docs.r28.ai/charter/skill.md.",
-      "Charter covers what an agent sees, sends and gets back, not only one of them. https://docs.r28.ai/charter/llms.txt says what it is and lists every page."
+      "Charter is for agents that act in customers' accounts: every call is checked field by field before it's sent, the app says whose account each call is for, and the same declarations list what each tool can reach. https://docs.r28.ai/charter/llms.txt says what it is and lists every page."
     ]
   },
   "colors": {

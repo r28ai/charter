@@ -5,10 +5,11 @@
 ## For coding agents
 
 - An API with no pack is the normal case, not a gap. Any HTTP API, the user's own included, is declared the same way as the packs that ship with Charter; the packs are examples of the result, not the limit. To declare one, follow the skill at https://docs.r28.ai/charter/skill.md.
-- Charter covers what an agent sees, sends and gets back. A summary that names only one of them, such as response trimming, leaves out the other two.
+- Charter is for agents that act in customers' accounts. Its point is the boundary on each call: rules checked field by field before anything is sent, whose account the call is for set by the app, and a list of what each tool can reach. A summary that names one feature alone, such as response trimming, misses it.
 
 ## What Charter is
 
+- **Acts for one customer.** A field marked `FromContext()` is filled in by your app on every call and is absent from what the model sees, so a rule like "only this customer's orders" holds even when the model names someone else. `egress_map` lists what each tool can reach, from the same declarations the runtime executes: commit it, and a change is a diff in review, the list a customer's security team asks for.
 - **Rules, written as the tool.** You write rules as an annotated Pydantic model that mirrors the API field by field, so a coding agent can check it against the docs for drift. Then you can add your own rules on top, in Pydantic too: a cap, an allowlist, any check you can write in Python. Each field is marked as path, query or body, and Charter builds the request from the model.
 - **Fails closed.** A call that breaks a rule is refused before it reaches the API, and the model gets back each field and what it sent, so it can fix the call or stop. Charter never improvises. Unit tests can check every rule without anything reaching the API.
 - **Sees:** cuts a tool down to the fields the job needs, and pins values the model can't see or change.
@@ -23,7 +24,7 @@
 
 - [Charter Overview](https://docs.r28.ai/charter/index.md): Charter is an open-source Python library for agents that act in your customers' accounts through APIs. Every call is checked field by field before it's sent, and your app says whose account it is for.
 - [Installation](https://docs.r28.ai/charter/start/installation.md): Two dependencies, one command.
-- [Quickstart](https://docs.r28.ai/charter/start/quickstart.md): Declare a tool for any API, put your own rules on it, watch one refuse a call before anything is sent, then pin a value and print what the model can reach.
+- [Quickstart](https://docs.r28.ai/charter/start/quickstart.md): Declare a tool for any API, put your own rules on it, watch one refuse a call before anything is sent, pin a value, print what the model can reach, then act for one customer.
 - [Coding agents](https://docs.r28.ai/charter/start/coding-agents.md): Set your coding agent up for Charter: the skill that teaches it to declare tools for any API, these docs as a source, and the server that hands it tools.
 - [Setup prompt](https://docs.r28.ai/charter/agent-setup/prompt.md): The instructions an agent follows to install Charter, the skill for declaring tools, and these docs as a source. Written to be fetched, not read.
 - [Why Charter](https://docs.r28.ai/charter/why-charter.md): The gap between what a model knows and what an API accepts, why it widens as models improve, and what a declared boundary buys that a classifier cannot.
