@@ -46,82 +46,9 @@ Requires Python 3.10+. The only dependencies are `pydantic` and `httpx`.
 
 ## Quickstart
 
-You write rules as an annotated Pydantic model that mirrors the API field by field, so your
-[coding agent](https://github.com/r28ai/charter/blob/main/skills/declaring-charter-tools/SKILL.md) can check it against the docs for drift.
-
-Then you can add your own rules on top of the API's, in Pydantic too, using any check you can
-write in Python.
-
-Unlike a plain Pydantic model, yours also marks each field as path, query or body, and Charter
-builds the request from it. Unit tests can check every rule without anything reaching the API.
-
-```python
-from typing import Annotated, Literal
-
-from pydantic import BaseModel, Field
-
-from charter import Body, ToolValidationError, api_key_tool_factory
-
-
-class Refund(BaseModel):
-    charge: Annotated[str, Body()]
-    amount: Annotated[int, Body()] = Field(
-        gt=0, le=10_000,  # yours: at most $100
-    )
-    reason: Annotated[
-        Literal["duplicate", "requested_by_customer"],  # yours: no "fraudulent"
-        Body(),
-    ]
-
-
-payments = api_key_tool_factory(
-    pack="payments",
-    base_url="https://httpbin.org/anything/",  # stands in for a payments API
-    api_key_headers={"Authorization": "Bearer sk_test_123"},
-    body_format="form",
-)
-refund = payments(
-    name="refund",
-    description="Refund a charge.",
-    method="POST",
-    url_template="v1/refunds",
-    args_schema=Refund,
-)
-
-refund.invoke({"charge": "ch_3MmlLr", "amount": 1500, "reason": "duplicate"})  # sent
-
-try:
-    refund.invoke({"charge": "ch_3MmlLr", "amount": 15000, "reason": "fraudulent"})  # refused
-except ToolValidationError as refused:
-    print(refused)
-```
-
-The first call goes out (httpbin echoes it back):
-
-```
-POST https://httpbin.org/anything/v1/refunds
-Authorization: Bearer sk_test_123
-charge=ch_3MmlLr&amount=1500&reason=duplicate
-```
-
-The model fills in three fields. The key, the URL and the limits stay yours.
-
-The second call is refused before it leaves your process, and the model gets this back,
-naming each field and what it sent:
-
-```
-Validation error:
-- **amount**: Input should be less than or equal to 10000 (got 15000)
-- **reason**: Input should be 'duplicate' or 'requested_by_customer' (got 'fraudulent')
-```
-
-It can fix the call or stop; Charter never improvises.
-
-## Act for one customer
-
-A rule like "only this customer's orders" needs to know whose account the call is for, and
-that has to come from your app, not from the model. Mark the field `FromContext()` and pass
-its value per call:
+An agent acting for one customer looks up two orders. A rule like "only this customer's
+orders" needs to know whose account the call is for, and that has to come from your app, not
+from the model. Mark the field `FromContext()` and pass its value per call:
 
 ```python
 from typing import Annotated
@@ -185,7 +112,77 @@ for. [`14_act_for_one_customer.py`](https://github.com/r28ai/charter/blob/main/e
 runs it, and [per-call context](https://docs.r28.ai/charter/tools/wire-contract#per-call-context)
 has the rest.
 
-## What your agent sees, sends and gets back
+## Your rules on any field
+
+Each tool mirrors the API field by field, so your
+[coding agent](https://github.com/r28ai/charter/blob/main/skills/declaring-charter-tools/SKILL.md)
+can check it against the API's docs. Your own rules go on the same fields: a limit, an allowed
+list, or any check you can write in Python. Charter builds the request from the model, and a
+unit test can check every rule without anything reaching the API.
+
+```python
+from typing import Annotated, Literal
+
+from pydantic import BaseModel, Field
+
+from charter import Body, ToolValidationError, api_key_tool_factory
+
+
+class Refund(BaseModel):
+    charge: Annotated[str, Body()]
+    amount: Annotated[int, Body()] = Field(
+        gt=0, le=10_000,  # yours: at most $100
+    )
+    reason: Annotated[
+        Literal["duplicate", "requested_by_customer"],  # yours: no "fraudulent"
+        Body(),
+    ]
+
+
+payments = api_key_tool_factory(
+    pack="payments",
+    base_url="https://httpbin.org/anything/",  # stands in for a payments API
+    api_key_headers={"Authorization": "Bearer sk_test_123"},
+    body_format="form",
+)
+refund = payments(
+    name="refund",
+    description="Refund a charge.",
+    method="POST",
+    url_template="v1/refunds",
+    args_schema=Refund,
+)
+
+refund.invoke({"charge": "ch_3MmlLr", "amount": 1500, "reason": "duplicate"})  # sent
+
+try:
+    refund.invoke({"charge": "ch_3MmlLr", "amount": 15000, "reason": "fraudulent"})  # refused
+except ToolValidationError as refused:
+    print(refused)
+```
+
+The first call goes out (httpbin echoes it back):
+
+```
+POST https://httpbin.org/anything/v1/refunds
+Authorization: Bearer sk_test_123
+charge=ch_3MmlLr&amount=1500&reason=duplicate
+```
+
+The model fills in three fields. The key, the URL and the limits stay yours.
+
+The second call is refused before it leaves your process, and the model gets this back,
+naming each field and what it sent:
+
+```
+Validation error:
+- **amount**: Input should be less than or equal to 10000 (got 15000)
+- **reason**: Input should be 'duplicate' or 'requested_by_customer' (got 'fraudulent')
+```
+
+It can fix the call or stop; Charter never improvises.
+
+## What else Charter does
 
 | | What Charter does | Measured |
 |---|---|---|
@@ -199,8 +196,8 @@ has the rest.
 |---|---|
 | Facing a security review | What the agent can see and send, enforced in code and diffed in review: whose account a call acts in, set by your app per call ([`FromContext`](https://docs.r28.ai/charter/reference/markers#fromcontext)), values it can't see or change ([`pin`](https://docs.r28.ai/charter/tools/projections#pin)), fields per pricing tier or region ([`Mode`](https://docs.r28.ai/charter/boundary/mode-system)), OAuth scopes worked out from the tools you hand out ([`scopes_for`](https://docs.r28.ai/charter/auth/permissions)), and a list of everything each tool can reach ([`egress_map`](https://docs.r28.ai/charter/reference/observability#egress_map)) |
 | A SaaS adding an agent that works in your users' Gmail, Stripe or Notion | [Per-user OAuth](https://docs.r28.ai/charter/auth/your-users) with your app's name on the consent screen, and [ready-made tools](https://docs.r28.ai/charter/packs/overview) |
-| On Composio or Zapier | Tools you own, with no per-call fees, and your users' data stays on your servers ([how it compares](#how-charter-compares)) |
-| Writing tool glue by hand | Catches the bugs hand-written glue lets through: a bad argument is [refused before it's sent](#quickstart), and an [`Envelope`](https://docs.r28.ai/charter/reference/envelopes-and-pagination#envelope) raises when a `200` is really a failure |
+| On Composio or Zapier | Tools you own, and your users' tokens and data stay on your servers ([how it compares](#how-charter-compares)) |
+| Writing tool glue by hand | Catches the bugs hand-written glue lets through: a bad argument is [refused before it's sent](#your-rules-on-any-field), and an [`Envelope`](https://docs.r28.ai/charter/reference/envelopes-and-pagination#envelope) raises when a `200` is really a failure |
 | Running a small or open model | Tools cut down to the fields the job needs ([`derived`](https://docs.r28.ai/charter/tools/projections)), and a one-line hint on the exact field it keeps getting wrong ([`Gloss`](https://docs.r28.ai/charter/reference/markers#gloss)) |
 
 ## Examples
@@ -211,7 +208,7 @@ short scripts, numbered in reading order, and none of them needs a key or an acc
 | Example | Shows |
 |---|---|
 | [`03_errors_for_the_model.py`](https://github.com/r28ai/charter/blob/main/examples/basics/03_errors_for_the_model.py) | A bad argument refused before sending, with a fix the model can apply |
-| [`08_many_tools.py`](https://github.com/r28ai/charter/blob/main/examples/basics/08_many_tools.py) | 613 tools in one session, starting from 4,476 tokens |
+| [`08_many_tools.py`](https://github.com/r28ai/charter/blob/main/examples/basics/08_many_tools.py) | 687 tools in one session, starting from 5,009 tokens |
 | [`11_one_tool_per_plan.py`](https://github.com/r28ai/charter/blob/main/examples/basics/11_one_tool_per_plan.py) | One tool with a different field set per plan |
 | [`14_act_for_one_customer.py`](https://github.com/r28ai/charter/blob/main/examples/basics/14_act_for_one_customer.py) | Your app says whose account each call is for: another customer's order is refused |
 | [`use_a_pack.py`](https://github.com/r28ai/charter/blob/main/examples/connect/use_a_pack.py) | A shipped tool, with your GitHub token: GitHub sends 346.6 KB, the model gets 10.7 KB |
@@ -354,22 +351,20 @@ your own tools, [request a pack](https://github.com/r28ai/charter/issues), and [
 
 ## How Charter compares
 
-If you're connecting an agent to your users' Gmail, Stripe or Notion, there are usually
-two ways to go.
+Identity and access layers for agents (Keycard, Arcade, Permit, WorkOS and others) decide
+which token, scope or tool an agent gets. Charter works one level down, inside each call:
+which fields the model can set, which values it sends, and whose account the call is for.
+`gmail.readonly` lets an agent read every email; Charter decides which query it may send.
+The two stack: the token layer narrows the grant, and Charter narrows each call made with it.
 
-You can use each vendor's own library and wire it up yourself. That's direct and it's
-yours, but every API comes with its own client, its own auth and its own plumbing to
-write and keep up.
+Hosted tool platforms like Composio run each call on their own servers. Charter runs in your
+process, so your users' tokens and data never pass through a third party, and a call costs
+what the API does. In [our benchmark](https://docs.r28.ai/charter/guarantees/benchmarks#time-and-money-per-call),
+Composio added about 0.7 s per call.
 
-Or you can use a platform like Zapier or Composio. Easy too, but your users see
-"Authorize Zapier" instead of your product's name, right when they're deciding whether to
-connect. You pay for every tool call and get rate-limited on top. And your users' data
-goes through someone else's servers.
-
-Charter works like going direct. You register your own app with Google, Stripe or Notion,
-and your users authorize you. It's as direct as the vendors' own libraries, without the
-platform's downsides: no per-call billing, no remote
-server, all yours.
+Guardrail frameworks like NeMo Guardrails, Guardrails AI and Parlant work on the conversation:
+what goes into the prompt, or the text going in and out, often checked by another model.
+Charter checks the call itself, in code, so a rule holds the same on every model.
 
 It's not an agent framework either. LangChain, the OpenAI SDK or an MCP client runs the
 loop, and Charter is the tools it calls.

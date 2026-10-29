@@ -9,6 +9,8 @@ here, with the migration in the same entry.
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-10-29
+
 ### Added
 
 - **`AnyOf` and `missing_scopes`, in `charter.auth`.** A tool's `scopes` can now
@@ -68,6 +70,16 @@ here, with the migration in the same entry.
   on every call, and `to_langchain(..., context=...)` outside an agent; and
   `build_server(..., context=...)` for MCP, which takes a mapping or a function
   of the MCP request context.
+- **A Luma pack, `charter.packs.luma`: 74 tools**, drafted from Luma's OpenAPI
+  document and then reviewed by hand. Charter now ships 687 tools across
+  seventeen APIs.
+- **`scripts/openapi_to_pack.py`, which drafts a pack from an OpenAPI document.**
+  It copies every parameter, body field, enum member, constraint and description
+  word for word, marks `readOnly` as `Mode("response_only")` and `deprecated` as
+  `Mode("disabled")`, and prints what a spec cannot say for the reviewer to
+  decide. It refuses to write over an existing pack, so when a vendor's spec
+  moves, draft it into `--out` and diff. It lives in the repository, not the
+  installed package.
 
 ### Changed
 
@@ -2544,6 +2556,9 @@ First release.
   pagination loops, no multi-call orchestration, no streaming. See *What this
   can't express* in the README.
 
+[Unreleased]: https://github.com/r28ai/charter/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/r28ai/charter/compare/v0.5.2...v0.6.0
+[0.5.2]: https://github.com/r28ai/charter/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/r28ai/charter/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/r28ai/charter/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/r28ai/charter/compare/v0.3.1...v0.4.0

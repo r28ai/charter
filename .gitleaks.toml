@@ -30,6 +30,14 @@ keywords = ["key", "api", "token", "secret", "client", "passwd", "password", "au
     # the Outlook delta fixture hands one back. A sync cursor, not a credential:
     # it reads nothing without the bearer token beside it.
     '''LztZwWjo5IivWBhyxw5rAKu''',
+    # The error-message benchmark replays a Calendar call that sends a
+    # `syncToken` with a filter, so its records carry the test calendar's sync
+    # token. A cursor, like the deltatoken above: it reads nothing without the
+    # bearer token beside it.
+    '''CK_H8LSa0ZcDEK_H8LSa0Zc''',
+    # GitHub's refusal sentence, which the pack matches to raise
+    # `InsufficientScope`. The words after "access token" are code, not a value.
+    '''access token", kind=FINE_GRAINED''',
   ]
 
 # The app-registration guides (docs/auth/apps/) show a client ID next to a

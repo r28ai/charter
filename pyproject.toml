@@ -162,6 +162,7 @@ testpaths = ["tests"]
 # `python -m pytest` agree.
 pythonpath = ["."]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 # A deprecation is a scheduled breakage, so it fails the build rather than
 # scrolling past in the summary. Adopted at zero warnings, which is the cheapest
 # this will ever be. When a dependency deprecates something you cannot fix, add

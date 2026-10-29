@@ -24,7 +24,7 @@ JSONPlaceholder, a public GraphQL API) play your API.
 | [`05_catch_failed_200s.py`](basics/05_catch_failed_200s.py) | A GraphQL API's `200` with an `errors` list raises instead of reading as a success |
 | [`06_cut_a_tool.py`](basics/06_cut_a_tool.py) | 33 kinds of Docs edit behind one URL, cut to the 3 that edit text |
 | [`07_price_a_tool.py`](basics/07_price_a_tool.py) | Find the field that makes a tool expensive: 44,828 of 45,072 tokens |
-| [`08_many_tools.py`](basics/08_many_tools.py) | All 613 tools in one session: 471,451 tokens up front, 4,476 on the first turn |
+| [`08_many_tools.py`](basics/08_many_tools.py) | All 687 tools in one session: 497,848 tokens up front, 5,009 on the first turn |
 | [`09_rules_on_fields.py`](basics/09_rules_on_fields.py) | Rules on their fields instead of in the system prompt, gone when the field is cut |
 | [`10_pin_a_value.py`](basics/10_pin_a_value.py) | A value the model can neither see nor set |
 | [`11_one_tool_per_plan.py`](basics/11_one_tool_per_plan.py) | The same call refused on free, refused on pro, sent on max |
