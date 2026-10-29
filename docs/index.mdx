@@ -1,7 +1,7 @@
 ---
 title: "Charter Overview"
 sidebarTitle: "Overview"
-description: "Charter is an open-source Python tool-definition layer for agents. It lets you control every aspect of your tools, and checks each call before it's sent."
+description: "Charter is an open-source Python library for agents that act in your customers' accounts through APIs. Every call is checked field by field before it's sent, and your app says whose account it is for."
 "og:image": "https://docs.r28.ai/charter/images/social-preview.png"
 "twitter:image": "https://docs.r28.ai/charter/images/social-preview.png"
 ---
@@ -11,7 +11,7 @@ import FrameworkHandoff from '/snippets/framework-handoff.mdx';
 
 <AgentButton />
 
-Charter is an open-source Python tool-definition layer for agents. It lets you control every aspect of your tools, and checks each call before it's sent. It works for any HTTP API, public or private.
+Charter is an open-source Python library for agents that act in your customers' accounts through APIs. Each tool is a Pydantic model that mirrors the API field by field, with your rules on top, and every call is checked against it before it's sent. Your app says whose account each call is for, and the model can't change it. The same declarations list everything each tool can reach, for code review and for your customer's security team. It works for any HTTP API, public or private.
 
 **Charter is a library like Pydantic, not a service.** No signup, no middleman.
 

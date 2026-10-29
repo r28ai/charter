@@ -30,6 +30,7 @@ JSONPlaceholder, a public GraphQL API) play your API.
 | [`11_one_tool_per_plan.py`](basics/11_one_tool_per_plan.py) | The same call refused on free, refused on pro, sent on max |
 | [`12_scopes_from_tools.py`](basics/12_scopes_from_tools.py) | The OAuth scopes to ask your users for, computed from the tools you hand out |
 | [`13_review_the_boundary.py`](basics/13_review_the_boundary.py) | What the agent can touch, as a diff: a new tool, a dropped pin |
+| [`14_act_for_one_customer.py`](basics/14_act_for_one_customer.py) | Your app says whose account each call is for: another customer's order is refused, and the model never sees the field |
 
 ## Connect an account
 

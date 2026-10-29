@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "charter-ai"
 dynamic = ["version"]
-description = "Decide what your agent sees, sends and gets back, in every API it touches. Tools are Pydantic models; Charter makes the call."
+description = "Your agent's access to customer accounts, enforced per field, diffed in review. Tools are Pydantic models; Charter makes the call."
 readme = "README.md"
 license = { text = "Apache-2.0" }
 requires-python = ">=3.10"

@@ -1,6 +1,6 @@
 # Charter
 
-> Charter is an open-source Python tool-definition layer for agents. It lets you control every aspect of your tools, and checks each call before it's sent. It works for any HTTP API, public or private.
+> Charter is an open-source Python library for agents that act in your customers' accounts through APIs. Each tool is a Pydantic model that mirrors the API field by field, with your rules on top, and every call is checked against it before it's sent. Your app says whose account each call is for, and the model can't change it. The same declarations list everything each tool can reach, for code review and for your customer's security team. It works for any HTTP API, public or private.
 
 ## For coding agents
 
@@ -21,7 +21,7 @@
 <!-- generated: pages start -->
 ## Get started
 
-- [Charter Overview](https://docs.r28.ai/charter/index.md): Charter is an open-source Python tool-definition layer for agents. It lets you control every aspect of your tools, and checks each call before it's sent.
+- [Charter Overview](https://docs.r28.ai/charter/index.md): Charter is an open-source Python library for agents that act in your customers' accounts through APIs. Every call is checked field by field before it's sent, and your app says whose account it is for.
 - [Installation](https://docs.r28.ai/charter/start/installation.md): Two dependencies, one command.
 - [Quickstart](https://docs.r28.ai/charter/start/quickstart.md): Declare a tool for any API, put your own rules on it, watch one refuse a call before anything is sent, then pin a value and print what the model can reach.
 - [Coding agents](https://docs.r28.ai/charter/start/coding-agents.md): Set your coding agent up for Charter: the skill that teaches it to declare tools for any API, these docs as a source, and the server that hands it tools.

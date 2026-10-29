@@ -178,6 +178,7 @@ def test_every_example_is_listed_and_run_below():
         "basics/11_one_tool_per_plan",
         "basics/12_scopes_from_tools",
         "basics/13_review_the_boundary",
+        "basics/14_act_for_one_customer",
         "connect/my_api_keys",
         "connect/my_google",
         "connect/use_a_pack",
@@ -258,6 +259,21 @@ def test_the_offline_basics_print_what_they_promise(capsys):
     assert amount.startswith("the model reads on amount: A positive integer")
     assert amount.endswith("Cents, not dollars: $15.00 is 1500, and 15 is 15 cents.")
     assert cut == "cut amount, and its rule leaves too: ['charge', 'reason']"
+
+
+@respx.mock
+def test_act_for_one_customer_scopes_refuses_then_names_what_is_missing(capsys):
+    echo = respx.get(url__startswith="https://httpbin.org/anything/v1/orders/").mock(
+        side_effect=_echo
+    )
+    _load("basics/14_act_for_one_customer")
+    sent, refused, missing, *egress = capsys.readouterr().out.splitlines()
+    assert sent == "sent        https://httpbin.org/anything/v1/orders/ord_1?customer_id=cus_42"
+    assert refused == "refused     Value error, That order belongs to another customer."
+    assert missing == "no context  your app didn't pass 'customer_id'"
+    assert "    + order_id" in egress
+    assert "    - customer_id  [context] <- context['customer_id']" in egress
+    assert echo.call_count == 1  # the refusals sent nothing
 
 
 @respx.mock
