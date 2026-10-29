@@ -27,16 +27,29 @@ low-level surface and is not supported.
 
 from __future__ import annotations
 
+import inspect
 import json
 import logging
 import re
-from typing import Annotated, Any, Dict, List, Optional, Protocol, Sequence
+from typing import (
+    Annotated,
+    Any,
+    Awaitable,
+    Callable,
+    Dict,
+    List,
+    Mapping,
+    Optional,
+    Protocol,
+    Sequence,
+    Union,
+)
 
 from charter.discovery import SEARCH_TOOL_NAME
 from charter.session import ToolSession, ToolsLike, view_of
 from charter.types.errors import CharterError, unexpected_failure_text
 
-__all__ = ["LocalToolLike", "PromptLike", "build_server", "serve", "serve_async"]
+__all__ = ["ContextSource", "LocalToolLike", "PromptLike", "build_server", "serve", "serve_async"]
 
 logger = logging.getLogger("charter")
 
@@ -151,6 +164,32 @@ def _annotations(types: Any, entry: Any) -> Any:
     return types.ToolAnnotations(read_only_hint=False, open_world_hint=True)
 
 
+ContextSource = Union[
+    Mapping[str, Any],
+    Callable[[Any], Union[Mapping[str, Any], Awaitable[Mapping[str, Any]]]],
+]
+"""What an MCP server hands each Charter call as ``context``.
+
+A mapping, for a server that only ever serves one user: a stdio server is one
+process for one client, so whoever launched it already knows whose it is. Or a
+function of the MCP request context, called for every tool call, sync or async,
+for a server that learns the user from the request, such as an HTTP server
+reading its own authentication.
+"""
+
+
+async def _call_context(
+    source: Optional[ContextSource], request: Optional[Any]
+) -> Optional[Mapping[str, Any]]:
+    """This call's ``context``, from what :func:`build_server` was given."""
+    if source is None or isinstance(source, Mapping):
+        return source
+    value = source(request)
+    if inspect.isawaitable(value):
+        value = await value
+    return value
+
+
 def build_server(
     tools: ToolsLike,
     name: str = "charter",
@@ -159,6 +198,7 @@ def build_server(
     prompts: Sequence[PromptLike] = (),
     instructions: Optional[str] = None,
     local_tools: Sequence[LocalToolLike] = (),
+    context: Optional[ContextSource] = None,
 ) -> Any:
     """Build an MCP server exposing ``tools``.
 
@@ -192,8 +232,15 @@ def build_server(
     ``instructions`` go out in the ``initialize`` result, which Claude Code puts
     in front of the model before the first message. ``local_tools`` are listed
     after the Charter tools and answered in-process.
+
+    ``context`` is handed to every Charter call, for the tools' ``FromContext``
+    fields and rules (see :meth:`~charter.tool.Tool.ainvoke`): a mapping, or a
+    function of the MCP request context returning one (:data:`ContextSource`).
+    A ``FromContext`` value the client could send would be the model's again, so
+    it only ever comes from here, never from the call's arguments.
     """
     MCPServer, types, ToolError = _require_mcp()
+    host_context = context
 
     # `<pack>_<tool>`, always. A host composes `mcp__<server>__<tool>` on top,
     # taking `<server>` from the key the server was *configured under* rather
@@ -282,7 +329,9 @@ def build_server(
 
             loaded_before = len(session.loaded)
             try:
-                result = await session.dispatch(name, arguments or {})
+                result = await session.dispatch(
+                    name, arguments or {}, context=await _call_context(host_context, context)
+                )
             except CharterError as exc:
                 # The library's errors are already written to be read, so pass
                 # the message through rather than a generic failure. A
@@ -362,14 +411,21 @@ async def serve_async(
     prompts: Sequence[PromptLike] = (),
     instructions: Optional[str] = None,
     local_tools: Sequence[LocalToolLike] = (),
+    context: Optional[ContextSource] = None,
 ) -> None:
     """Run the MCP server over stdio until the client disconnects.
 
     A plain iterable publishes every schema, as :func:`build_server` does. Pass
     a progressive :class:`~charter.session.ToolSession` to send them on demand.
+    ``context`` is handed to every call, as for :func:`build_server`.
     """
     server = build_server(
-        tools, name=name, prompts=prompts, instructions=instructions, local_tools=local_tools
+        tools,
+        name=name,
+        prompts=prompts,
+        instructions=instructions,
+        local_tools=local_tools,
+        context=context,
     )
     await server.run_stdio_async()
 
@@ -380,8 +436,9 @@ def serve(
     prompts: Sequence[PromptLike] = (),
     instructions: Optional[str] = None,
     local_tools: Sequence[LocalToolLike] = (),
+    context: Optional[ContextSource] = None,
 ) -> None:
     """Run the MCP server over stdio (blocking)."""
     import anyio
 
-    anyio.run(serve_async, tools, name, prompts, instructions, local_tools)
+    anyio.run(serve_async, tools, name, prompts, instructions, local_tools, context)

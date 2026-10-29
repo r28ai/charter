@@ -54,6 +54,79 @@ ImportError: The LangChain adapter needs langchain-core.
 Install it with: pip install 'charter-ai[langchain]'
 ```
 
+## Passing the host's context
+
+A tool with a [`FromContext`](/reference/markers#fromcontext) field needs the
+host to say whom each call is for, and every adapter carries that through, from
+wherever the framework already keeps it. The model never supplies it: the field
+is not in the schema any adapter publishes.
+
+**OpenAI.** The run's context goes to every call it makes:
+
+```python
+from charter.adapters.openai import run
+
+
+async def answer(client, session, messages, user):
+    return await run(
+        client,
+        model="gpt-4o",
+        messages=messages,
+        session=session,
+        context={"customer_id": user.customer_id},
+    )
+```
+
+**LangChain agents.** [`CharterMiddleware`](/reference/tool-discovery#chartermiddleware)
+reads the agent's own context, the one `agent.ainvoke(..., context=...)` is
+given, on every tool call. One agent serves every user, and a dataclass, a
+`TypedDict` or a pydantic model all work:
+
+```python
+from dataclasses import dataclass
+
+from langchain.agents import create_agent
+from charter.adapters.langchain import CharterMiddleware
+
+
+@dataclass
+class Context:
+    customer_id: str
+
+
+async def answer(model, session, messages, user):
+    agent = create_agent(
+        model, tools=[], middleware=[CharterMiddleware(session)], context_schema=Context
+    )
+    return await agent.ainvoke(
+        {"messages": messages}, context=Context(customer_id=user.customer_id)
+    )
+```
+
+Outside an agent, `to_langchain(tool, context={...})` and
+`to_langchain_tools(tools, context={...})` bind one mapping to every call; wrap
+per request when it varies by user.
+
+**MCP.** `build_server(tools, context=...)` takes a mapping, for a stdio server,
+which is one process for one user, or a function of the MCP request context,
+sync or async, called for every tool call, for a server that learns the user
+from the request:
+
+```python
+from charter.adapters.mcp import build_server
+
+
+def for_this_request(request):
+    return {"customer_id": customer_of(request)}  # your authentication
+
+
+server = build_server(tools, context=for_this_request)
+```
+
+A call whose context lacks a required value is answered with a
+[`ContextError`](/reference/errors#contexterror), whose message tells the model
+the application has to fix it and that a different call will not help.
+
 ## Sending schemas on demand
 
 A [`ToolSession`](/reference/tool-discovery#toolsession) sends the schemas of the tools the model has reached for, plus a `ToolSearch` that loads the rest, so Gmail and Stripe together cost 924 tokens on the first turn instead of 41,361.

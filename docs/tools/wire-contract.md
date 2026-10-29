@@ -329,9 +329,11 @@ A `FromContext` field is top-level only, is never one a `Mode` withholds, and is
 outside what a projection reaches: `keep` leaves it alone, and naming it in `drop`
 or `pin` is refused, since a value comes from one place.
 
-`invoke`, [`ToolSession.dispatch`](/reference/tool-discovery#toolsession) and the
-OpenAI adapter's `run(..., context=...)` pass `context` through. The LangChain
-and MCP adapters do not yet.
+`invoke` and [`ToolSession.dispatch`](/reference/tool-discovery#toolsession) take
+`context` too, and every adapter carries it: the OpenAI `run(..., context=...)`,
+LangChain's `CharterMiddleware`, which reads the agent's own context, and
+`build_server(..., context=...)` for MCP. See
+[passing the host's context](/using/adapters#passing-the-hosts-context).
 
 ### Rules that read the context directly
 

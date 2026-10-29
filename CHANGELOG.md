@@ -62,8 +62,12 @@ here, with the migration in the same entry.
   whose value arrives per call; without one it is only for the rules.
   `egress_map` lists it as withheld with the reason `context`. The whole mapping
   also reaches every validator as `info.context`, for a rule on a nested model.
-  `invoke`, `ToolSession.dispatch` and the OpenAI `run()` loop pass `context`
-  through; the LangChain and MCP adapters do not yet.
+  Every adapter carries `context`: the OpenAI `run(..., context=...)` loop;
+  LangChain's `CharterMiddleware`, which reads the agent's own context
+  (`agent.ainvoke(..., context=...)`, a dataclass, `TypedDict` or pydantic model)
+  on every call, and `to_langchain(..., context=...)` outside an agent; and
+  `build_server(..., context=...)` for MCP, which takes a mapping or a function
+  of the MCP request context.
 
 ### Changed
 

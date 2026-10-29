@@ -23,9 +23,12 @@ where LangChain provides for it rather than by rebuilding the agent::
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Mapping, Optional
+
+from pydantic import BaseModel
 
 from charter.discovery import DEFAULT_MAX_RESULTS, SEARCH_TOOL_NAME
 from charter.execution.validation import format_validation_error
@@ -48,7 +51,9 @@ def _require_structured_tool():
     return StructuredTool
 
 
-def to_langchain(tool: Tool, *, name: str | None = None) -> Any:
+def to_langchain(
+    tool: Tool, *, name: str | None = None, context: Optional[Mapping[str, Any]] = None
+) -> Any:
     """Wrap a Charter :class:`~charter.tool.Tool` as a LangChain ``StructuredTool``.
 
     A failed call is returned as the tool result rather than raised, which is
@@ -59,24 +64,18 @@ def to_langchain(tool: Tool, *, name: str | None = None) -> Any:
     the ``charter`` logger, and the model is told the tool failed on its side
     and that changing the call will not help. A tool failing ends the call,
     never the agent.
+
+    ``context`` is the host's per-call values, handed to every call this tool
+    makes, for its ``FromContext`` fields and rules (see
+    :meth:`~charter.tool.Tool.ainvoke`). Wrap per request when it varies by user.
+    Inside an agent, :class:`CharterMiddleware` reads the agent's own context
+    instead, call by call.
     """
     StructuredTool = _require_structured_tool()
     published = name or tool.name
 
-    async def _run(**kwargs: Any) -> Any:
-        try:
-            return await tool.ainvoke(kwargs)
-        except ToolValidationError as exc:
-            # Hand the model its own mistake instead of crashing the agent loop.
-            return str(exc)
-        except CharterError as exc:
-            return f"Error: {exc}"
-        except Exception as exc:
-            logger.exception("charter: tool %s raised %s", published, type(exc).__name__)
-            return f"Error: {unexpected_failure_text(published, exc)}"
-
     return StructuredTool.from_function(
-        coroutine=_run,
+        coroutine=_runner(tool, published, context),
         name=published,
         description=tool.description,
         args_schema=tool.llm_schema(),
@@ -86,6 +85,44 @@ def to_langchain(tool: Tool, *, name: str | None = None) -> Any:
         # the whole kwargs payload back at the model. This renders it the same way
         # ToolValidationError does.
         handle_validation_error=format_validation_error,
+    )
+
+
+def _runner(tool: Tool, published: str, context: Optional[Mapping[str, Any]]) -> Any:
+    """The coroutine a LangChain tool runs: ``tool.ainvoke``, failures as results."""
+
+    async def _run(**kwargs: Any) -> Any:
+        try:
+            return await tool.ainvoke(kwargs, context=context)
+        except ToolValidationError as exc:
+            # Hand the model its own mistake instead of crashing the agent loop.
+            return str(exc)
+        except CharterError as exc:
+            return f"Error: {exc}"
+        except Exception as exc:
+            logger.exception("charter: tool %s raised %s", published, type(exc).__name__)
+            return f"Error: {unexpected_failure_text(published, exc)}"
+
+    return _run
+
+
+def _as_context(value: Any) -> Optional[Mapping[str, Any]]:
+    """An agent's run context, as the mapping Charter reads ``context`` as.
+
+    LangChain types it with the agent's ``context_schema``, which its docs write
+    as a dataclass, and which may as well be a ``TypedDict`` or a pydantic model.
+    Read one level deep: a field holding a model stays that model, as it would
+    in a dict the host built by hand.
+    """
+    if value is None or isinstance(value, Mapping):
+        return value
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        return {field.name: getattr(value, field.name) for field in dataclasses.fields(value)}
+    if isinstance(value, BaseModel):
+        return dict(value)
+    raise TypeError(
+        f"The agent's context is a {type(value).__name__}. Charter reads it as a mapping, "
+        "a dataclass or a pydantic model, keyed by the names its FromContext fields use."
     )
 
 
@@ -109,7 +146,9 @@ def _search_tool(session: Any, definition: Dict[str, Any]) -> Any:
     )
 
 
-def to_langchain_tools(tools: ToolsLike) -> List[Any]:
+def to_langchain_tools(
+    tools: ToolsLike, *, context: Optional[Mapping[str, Any]] = None
+) -> List[Any]:
     """Wrap tools for LangChain.
 
     Names are ``<pack>_<tool>``. LangChain resolves a tool call by name against
@@ -123,9 +162,14 @@ def to_langchain_tools(tools: ToolsLike) -> List[Any]:
     LangGraph, call this inside the model node rather than passing a list to
     ``create_react_agent`` once. Given a plain iterable
     this returns everything, which is what a prebuilt agent expects.
+
+    ``context`` is handed to every call any of them makes, as for
+    :func:`to_langchain`.
     """
     return [
-        _search_tool(tools, entry) if isinstance(entry, dict) else to_langchain(entry, name=name)
+        _search_tool(tools, entry)
+        if isinstance(entry, dict)
+        else to_langchain(entry, name=name, context=context)
         for name, entry in view_of(tools)
     ]
 
@@ -175,6 +219,14 @@ def CharterMiddleware(session: ToolSession) -> Any:  # noqa: N802 - it is a clas
     Charter tools sit alongside anything passed to ``tools=``: this only ever
     adds to the request and only claims calls whose names it recognises.
 
+    The agent's own context reaches every Charter call, for the tools'
+    ``FromContext`` fields and rules. It is whatever the run was given, read call
+    by call, so one agent serves every user::
+
+        await agent.ainvoke(messages, context=Context(customer_id=user.customer_id))
+
+    A dataclass, a ``TypedDict`` or a pydantic model all work.
+
     A function rather than a class statement so that importing this module
     without the ``langchain`` package still works — ``to_langchain_tools`` needs
     only ``langchain-core``, and a class body cannot defer its base.
@@ -204,13 +256,25 @@ def CharterMiddleware(session: ToolSession) -> Any:  # noqa: N802 - it is a clas
             return out
 
         def _claim(self, request: Any) -> Any:
-            """``request`` with the tool to run attached, if this session owns it."""
+            """``request`` with the tool to run attached, if this session owns it.
+
+            A Charter tool is handed this run's context. The wrapper is built once
+            per tool and shared by every run, so the context is bound to a copy
+            for this one call rather than stored on it: two users' runs share the
+            middleware, and a value set on the wrapper would cross between them.
+            """
             name = request.tool_call["name"]
-            if name != SEARCH_TOOL_NAME and name not in self.session.visible():
+            visible = self.session.visible()
+            if name != SEARCH_TOOL_NAME and name not in visible:
                 return request
             self._tools()  # make sure the wrapper exists
             tool = self._wrapped.get(name)
-            return request if tool is None else request.override(tool=tool)
+            if tool is None:
+                return request
+            context = _as_context(getattr(getattr(request, "runtime", None), "context", None))
+            if context is not None and name in visible:
+                tool = tool.model_copy(update={"coroutine": _runner(visible[name], name, context)})
+            return request.override(tool=tool)
 
         # The synchronous hooks refuse rather than work.
         #

@@ -294,6 +294,12 @@ Build the agent with `tools=[]` and let the middleware provide them. Anything yo
 do pass to `tools=` stays: the middleware only adds, and only claims calls whose
 names it recognises.
 
+The agent's own context reaches every Charter call, for the tools'
+[`FromContext`](/reference/markers#fromcontext) fields: whatever
+`agent.ainvoke(..., context=...)` is given, a dataclass, a `TypedDict` or a
+pydantic model, read call by call, so one agent serves every user. See
+[passing the host's context](/using/adapters#passing-the-hosts-context).
+
 Run the agent with `await agent.ainvoke(...)`. A Charter tool executes through
 [`Tool.ainvoke`](/reference/tool#tool-ainvoke), async down to `httpx.AsyncClient`,
 so there is no blocking form to give LangChain. `agent.invoke(...)` is refused at
