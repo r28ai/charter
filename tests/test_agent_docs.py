@@ -55,7 +55,7 @@ def test_the_llms_txt_page_list_is_current():
 
 def test_the_served_skill_is_the_repo_skill():
     assert GEN.SKILL_MD.read_text() == GEN.render_skill_md(), (
-        f"docs/skill.md is stale — run `uv run python {GEN._SCRIPT}`"
+        f"docs/.mintlify/skills/declaring-charter-tools/SKILL.md is stale — run `uv run python {GEN._SCRIPT}`"
     )
 
 
@@ -66,7 +66,9 @@ def test_the_served_skill_has_no_relative_links():
         for target in GEN._LINK.findall(GEN.SKILL_MD.read_text())
         if not target.startswith(("http://", "https://", "#", "mailto:"))
     ]
-    assert not relative, f"docs/skill.md links relatively: {relative}"
+    assert not relative, (
+        f"docs/.mintlify/skills/declaring-charter-tools/SKILL.md links relatively: {relative}"
+    )
 
 
 def test_llms_txt_lists_no_pack_tool_pages():

@@ -222,7 +222,7 @@ _AGENT_FACING = (
     "docs/agent-setup/prompt.mdx",
     "docs/start/coding-agents.mdx",
     "docs/llms.txt",
-    "docs/skill.md",
+    "docs/.mintlify/skills/declaring-charter-tools/SKILL.md",
 )
 
 _IMPORT = re.compile(r"^\s*from (charter[\w.]*) import ([^\n(]+)$", re.M)

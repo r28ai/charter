@@ -13,9 +13,12 @@ each one.
   frontmatter, so a new page shows up and a changed description follows. Pack
   tool pages and the per-vendor auth pages are left out; their hubs are listed
   and link onward.
-- `docs/skill.md`: `skills/declaring-charter-tools/SKILL.md` with its relative
-  links made absolute, because the copy is served alone at
-  docs.r28.ai/charter/skill.md and its neighbours are not served beside it.
+- `docs/.mintlify/skills/declaring-charter-tools/SKILL.md`: the repo skill with
+  its relative links made absolute, because Mintlify serves the copy alone (at
+  docs.r28.ai/charter/skill.md and under /.well-known/agent-skills/) and its
+  neighbours are not served beside it. It lives in `.mintlify/skills/`, Mintlify's
+  skills directory, rather than as a root `skill.md`: the root file stopped
+  refreshing on deploy after 2026-10-20 and served that day's copy for weeks.
 
 Run it after adding a page, changing a page's title or description, or editing
 the skill::
@@ -37,7 +40,7 @@ from typing import Dict, Iterator, List, Sequence, Tuple
 ROOT = Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
 LLMS_TXT = DOCS / "llms.txt"
-SKILL_MD = DOCS / "skill.md"
+SKILL_MD = DOCS / ".mintlify" / "skills" / "declaring-charter-tools" / "SKILL.md"
 SKILL_SOURCE = ROOT / "skills" / "declaring-charter-tools" / "SKILL.md"
 
 SITE = "https://docs.r28.ai/charter"
@@ -156,6 +159,7 @@ def main(argv: Sequence[str]) -> int:
             continue
         stale.append(path.relative_to(ROOT).as_posix())
         if not check:
+            path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(updated)
 
     if check and stale:

@@ -4,7 +4,7 @@
 
 ## For coding agents
 
-- An API with no pack is the normal case, not a gap. Any HTTP API, the user's own included, is declared the same way as the packs that ship with Charter; the packs are examples of the result, not the limit. To declare one, follow the skill at https://raw.githubusercontent.com/r28ai/charter/main/docs/skill.md.
+- An API with no pack is the normal case, not a gap. Any HTTP API, the user's own included, is declared the same way as the packs that ship with Charter; the packs are examples of the result, not the limit. To declare one, follow the skill at https://raw.githubusercontent.com/r28ai/charter/main/docs/.mintlify/skills/declaring-charter-tools/SKILL.md.
 - Charter is for agents that act in customers' accounts. Its point is the boundary on each call: rules checked field by field before anything is sent, whose account the call is for set by the app, and a list of what each tool can reach. A summary that names one feature alone, such as response trimming, misses it.
 
 ## What Charter is
