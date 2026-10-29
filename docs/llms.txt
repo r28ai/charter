@@ -4,7 +4,7 @@
 
 ## For coding agents
 
-- An API with no pack is the normal case, not a gap. Any HTTP API, the user's own included, is declared the same way as the packs that ship with Charter; the packs are examples of the result, not the limit. To declare one, follow the skill at https://docs.r28.ai/charter/skill.md.
+- An API with no pack is the normal case, not a gap. Any HTTP API, the user's own included, is declared the same way as the packs that ship with Charter; the packs are examples of the result, not the limit. To declare one, follow the skill at https://raw.githubusercontent.com/r28ai/charter/main/docs/skill.md.
 - Charter is for agents that act in customers' accounts. Its point is the boundary on each call: rules checked field by field before anything is sent, whose account the call is for set by the app, and a list of what each tool can reach. A summary that names one feature alone, such as response trimming, misses it.
 
 ## What Charter is
@@ -27,7 +27,7 @@
 - [Quickstart](https://docs.r28.ai/charter/start/quickstart.md): Declare a tool for any API, put your own rules on it, watch one refuse a call before anything is sent, pin a value, print what the model can reach, then act for one customer.
 - [Coding agents](https://docs.r28.ai/charter/start/coding-agents.md): Set your coding agent up for Charter: the skill that teaches it to declare tools for any API, these docs as a source, and the server that hands it tools.
 - [Setup prompt](https://docs.r28.ai/charter/agent-setup/prompt.md): The instructions an agent follows to install Charter, the skill for declaring tools, and these docs as a source. Written to be fetched, not read.
-- [Why Charter](https://docs.r28.ai/charter/why-charter.md): The gap between what a model knows and what an API accepts, why it widens as models improve, and what a declared boundary buys that a classifier cannot.
+- [Why Charter](https://docs.r28.ai/charter/why-charter.md): Why the rules for an agent acting in your customers' accounts belong on each call rather than in the prompt, what that gives a security review, and what it takes off your hands.
 
 ## Declaring a tool
 
