@@ -240,7 +240,10 @@ customer gave and checked the zip code on it, where the policy asks it to find t
 by email, or by name and zip code, first. In task 13 its call to look the customer up
 came out as text instead of a call, the simulated customer answered with a user id in
 JSON, and the agent took that as verified. The other 43 broke rule 3 alone: the
-customer agreed, but not in a message that begins with "yes".
+customer agreed, but not in a message that begins with "yes". All 45 are in
+[`graded_passes.md`](https://github.com/r28ai/charter/tree/main/harness/results/bench/tau/sonnet5-2026-10-25/graded_passes.md),
+each call with what the customer said before it, as they were read to reach these counts
+([`graded_passes.py`](https://github.com/r28ai/charter/tree/main/harness/bench/tau/graded_passes.py)).
 
 Rule 3 cost tasks. The rules arm scored 82 against stock's 93: it failed 19 tasks
 stock passed, 9 of them with a rule-3 refusal in the conversation and 10 with no
@@ -686,6 +689,7 @@ python bench/tau/resume.py -- --model claude-sonnet --domain airline --split bas
 python bench/tau/resume.py -- --model claude-sonnet --domain retail --split base --tasks 0 \
     --arms stock,charter_rules --trials 1 --judge --out sonnet5-2026-10-25
 python bench/tau/report.py --run sonnet5-2026-10-25 --trials 1 claude-sonnet
+python bench/tau/graded_passes.py --run sonnet5-2026-10-25 claude-sonnet   # the passes to read by hand
 python bench/tau/replay_rules.py results/bench/tau/sonnet5-2026-10-25   # in a venv with tau2, no model
 .venv/bin/python bench/claude_provider.py --port 8799   # for --models claude-sonnet
 ```
