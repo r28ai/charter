@@ -215,12 +215,9 @@ class CharterEnv(Environment):
 
 def _invoke(tool: Tool, args: dict[str, Any], env: CharterEnv, sent: dict[str, Any]) -> Any:
     async def go() -> Any:
-        token = env.api.SESSION.set(env.session)
-        try:
-            async with httpx.AsyncClient(transport=env.api.transport(env, sent)) as client:
-                return await tool.ainvoke(args, client=client)
-        finally:
-            env.api.SESSION.reset(token)
+        # The rules read the session from Charter's per-call context.
+        async with httpx.AsyncClient(transport=env.api.transport(env, sent)) as client:
+            return await tool.ainvoke(args, client=client, context={"session": env.session})
 
     return asyncio.run(go())
 

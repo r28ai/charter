@@ -262,6 +262,15 @@ Records: [`harness/results/bench/tau/`](https://github.com/r28ai/charter/tree/ma
 (the Sonnet runs in `sonnet5-2026-10-25/`, with every conversation),
 code: [`harness/bench/tau/`](https://github.com/r28ai/charter/tree/main/harness/bench/tau).
 
+The rules read the episode's session from Charter's per-call
+[`context`](/tools/wire-contract#per-call-context). When these runs were recorded
+they read it from a module-level `ContextVar`, which `context` replaced.
+[`replay_rules.py`](https://github.com/r28ai/charter/tree/main/harness/bench/tau/replay_rules.py)
+replays every recorded call of the rules arm through the current code, on the
+episode's own database and with no model: in both runs that kept their
+conversations (`sonnet5-2026-10-25/` and `run2/`), all 1,703 replies, the 252
+refusals among them, are the recorded ones, byte for byte.
+
 ## The same calls through each tool layer
 
 No model here: the same call is sent through Charter, through the API's
@@ -677,6 +686,7 @@ python bench/tau/resume.py -- --model claude-sonnet --domain airline --split bas
 python bench/tau/resume.py -- --model claude-sonnet --domain retail --split base --tasks 0 \
     --arms stock,charter_rules --trials 1 --judge --out sonnet5-2026-10-25
 python bench/tau/report.py --run sonnet5-2026-10-25 --trials 1 claude-sonnet
+python bench/tau/replay_rules.py results/bench/tau/sonnet5-2026-10-25   # in a venv with tau2, no model
 .venv/bin/python bench/claude_provider.py --port 8799   # for --models claude-sonnet
 ```
 

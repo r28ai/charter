@@ -85,10 +85,12 @@ passes it per call as `ainvoke(args, context={...})`; the rule reads
 and there is no list of keys to keep in step with it. Add `Query()` (or another
 location) and it is also sent: a pin whose value arrives per call. Never a schema
 field the model fills in (it would be vouching for itself), and never a
-module-level `ContextVar` a validator reaches for: that is ambient state, and the
-τ²-bench harness's `retail_api.py` is the one place it was done, before `context`
-existed. `info.context` is for a rule on a nested model, which cannot see its
-parent's fields.
+module-level `ContextVar` a validator reaches for: that is ambient state. The
+τ²-bench harness did that once, before `context` existed, and now passes its
+session as `context` instead; `harness/bench/tau/replay_rules.py` replays the
+recorded runs through it to show no refusal moved. `info.context` is for a rule
+on a nested model, which cannot see its parent's fields, or for a live object a
+rule reads, as the harness's session is.
 
 **An argument the model decides that the API takes as a header** (Graph's
 `Prefer: odata.maxpagesize`). That *is* a schema field: mark it

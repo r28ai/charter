@@ -16,7 +16,8 @@ model and sent on the wire as a dict.
 - :func:`plain_tools`: no rule beyond the types.
 - :func:`ruled_tools`: adds the eleven rules in ``RULES_AIRLINE.md``, written
   before any task was read. They read the conversation and the database at call
-  time, through :data:`SESSION`.
+  time, from the session the environment passes each call as Charter's per-call
+  ``context``.
 
 :func:`check` is those rules, and the only copy of them. The ruled tools refuse a
 call it flags; :func:`broken_rules` applies it after the fact to every arm's
@@ -26,7 +27,6 @@ everywhere.
 
 from __future__ import annotations
 
-import contextvars
 import re
 import types
 from dataclasses import dataclass, field
@@ -34,7 +34,7 @@ from datetime import datetime, timedelta
 from typing import Annotated, Any, Union, get_args, get_origin
 
 from charter import Body, Query, Tool, api_key_tool_factory
-from pydantic import BaseModel, Field, create_model, model_validator
+from pydantic import BaseModel, Field, ValidationInfo, create_model, model_validator
 from retail_api import transport  # noqa: F401 - the same server, over this domain's tools
 from tau2.data_model.message import ToolMessage, UserMessage
 from tau2.domains.airline.data_model import FlightDB, Reservation
@@ -127,7 +127,12 @@ class Session:
         note_change(self.changed, name, args, self.env.tools.db)
 
 
-SESSION: contextvars.ContextVar[Session] = contextvars.ContextVar("airline_session")
+def session_of(info: ValidationInfo) -> Session:
+    """The episode's session, as the environment passed it with the call.
+
+    Read from Charter's per-call ``context``, as in ``retail_api``.
+    """
+    return info.context["session"]
 
 
 def note_change(changed: set[str], name: str, args: dict[str, Any], db: FlightDB) -> None:
@@ -488,8 +493,8 @@ def broken_rules(trajectory: list[Any], task: Any) -> list[dict[str, Any]]:
 def _ruled_base(name: str) -> type[BaseModel]:
     class Ruled(BaseModel):
         @model_validator(mode="after")
-        def _policy(self) -> Ruled:
-            session = SESSION.get()
+        def _policy(self, info: ValidationInfo) -> Ruled:
+            session = session_of(info)
             tools: AirlineTools = session.env.tools
             broke = check(
                 name,

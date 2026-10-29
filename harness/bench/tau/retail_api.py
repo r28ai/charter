@@ -13,13 +13,13 @@ description.
 
 - :func:`plain_tools`: no rule beyond the types.
 - :func:`ruled_tools`: adds the three rules in ``RULES.md``, written before any
-  task was read. They read the conversation at call time, through
-  :data:`SESSION`, which the environment sets before each call.
+  task was read. They read the conversation at call time, from the session the
+  environment passes each call as Charter's per-call ``context``
+  (``ainvoke(args, context={"session": ...})``), and so as ``info.context``.
 """
 
 from __future__ import annotations
 
-import contextvars
 import json
 import re
 from dataclasses import dataclass, field
@@ -27,7 +27,14 @@ from typing import Annotated, Any
 
 import httpx
 from charter import Body, Query, Tool, api_key_tool_factory
-from pydantic import AfterValidator, BaseModel, Field, create_model, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    Field,
+    ValidationInfo,
+    create_model,
+    model_validator,
+)
 from tau2.environment.environment import Environment
 
 BASE_URL = "http://retail.local/"
@@ -69,7 +76,14 @@ class Session:
         self.last_user_message = text
 
 
-SESSION: contextvars.ContextVar[Session] = contextvars.ContextVar("retail_session")
+def session_of(info: ValidationInfo) -> Session:
+    """The episode's session, as the environment passed it with the call.
+
+    Read from Charter's per-call ``context`` rather than a module-level
+    ``ContextVar``. The recorded runs used one, and ``replay_rules.py`` replays
+    them through this version to show the refusals did not move.
+    """
+    return info.context["session"]
 
 
 def is_yes(text: str) -> bool:
@@ -78,9 +92,9 @@ def is_yes(text: str) -> bool:
     return bool(words) and words[0] == "yes"
 
 
-def _own_user(value: str) -> str:
+def _own_user(value: str, info: ValidationInfo) -> str:
     """Rule 2, for a user id."""
-    session = SESSION.get()
+    session = session_of(info)
     if session.user_id is not None and value != session.user_id:
         raise ValueError(
             "This is not the user authenticated in this conversation. You can only act "
@@ -89,9 +103,9 @@ def _own_user(value: str) -> str:
     return value
 
 
-def _own_order(value: str) -> str:
+def _own_order(value: str, info: ValidationInfo) -> str:
     """Rule 2, for an order id. An order that does not exist is the API's to report."""
-    session = SESSION.get()
+    session = session_of(info)
     owner = session.owners.get(value)
     if session.user_id is not None and owner is not None and owner != session.user_id:
         raise ValueError(
@@ -106,8 +120,8 @@ def _ruled_base(name: str) -> type[BaseModel]:
 
     class Ruled(BaseModel):
         @model_validator(mode="after")
-        def _conversation(self) -> Ruled:
-            session = SESSION.get()
+        def _conversation(self, info: ValidationInfo) -> Ruled:
+            session = session_of(info)
             if name not in OPEN and session.user_id is None:
                 raise ValueError(
                     "No user has been authenticated in this conversation. Find their user "
