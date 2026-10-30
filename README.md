@@ -24,7 +24,7 @@
 
 </div>
 
-> **Design partners:** a few teams shipping agents get what they need built first.
+> **Design partners:** Building something complex? Get your feature requests prioritized.
 > DM [@NathanQueme](https://x.com/NathanQueme) or email [nathan@r28.ai](mailto:nathan@r28.ai).
 
 # Charter
