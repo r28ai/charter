@@ -360,6 +360,11 @@ which fields the model can set, which values it sends, and whose account the cal
 `gmail.readonly` lets an agent read every email; Charter decides which query it may send.
 The two stack: the token layer narrows the grant, and Charter narrows each call made with it.
 
+Services that check an agent's calls sit in front of them, as a proxy or a wrapper, often
+holding your users' tokens, with rules set in their dashboard. Charter is the tool itself: it
+runs in your process, the rules live next to the fields in your repo and are diffed in review,
+and it's open source.
+
 Hosted tool platforms like Composio run each call on their own servers. Charter runs in your
 process, so your users' tokens and data never pass through a third party, and a call costs
 what the API does. In [our benchmark](https://docs.r28.ai/charter/guarantees/benchmarks#time-and-money-per-call),
